@@ -256,6 +256,9 @@ pub struct AppState {
     /// Password prompt shown on first launch when store file exists.
     needs_unlock: bool,
     unlock_password_input: String,
+    /// Show the "forgot password" bubble on the unlock screen, which offers to
+    /// wipe the undecryptable account store and restart fresh.
+    show_forgot_password: bool,
 
     /// When set, shows a confirmation dialog before removing the account.
     confirm_remove: Option<u64>,
@@ -360,6 +363,7 @@ impl AppState {
             last_launch: None,
             needs_unlock,
             unlock_password_input: String::new(),
+            show_forgot_password: false,
             confirm_remove: None,
             update_available: None,
             show_changelog: false,
@@ -1271,8 +1275,17 @@ impl eframe::App for AppState {
                             password: pw,
                         });
                     }
+
+                    ui.add_space(6.0);
+                    if ui
+                        .link(egui::RichText::new("Forgot password?").weak().small())
+                        .clicked()
+                    {
+                        self.show_forgot_password = true;
+                    }
                 });
             });
+            self.show_forgot_password_dialog(ctx);
             self.toasts.show(ctx);
             return;
         }
@@ -3935,6 +3948,78 @@ impl AppState {
             });
         if !keep_open {
             self.confirm_remove = None;
+        }
+    }
+
+    fn show_forgot_password_dialog(&mut self, ctx: &egui::Context) {
+        if !self.show_forgot_password {
+            return;
+        }
+        let mut open = true;
+        let mut clear_and_relaunch = false;
+        let mut cancel = false;
+        egui::Window::new("Forgot Password")
+            .open(&mut open)
+            .resizable(false)
+            .collapsible(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.label(
+                    "Account stores cannot be decrypted without the master password.\n\
+                     To proceed, you must clear the account stores and start over.",
+                );
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .button("🗑  Clear account stores and relaunch")
+                        .clicked()
+                    {
+                        clear_and_relaunch = true;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        cancel = true;
+                    }
+                });
+            });
+        self.show_forgot_password = open && !cancel && !clear_and_relaunch;
+        if clear_and_relaunch {
+            self.clear_account_stores_and_relaunch();
+        }
+    }
+
+    /// Delete the encrypted account store (and its last-known-good backup) from
+    /// the data dir, then relaunch so the user lands on first-run setup. App
+    /// settings (`config.json`) and everything else on disk are left untouched.
+    fn clear_account_stores_and_relaunch(&mut self) {
+        let mut cleared = true;
+        for path in [
+            self.config.accounts_path.clone(),
+            ram_core::storage::backup_path(&self.config.accounts_path),
+        ] {
+            match std::fs::remove_file(&path) {
+                Ok(()) => tracing::info!("Deleted account store {}", path.display()),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => {
+                    tracing::warn!("Failed to delete {}: {e}", path.display());
+                    cleared = false;
+                }
+            }
+        }
+        if !cleared {
+            self.toasts
+                .push(Toast::error("Failed to clear the account stores"));
+            return;
+        }
+
+        match std::env::current_exe()
+            .and_then(|exe| std::process::Command::new(exe).spawn().map(|_| ()))
+        {
+            Ok(()) => std::process::exit(0),
+            Err(e) => {
+                tracing::error!("Failed to relaunch after clearing account stores: {e}");
+                self.toasts
+                    .push(Toast::error("Cleared account stores — please restart the app"));
+            }
         }
     }
 
