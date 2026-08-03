@@ -5,12 +5,27 @@ use eframe::egui;
 use ram_core::models::{AccountStore, AppConfig, PrivateServer};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use crate::bridge::{BackendBridge, BackendCommand, BackendEvent};
 use crate::components::{
     group_panel, main_panel, presets_panel, private_servers, settings, sidebar, tutorial,
 };
 use crate::toast::{Toast, Toasts};
+
+/// Wall-clock interval gate for background work. Returns `true` and stamps
+/// `slot` when `every` has elapsed since the last fire. Callers must put any
+/// cheap guard (empty account list, etc.) *before* this in the condition, since
+/// a `true` result consumes the interval.
+fn interval_due(slot: &mut Option<Instant>, every: Duration) -> bool {
+    let now = Instant::now();
+    if slot.is_none_or(|t| now.duration_since(t) >= every) {
+        *slot = Some(now);
+        true
+    } else {
+        false
+    }
+}
 
 /// Produce a blurred PNG of an avatar for anonymize mode. Returns `None` if
 /// the input couldn't be decoded or re-encoded. Box blur (`fast_blur`) is
@@ -171,6 +186,13 @@ pub struct AppState {
     /// don't fire reliably in eframe's reactive mode (update() only runs on
     /// input), so periodic background work uses real time instead.
     last_tray_kill: Option<std::time::Instant>,
+    /// Wall-clock timestamps for the background refresh timers, same reasoning
+    /// as `last_tray_kill`. The repaint rate swings between ~0.5fps when idle
+    /// and 60fps while anything animates, so a frame count is off by 120x
+    /// depending on what the UI happens to be doing.
+    last_presence_poll: Option<std::time::Instant>,
+    last_avatar_refresh: Option<std::time::Instant>,
+    last_revalidation: Option<std::time::Instant>,
     /// Wall-clock timestamp of the last user-initiated game launch. Used to
     /// enforce `config.launch_delay_secs` so the user can't trigger another
     /// single/quick launch inside the cooldown window.
@@ -246,6 +268,12 @@ impl AppState {
             roblox_running: false,
             frame_count: 0,
             last_tray_kill: None,
+            // Seeded to "now" so the first tick lands one full interval in,
+            // rather than firing a redundant round at startup (StoreLoaded
+            // already kicks off a refresh and revalidation).
+            last_presence_poll: Some(std::time::Instant::now()),
+            last_avatar_refresh: Some(std::time::Instant::now()),
+            last_revalidation: Some(std::time::Instant::now()),
             last_launch: None,
             needs_unlock,
             unlock_password_input: String::new(),
@@ -667,9 +695,15 @@ impl AppState {
 
     /// Get the first available cookie for API calls (decrypted from credential
     /// manager or in-memory encrypted cookie).
+    /// The account whose cookie the shared refresh calls (presence, avatars)
+    /// borrow. Skips accounts already known to have a dead cookie: those calls
+    /// fail on every poll otherwise, and since the polls are on a timer that
+    /// produced an endless stream of identical error toasts. Returning `None`
+    /// here is what stops the polling entirely once no usable cookie is left.
     fn first_account_with_cookie(&self) -> Option<&ram_core::models::Account> {
         self.store.accounts.iter().find(|a| {
-            self.config.use_credential_manager || a.encrypted_cookie.is_some()
+            !a.cookie_expired
+                && (self.config.use_credential_manager || a.encrypted_cookie.is_some())
         })
     }
 
@@ -871,18 +905,27 @@ impl eframe::App for AppState {
             }
         }
 
-        // Periodically refresh presence for visible accounts (every ~600 frames ≈ 10s)
-        if self.frame_count.is_multiple_of(600) && !self.visible_user_ids.is_empty() {
+        // Periodically refresh presence for visible accounts (every 10s)
+        if !self.visible_user_ids.is_empty()
+            && interval_due(&mut self.last_presence_poll, Duration::from_secs(10))
+        {
             self.trigger_presence_refresh();
         }
 
-        // Periodically refresh avatars for all accounts (every ~3600 frames ≈ 60s)
-        if self.frame_count % 3600 == 300 && !self.store.accounts.is_empty() {
+        // Periodically refresh avatars for all accounts (every 60s)
+        if !self.store.accounts.is_empty()
+            && interval_due(&mut self.last_avatar_refresh, Duration::from_secs(60))
+        {
             self.trigger_refresh();
         }
 
-        // Periodically revalidate all account cookies (every ~18000 frames ≈ 5 min)
-        if self.frame_count % 18000 == 900 && !self.store.accounts.is_empty() {
+        // Periodically revalidate all account cookies (every 5 min). This is
+        // also the path that clears `cookie_expired` once a cookie starts
+        // working again, which is what lets the refresh timers above pick an
+        // account back up, so it must keep ticking while the app sits idle.
+        if !self.store.accounts.is_empty()
+            && interval_due(&mut self.last_revalidation, Duration::from_secs(300))
+        {
             self.trigger_revalidation();
         }
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.4.6
+
+### Fixed
+- **Spammy "403 Forbidden after CSRF retry" notification.** A rate-limited request used up the retry meant for a rotated CSRF token. The two are now counted separately.
+- **CSRF tokens are cached per account** instead of in one shared slot. Roblox ties a token to the session that asked for it, so every account switch ate a guaranteed 403.
+- **Clearer error text.** A 403 with no CSRF challenge is a rejected cookie, not a CSRF failure, and now says so.
+- **Thumbnails and presence stuck for every account** when a single cookie went bad. Thumbnails no longer send a cookie, and a failed avatar fetch no longer aborts the presence refresh.
+- **Wrong avatars and game icons.** Roblox returns thumbnail results out of order and drops IDs it cannot resolve. Results are matched by ID now, not by position.
+- **Background refresh timers** use wall-clock intervals instead of a frame counter, which drifted badly while the window sat idle.
+- **Repeat error notifications** are suppressed for a minute, and the toast stack is capped at five.
+
 ## v1.4.5
 
 ### Fixed

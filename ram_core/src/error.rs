@@ -17,6 +17,13 @@ pub enum CoreError {
     #[error("CSRF token missing from response headers")]
     CsrfTokenMissing,
 
+    /// A 403 that carried no `x-csrf-token` header, so it was never a CSRF
+    /// problem: the cookie is revoked, or Roblox wants a challenge solved.
+    /// Kept distinct from [`CoreError::AuthFailed`] so callers can tell
+    /// "this session is dead" apart from "the token round-trip failed".
+    #[error("Cookie rejected by Roblox (403, no CSRF challenge)")]
+    CookieRejected,
+
     #[error("Rate limited by Roblox. Retry after backoff.")]
     RateLimited,
 

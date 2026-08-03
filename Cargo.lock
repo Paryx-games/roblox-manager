@@ -3984,7 +3984,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "ram_core"
-version = "1.4.5"
+version = "1.4.6"
 dependencies = [
  "aes-gcm",
  "base64",
@@ -4006,7 +4006,7 @@ dependencies = [
 
 [[package]]
 name = "ram_ui"
-version = "1.4.5"
+version = "1.4.6"
 dependencies = [
  "chrono",
  "eframe",

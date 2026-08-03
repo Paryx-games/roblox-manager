@@ -396,11 +396,11 @@ async fn handle_command(
             }
 
             // Fetch avatar URL and image bytes immediately after validation
-            if let Ok(avatars) = api::fetch_avatars(client, &cookie, &[user_id]).await {
+            if let Ok(avatars) = api::fetch_avatars(client, &[user_id]).await {
                 if let Some((_, url)) = avatars.first() {
                     account.avatar_url = url.clone();
                 }
-                let images = api::download_avatar_images(client, &cookie, &avatars).await;
+                let images = api::download_avatar_images(client, &avatars).await;
                 if !images.is_empty() {
                     let _ = tx.send(BackendEvent::AvatarImagesReady(images));
                 }
@@ -461,13 +461,14 @@ async fn handle_command(
                 });
             }
 
-            // Best-effort avatar fetch. thumbnails.roblox.com is public and
-            // works even if the cookie is dead, so this usually succeeds.
-            if let Ok(avatars) = api::fetch_avatars(client, &cookie, &[user_id]).await {
+            // Best-effort avatar fetch. thumbnails.roblox.com is public, and
+            // we no longer send a cookie with it, so a dead cookie on this
+            // account is irrelevant here.
+            if let Ok(avatars) = api::fetch_avatars(client, &[user_id]).await {
                 if let Some((_, url)) = avatars.first() {
                     account.avatar_url = url.clone();
                 }
-                let images = api::download_avatar_images(client, &cookie, &avatars).await;
+                let images = api::download_avatar_images(client, &avatars).await;
                 if !images.is_empty() {
                     let _ = tx.send(BackendEvent::AvatarImagesReady(images));
                 }
@@ -487,8 +488,15 @@ async fn handle_command(
             let _ = crypto::credential_delete(user_id);
             Ok(BackendEvent::AccountRemoved { user_id })
         }
-        BackendCommand::RefreshAvatars { user_ids, cookie } => {
-            let avatars = api::fetch_avatars(client, &cookie, &user_ids).await?;
+        BackendCommand::RefreshAvatars { user_ids, cookie: _ } => {
+            // Avatars are cosmetic: log a failure rather than surfacing an
+            // error toast for something the user can't act on.
+            let avatars = api::fetch_avatars(client, &user_ids)
+                .await
+                .unwrap_or_else(|e| {
+                    info!("Avatar refresh failed (non-fatal): {e}");
+                    Vec::new()
+                });
             Ok(BackendEvent::AvatarsUpdated(avatars))
         }
         BackendCommand::RefreshPresence { user_ids, cookie } => {
@@ -583,12 +591,21 @@ async fn handle_command(
                 })?;
                 crypto::decrypt_cookie(&enc, &password)?
             };
-            let avatars = api::fetch_avatars(client, &cookie, &user_ids).await?;
-            let _ = tx.send(BackendEvent::AvatarsUpdated(avatars.clone()));
-            // Download actual image bytes (skips failures)
-            let images = api::download_avatar_images(client, &cookie, &avatars).await;
-            if !images.is_empty() {
-                let _ = tx.send(BackendEvent::AvatarImagesReady(images));
+            // Avatars and presence are independent calls over the same account
+            // list. They used to share a `?`, so one failed avatar batch
+            // aborted the whole command and left every account with a
+            // placeholder image *and* a stale grey presence dot. Keep the
+            // avatar leg self-contained so it can fail alone.
+            match api::fetch_avatars(client, &user_ids).await {
+                Ok(avatars) => {
+                    let _ = tx.send(BackendEvent::AvatarsUpdated(avatars.clone()));
+                    // Download actual image bytes (skips failures)
+                    let images = api::download_avatar_images(client, &avatars).await;
+                    if !images.is_empty() {
+                        let _ = tx.send(BackendEvent::AvatarImagesReady(images));
+                    }
+                }
+                Err(e) => info!("Avatar refresh failed (non-fatal): {e}"),
             }
             let presences = api::fetch_presences(client, &cookie, &user_ids).await?;
             Ok(BackendEvent::PresencesUpdated(presences))

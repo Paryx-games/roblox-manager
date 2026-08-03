@@ -18,14 +18,20 @@ struct ThumbnailResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ThumbnailEntry {
+    target_id: u64,
     image_url: Option<String>,
 }
 
 /// Fetch avatar headshot thumbnail URLs for a batch of user IDs.
 /// Returns a vec of `(user_id, url)` pairs.
+///
+/// Deliberately unauthenticated: the thumbnails endpoint is public (same as
+/// [`fetch_game_icons`]), and this is one batched call covering every account
+/// at once. Signing it with some account's cookie meant a single revoked
+/// cookie turned a would-be anonymous 200 into a 403, blanking the avatars
+/// for every account in the list.
 pub async fn fetch_avatars(
     client: &RobloxClient,
-    cookie: &str,
     user_ids: &[u64],
 ) -> Result<Vec<(u64, String)>, CoreError> {
     if user_ids.is_empty() {
@@ -38,25 +44,38 @@ pub async fn fetch_avatars(
          ?userIds={ids_param}&size=150x150&format=Png&isCircular=false"
     );
 
-    let resp: ThumbnailResponse = client.get_json(&url, cookie).await?;
+    let resp: ThumbnailResponse = client.get_json(&url, "").await?;
+    Ok(pair_thumbnails(user_ids, resp.data))
+}
 
-    Ok(user_ids
-        .iter()
-        .zip(resp.data.iter())
-        .filter_map(|(id, entry)| entry.image_url.clone().map(|url| (*id, url)))
-        .collect())
+/// Pair thumbnail entries back to the IDs that asked for them.
+///
+/// Keyed on `targetId`, never on position. The thumbnails service does not
+/// promise request order, and it omits IDs it can't resolve (deleted accounts,
+/// typo'd IDs) rather than returning a null entry. Both were observed live:
+/// `/games/icons` echoes a reordered array, and `/users/avatar-headshot`
+/// returns two entries for a three-ID request containing one bad ID. Zipping
+/// the request against the response therefore handed images to the wrong
+/// account or universe and dropped the trailing one.
+fn pair_thumbnails(requested_ids: &[u64], data: Vec<ThumbnailEntry>) -> Vec<(u64, String)> {
+    data.into_iter()
+        .filter(|entry| requested_ids.contains(&entry.target_id))
+        .filter_map(|entry| entry.image_url.map(|url| (entry.target_id, url)))
+        .collect()
 }
 
 /// Download the actual image bytes for each avatar URL.
 /// Returns a vec of `(user_id, raw_bytes)` pairs (skips failures).
+///
+/// Unauthenticated for the same reason as [`fetch_avatars`]: these URLs point
+/// at the public `rbxcdn` image host, which has no use for a session cookie.
 pub async fn download_avatar_images(
     client: &RobloxClient,
-    cookie: &str,
     avatars: &[(u64, String)],
 ) -> Vec<(u64, Vec<u8>)> {
     let mut results = Vec::new();
     for (id, url) in avatars {
-        match client.get_bytes(url, cookie).await {
+        match client.get_bytes(url, "").await {
             Ok(bytes) => results.push((*id, bytes)),
             Err(e) => tracing::warn!("Failed to download avatar for {id}: {e}"),
         }
@@ -168,12 +187,7 @@ pub async fn fetch_game_icons(
     );
 
     let resp: ThumbnailResponse = client.get_json(&url, "").await?;
-
-    Ok(universe_ids
-        .iter()
-        .zip(resp.data.iter())
-        .filter_map(|(id, entry)| entry.image_url.clone().map(|url| (*id, url)))
-        .collect())
+    Ok(pair_thumbnails(universe_ids, resp.data))
 }
 
 // ---------------------------------------------------------------------------
@@ -536,4 +550,65 @@ pub async fn fetch_moderation_status(
         expires_at,
         last_checked: Some(chrono::Utc::now()),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(target_id: u64, image_url: Option<&str>) -> ThumbnailEntry {
+        ThumbnailEntry {
+            target_id,
+            image_url: image_url.map(|s| s.to_string()),
+        }
+    }
+
+    /// Roblox drops IDs it can't resolve rather than returning a null entry.
+    /// Verified against the live endpoint: requesting `1,999999999999,156`
+    /// returns two entries, for 1 and 156.
+    #[test]
+    fn missing_entries_do_not_shift_avatars_onto_wrong_accounts() {
+        let requested = [1u64, 999_999_999_999, 156];
+        let responded = vec![entry(1, Some("url-1")), entry(156, Some("url-156"))];
+
+        let paired = pair_thumbnails(&requested, responded);
+
+        assert_eq!(
+            paired,
+            vec![(1, "url-1".to_string()), (156, "url-156".to_string())]
+        );
+    }
+
+    #[test]
+    fn out_of_order_responses_pair_correctly() {
+        let requested = [1u64, 156];
+        let responded = vec![entry(156, Some("url-156")), entry(1, Some("url-1"))];
+
+        let paired = pair_thumbnails(&requested, responded);
+
+        assert_eq!(
+            paired,
+            vec![(156, "url-156".to_string()), (1, "url-1".to_string())]
+        );
+    }
+
+    #[test]
+    fn entries_without_an_image_are_skipped() {
+        let requested = [1u64, 156];
+        let responded = vec![entry(1, None), entry(156, Some("url-156"))];
+
+        let paired = pair_thumbnails(&requested, responded);
+
+        assert_eq!(paired, vec![(156, "url-156".to_string())]);
+    }
+
+    #[test]
+    fn unrequested_ids_are_ignored() {
+        let requested = [1u64];
+        let responded = vec![entry(1, Some("url-1")), entry(999, Some("url-999"))];
+
+        let paired = pair_thumbnails(&requested, responded);
+
+        assert_eq!(paired, vec![(1, "url-1".to_string())]);
+    }
 }

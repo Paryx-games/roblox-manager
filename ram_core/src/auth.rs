@@ -2,12 +2,20 @@
 //!
 //! The [`RobloxClient`] wraps a `reqwest::Client` and transparently handles
 //! CSRF token rotation: if a request returns `403` with a new token in the
-//! `x-csrf-token` header, the client updates its state and retries once.
+//! `x-csrf-token` header, the client updates its state and retries.
 //! Exponential backoff is applied for `429 Too Many Requests`.
+//!
+//! Roblox binds a CSRF token to the session that requested it, so tokens are
+//! cached **per cookie**, not globally. One shared slot meant every account
+//! switch sent the previous account's token and ate a guaranteed 403, and
+//! concurrent tasks overwrote each other's token continuously.
 
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, COOKIE, REFERER};
 use reqwest::{Client, Method, Response, StatusCode};
 use serde::de::DeserializeOwned;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -18,13 +26,25 @@ use crate::error::CoreError;
 const USER_AGENT: &str = "RM-Rust/0.1";
 const MAX_RETRIES: u32 = 4;
 const BASE_BACKOFF_MS: u64 = 500;
+/// How many times a single request will re-send after a CSRF token rotation.
+/// Tracked separately from the rate-limit attempt count: a prior 429 must not
+/// consume the retry that a freshly-rotated token has earned.
+const MAX_CSRF_RETRIES: u32 = 2;
+
+/// Cache key for a cookie's CSRF token. Hashed so the secret itself isn't
+/// duplicated into a long-lived map key.
+fn cookie_key(cookie: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    cookie.hash(&mut hasher);
+    hasher.finish()
+}
 
 /// A stateful HTTP client that manages `.ROBLOSECURITY` cookies and CSRF tokens.
 #[derive(Clone)]
 pub struct RobloxClient {
     inner: Client,
-    /// Current CSRF token (shared across clones via Arc<RwLock>).
-    csrf_token: Arc<RwLock<Option<String>>>,
+    /// Current CSRF token per cookie (shared across clones via Arc<RwLock>).
+    csrf_tokens: Arc<RwLock<HashMap<u64, String>>>,
 }
 
 impl RobloxClient {
@@ -37,7 +57,7 @@ impl RobloxClient {
             .build()?;
         Ok(Self {
             inner: client,
-            csrf_token: Arc::new(RwLock::new(None)),
+            csrf_tokens: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -53,22 +73,31 @@ impl RobloxClient {
         cookie: &str,
         body: Option<&serde_json::Value>,
     ) -> Result<Response, CoreError> {
+        // Two independent counters. Sharing one made any request that had been
+        // rate-limited skip its CSRF retry, returning an auth error while
+        // holding the very token that would have worked.
         let mut attempt = 0u32;
+        let mut csrf_attempt = 0u32;
+        let key = cookie_key(cookie);
 
         loop {
             let mut headers = HeaderMap::new();
-            // Attach cookie
-            let cookie_val = format!(".ROBLOSECURITY={cookie}");
-            headers.insert(
-                COOKIE,
-                HeaderValue::from_str(&cookie_val)
-                    .map_err(|e| CoreError::AuthFailed(e.to_string()))?,
-            );
+            // Attach cookie. An empty cookie means the caller wants an
+            // anonymous request (public endpoints: thumbnails, game icons),
+            // so send no header at all rather than a bare `.ROBLOSECURITY=`.
+            if !cookie.is_empty() {
+                let cookie_val = format!(".ROBLOSECURITY={cookie}");
+                headers.insert(
+                    COOKIE,
+                    HeaderValue::from_str(&cookie_val)
+                        .map_err(|e| CoreError::AuthFailed(e.to_string()))?,
+                );
+            }
 
-            // Attach CSRF token if we have one
+            // Attach this cookie's CSRF token if we have one
             {
-                let token = self.csrf_token.read().await;
-                if let Some(ref t) = *token {
+                let tokens = self.csrf_tokens.read().await;
+                if let Some(t) = tokens.get(&key) {
                     headers.insert(
                         "x-csrf-token",
                         HeaderValue::from_str(t)
@@ -100,24 +129,35 @@ impl RobloxClient {
             let resp = req.send().await?;
 
             match resp.status() {
-                // Token rotation: update and retry once
+                // Token rotation: update this cookie's token and retry
                 StatusCode::FORBIDDEN => {
-                    if let Some(new_token) = resp
+                    let rotated = resp
                         .headers()
                         .get("x-csrf-token")
                         .and_then(|v| v.to_str().ok())
+                        .map(|s| s.to_string());
+
+                    let Some(new_token) = rotated else {
+                        // No challenge header, so this was never about CSRF.
+                        // The cookie is revoked or Roblox wants a challenge
+                        // solved. Reporting it as a CSRF failure sent users
+                        // chasing the wrong bug.
+                        return Err(CoreError::CookieRejected);
+                    };
+
                     {
-                        debug!("CSRF token rotated, retrying");
-                        let mut token = self.csrf_token.write().await;
-                        *token = Some(new_token.to_string());
-                        if attempt == 0 {
-                            attempt += 1;
-                            continue;
-                        }
+                        let mut tokens = self.csrf_tokens.write().await;
+                        tokens.insert(key, new_token);
                     }
-                    return Err(CoreError::AuthFailed(
-                        "403 Forbidden after CSRF retry".into(),
-                    ));
+
+                    if csrf_attempt < MAX_CSRF_RETRIES {
+                        csrf_attempt += 1;
+                        debug!("CSRF token rotated, retrying (attempt {csrf_attempt})");
+                        continue;
+                    }
+                    return Err(CoreError::AuthFailed(format!(
+                        "403 Forbidden after {csrf_attempt} CSRF retries"
+                    )));
                 }
                 // Rate-limit: exponential backoff
                 StatusCode::TOO_MANY_REQUESTS => {
