@@ -5,3 +5,8 @@ config.json
 *.exe
 *.pdb
 *.log
+/references
+# Personal Claude Code settings. Contains a GitLab runner registration token.
+.claude/settings.local.json
+# GitLab runner machine identifier.
+.runner_system_id

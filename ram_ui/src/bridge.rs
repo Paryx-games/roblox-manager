@@ -5,10 +5,12 @@
 //! back as [`BackendEvent`] through an mpsc channel polled each frame.
 
 use eframe::egui;
+use ram_core::assets::{AssetKind, Creator, OperationOutcome};
 use ram_core::auth::RobloxClient;
 use ram_core::models::{Account, AccountStore, Presence};
-use ram_core::{api, crypto, process, CoreError};
+use ram_core::{api, assets, assets_api, crypto, process, CoreError};
 use std::path::PathBuf;
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{error, info};
 
@@ -148,6 +150,74 @@ pub enum BackendCommand {
         /// Label for the webview window title (username or anon tag).
         label: String,
     },
+    /// Upload one staged file. Boxed because the payload dwarfs every other
+    /// variant, and `clippy::large_enum_variant` is a hard error in CI.
+    UploadAsset(Box<UploadJob>),
+    /// Poll a batch of in-flight operations for a single account. One cookie
+    /// decrypt covers the whole batch, and results stream back per item.
+    PollAssetOperations {
+        user_id: u64,
+        encrypted_cookie: Option<String>,
+        password: String,
+        use_credential_manager: bool,
+        /// `(row_id, operation)` pairs. The caller caps the length.
+        operations: Vec<(String, String)>,
+    },
+    /// Grant one universe `Use` access to a batch of assets.
+    GrantAssetPermissions {
+        user_id: u64,
+        encrypted_cookie: Option<String>,
+        password: String,
+        use_credential_manager: bool,
+        universe_id: u64,
+        asset_ids: Vec<u64>,
+        /// Row IDs to stamp on success, so the library can show what happened.
+        row_ids: Vec<String>,
+    },
+    /// Populate the universe picker, and turn a pasted place ID into a
+    /// universe ID. `place_id` is `None` when only the list is wanted.
+    FetchUniverseTargets {
+        user_id: u64,
+        encrypted_cookie: Option<String>,
+        password: String,
+        use_credential_manager: bool,
+        place_id: Option<u64>,
+    },
+    /// Groups the account could publish under. Populates the creator picker
+    /// and the inventory tree.
+    FetchPublishGroups {
+        user_id: u64,
+        encrypted_cookie: Option<String>,
+        password: String,
+        use_credential_manager: bool,
+    },
+    /// One page of a creator's inventory for the browse pane.
+    FetchCreations {
+        user_id: u64,
+        encrypted_cookie: Option<String>,
+        password: String,
+        use_credential_manager: bool,
+        creator: Creator,
+        kind: AssetKind,
+        cursor: Option<String>,
+    },
+    /// Thumbnail images for the icon views. Unauthenticated, so no cookie.
+    FetchAssetThumbnails { asset_ids: Vec<u64> },
+}
+
+/// Everything one upload needs. The cookie arrives encrypted and is decrypted
+/// on the backend thread, never in the UI, matching `BrowseAsAccount`.
+pub struct UploadJob {
+    pub row_id: String,
+    pub user_id: u64,
+    pub encrypted_cookie: Option<String>,
+    pub password: String,
+    pub use_credential_manager: bool,
+    pub creator: Creator,
+    pub kind: AssetKind,
+    pub display_name: String,
+    pub description: String,
+    pub file_path: PathBuf,
 }
 
 impl BackendCommand {
@@ -238,6 +308,77 @@ pub enum BackendEvent {
         /// Best-effort moderation reason scraped despite the validation
         /// failure (some revocations leave the moderation endpoints reachable).
         moderation_message: Option<String>,
+    },
+    /// The file was read and hashed and the POST is going out. Carries the hash
+    /// so the UI can record it without re-reading the file.
+    AssetUploadStarted {
+        row_id: String,
+        file_sha256: String,
+        file_bytes: u64,
+    },
+    /// Roblox accepted the bytes and handed back something to poll. Persisting
+    /// this is what lets a restart pick the upload back up.
+    AssetOperationCreated {
+        row_id: String,
+        operation: String,
+        started_at: chrono::DateTime<chrono::Utc>,
+    },
+    /// One operation was polled. `StillPending` is a normal, frequent result.
+    AssetOperationResolved {
+        row_id: String,
+        outcome: OperationOutcome,
+    },
+    /// The upload failed before any operation existed, so there is nothing to
+    /// poll and nothing was created on Roblox.
+    AssetUploadFailed {
+        row_id: String,
+        message: String,
+        retryable: bool,
+    },
+    /// A `PollAssetOperations` batch finished. Carries nothing: every result
+    /// already streamed out as its own event.
+    AssetPollBatchDone,
+    /// A universe was granted `Use` on these assets.
+    AssetPermissionsGranted {
+        universe_id: u64,
+        row_ids: Vec<String>,
+        granted: usize,
+    },
+    /// The grant failed. Kept separate from `Error` so the wording can say
+    /// which universe, and so a wrong request shape cannot be mistaken for an
+    /// upload problem.
+    AssetPermissionsFailed { universe_id: u64, message: String },
+    /// The universe picker's contents, and optionally the universe a pasted
+    /// place ID resolved to.
+    UniverseTargetsFetched {
+        user_id: u64,
+        universes: Vec<assets_api::UniverseTarget>,
+        resolved_place: Option<(u64, u64)>,
+    },
+    /// Groups the account belongs to.
+    PublishGroupsFetched {
+        user_id: u64,
+        groups: Vec<assets_api::GroupTarget>,
+    },
+    /// One page of an inventory. `error` is set when the provisional endpoint
+    /// did not cooperate, so the pane can say so without failing the tab.
+    CreationsFetched {
+        creator: Creator,
+        kind: AssetKind,
+        /// True when this is a continuation, so the UI appends instead of
+        /// replacing.
+        appended: bool,
+        page: assets_api::CreationPage,
+        error: Option<String>,
+    },
+    /// Thumbnail results. `requested` is echoed back so the caller can tell
+    /// which assets Roblox declined to render and schedule a retry, rather
+    /// than leaving them as a permanent placeholder.
+    AssetThumbnailsReady {
+        requested: Vec<u64>,
+        /// `(asset_id, png bytes)`. Only assets Roblox has finished rendering,
+        /// so this can be shorter than `requested`.
+        images: Vec<(u64, Vec<u8>)>,
     },
 }
 
@@ -922,6 +1063,338 @@ async fn handle_command(
                     Ok(BackendEvent::ShareLinkFailed(e.to_string()))
                 }
             }
+        }
+        BackendCommand::UploadAsset(job) => Ok(upload_asset(*job, client, tx).await),
+        BackendCommand::PollAssetOperations {
+            user_id,
+            encrypted_cookie,
+            password,
+            use_credential_manager,
+            operations,
+        } => {
+            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            poll_asset_operations(client, &cookie, &operations, tx).await;
+            Ok(BackendEvent::AssetPollBatchDone)
+        }
+        BackendCommand::GrantAssetPermissions {
+            user_id,
+            encrypted_cookie,
+            password,
+            use_credential_manager,
+            universe_id,
+            asset_ids,
+            row_ids,
+        } => {
+            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            match assets_api::grant_use_permission(client, &cookie, universe_id, &asset_ids).await {
+                Ok(granted) => Ok(BackendEvent::AssetPermissionsGranted {
+                    universe_id,
+                    row_ids,
+                    granted: granted.len(),
+                }),
+                // Reported against the grant, not as a generic error: a wrong
+                // request shape here must not read as an upload failure.
+                Err(e) => Ok(BackendEvent::AssetPermissionsFailed {
+                    universe_id,
+                    message: e.to_string(),
+                }),
+            }
+        }
+        BackendCommand::FetchUniverseTargets {
+            user_id,
+            encrypted_cookie,
+            password,
+            use_credential_manager,
+            place_id,
+        } => {
+            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            // The listing is provisional, so a failure must not take the place
+            // resolution down with it. Both legs degrade independently.
+            let universes = match assets_api::list_manageable_universes(client, &cookie).await {
+                Ok(list) => list,
+                Err(e) => {
+                    info!("universe listing unavailable: {e}");
+                    Vec::new()
+                }
+            };
+            let mut resolved_place = None;
+            if let Some(place_id) = place_id {
+                match assets_api::resolve_place_universe(client, &cookie, place_id).await {
+                    Ok(universe_id) => resolved_place = Some((place_id, universe_id)),
+                    Err(e) => info!("could not resolve place {place_id}: {e}"),
+                }
+            }
+            Ok(BackendEvent::UniverseTargetsFetched {
+                user_id,
+                universes,
+                resolved_place,
+            })
+        }
+        BackendCommand::FetchPublishGroups {
+            user_id,
+            encrypted_cookie,
+            password,
+            use_credential_manager,
+        } => {
+            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            let groups = match assets_api::list_publishable_groups(client, &cookie).await {
+                Ok(groups) => groups,
+                Err(e) => {
+                    info!("group listing unavailable: {e}");
+                    Vec::new()
+                }
+            };
+            Ok(BackendEvent::PublishGroupsFetched { user_id, groups })
+        }
+        BackendCommand::FetchCreations {
+            user_id,
+            encrypted_cookie,
+            password,
+            use_credential_manager,
+            creator,
+            kind,
+            cursor,
+        } => {
+            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            let appended = cursor.is_some();
+            match assets_api::list_creations(client, &cookie, creator, kind, cursor.as_deref())
+                .await
+            {
+                Ok(page) => Ok(BackendEvent::CreationsFetched {
+                    creator,
+                    kind,
+                    appended,
+                    page,
+                    error: None,
+                }),
+                // Reported on the node, not as a toast. This endpoint is
+                // undocumented, and the library still works from the local
+                // index without it. Logged as well: routing a failure only
+                // into a hover tooltip left a real 404 invisible in rm.log,
+                // which made the first version of this take far longer to
+                // diagnose than it should have.
+                Err(e) => {
+                    error!("inventory listing failed for {creator:?} {kind:?}: {e}");
+                    Ok(BackendEvent::CreationsFetched {
+                        creator,
+                        kind,
+                        appended,
+                        page: assets_api::CreationPage::default(),
+                        error: Some(e.to_string()),
+                    })
+                }
+            }
+        }
+        BackendCommand::FetchAssetThumbnails { asset_ids } => {
+            let images = match assets_api::fetch_asset_thumbnails(client, &asset_ids).await {
+                Ok(images) => images,
+                Err(e) => {
+                    // Logged, not silent: a thumbnail that never appears used
+                    // to leave no trace anywhere.
+                    info!("thumbnail batch failed: {e}");
+                    Vec::new()
+                }
+            };
+            if images.len() < asset_ids.len() {
+                info!(
+                    "{} of {} thumbnails not rendered yet; will retry",
+                    asset_ids.len() - images.len(),
+                    asset_ids.len()
+                );
+            }
+            Ok(BackendEvent::AssetThumbnailsReady {
+                requested: asset_ids,
+                images,
+            })
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Asset uploads
+// ---------------------------------------------------------------------------
+
+/// How long the uploading task keeps polling before handing the operation over
+/// to the UI's long-horizon timer. Decals and short audio usually resolve
+/// inside this window, so the common case reaches an asset ID in a few seconds
+/// without waiting for the next tick.
+const UPLOAD_POLL_BURST: &[u64] = &[1, 2, 4];
+
+/// Gap between polls inside one batch. Keeps a large backlog to a few requests
+/// per second per account instead of a burst.
+const POLL_SPACING_MS: u64 = 250;
+
+/// The cookie-decrypt idiom used by every account-scoped command.
+fn decrypt_for(
+    user_id: u64,
+    encrypted_cookie: Option<String>,
+    password: &str,
+    use_credential_manager: bool,
+) -> Result<String, CoreError> {
+    if use_credential_manager {
+        return crypto::credential_load(user_id);
+    }
+    let enc = encrypted_cookie
+        .ok_or_else(|| CoreError::Crypto("no encrypted cookie stored for this account".into()))?;
+    crypto::decrypt_cookie(&enc, password)
+}
+
+/// Run one upload to completion, or as far as it gets. Errors are reported
+/// against the row rather than propagated, so one bad file cannot surface as an
+/// anonymous toast with no way to tell which row it came from.
+async fn upload_asset(
+    job: UploadJob,
+    client: &RobloxClient,
+    tx: &mpsc::UnboundedSender<BackendEvent>,
+) -> BackendEvent {
+    let row_id = job.row_id.clone();
+    match upload_asset_inner(job, client, tx).await {
+        Ok(event) => event,
+        Err(e) => {
+            let retryable = match &e {
+                CoreError::RobloxApi { status, .. } => assets_api::is_retryable_status(*status),
+                // A dead cookie or a local read failure will not fix itself.
+                CoreError::RateLimited | CoreError::Http(_) => true,
+                _ => false,
+            };
+            error!("upload failed for row {row_id}: {e}");
+            BackendEvent::AssetUploadFailed {
+                row_id,
+                message: e.to_string(),
+                retryable,
+            }
+        }
+    }
+}
+
+async fn upload_asset_inner(
+    job: UploadJob,
+    client: &RobloxClient,
+    tx: &mpsc::UnboundedSender<BackendEvent>,
+) -> Result<BackendEvent, CoreError> {
+    let UploadJob {
+        row_id,
+        user_id,
+        encrypted_cookie,
+        password,
+        use_credential_manager,
+        creator,
+        kind,
+        display_name,
+        description,
+        file_path,
+    } = job;
+
+    let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+
+    // Reading and hashing 20 MB is tens of milliseconds of blocking work. Doing
+    // it on a runtime worker would stall the presence and avatar tasks that
+    // share this runtime.
+    let path_for_read = file_path.clone();
+    let bytes = tokio::task::spawn_blocking(move || std::fs::read(&path_for_read))
+        .await
+        .map_err(|e| CoreError::Process(format!("file read task failed: {e}")))??;
+
+    let file_bytes = bytes.len() as u64;
+    let (_, mime) = assets::classify_path(&file_path).ok_or_else(|| CoreError::RobloxApi {
+        status: 400,
+        message: "This file type cannot be uploaded to Roblox".to_string(),
+    })?;
+
+    let hash_bytes = bytes.clone();
+    let file_sha256 = tokio::task::spawn_blocking(move || assets::sha256_hex(&hash_bytes))
+        .await
+        .map_err(|e| CoreError::Process(format!("hash task failed: {e}")))?;
+
+    let _ = tx.send(BackendEvent::AssetUploadStarted {
+        row_id: row_id.clone(),
+        file_sha256,
+        file_bytes,
+    });
+
+    let file_name = file_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("upload")
+        .to_string();
+
+    let request = assets_api::UploadRequest {
+        kind,
+        display_name,
+        description,
+        creator,
+        file_name,
+        mime,
+        bytes,
+    };
+    let created = assets_api::create_asset(client, &cookie, &request).await?;
+
+    let Some(operation) = created.operation else {
+        // No operation to poll. Either Roblox resolved it inline, or it told us
+        // nothing useful, and `parse_operation_response` already decided which.
+        return Ok(BackendEvent::AssetOperationResolved {
+            row_id,
+            outcome: created.outcome,
+        });
+    };
+
+    let _ = tx.send(BackendEvent::AssetOperationCreated {
+        row_id: row_id.clone(),
+        operation: operation.clone(),
+        started_at: chrono::Utc::now(),
+    });
+
+    if !matches!(created.outcome, OperationOutcome::StillPending) {
+        return Ok(BackendEvent::AssetOperationResolved {
+            row_id,
+            outcome: created.outcome,
+        });
+    }
+
+    for wait in UPLOAD_POLL_BURST {
+        tokio::time::sleep(Duration::from_secs(*wait)).await;
+        match assets_api::poll_operation(client, &cookie, &operation).await {
+            Ok(OperationOutcome::StillPending) => continue,
+            Ok(outcome) => return Ok(BackendEvent::AssetOperationResolved { row_id, outcome }),
+            // A failed poll is not a failed upload. Leave it Pending and let
+            // the UI's timer keep asking.
+            Err(e) => {
+                info!("poll burst for {row_id} failed, deferring to the timer: {e}");
+                break;
+            }
+        }
+    }
+
+    Ok(BackendEvent::AssetOperationResolved {
+        row_id,
+        outcome: OperationOutcome::StillPending,
+    })
+}
+
+/// Poll a batch serially, streaming one event per operation. Serial and paced
+/// so a large backlog stays a steady trickle rather than a burst.
+async fn poll_asset_operations(
+    client: &RobloxClient,
+    cookie: &str,
+    operations: &[(String, String)],
+    tx: &mpsc::UnboundedSender<BackendEvent>,
+) {
+    for (index, (row_id, operation)) in operations.iter().enumerate() {
+        if index > 0 {
+            tokio::time::sleep(Duration::from_millis(POLL_SPACING_MS)).await;
+        }
+        match assets_api::poll_operation(client, cookie, operation).await {
+            Ok(OperationOutcome::StillPending) => {}
+            Ok(outcome) => {
+                let _ = tx.send(BackendEvent::AssetOperationResolved {
+                    row_id: row_id.clone(),
+                    outcome,
+                });
+            }
+            // Transient: say nothing and let the next tick try again. Reporting
+            // it would spam the toast stack every poll interval while Roblox is
+            // having a bad day.
+            Err(e) => info!("poll of {operation} failed: {e}"),
         }
     }
 }

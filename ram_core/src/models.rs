@@ -199,6 +199,11 @@ pub struct AppConfig {
     /// Saved private servers for quick launching.
     #[serde(default)]
     pub private_servers: Vec<PrivateServer>,
+    /// Show the Asset Manager tab. Off by default: uploading creates permanent,
+    /// publicly moderated assets under a real account, which most users of this
+    /// app never need.
+    #[serde(default)]
+    pub developer_options: bool,
 }
 
 fn default_sort_mode() -> String {
@@ -235,6 +240,7 @@ impl Default for AppConfig {
             last_seen_version: None,
             sort_mode: "Custom".to_string(),
             private_servers: Vec::new(),
+            developer_options: false,
         }
     }
 }

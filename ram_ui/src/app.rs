@@ -7,9 +7,12 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use crate::bridge::{BackendBridge, BackendCommand, BackendEvent};
+use ram_core::assets::{AssetState, OperationOutcome};
+
+use crate::bridge::{BackendBridge, BackendCommand, BackendEvent, UploadJob};
 use crate::components::{
-    group_panel, main_panel, presets_panel, private_servers, settings, sidebar, tutorial,
+    asset_manager, group_panel, main_panel, presets_panel, private_servers, settings, sidebar,
+    tutorial,
 };
 use crate::toast::{Toast, Toasts};
 
@@ -52,6 +55,8 @@ enum Tab {
     Accounts,
     PrivateServers,
     Presets,
+    /// Only reachable while `config.developer_options` is on.
+    AssetManager,
     Settings,
 }
 
@@ -156,6 +161,7 @@ pub struct AppState {
     main_panel_state: main_panel::MainPanelState,
     private_servers_state: private_servers::PrivateServerState,
     presets_state: presets_panel::PresetsState,
+    asset_manager_state: asset_manager::AssetManagerState,
     settings_state: settings::SettingsState,
     add_dialog: AddAccountDialog,
 
@@ -175,6 +181,39 @@ pub struct AppState {
     /// Downloaded game icon bytes, keyed by place ID.
     game_icon_bytes: HashMap<u64, Vec<u8>>,
 
+    /// Every asset this app has staged or uploaded. Loaded unconditionally,
+    /// even when `developer_options` is off, so toggling the setting can never
+    /// strand an upload that is still being moderated.
+    asset_index: ram_core::assets::AssetIndex,
+    asset_index_path: PathBuf,
+    /// Set when the index on disk was written by a newer build or could not be
+    /// read. Blocks saving so we cannot destroy what we cannot represent.
+    asset_index_read_only: bool,
+    /// Index has unsaved changes; flushed by the debounce timer and on exit.
+    asset_index_dirty: bool,
+    /// Rows waiting on the upload confirmation modal.
+    pending_upload_rows: Vec<String>,
+    /// Universes the acting account manages, and who they were fetched for.
+    /// Possibly empty: the listing endpoint is provisional and the manual ID
+    /// field in the grant dialog is the guaranteed path.
+    universe_targets: Vec<ram_core::assets_api::UniverseTarget>,
+    universe_targets_user: Option<u64>,
+    /// Groups the acting account belongs to, as candidate publish targets.
+    publish_groups: Vec<ram_core::assets_api::GroupTarget>,
+    /// The inventory page currently loaded in the browse pane.
+    remote_inventory: asset_manager::RemoteInventory,
+    /// Thumbnail PNGs for the icon views, keyed by asset ID.
+    asset_thumbnails: HashMap<u64, Vec<u8>>,
+    /// Requests currently in flight, so the same asset is not asked for on
+    /// every frame while one is outstanding.
+    asset_thumbnails_inflight: HashSet<u64>,
+    /// Earliest time to ask again for an asset Roblox has not rendered yet.
+    ///
+    /// Without this a first miss was permanent: old assets whose thumbnails
+    /// have aged out come back as `Pending`, and the tile stayed a placeholder
+    /// for the rest of the session even after Roblox caught up.
+    asset_thumbnails_retry_at: HashMap<u64, std::time::Instant>,
+
     /// User IDs currently visible in the sidebar (after search filtering).
     visible_user_ids: Vec<u64>,
 
@@ -193,6 +232,13 @@ pub struct AppState {
     last_presence_poll: Option<std::time::Instant>,
     last_avatar_refresh: Option<std::time::Instant>,
     last_revalidation: Option<std::time::Instant>,
+    /// Poll cadence for in-flight asset uploads. Interval is adaptive, so
+    /// unlike the timers above it is recomputed each tick from the age of the
+    /// oldest pending operation.
+    last_asset_poll: Option<std::time::Instant>,
+    /// Debounce for asset index writes. A batch of uploads would otherwise fire
+    /// one atomic write per state change.
+    last_asset_index_save: Option<std::time::Instant>,
     /// Wall-clock timestamp of the last user-initiated game launch. Used to
     /// enforce `config.launch_delay_secs` so the user can't trigger another
     /// single/quick launch inside the cooldown window.
@@ -237,6 +283,14 @@ impl AppState {
             }
         }
 
+        // Loaded regardless of `developer_options`: a user who uploads, hides
+        // the tab, then reopens the app must not silently lose an upload that
+        // was still being moderated.
+        let asset_index_path = ram_core::assets::index_path(&crate::data_dir());
+        let (asset_index, asset_index_status) =
+            ram_core::assets::AssetIndex::load(&asset_index_path);
+        let asset_index_read_only = asset_index_status.is_read_only();
+
         let mut sidebar_state = sidebar::SidebarState::default();
         sidebar_state.sort_order = match config.sort_mode.as_str() {
             "Name" => sidebar::SortOrder::Name,
@@ -257,6 +311,7 @@ impl AppState {
             main_panel_state: main_panel::MainPanelState::default(),
             private_servers_state: private_servers::PrivateServerState::default(),
             presets_state: presets_panel::PresetsState::default(),
+            asset_manager_state: asset_manager::AssetManagerState::default(),
             settings_state: settings::SettingsState::default(),
             add_dialog: AddAccountDialog::default(),
             presets: Vec::new(),
@@ -264,6 +319,18 @@ impl AppState {
             avatar_bytes: HashMap::new(),
             anonymized_avatar_bytes: HashMap::new(),
             game_icon_bytes: HashMap::new(),
+            asset_index,
+            asset_index_path,
+            asset_index_read_only,
+            asset_index_dirty: false,
+            pending_upload_rows: Vec::new(),
+            universe_targets: Vec::new(),
+            universe_targets_user: None,
+            publish_groups: Vec::new(),
+            remote_inventory: asset_manager::RemoteInventory::default(),
+            asset_thumbnails: HashMap::new(),
+            asset_thumbnails_inflight: HashSet::new(),
+            asset_thumbnails_retry_at: HashMap::new(),
             visible_user_ids: Vec::new(),
             roblox_running: false,
             frame_count: 0,
@@ -274,6 +341,10 @@ impl AppState {
             last_presence_poll: Some(std::time::Instant::now()),
             last_avatar_refresh: Some(std::time::Instant::now()),
             last_revalidation: Some(std::time::Instant::now()),
+            // Not seeded: if a previous run left operations pending, they
+            // should be polled on the first frame, not one interval later.
+            last_asset_poll: None,
+            last_asset_index_save: None,
             last_launch: None,
             needs_unlock,
             unlock_password_input: String::new(),
@@ -293,6 +364,9 @@ impl AppState {
 
         // Initial load of preset files from disk.
         state.reload_presets();
+
+        // Reconcile any uploads left mid-flight by the previous run.
+        state.recover_asset_index();
 
         // Detect first launch after update
         let current = env!("CARGO_PKG_VERSION");
@@ -655,6 +729,180 @@ impl AppState {
                         self.add_dialog.rejected_cookie = Some(cookie);
                     }
                 }
+                BackendEvent::AssetUploadStarted {
+                    row_id,
+                    file_sha256,
+                    file_bytes,
+                } => {
+                    if let Some(record) = self.asset_index.get_mut(&row_id) {
+                        record.file_sha256 = file_sha256;
+                        record.file_bytes = file_bytes;
+                    }
+                    // Flushed rather than debounced: the hash is what lets a
+                    // crash-interrupted upload be recognised as already done
+                    // instead of being sent a second time.
+                    self.save_asset_index();
+                }
+                BackendEvent::AssetOperationCreated {
+                    row_id,
+                    operation,
+                    started_at,
+                } => {
+                    if let Some(record) = self.asset_index.get_mut(&row_id) {
+                        record.state = AssetState::Pending {
+                            operation,
+                            since: started_at,
+                        };
+                        record.updated_at = Some(started_at);
+                    }
+                    // Flush immediately rather than waiting for the debounce.
+                    // This is the one write that makes an upload survivable
+                    // across a crash: without the operation ID on disk there is
+                    // nothing to resume.
+                    self.save_asset_index();
+                }
+                BackendEvent::AssetOperationResolved { row_id, outcome } => {
+                    self.apply_operation_outcome(&row_id, outcome);
+                }
+                BackendEvent::AssetUploadFailed {
+                    row_id,
+                    message,
+                    retryable,
+                } => {
+                    if let Some(record) = self.asset_index.get_mut(&row_id) {
+                        record.state = AssetState::Failed { message, retryable };
+                        record.updated_at = Some(chrono::Utc::now());
+                    }
+                    self.asset_index_dirty = true;
+                    self.dispatch_next_uploads();
+                }
+                BackendEvent::AssetPollBatchDone => {}
+                BackendEvent::AssetPermissionsGranted {
+                    universe_id,
+                    row_ids,
+                    granted,
+                } => {
+                    for row_id in &row_ids {
+                        if let Some(record) = self.asset_index.get_mut(row_id) {
+                            if !record.granted_universes.contains(&universe_id) {
+                                record.granted_universes.push(universe_id);
+                            }
+                            // One-shot: an auto-grant that already fired must
+                            // not fire again if the row is somehow re-resolved.
+                            record.auto_grant_universe = None;
+                        }
+                    }
+                    self.save_asset_index();
+                    self.toasts.push(Toast::success(format!(
+                        "Granted {granted} asset(s) to universe {universe_id}"
+                    )));
+                }
+                BackendEvent::AssetPermissionsFailed {
+                    universe_id,
+                    message,
+                } => {
+                    self.toasts.push(Toast::error(format!(
+                        "Could not grant access to universe {universe_id}: {message}"
+                    )));
+                }
+                BackendEvent::UniverseTargetsFetched {
+                    user_id,
+                    universes,
+                    resolved_place,
+                } => {
+                    self.universe_targets = universes;
+                    self.universe_targets_user = Some(user_id);
+                    if let Some((place_id, universe_id)) = resolved_place {
+                        self.asset_manager_state.grant_universe = Some(universe_id);
+                        self.toasts.push(Toast::info(format!(
+                            "Place {place_id} is universe {universe_id}"
+                        )));
+                    }
+                }
+                BackendEvent::PublishGroupsFetched { user_id, groups } => {
+                    // Ignore a late reply for an account the user has since
+                    // switched away from.
+                    if self.asset_manager_state.acting_user_id == Some(user_id) {
+                        self.publish_groups = groups;
+                    }
+                }
+                BackendEvent::CreationsFetched {
+                    creator,
+                    kind,
+                    appended: _,
+                    page,
+                    error,
+                } => {
+                    let node = asset_manager::TreeNode::Inventory(creator);
+                    // A fan-out request for a kind the user has since filtered
+                    // away, or for a node they navigated off, is stale.
+                    let wanted = self.remote_inventory.node == Some(node)
+                        && self
+                            .remote_inventory
+                            .filter
+                            .is_none_or(|selected| selected == kind);
+                    if !wanted {
+                        continue;
+                    }
+
+                    self.remote_inventory.inflight =
+                        self.remote_inventory.inflight.saturating_sub(1);
+                    match page.next_cursor {
+                        Some(cursor) => {
+                            self.remote_inventory.cursors.insert(kind, cursor);
+                        }
+                        None => {
+                            self.remote_inventory.cursors.remove(&kind);
+                        }
+                    }
+                    // Always append: with a fan-out, each reply carries one
+                    // kind's slice of the whole. Replacing would leave only the
+                    // last kind to answer.
+                    //
+                    // Deduped by asset ID because a filter change mid-fan-out
+                    // can let a reply from the superseded request through, and
+                    // a doubled row is worse than a slightly late one.
+                    for item in page.items {
+                        if !self
+                            .remote_inventory
+                            .items
+                            .iter()
+                            .any(|existing| existing.asset_id == item.asset_id)
+                        {
+                            self.remote_inventory.items.push(item);
+                        }
+                    }
+
+                    // One kind failing must not blank the kinds that worked, so
+                    // an error is only surfaced once nothing is still in flight
+                    // and nothing at all came back.
+                    if let Some(message) = error {
+                        if self.remote_inventory.inflight == 0
+                            && self.remote_inventory.items.is_empty()
+                        {
+                            self.remote_inventory.error = Some(message);
+                        }
+                    }
+                }
+                BackendEvent::AssetThumbnailsReady { requested, images } => {
+                    let now = std::time::Instant::now();
+                    let mut resolved = HashSet::new();
+                    for (asset_id, bytes) in images {
+                        resolved.insert(asset_id);
+                        self.asset_thumbnails.insert(asset_id, bytes);
+                    }
+                    for asset_id in requested {
+                        self.asset_thumbnails_inflight.remove(&asset_id);
+                        if resolved.contains(&asset_id) {
+                            self.asset_thumbnails_retry_at.remove(&asset_id);
+                        } else {
+                            // Roblox is still rendering it, so ask again later
+                            // rather than leaving a permanent placeholder.
+                            self.asset_thumbnails_retry_at
+                                .insert(asset_id, now + Self::THUMBNAIL_RETRY);
+                        }
+                    }
+                }
             }
         }
     }
@@ -855,6 +1103,14 @@ impl AppState {
 // ---------------------------------------------------------------------------
 
 impl eframe::App for AppState {
+    /// Flush anything the 500 ms index debounce is still holding. Without this,
+    /// closing the app within half a second of a state change loses it.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        if self.asset_index_dirty {
+            self.save_asset_index();
+        }
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.frame_count += 1;
         // Schedule a repaint so background timers below tick even when the
@@ -924,6 +1180,26 @@ impl eframe::App for AppState {
             self.trigger_revalidation();
         }
 
+        // Poll uploads still in moderation. Not gated on the active tab: a
+        // result must land whether or not the user is looking at the Asset
+        // Manager. The interval widens as the oldest upload ages, and the timer
+        // stops entirely once nothing is pending, so an idle app makes no asset
+        // requests at all.
+        if !self.needs_unlock && self.asset_index.pending().next().is_some() {
+            // Computed before the call: `interval_due` takes &mut self.
+            let every = self.asset_poll_interval();
+            if interval_due(&mut self.last_asset_poll, every) {
+                self.dispatch_asset_poll();
+            }
+        }
+
+        // Flush index changes that the debounce has been holding.
+        if self.asset_index_dirty
+            && interval_due(&mut self.last_asset_index_save, Duration::from_millis(500))
+        {
+            self.save_asset_index();
+        }
+
         // ---- Unlock screen ----
         if self.needs_unlock {
             egui::CentralPanel::default().show(ctx, |ui| {
@@ -958,12 +1234,25 @@ impl eframe::App for AppState {
             return;
         }
 
+        // Turning Developer options off must not strand the user on a tab that
+        // is no longer in the bar.
+        if !self.config.developer_options && self.active_tab == Tab::AssetManager {
+            self.active_tab = Tab::Accounts;
+        }
+
         // ---- Top bar ----
         egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.active_tab, Tab::Accounts, "📋 Accounts");
                 ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "🔒 Private Servers");
                 ui.selectable_value(&mut self.active_tab, Tab::Presets, "⭐ Presets");
+                if self.config.developer_options {
+                    ui.selectable_value(
+                        &mut self.active_tab,
+                        Tab::AssetManager,
+                        "\u{1f4e6} Asset Manager",
+                    );
+                }
                 ui.selectable_value(&mut self.active_tab, Tab::Settings, "⚙ Settings");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if let Some((ref version, ref url)) = self.update_available {
@@ -1010,6 +1299,7 @@ impl eframe::App for AppState {
             Tab::Accounts => self.show_accounts_tab(ctx),
             Tab::PrivateServers => self.show_private_servers_tab(ctx),
             Tab::Presets => self.show_presets_tab(ctx),
+            Tab::AssetManager => self.show_asset_manager_tab(ctx),
             Tab::Settings => self.show_settings_tab(ctx),
         }
 
@@ -1018,6 +1308,12 @@ impl eframe::App for AppState {
 
         // ---- Confirmation dialog for account removal ----
         self.show_confirm_remove_dialog(ctx);
+
+        // ---- Confirmation before an asset upload batch ----
+        self.show_upload_confirm_dialog(ctx);
+
+        // ---- Grant universe access to selected assets ----
+        self.show_grant_dialog(ctx);
 
         // ---- Changelog window ----
         self.show_changelog_window(ctx);
@@ -1618,6 +1914,818 @@ impl AppState {
                     .arg(&self.presets_dir)
                     .spawn();
             }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Asset manager
+    // ------------------------------------------------------------------
+
+    /// Most uploads Roblox will accept at once. The spec calls 4 comfortable
+    /// and throttles above ~8, but this app shares one client, one connection
+    /// pool and one IP with the presence, avatar and revalidation timers, so
+    /// leave headroom.
+    const MAX_CONCURRENT_UPLOADS: usize = 3;
+
+    /// Largest poll batch per tick. Bounded so a big backlog becomes a steady
+    /// trickle instead of one enormous burst.
+    const MAX_POLL_BATCH: usize = 25;
+
+    /// Reconcile the index with reality after a restart.
+    ///
+    /// A row left in `Uploading` means the app died between sending the command
+    /// and hearing back, so no operation was ever confirmed. It goes back to
+    /// `Queued`; the dedupe check runs again before anything is re-sent, which
+    /// is what stops a crash from producing a duplicate asset. Rows in
+    /// `Pending` keep their operation ID and simply resume polling.
+    fn recover_asset_index(&mut self) {
+        // Collected first so the duplicate lookup can borrow the index
+        // immutably before anything is mutated.
+        let interrupted: Vec<(String, String, ram_core::assets::Creator)> = self
+            .asset_index
+            .records
+            .iter()
+            .filter(|r| matches!(r.state, AssetState::Uploading))
+            .map(|r| (r.row_id.clone(), r.file_sha256.clone(), r.creator))
+            .collect();
+
+        let changed = !interrupted.is_empty();
+        for (row_id, sha256, creator) in interrupted {
+            // If the previous run got far enough to hash the file and the same
+            // bytes are already live under this creator, the upload evidently
+            // succeeded. Re-sending would mint a second permanent asset.
+            let existing = self
+                .asset_index
+                .find_uploaded(&sha256, creator)
+                .and_then(|r| r.state.asset_id());
+            if let Some(record) = self.asset_index.get_mut(&row_id) {
+                record.state = match existing {
+                    Some(asset_id) => AssetState::Duplicate { asset_id },
+                    None => AssetState::Queued,
+                };
+            }
+        }
+        let expired =
+            ram_core::assets::expire_stale_operations(&mut self.asset_index, chrono::Utc::now());
+        if changed || !expired.is_empty() {
+            self.save_asset_index();
+        }
+    }
+
+    /// Write the index now, unless the file on disk is one we must not touch.
+    fn save_asset_index(&mut self) {
+        self.asset_index_dirty = false;
+        self.last_asset_index_save = Some(std::time::Instant::now());
+        if self.asset_index_read_only {
+            return;
+        }
+        if let Err(e) = self.asset_index.save(&self.asset_index_path) {
+            tracing::error!("failed to save asset index: {e}");
+        }
+    }
+
+    /// Fill free upload slots from the queue, oldest first.
+    fn dispatch_next_uploads(&mut self) {
+        if self.needs_unlock {
+            return;
+        }
+        let in_flight = self
+            .asset_index
+            .records
+            .iter()
+            .filter(|r| matches!(r.state, AssetState::Uploading))
+            .count();
+
+        for _ in in_flight..Self::MAX_CONCURRENT_UPLOADS {
+            let Some(job) = self.take_next_upload() else {
+                break;
+            };
+            self.bridge.send(BackendCommand::UploadAsset(Box::new(job)));
+        }
+    }
+
+    /// Claim the next queued row and build its job, marking it `Uploading` so
+    /// the next call cannot claim it again.
+    ///
+    /// Loops rather than returning on the first duplicate: a queue whose head
+    /// is all duplicates would otherwise stall with real work behind it.
+    fn take_next_upload(&mut self) -> Option<UploadJob> {
+        loop {
+            let row_id = self
+                .asset_index
+                .records
+                .iter()
+                .find(|r| matches!(r.state, AssetState::Queued))
+                .map(|r| r.row_id.clone())?;
+
+            let record = self.asset_index.get(&row_id)?;
+
+            // A retry of a row that was already hashed and already landed must
+            // not upload again. Assets are permanent and audio burns a
+            // per-account quota, so the check is worth the linear scan.
+            if let Some(asset_id) = self
+                .asset_index
+                .find_uploaded(&record.file_sha256, record.creator)
+                .and_then(|r| r.state.asset_id())
+            {
+                if let Some(record) = self.asset_index.get_mut(&row_id) {
+                    record.state = AssetState::Duplicate { asset_id };
+                }
+                self.asset_index_dirty = true;
+                continue;
+            }
+
+            return self.build_upload_job(&row_id);
+        }
+    }
+
+    fn build_upload_job(&mut self, row_id: &str) -> Option<UploadJob> {
+        let row_id = row_id.to_string();
+        let record = self.asset_index.get(&row_id)?;
+        let uploader = record.uploaded_by;
+        let account = self.store.find_by_id(uploader)?;
+        let encrypted_cookie = account.encrypted_cookie.clone();
+
+        let job = UploadJob {
+            row_id: row_id.clone(),
+            user_id: uploader,
+            encrypted_cookie,
+            password: self.master_password.clone(),
+            use_credential_manager: self.config.use_credential_manager,
+            creator: record.creator,
+            kind: record.kind,
+            display_name: record.display_name.clone(),
+            description: record.description.clone(),
+            file_path: record.file_path.clone(),
+        };
+
+        if let Some(record) = self.asset_index.get_mut(&row_id) {
+            record.state = AssetState::Uploading;
+        }
+        self.asset_index_dirty = true;
+        Some(job)
+    }
+
+    /// Ask about everything currently in moderation, grouped by account so one
+    /// cookie decrypt covers a whole batch.
+    fn dispatch_asset_poll(&mut self) {
+        let now = chrono::Utc::now();
+        let expired = ram_core::assets::expire_stale_operations(&mut self.asset_index, now);
+        if !expired.is_empty() {
+            self.save_asset_index();
+        }
+
+        let batch =
+            ram_core::assets::next_poll_batch(&self.asset_index.records, now, Self::MAX_POLL_BATCH);
+        if batch.is_empty() {
+            return;
+        }
+
+        // Group by uploader. Polling per row would decrypt the same cookie
+        // dozens of times and fan out into as many concurrent tasks.
+        let mut by_account: HashMap<u64, Vec<(String, String)>> = HashMap::new();
+        for (row_id, operation) in batch {
+            let Some(record) = self.asset_index.get(&row_id) else {
+                continue;
+            };
+            by_account
+                .entry(record.uploaded_by)
+                .or_default()
+                .push((row_id, operation));
+        }
+
+        for (user_id, operations) in by_account {
+            let Some(account) = self.store.find_by_id(user_id) else {
+                continue;
+            };
+            self.bridge.send(BackendCommand::PollAssetOperations {
+                user_id,
+                encrypted_cookie: account.encrypted_cookie.clone(),
+                password: self.master_password.clone(),
+                use_credential_manager: self.config.use_credential_manager,
+                operations,
+            });
+        }
+    }
+
+    /// How long until the next poll, from the age of the oldest pending upload.
+    fn asset_poll_interval(&self) -> Duration {
+        let now = chrono::Utc::now();
+        let oldest = self
+            .asset_index
+            .pending()
+            .filter_map(|r| match &r.state {
+                AssetState::Pending { since, .. } => Some(*since),
+                _ => None,
+            })
+            .min();
+        let age = oldest
+            .map(|since| now.signed_duration_since(since))
+            .and_then(|d| d.to_std().ok())
+            .unwrap_or_default();
+        ram_core::assets::poll_interval_for_age(age)
+    }
+
+    /// Largest thumbnail batch per request. Roblox accepts long ID lists, but
+    /// a bounded batch keeps one screenful of a grid to a single call.
+    const MAX_THUMBNAIL_BATCH: usize = 50;
+
+    /// How long to wait before asking again for a thumbnail Roblox has not
+    /// rendered. Long enough not to hammer, short enough that an asset fills in
+    /// while the user is still looking at the same screen.
+    const THUMBNAIL_RETRY: Duration = Duration::from_secs(20);
+
+    /// Fetch thumbnails for assets that have none cached yet.
+    ///
+    /// Requests are remembered, not just results: without that, an asset whose
+    /// thumbnail Roblox has not rendered (it answers `Pending`) would be
+    /// re-requested on every single frame.
+    fn request_asset_thumbnails(&mut self, wanted: &[u64]) {
+        let now = std::time::Instant::now();
+        let missing: Vec<u64> = wanted
+            .iter()
+            .copied()
+            .filter(|id| !self.asset_thumbnails.contains_key(id))
+            .filter(|id| !self.asset_thumbnails_inflight.contains(id))
+            .filter(|id| {
+                self.asset_thumbnails_retry_at
+                    .get(id)
+                    .is_none_or(|retry_at| now >= *retry_at)
+            })
+            .take(Self::MAX_THUMBNAIL_BATCH)
+            .collect();
+        if missing.is_empty() {
+            return;
+        }
+        self.asset_thumbnails_inflight.extend(missing.iter());
+        self.bridge
+            .send(BackendCommand::FetchAssetThumbnails { asset_ids: missing });
+    }
+
+    /// Request one page of a creator's inventory.
+    fn fetch_creations(
+        &mut self,
+        node: asset_manager::TreeNode,
+        kind: ram_core::assets::AssetKind,
+        cursor: Option<String>,
+    ) {
+        let asset_manager::TreeNode::Inventory(creator) = node else {
+            return;
+        };
+        let Some(user_id) = self.asset_manager_state.acting_user_id else {
+            return;
+        };
+        let Some(account) = self.store.find_by_id(user_id) else {
+            return;
+        };
+        self.bridge.send(BackendCommand::FetchCreations {
+            user_id,
+            encrypted_cookie: account.encrypted_cookie.clone(),
+            password: self.master_password.clone(),
+            use_credential_manager: self.config.use_credential_manager,
+            creator,
+            kind,
+            cursor,
+        });
+    }
+
+    /// Refresh the universe picker for the acting account, and optionally
+    /// resolve a pasted place ID at the same time (one cookie decrypt covers
+    /// both).
+    fn fetch_universe_targets(&mut self, place_id: Option<u64>) {
+        let Some(user_id) = self.asset_manager_state.acting_user_id else {
+            return;
+        };
+        let Some(account) = self.store.find_by_id(user_id) else {
+            return;
+        };
+        self.bridge.send(BackendCommand::FetchUniverseTargets {
+            user_id,
+            encrypted_cookie: account.encrypted_cookie.clone(),
+            password: self.master_password.clone(),
+            use_credential_manager: self.config.use_credential_manager,
+            place_id,
+        });
+    }
+
+    /// Grant a universe `Use` on the given rows. Rows with no asset ID yet are
+    /// skipped: there is nothing on Roblox to grant against.
+    fn grant_universe_access(&mut self, universe_id: u64, row_ids: Vec<String>) {
+        let mut asset_ids = Vec::new();
+        let mut granted_rows = Vec::new();
+        let mut uploader = None;
+        for row_id in row_ids {
+            let Some(record) = self.asset_index.get(&row_id) else {
+                continue;
+            };
+            let Some(asset_id) = record.state.asset_id() else {
+                continue;
+            };
+            uploader.get_or_insert(record.uploaded_by);
+            asset_ids.push(asset_id);
+            granted_rows.push(row_id);
+        }
+        if asset_ids.is_empty() {
+            self.toasts
+                .push(Toast::info("Nothing to grant. Assets must finish uploading first."));
+            return;
+        }
+        let Some(user_id) = uploader else { return };
+        let Some(account) = self.store.find_by_id(user_id) else {
+            return;
+        };
+        self.bridge.send(BackendCommand::GrantAssetPermissions {
+            user_id,
+            encrypted_cookie: account.encrypted_cookie.clone(),
+            password: self.master_password.clone(),
+            use_credential_manager: self.config.use_credential_manager,
+            universe_id,
+            asset_ids,
+            row_ids: granted_rows,
+        });
+    }
+
+    /// The "Grant access to" modal, opened from the library selection footer.
+    fn show_grant_dialog(&mut self, ctx: &egui::Context) {
+        if !self.asset_manager_state.grant_open {
+            return;
+        }
+        let mut open = true;
+        let mut granted: Option<u64> = None;
+        let mut resolve: Option<u64> = None;
+        // Separate from `open`, which the window title bar's close button owns
+        // for the duration of `show`.
+        let mut cancelled = false;
+
+        egui::Window::new("Grant universe access")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .show(ctx, |ui| {
+                let count = self.asset_manager_state.selected.len();
+                ui.label(format!(
+                    "Let one experience use {count} selected asset(s)."
+                ));
+                ui.add_space(8.0);
+
+                ui.label("Experience:");
+                asset_manager::universe_picker(
+                    ui,
+                    "grant_universe_pick",
+                    &self.universe_targets,
+                    &mut self.asset_manager_state.grant_universe,
+                );
+                if self.universe_targets.is_empty() {
+                    ui.label(
+                        egui::RichText::new(
+                            "Roblox did not return a list of your experiences. Paste an ID below.",
+                        )
+                        .small()
+                        .color(ui.visuals().weak_text_color()),
+                    );
+                }
+
+                ui.add_space(8.0);
+                ui.label("Or paste a place or universe ID:");
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.asset_manager_state.grant_manual)
+                            .desired_width(200.0)
+                            .hint_text("ID or roblox.com/games/... link"),
+                    );
+                    let parsed = ram_core::assets::parse_id_input(
+                        &self.asset_manager_state.grant_manual,
+                    );
+                    if ui
+                        .add_enabled(parsed.is_some(), egui::Button::new("Use as universe"))
+                        .clicked()
+                    {
+                        self.asset_manager_state.grant_universe = parsed;
+                    }
+                    if ui
+                        .add_enabled(parsed.is_some(), egui::Button::new("Resolve as place"))
+                        .on_hover_text("Look up which universe this place belongs to")
+                        .clicked()
+                    {
+                        resolve = parsed;
+                    }
+                });
+
+                ui.add_space(10.0);
+                ui.horizontal(|ui| {
+                    let target = self.asset_manager_state.grant_universe;
+                    let grant = egui::Button::new(
+                        egui::RichText::new("Grant").color(egui::Color32::WHITE),
+                    )
+                    .fill(ui.visuals().selection.bg_fill);
+                    if ui.add_enabled(target.is_some(), grant).clicked() {
+                        granted = target;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        cancelled = true;
+                    }
+                });
+            });
+
+        if let Some(place_id) = resolve {
+            self.fetch_universe_targets(Some(place_id));
+        }
+        if let Some(universe_id) = granted {
+            let rows: Vec<String> =
+                self.asset_manager_state.selected.iter().cloned().collect();
+            self.grant_universe_access(universe_id, rows);
+            self.asset_manager_state.grant_open = false;
+        } else if cancelled || !open {
+            self.asset_manager_state.grant_open = false;
+        }
+    }
+
+    fn apply_operation_outcome(&mut self, row_id: &str, outcome: OperationOutcome) {
+        let now = chrono::Utc::now();
+        let Some(record) = self.asset_index.get_mut(row_id) else {
+            return;
+        };
+        let name = record.display_name.clone();
+        match outcome {
+            // Nothing changed; the row stays Pending and the timer keeps asking.
+            OperationOutcome::StillPending => return,
+            OperationOutcome::Approved {
+                asset_id,
+                revision_id,
+            } => {
+                record.state = AssetState::Approved {
+                    asset_id,
+                    revision_id,
+                };
+                record.updated_at = Some(now);
+                let auto_grant = record.auto_grant_universe;
+                self.toasts
+                    .push(Toast::success(format!("{name} uploaded as {asset_id}")));
+                // Requirement: an asset that clears moderation is granted to
+                // the batch's universe with no further clicks.
+                if let Some(universe_id) = auto_grant {
+                    self.grant_universe_access(universe_id, vec![row_id.to_string()]);
+                }
+            }
+            OperationOutcome::Rejected { reason } => {
+                record.state = AssetState::Rejected {
+                    reason: reason.clone(),
+                };
+                record.updated_at = Some(now);
+                self.toasts
+                    .push(Toast::error(format!("{name} was rejected: {reason}")));
+            }
+            OperationOutcome::Failed { message, retryable } => {
+                record.state = AssetState::Failed {
+                    message: message.clone(),
+                    retryable,
+                };
+                record.updated_at = Some(now);
+                self.toasts
+                    .push(Toast::error(format!("{name} failed: {message}")));
+            }
+        }
+        self.save_asset_index();
+        self.dispatch_next_uploads();
+    }
+
+    fn show_asset_manager_tab(&mut self, ctx: &egui::Context) {
+        // OS drag and drop. Read once per frame here so the panel stays
+        // ctx-free, matching how every other panel is structured.
+        let dropped: Vec<PathBuf> = ctx.input(|i| {
+            i.raw
+                .dropped_files
+                .iter()
+                .filter_map(|f| f.path.clone())
+                .collect()
+        });
+
+        let mut result = asset_manager::AssetManagerResult::default();
+        let mut tree_action = None;
+
+        // The tree only makes sense next to the library. Hiding it in the
+        // queue gives the queue's wide File Path column the room it needs.
+        if self.asset_manager_state.view == asset_manager::View::Library {
+            egui::SidePanel::left("asset_tree")
+                .default_width(200.0)
+                .width_range(150.0..=340.0)
+                .resizable(true)
+                .show(ctx, |ui| {
+                    let mut cx = asset_manager::AssetsCtx {
+                        state: &mut self.asset_manager_state,
+                        index: &mut self.asset_index,
+                        accounts: &self.store.accounts,
+                        anonymize: self.config.anonymize_names,
+                        universes: &self.universe_targets,
+                        groups: &self.publish_groups,
+                        remote: &self.remote_inventory,
+                        thumbnails: &self.asset_thumbnails,
+                        has_password: !self.master_password.is_empty()
+                            || self.config.use_credential_manager,
+                        read_only: self.asset_index_read_only,
+                    };
+                    tree_action = asset_manager::show_tree(ui, &mut cx);
+                });
+        }
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let mut cx = asset_manager::AssetsCtx {
+                state: &mut self.asset_manager_state,
+                index: &mut self.asset_index,
+                accounts: &self.store.accounts,
+                anonymize: self.config.anonymize_names,
+                universes: &self.universe_targets,
+                groups: &self.publish_groups,
+                remote: &self.remote_inventory,
+                thumbnails: &self.asset_thumbnails,
+                has_password: !self.master_password.is_empty()
+                    || self.config.use_credential_manager,
+                read_only: self.asset_index_read_only,
+            };
+            result = asset_manager::show(ui, &mut cx);
+        });
+        result.action = result.action.or(tree_action);
+
+        // Fetch thumbnails for what was actually drawn. Batched and
+        // request-once, so scrolling a large grid does not re-ask every frame.
+        self.request_asset_thumbnails(&result.want_thumbnails);
+
+        // Populate the universe picker the first time the tab is opened for an
+        // account, so "Grant access to" is not empty when the user reaches it.
+        if !self.needs_unlock
+            && self.asset_manager_state.acting_user_id.is_some()
+            && self.universe_targets_user != self.asset_manager_state.acting_user_id
+        {
+            self.universe_targets_user = self.asset_manager_state.acting_user_id;
+            self.universe_targets.clear();
+            self.publish_groups.clear();
+            self.fetch_universe_targets(None);
+            if let Some(user_id) = self.asset_manager_state.acting_user_id {
+                if let Some(account) = self.store.find_by_id(user_id) {
+                    self.bridge.send(BackendCommand::FetchPublishGroups {
+                        user_id,
+                        encrypted_cookie: account.encrypted_cookie.clone(),
+                        password: self.master_password.clone(),
+                        use_credential_manager: self.config.use_credential_manager,
+                    });
+                }
+            }
+        }
+
+        if result.index_changed {
+            self.asset_index_dirty = true;
+        }
+        if !dropped.is_empty() {
+            self.asset_manager_state.view = asset_manager::View::ImportQueue;
+            self.stage_files(dropped);
+        }
+
+        // Handled after the central panel closes so `self` can be mutated
+        // freely, per the borrow note on `show_presets_tab`.
+        let Some(action) = result.action else { return };
+        match action {
+            asset_manager::AssetManagerAction::PickFiles => {
+                if let Some(paths) = rfd::FileDialog::new()
+                    .add_filter(
+                        "Roblox assets",
+                        &[
+                            "png", "jpg", "jpeg", "bmp", "tga", "mp3", "ogg", "wav", "flac",
+                            "fbx", "gltf", "glb", "rbxm", "rbxmx", "mp4", "mov",
+                        ],
+                    )
+                    .add_filter("All files", &["*"])
+                    .pick_files()
+                {
+                    self.stage_files(paths);
+                }
+            }
+            asset_manager::AssetManagerAction::RemoveRow(row_id) => {
+                self.asset_index.remove(&row_id);
+                self.asset_manager_state.checked.remove(&row_id);
+                self.save_asset_index();
+            }
+            asset_manager::AssetManagerAction::ClearFinished => {
+                self.asset_index.records.retain(|r| !r.state.is_terminal());
+                self.save_asset_index();
+            }
+            asset_manager::AssetManagerAction::RetryRow(row_id) => {
+                if let Some(record) = self.asset_index.get_mut(&row_id) {
+                    record.state = AssetState::Queued;
+                }
+                self.save_asset_index();
+                self.dispatch_next_uploads();
+            }
+            asset_manager::AssetManagerAction::RequestUpload(rows) => {
+                self.asset_manager_state.confirm_upload = Some(rows.len());
+                self.pending_upload_rows = rows;
+            }
+            asset_manager::AssetManagerAction::LoadInventory { node, filter } => {
+                // "All types" is a fan-out, not a filter: the listing endpoint
+                // requires an assetType, so one request per kind is the only
+                // way to honor the label.
+                let kinds: Vec<ram_core::assets::AssetKind> = match filter {
+                    Some(kind) => vec![kind],
+                    None => ram_core::assets::AssetKind::selectable().to_vec(),
+                };
+                self.remote_inventory = asset_manager::RemoteInventory {
+                    node: Some(node),
+                    filter,
+                    requested: true,
+                    inflight: kinds.len(),
+                    ..Default::default()
+                };
+                for kind in kinds {
+                    self.fetch_creations(node, kind, None);
+                }
+            }
+            asset_manager::AssetManagerAction::LoadMoreInventory => {
+                let Some(node) = self.remote_inventory.node else {
+                    return;
+                };
+                // Advance every kind that still has a page left.
+                let pending: Vec<(ram_core::assets::AssetKind, String)> = self
+                    .remote_inventory
+                    .cursors
+                    .drain()
+                    .collect();
+                self.remote_inventory.inflight += pending.len();
+                for (kind, cursor) in pending {
+                    self.fetch_creations(node, kind, Some(cursor));
+                }
+            }
+            asset_manager::AssetManagerAction::RevealFile(path) => {
+                // `/select,` highlights the file rather than just opening its
+                // folder. Explorer wants a native separator here.
+                let _ = std::process::Command::new("explorer")
+                    .arg(format!("/select,{}", path.display()))
+                    .spawn();
+            }
+            asset_manager::AssetManagerAction::OpenGrantDialog => {
+                self.asset_manager_state.grant_open = true;
+                // Refresh the picker each time it opens: the acting account may
+                // have changed since the last fetch.
+                if self.universe_targets_user != self.asset_manager_state.acting_user_id {
+                    self.fetch_universe_targets(None);
+                }
+            }
+        }
+    }
+
+    /// Hash and queue a batch of files. Anything unsupported still gets a row,
+    /// marked invalid with the reason, rather than being silently dropped: a
+    /// file that vanishes from a drop of twenty reads as a bug.
+    fn stage_files(&mut self, paths: Vec<PathBuf>) {
+        let Some(user_id) = self.asset_manager_state.acting_user_id else {
+            self.toasts
+                .push(Toast::error("Select an account to upload from first"));
+            return;
+        };
+        let creator = self
+            .asset_manager_state
+            .batch_creator
+            .unwrap_or(ram_core::assets::Creator::User(user_id));
+        let now = chrono::Utc::now();
+        let mut added = 0usize;
+        let mut duplicates = 0usize;
+
+        for path in paths {
+            let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            let row_id = uuid::Uuid::new_v4().to_string();
+
+            let (kind, invalid) = match ram_core::assets::validate_file(&path, size) {
+                Ok((kind, _)) => (kind, None),
+                Err(reason) => (ram_core::assets::AssetKind::Other, Some(reason)),
+            };
+
+            let mut record = ram_core::assets::AssetRecord::staged(
+                row_id.clone(),
+                ram_core::assets::StagedFile {
+                    path,
+                    // Hashing happens on the backend thread just before upload,
+                    // so a queue of large files does not freeze the UI here.
+                    sha256: String::new(),
+                    bytes: size,
+                    kind,
+                },
+                creator,
+                user_id,
+                now,
+            );
+
+            if let Some(reason) = invalid {
+                record.state = AssetState::Invalid { reason };
+            } else if let Some(existing) = self
+                .asset_index
+                .records
+                .iter()
+                .find(|r| r.file_path == record.file_path && r.creator == creator)
+                .and_then(|r| r.state.asset_id())
+            {
+                // Same file, same creator, already uploaded. Flag it rather
+                // than silently re-uploading: assets are permanent and audio
+                // burns a per-account quota.
+                record.state = AssetState::Duplicate {
+                    asset_id: existing,
+                };
+                duplicates += 1;
+            } else {
+                self.asset_manager_state.checked.insert(row_id);
+                added += 1;
+            }
+            self.asset_index.records.push(record);
+        }
+
+        self.save_asset_index();
+        if duplicates > 0 {
+            self.toasts.push(Toast::info(format!(
+                "{added} file(s) queued, {duplicates} already uploaded"
+            )));
+        } else if added > 0 {
+            self.toasts
+                .push(Toast::info(format!("{added} file(s) queued")));
+        }
+    }
+
+    /// Confirmation before any batch. Uploads are permanent, public, and
+    /// moderated under a real account, so this is not a formality.
+    fn show_upload_confirm_dialog(&mut self, ctx: &egui::Context) {
+        let Some(count) = self.asset_manager_state.confirm_upload else {
+            return;
+        };
+        let total_bytes: u64 = self
+            .pending_upload_rows
+            .iter()
+            .filter_map(|id| self.asset_index.get(id))
+            .map(|r| r.file_bytes)
+            .sum();
+        let creator = self
+            .pending_upload_rows
+            .first()
+            .and_then(|id| self.asset_index.get(id))
+            .map(|r| r.creator);
+        let creator_text = match creator {
+            Some(ram_core::assets::Creator::User(id)) => self
+                .store
+                .find_by_id(id)
+                .map(|a| a.label().to_string())
+                .unwrap_or_else(|| format!("user {id}")),
+            Some(ram_core::assets::Creator::Group(id)) => format!("group {id}"),
+            None => "the selected account".to_string(),
+        };
+
+        let mut open = true;
+        let mut confirmed = false;
+        let mut cancelled = false;
+        egui::Window::new("Confirm upload")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .show(ctx, |ui| {
+                ui.label(format!(
+                    "Upload {count} file(s), {:.1} MB in total, as {creator_text}.",
+                    total_bytes as f64 / (1024.0 * 1024.0)
+                ));
+                ui.add_space(4.0);
+                ui.colored_label(
+                    egui::Color32::from_rgb(220, 160, 40),
+                    "This cannot be undone. Every asset is permanent, public, and moderated \
+                     under that account.",
+                );
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    let upload = egui::Button::new(
+                        egui::RichText::new("Upload").color(egui::Color32::WHITE),
+                    )
+                    .fill(ui.visuals().selection.bg_fill);
+                    if ui.add(upload).clicked() {
+                        confirmed = true;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        cancelled = true;
+                    }
+                });
+            });
+
+        if confirmed {
+            let rows = std::mem::take(&mut self.pending_upload_rows);
+            let auto_grant = self.asset_manager_state.auto_grant_universe;
+            for row_id in rows {
+                if let Some(record) = self.asset_index.get_mut(&row_id) {
+                    record.state = AssetState::Queued;
+                    // Stamped per row at confirm time, not read from UI state
+                    // later, so changing the selector mid-batch cannot retarget
+                    // uploads that are already in flight.
+                    record.auto_grant_universe = auto_grant;
+                }
+            }
+            self.asset_manager_state.confirm_upload = None;
+            self.save_asset_index();
+            self.dispatch_next_uploads();
+        } else if cancelled || !open {
+            self.asset_manager_state.confirm_upload = None;
+            self.pending_upload_rows.clear();
         }
     }
 

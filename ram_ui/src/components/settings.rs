@@ -141,6 +141,26 @@ pub fn show(
     });
     ui.add_space(6.0);
 
+    // ---- Developer options ----
+    section_frame.show(ui, |ui: &mut egui::Ui| {
+        ui.set_min_width(ui.available_width());
+        ui.strong("Developer Options");
+        ui.add_space(4.0);
+        ui.checkbox(
+            &mut config.developer_options,
+            "Show the Asset Manager tab",
+        ).on_hover_text(
+            "Upload assets to Roblox from any saved account, track moderation, and grant experiences permission to use them.",
+        );
+        if config.developer_options {
+            ui.colored_label(
+                egui::Color32::from_rgb(220, 160, 40),
+                "\u{26a0} Uploads are permanent and public. Every asset is moderated under the account that uploaded it.",
+            );
+        }
+    });
+    ui.add_space(6.0);
+
     // ---- Roblox path override ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
         ui.set_min_width(ui.available_width());

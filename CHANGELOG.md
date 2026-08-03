@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.5.0
+
+### Added
+- **Asset Manager tab**, behind a new **Developer options** toggle in Settings (off by default). Upload decals, audio, models, animations and video to Roblox from any saved account.
+- **Bulk import.** Pick many files at once, or drop them anywhere on the window. Each row gets its own creator and asset type, and unsupported or oversized files are flagged in place rather than dropped.
+- **Moderation tracking that survives restarts.** Operation IDs are saved to disk, so closing the app mid-upload does not lose the result. Uploads left in flight by a crash go back to the queue instead of being re-sent blind.
+- **Bulk permission grants.** Select assets and give an experience permission to use them, picked from a dropdown of your experiences or by pasting a place or universe ID.
+- **Auto-grant.** Set "Grant access to" on an import batch and each asset is granted as it clears moderation.
+- **Library and inventory browsing.** A left tree with your uploads plus your own and your groups' inventories, and a sortable, searchable table.
+
+### Changed
+- The HTTP client can now send a pre-encoded body, so uploads reuse the existing CSRF rotation and rate-limit backoff instead of bypassing it.
+
 ## v1.4.6
 
 ### Fixed

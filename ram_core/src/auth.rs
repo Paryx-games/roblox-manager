@@ -39,6 +39,24 @@ fn cookie_key(cookie: &str) -> u64 {
     hasher.finish()
 }
 
+/// Body variants the shared retry loop understands.
+///
+/// `Copy`, holding only borrows, because the loop re-reads it on every attempt.
+/// This is the whole reason asset uploads hand-roll their multipart body into a
+/// `Vec<u8>` (see [`crate::multipart`]): `reqwest::multipart::Form` is `!Clone`
+/// and is consumed by `send()`, so it could not survive a CSRF rotation or a
+/// 429 backoff.
+#[derive(Clone, Copy)]
+enum ReqBody<'a> {
+    None,
+    Json(&'a serde_json::Value),
+    /// Pre-encoded bytes plus the exact `Content-Type` to send with them.
+    Raw {
+        content_type: &'a str,
+        bytes: &'a [u8],
+    },
+}
+
 /// A stateful HTTP client that manages `.ROBLOSECURITY` cookies and CSRF tokens.
 #[derive(Clone)]
 pub struct RobloxClient {
@@ -72,6 +90,44 @@ impl RobloxClient {
         url: &str,
         cookie: &str,
         body: Option<&serde_json::Value>,
+    ) -> Result<Response, CoreError> {
+        let body = match body {
+            Some(value) => ReqBody::Json(value),
+            None => ReqBody::None,
+        };
+        self.request_inner(method, url, cookie, body).await
+    }
+
+    /// Send a pre-encoded body (e.g. `multipart/form-data` from
+    /// [`crate::multipart`]) through the same CSRF-rotation and rate-limit
+    /// machinery as [`RobloxClient::request`]. For multipart, `content_type`
+    /// must carry the boundary.
+    pub async fn request_raw(
+        &self,
+        method: Method,
+        url: &str,
+        cookie: &str,
+        content_type: &str,
+        bytes: &[u8],
+    ) -> Result<Response, CoreError> {
+        self.request_inner(
+            method,
+            url,
+            cookie,
+            ReqBody::Raw {
+                content_type,
+                bytes,
+            },
+        )
+        .await
+    }
+
+    async fn request_inner(
+        &self,
+        method: Method,
+        url: &str,
+        cookie: &str,
+        body: ReqBody<'_>,
     ) -> Result<Response, CoreError> {
         // Two independent counters. Sharing one made any request that had been
         // rate-limited skip its CSRF retry, returning an auth error while
@@ -119,12 +175,21 @@ impl RobloxClient {
             );
 
             let mut req = self.inner.request(method.clone(), url).headers(headers);
-            if let Some(b) = body {
-                req = req.json(b);
-            } else if method == Method::POST {
+            req = match body {
+                ReqBody::Json(b) => req.json(b),
+                // A fresh owned copy per attempt: `send()` consumes the body, so
+                // a rotated CSRF token or a 429 backoff has to be able to hand
+                // the same bytes over again.
+                ReqBody::Raw {
+                    content_type,
+                    bytes,
+                } => req.header(CONTENT_TYPE, content_type).body(bytes.to_vec()),
                 // Roblox POST endpoints require application/json even with no body
-                req = req.header(CONTENT_TYPE, "application/json");
-            }
+                ReqBody::None if method == Method::POST => {
+                    req.header(CONTENT_TYPE, "application/json")
+                }
+                ReqBody::None => req,
+            };
 
             let resp = req.send().await?;
 
