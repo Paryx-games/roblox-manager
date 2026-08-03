@@ -1,6 +1,6 @@
 [package]
 name = "ram_core"
-version = "1.5.0"
+version = "1.6.0"
 edition = "2021"
 description = "Core library for RM - Roblox Account Manager"
 license = "MIT"

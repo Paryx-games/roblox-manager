@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.6.0
+
+### Fixed
+- **Granting universe access failed with "Invalid SubjectType is invalid".** The request nested the subject inside each asset entry. The endpoint takes one subject at the top level and a list of assets, and now gets it.
+- **Partial grant failures were reported as successes.** A 200 from the grant endpoint can still refuse individual assets. Only what Roblox confirms is counted and recorded now, and refusals are named in the log.
+- **"Nothing to grant" when granting access to assets picked from the inventory.** The library and the inventory share one selection but identify rows differently, and the grant only understood the library's. Inventory selections now work, signed by the account whose inventory is open.
+- **Uploads no longer claim an asset passed moderation before it has.** A finished upload operation means Roblox ingested the file, not that the asset is usable. Rows now sit in a new **In review** state and only turn green once `develop.roblox.com` reports the review finished. Auto-grant waits for that too.
+- **Bulk audio uploads failing in a block.** Audio now uploads one at a time with a gap between files, instead of three at once into Roblox's audio rate limit.
+- **Uploads timing out on large files.** The 30 second request timeout covered the file transfer as well. Uploads get 5 minutes; everything else is unchanged.
+- **Retryable failures are retried.** A rate limit or a transient 403 re-sends up to four times with a growing backoff. Only failures raised before the upload reached Roblox retry automatically, so nothing is uploaded twice.
+- **Every failed row now has a Retry button.** It used to be hidden on failures the app judged permanent, which left a wrong guess with no way back.
+- 429 backoff honours Roblox's `Retry-After`, and is jittered so concurrent uploads stop waking up together and colliding again.
+
 ## v1.5.0
 
 ### Added

@@ -154,22 +154,66 @@ pub async fn poll_operation(
 }
 
 // ---------------------------------------------------------------------------
+// Moderation
+// ---------------------------------------------------------------------------
+
+/// Most asset ids to put in one moderation query. The endpoint takes a
+/// comma-joined list; keeping it modest keeps the URL short and the response
+/// small enough to parse without a second thought.
+pub const MAX_MODERATION_IDS: usize = 50;
+
+/// Ask Roblox whether a batch of assets has cleared moderation.
+///
+/// `GET develop.roblox.com/v1/assets?assetIds=...`, cookie-authenticated. This
+/// is the only surface that answers the question at all: the Assets API's
+/// operations endpoint reports *ingestion*, and reports it as `done` long
+/// before a verdict exists. Uploading audio and reading `done: true` as
+/// "approved" is exactly the mistake this call exists to stop.
+///
+/// Ids Roblox does not return simply do not appear in the result, and a row
+/// with no answer stays in review rather than being guessed at.
+pub async fn fetch_moderation_statuses(
+    client: &RobloxClient,
+    cookie: &str,
+    asset_ids: &[u64],
+) -> Result<Vec<(u64, assets::ModerationStatus)>, CoreError> {
+    if asset_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::with_capacity(asset_ids.len());
+    for chunk in asset_ids.chunks(MAX_MODERATION_IDS) {
+        let ids: Vec<String> = chunk.iter().map(u64::to_string).collect();
+        let url = format!("{DEVELOP_BASE}/assets?assetIds={}", ids.join(","));
+        let body: serde_json::Value = client.get_json(&url, cookie).await?;
+        out.extend(assets::parse_moderation_response(&body));
+    }
+    // Never report on something the caller did not ask about.
+    out.retain(|(id, _)| asset_ids.contains(id));
+    Ok(out)
+}
+
+// ---------------------------------------------------------------------------
 // Permissions
 // ---------------------------------------------------------------------------
 
 /// Grant a universe `Use` permission on a batch of assets.
 ///
-/// Chunked at [`assets::MAX_PERMISSION_REQUESTS`]. Returns the asset IDs that
-/// were granted; a chunk that fails aborts the rest and surfaces the error,
-/// because a partial grant with no error is worse than a loud failure.
+/// Chunked at [`assets::MAX_PERMISSION_REQUESTS`]. A chunk that fails outright
+/// aborts the rest and surfaces the error, because a partial grant with no
+/// error is worse than a loud failure.
+///
+/// Returns only the assets Roblox confirmed. A 200 here is not a blanket yes:
+/// the body carries `successAssetIds` next to a per-asset `errors` list, and
+/// reading the status code alone reported a clean grant for assets that had
+/// just been refused.
 pub async fn grant_use_permission(
     client: &RobloxClient,
     cookie: &str,
     universe_id: u64,
     asset_ids: &[u64],
-) -> Result<Vec<u64>, CoreError> {
+) -> Result<assets::GrantOutcome, CoreError> {
     let url = format!("{PERMISSIONS_BASE}/assets/permissions");
-    let mut granted = Vec::with_capacity(asset_ids.len());
+    let mut outcome = assets::GrantOutcome::default();
 
     for chunk in asset_ids.chunks(assets::MAX_PERMISSION_REQUESTS) {
         let body = assets::build_permissions_body(universe_id, chunk);
@@ -180,9 +224,22 @@ pub async fn grant_use_permission(
         if !status.is_success() {
             return Err(upload_error(status, response.text().await.ok()));
         }
-        granted.extend_from_slice(chunk);
+
+        let json: serde_json::Value = response.json().await?;
+        let chunk_outcome = assets::parse_grant_response(&json);
+        // An unrecognised body names nothing at all. Rather than silently
+        // dropping the chunk, treat the 200 as covering what was asked for and
+        // say so in the log, so a response-shape change degrades to the old
+        // behaviour instead of reporting zero grants.
+        if chunk_outcome.granted.is_empty() && chunk_outcome.failures.is_empty() {
+            tracing::info!("grant response had no successAssetIds or errors; assuming the 200");
+            outcome.granted.extend_from_slice(chunk);
+        } else {
+            outcome.granted.extend(chunk_outcome.granted);
+            outcome.failures.extend(chunk_outcome.failures);
+        }
     }
-    Ok(granted)
+    Ok(outcome)
 }
 
 // ---------------------------------------------------------------------------
@@ -925,6 +982,15 @@ mod tests {
         assert!(parse_thumbnail_urls(&serde_json::json!({}), &[1]).is_empty());
         let junk = serde_json::json!({ "data": [{ "targetId": 1, "state": "Completed" }] });
         assert!(parse_thumbnail_urls(&junk, &[1]).is_empty());
+    }
+
+    #[test]
+    fn moderation_lives_on_develop_not_the_assets_api() {
+        // The Assets API's operations endpoint answers "has this been
+        // ingested", which is the question that was being mistaken for "has
+        // this been approved". Only this host answers the second one.
+        assert!(DEVELOP_BASE.starts_with("https://develop.roblox.com"));
+        assert!(!DEVELOP_BASE.contains("apis.roblox.com"));
     }
 
     #[test]

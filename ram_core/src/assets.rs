@@ -18,11 +18,29 @@ use crate::error::CoreError;
 use crate::storage;
 
 /// Schema version written into new index files.
-pub const CURRENT_SCHEMA: u32 = 1;
+///
+/// 2 added the `inReview` state and the per-row retry counters. Reading a
+/// version 1 file is unchanged (every new field defaults), but a version 1
+/// build cannot read a file containing `inReview` rows, so the bump is what
+/// makes that downgrade fail loudly against the backup instead of quietly.
+pub const CURRENT_SCHEMA: u32 = 2;
 
 /// How long Roblox keeps an operation id resolvable. Past this an upload has no
 /// discoverable verdict, though the asset itself may still have been published.
 pub const OPERATION_TTL_HOURS: i64 = 24;
+
+/// How long to keep asking for a moderation verdict before giving up on the row.
+///
+/// Deliberately much longer than [`OPERATION_TTL_HOURS`]: an operation is a
+/// short-lived server-side job, but audio review routinely runs into hours and
+/// occasionally days. Expiring a row at 24h would report "timed out" on assets
+/// that were about to be approved.
+pub const REVIEW_TTL_HOURS: i64 = 96;
+
+/// How many times a retryable upload failure is re-sent on its own before the
+/// row is left for the user. Four covers a rate-limit window or a Roblox blip
+/// without turning a genuinely bad file into an endless loop.
+pub const MAX_UPLOAD_ATTEMPTS: u32 = 4;
 
 /// Roblox caps a `displayName` well below this, but the exact limit is not
 /// documented. 50 matches what Studio's import dialog accepts.
@@ -225,9 +243,27 @@ pub enum AssetState {
     Duplicate { asset_id: u64 },
     /// A command is in flight but no operation id has come back yet.
     Uploading,
-    /// Roblox accepted the bytes and is moderating.
+    /// Roblox accepted the bytes and the upload operation is still running.
+    ///
+    /// This is *not* moderation. The operation finishing only means the file was
+    /// ingested and an asset id minted; whether the asset may be used is a
+    /// separate verdict, tracked by [`AssetState::InReview`].
     Pending {
         operation: String,
+        since: DateTime<Utc>,
+    },
+    /// The upload operation finished and an asset id exists, but Roblox has not
+    /// published a moderation verdict yet.
+    ///
+    /// Split out from `Approved` because the operations endpoint reports
+    /// ingestion, not moderation: audio in particular comes back `done: true`
+    /// with an asset id and then sits in review for minutes to days. Treating
+    /// that as approved handed out ids for assets that later turned out to be
+    /// blocked. Verdicts come from [`ModerationStatus`].
+    InReview {
+        asset_id: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        revision_id: Option<u64>,
         since: DateTime<Utc>,
     },
     Approved {
@@ -246,9 +282,12 @@ pub enum AssetState {
 }
 
 impl AssetState {
-    /// Still moving. The upload pump and the poll timer both key off this.
+    /// Still moving. The upload pump and the poll timers all key off this.
     pub fn is_active(&self) -> bool {
-        matches!(self, AssetState::Uploading | AssetState::Pending { .. })
+        matches!(
+            self,
+            AssetState::Uploading | AssetState::Pending { .. } | AssetState::InReview { .. }
+        )
     }
 
     pub fn is_terminal(&self) -> bool {
@@ -262,14 +301,91 @@ impl AssetState {
     }
 
     /// The asset id, once one exists.
+    ///
+    /// `InReview` counts: the id is real and permanent from the moment the
+    /// upload operation completes. Withholding it here would let the dedupe
+    /// check miss an in-flight upload and mint a second copy, which for audio
+    /// also burns a second slice of the per-account quota.
     pub fn asset_id(&self) -> Option<u64> {
         match self {
-            AssetState::Approved { asset_id, .. } | AssetState::Duplicate { asset_id } => {
-                Some(*asset_id)
-            }
+            AssetState::Approved { asset_id, .. }
+            | AssetState::InReview { asset_id, .. }
+            | AssetState::Duplicate { asset_id } => Some(*asset_id),
             _ => None,
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Moderation
+// ---------------------------------------------------------------------------
+
+/// Where an asset stands with moderation, independent of its upload operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ModerationStatus {
+    /// Review has not finished. Keep asking.
+    InReview,
+    /// Cleared, or never needed clearing.
+    Approved,
+    /// Blocked. Terminal.
+    Rejected,
+}
+
+/// Read one asset's verdict out of a `develop.roblox.com/v1/assets` entry.
+///
+/// The rules mirror the ones proven out in newnew13bot_v2, which has polled
+/// this endpoint through thousands of uploads:
+///
+/// - `reviewStatus` is `"Finished"` once a human or the automated pass has
+///   ruled, and `"DoesNotRequire"` for asset types that skip review entirely.
+///   Anything else (`"Pending"`, `"InReview"`, ...) means keep waiting.
+/// - `isModerated` is the verdict itself, and is only meaningful once review
+///   has finished. `DoesNotRequire` overrides it: an asset that never needed
+///   review is never blocked by it.
+///
+/// Returns `None` when the entry carries neither field, which is treated by
+/// callers as "no answer this time" rather than as a verdict.
+pub fn parse_moderation_entry(entry: &serde_json::Value) -> Option<ModerationStatus> {
+    let review_status = entry.get("reviewStatus").and_then(|v| v.as_str());
+    let is_moderated = entry.get("isModerated").and_then(|v| v.as_bool());
+    if review_status.is_none() && is_moderated.is_none() {
+        return None;
+    }
+
+    // No review required: approved regardless of what `isModerated` says.
+    if review_status == Some("DoesNotRequire") {
+        return Some(ModerationStatus::Approved);
+    }
+    // A missing `reviewStatus` alongside a present `isModerated` is treated as
+    // unfinished, so the row waits rather than being called approved early.
+    if review_status != Some("Finished") {
+        return Some(ModerationStatus::InReview);
+    }
+    Some(match is_moderated {
+        Some(true) => ModerationStatus::Rejected,
+        _ => ModerationStatus::Approved,
+    })
+}
+
+/// Pair every `assetId` in a moderation response with its verdict.
+///
+/// Keyed on the id in the payload, never on position: this endpoint drops ids
+/// it cannot resolve, and pairing by index would then attach one asset's
+/// verdict to another. The same mistake caused v1.4.6's wrong-avatar bug.
+pub fn parse_moderation_response(body: &serde_json::Value) -> Vec<(u64, ModerationStatus)> {
+    let Some(entries) = body.get("data").and_then(|d| d.as_array()) else {
+        return Vec::new();
+    };
+    entries
+        .iter()
+        .filter_map(|entry| {
+            let asset_id = entry
+                .get("id")
+                .or_else(|| entry.get("assetId"))
+                .and_then(json_u64)?;
+            Some((asset_id, parse_moderation_entry(entry)?))
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -313,6 +429,15 @@ pub struct AssetRecord {
     /// asset clears moderation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_grant_universe: Option<u64>,
+    /// How many times this row has been sent to Roblox. Drives the automatic
+    /// re-send of retryable failures and its backoff, and is persisted so a
+    /// restart cannot reset a row into another full round of attempts.
+    #[serde(default)]
+    pub attempts: u32,
+    /// Earliest time this row may be sent again. Set when a retryable failure
+    /// is scheduled for another attempt; `None` means "eligible now".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_at: Option<DateTime<Utc>>,
     /// Fields written by a newer build, preserved verbatim across a round trip
     /// so a downgrade does not silently delete them.
     #[serde(flatten, default)]
@@ -361,6 +486,8 @@ impl AssetRecord {
             updated_at: None,
             granted_universes: Vec::new(),
             auto_grant_universe: None,
+            attempts: 0,
+            retry_at: None,
             extra: serde_json::Map::new(),
         }
     }
@@ -478,10 +605,16 @@ impl AssetIndex {
         if sha256.is_empty() {
             return None;
         }
+        // `InReview` counts as uploaded. The bytes are already on Roblox and
+        // the id is already minted, so re-sending them would create a second
+        // asset, not retry the first.
         self.records.iter().find(|r| {
             r.file_sha256 == sha256
                 && r.creator == creator
-                && matches!(r.state, AssetState::Approved { .. })
+                && matches!(
+                    r.state,
+                    AssetState::Approved { .. } | AssetState::InReview { .. }
+                )
         })
     }
 
@@ -502,11 +635,18 @@ impl AssetIndex {
         self.records.len() < before
     }
 
-    /// Rows still waiting on Roblox.
+    /// Rows whose upload operation has not finished.
     pub fn pending(&self) -> impl Iterator<Item = &AssetRecord> {
         self.records
             .iter()
             .filter(|r| matches!(r.state, AssetState::Pending { .. }))
+    }
+
+    /// Rows that have an asset id but no moderation verdict.
+    pub fn in_review(&self) -> impl Iterator<Item = &AssetRecord> {
+        self.records
+            .iter()
+            .filter(|r| matches!(r.state, AssetState::InReview { .. }))
     }
 
     pub fn has_active(&self) -> bool {
@@ -581,27 +721,94 @@ pub const MAX_PERMISSION_REQUESTS: usize = 50;
 
 /// Body for `PATCH /asset-permissions-api/v1/assets/permissions`.
 ///
-/// **Provisional.** The endpoint and its cookie auth are confirmed, but this
-/// exact shape came from a community example rather than Roblox's own docs.
-/// It is a pure function with an exact-match test precisely so correcting it is
-/// a one-place change: fix the literal here and the literal in
-/// `permissions_body_matches_the_documented_shape`, and every caller follows.
+/// **One subject, many assets.** The subject lives at the top level and
+/// `requests` carries nothing but asset entries. This is the shape the
+/// endpoint's own description implies ("grant *a subject* permission to
+/// *multiple assets*"), and the earlier per-request `subject` object was the
+/// mistake behind `{"code":"InvalidRequest","message":"Invalid SubjectType is
+/// invalid."}`: with no `subjectType` at the top level the server parsed the
+/// field as its `Invalid` default and echoed that name straight back.
+///
+/// `assetId` is a number here while `subjectId` is a string. That asymmetry
+/// looks like a typo and is not; it is what the working request uses.
+///
+/// A pure function with an exact-match test, so correcting it stays a
+/// one-place change: fix the literal here and the literal in
+/// `permissions_body_matches_the_working_shape`, and every caller follows.
 pub fn build_permissions_body(universe_id: u64, asset_ids: &[u64]) -> serde_json::Value {
     let requests: Vec<serde_json::Value> = asset_ids
         .iter()
         .map(|asset_id| {
             serde_json::json!({
                 "assetId": asset_id,
-                "subject": {
-                    "subjectType": "Universe",
-                    // A string, matching how the Assets API wants creator IDs.
-                    "subjectId": universe_id.to_string(),
-                },
-                "action": "Use",
+                // Models carry meshes and textures as separate assets, and a
+                // grant that stops at the top-level asset leaves the
+                // experience unable to render it.
+                "grantToDependencies": true,
+                "parentVersionNumber": 0,
             })
         })
         .collect();
-    serde_json::json!({ "requests": requests })
+    serde_json::json!({
+        "subjectType": "Universe",
+        // A string, matching how the Assets API wants creator IDs.
+        "subjectId": universe_id.to_string(),
+        "action": "Use",
+        "requests": requests,
+        "enableDeepAccessCheck": true,
+    })
+}
+
+/// What the grant endpoint reported, per asset.
+///
+/// A 200 does not mean every asset in the batch was granted: the response
+/// carries `successAssetIds` alongside a per-asset `errors` list. Treating the
+/// status code as the answer reported a clean grant for assets Roblox had just
+/// refused.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GrantOutcome {
+    pub granted: Vec<u64>,
+    /// `(asset_id, message)` for the ones that did not take. The id is absent
+    /// when Roblox reported an error without naming an asset.
+    pub failures: Vec<(Option<u64>, String)>,
+}
+
+/// Read a grant response.
+///
+/// Lenient on purpose: an unrecognised shape yields no successes and no
+/// failures, which the caller reports as "nothing confirmed" rather than
+/// inventing a result in either direction.
+pub fn parse_grant_response(body: &serde_json::Value) -> GrantOutcome {
+    let granted = body
+        .get("successAssetIds")
+        .and_then(|v| v.as_array())
+        .map(|ids| ids.iter().filter_map(json_u64).collect())
+        .unwrap_or_default();
+
+    let failures = body
+        .get("errors")
+        .and_then(|v| v.as_array())
+        .map(|entries| {
+            entries
+                .iter()
+                .map(|entry| {
+                    // Roblox is inconsistent here: sometimes an object with an
+                    // id and a message, sometimes a bare string.
+                    let asset_id = entry.get("assetId").and_then(json_u64);
+                    let message = entry
+                        .get("message")
+                        .or_else(|| entry.get("error"))
+                        .and_then(|m| m.as_str())
+                        .or_else(|| entry.as_str())
+                        .unwrap_or("Roblox refused this asset without saying why")
+                        .to_string();
+                    (asset_id, message)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    GrantOutcome { granted, failures }
 }
 
 /// What an operation poll told us.
@@ -776,21 +983,88 @@ fn is_expired(since: DateTime<Utc>, now: DateTime<Utc>) -> bool {
     now.signed_duration_since(since).num_hours() >= OPERATION_TTL_HOURS
 }
 
+fn review_is_expired(since: DateTime<Utc>, now: DateTime<Utc>) -> bool {
+    now.signed_duration_since(since).num_hours() >= REVIEW_TTL_HOURS
+}
+
+/// How often to ask for a moderation verdict, from the age of the oldest asset
+/// still in review.
+///
+/// Slower than [`poll_interval_for_age`] at every step. An operation is a job
+/// that finishes in seconds; a review is a queue an asset can sit in for hours,
+/// and polling it at upload cadence is pure noise on an endpoint that is already
+/// quick to rate limit.
+pub fn review_poll_interval_for_age(age: Duration) -> Duration {
+    if age < Duration::from_secs(300) {
+        Duration::from_secs(20)
+    } else if age < Duration::from_secs(3600) {
+        Duration::from_secs(120)
+    } else {
+        Duration::from_secs(600)
+    }
+}
+
+/// `(row_id, asset_id)` for the rows whose verdict to ask about this tick.
+/// Oldest first, capped, rows past [`REVIEW_TTL_HOURS`] skipped.
+pub fn next_review_batch(
+    records: &[AssetRecord],
+    now: DateTime<Utc>,
+    max: usize,
+) -> Vec<(String, u64)> {
+    let mut candidates: Vec<(&DateTime<Utc>, &AssetRecord, u64)> = records
+        .iter()
+        .filter_map(|r| match &r.state {
+            AssetState::InReview {
+                since, asset_id, ..
+            } if !review_is_expired(*since, now) => Some((since, r, *asset_id)),
+            _ => None,
+        })
+        .collect();
+    candidates.sort_by_key(|(since, _, _)| **since);
+    candidates
+        .into_iter()
+        .take(max)
+        .map(|(_, r, asset_id)| (r.row_id.clone(), asset_id))
+        .collect()
+}
+
+/// How long to wait before re-sending an upload that failed retryably.
+///
+/// Exponential from 5s and capped at 2 minutes. The floor matters more than the
+/// ceiling here: Roblox's audio limiter is per-minute, and the transport's own
+/// 429 backoff tops out in seconds, so retrying immediately just spends the next
+/// attempt on the same rejection.
+pub fn upload_retry_backoff(attempt: u32) -> Duration {
+    const BASE_SECS: u64 = 5;
+    const CAP_SECS: u64 = 120;
+    let shift = attempt.min(8);
+    Duration::from_secs((BASE_SECS << shift).min(CAP_SECS))
+}
+
 /// Move every operation past its TTL to [`AssetState::Expired`]. Returns the
 /// row IDs that changed so the caller knows whether to persist.
+///
+/// Also covers rows stuck in review past [`REVIEW_TTL_HOURS`]. Both land on
+/// `Expired` for the same reason: the asset exists and may well be live, we
+/// just have no way left to find out.
 pub fn expire_stale_operations(index: &mut AssetIndex, now: DateTime<Utc>) -> Vec<String> {
     let mut expired = Vec::new();
     for record in &mut index.records {
-        let AssetState::Pending { operation, since } = &record.state else {
-            continue;
+        let next = match &record.state {
+            AssetState::Pending { operation, since } if is_expired(*since, now) => {
+                AssetState::Expired {
+                    operation: operation.clone(),
+                }
+            }
+            AssetState::InReview {
+                asset_id, since, ..
+            } if review_is_expired(*since, now) => AssetState::Expired {
+                operation: asset_id.to_string(),
+            },
+            _ => continue,
         };
-        if !is_expired(*since, now) {
-            continue;
-        }
         expired.push(record.row_id.clone());
-        record.state = AssetState::Expired {
-            operation: operation.clone(),
-        };
+        record.state = next;
         record.updated_at = Some(now);
     }
     expired
@@ -830,6 +1104,8 @@ mod tests {
             updated_at: None,
             granted_universes: Vec::new(),
             auto_grant_universe: None,
+            attempts: 0,
+            retry_at: None,
             extra: serde_json::Map::new(),
         }
     }
@@ -1095,17 +1371,44 @@ mod tests {
     // ---- permissions ----
 
     #[test]
-    fn permissions_body_matches_the_documented_shape() {
+    fn permissions_body_matches_the_working_shape() {
         assert_eq!(
             build_permissions_body(456, &[123]),
             serde_json::json!({
+                "subjectType": "Universe",
+                "subjectId": "456",
+                "action": "Use",
                 "requests": [{
                     "assetId": 123,
-                    "subject": { "subjectType": "Universe", "subjectId": "456" },
-                    "action": "Use"
-                }]
+                    "grantToDependencies": true,
+                    "parentVersionNumber": 0
+                }],
+                "enableDeepAccessCheck": true
             })
         );
+    }
+
+    #[test]
+    fn the_subject_is_top_level_not_per_request() {
+        // A `subject` object inside each request is what produced
+        // `{"code":"InvalidRequest","message":"Invalid SubjectType is
+        // invalid."}`: the server found no `subjectType` where it looks, parsed
+        // its `Invalid` default, and echoed that name back.
+        let body = build_permissions_body(456, &[123]);
+        assert_eq!(body["subjectType"], "Universe");
+        assert!(body["requests"][0].get("subject").is_none(), "got: {body}");
+        assert!(
+            body["requests"][0].get("subjectType").is_none(),
+            "got: {body}"
+        );
+    }
+
+    #[test]
+    fn the_subject_id_is_a_string_and_the_asset_id_is_not() {
+        // Asymmetric, and deliberately so: it is what the working request uses.
+        let body = build_permissions_body(456, &[123]);
+        assert!(body["subjectId"].is_string(), "got: {body}");
+        assert!(body["requests"][0]["assetId"].is_number(), "got: {body}");
     }
 
     #[test]
@@ -1114,12 +1417,53 @@ mod tests {
         let requests = body["requests"].as_array().unwrap();
         assert_eq!(requests.len(), 3);
         assert_eq!(requests[2]["assetId"], 12);
+        // One subject covers the whole batch.
+        assert_eq!(body["subjectId"], "1");
     }
 
     #[test]
     fn permissions_body_with_no_assets_is_an_empty_list() {
         let body = build_permissions_body(1, &[]);
         assert!(body["requests"].as_array().unwrap().is_empty());
+    }
+
+    // ---- grant response ----
+
+    #[test]
+    fn a_grant_response_reports_successes_and_refusals_separately() {
+        // A 200 is not a blanket yes.
+        let body = serde_json::json!({
+            "successAssetIds": [123, "456"],
+            "errors": [{ "assetId": 789, "message": "Requester cannot manage permissions" }]
+        });
+        let outcome = parse_grant_response(&body);
+        assert_eq!(outcome.granted, vec![123, 456]);
+        assert_eq!(
+            outcome.failures,
+            vec![(
+                Some(789),
+                "Requester cannot manage permissions".to_string()
+            )]
+        );
+    }
+
+    #[test]
+    fn a_grant_response_accepts_bare_string_errors() {
+        let body = serde_json::json!({ "successAssetIds": [], "errors": ["nope"] });
+        let outcome = parse_grant_response(&body);
+        assert!(outcome.granted.is_empty());
+        assert_eq!(outcome.failures, vec![(None, "nope".to_string())]);
+    }
+
+    #[test]
+    fn an_unrecognised_grant_response_claims_nothing() {
+        // The caller treats this as "nothing confirmed" and falls back, rather
+        // than inventing a result in either direction.
+        assert_eq!(parse_grant_response(&serde_json::json!({})), GrantOutcome::default());
+        assert_eq!(
+            parse_grant_response(&serde_json::json!({ "successAssetIds": "nope" })),
+            GrantOutcome::default()
+        );
     }
 
     // ---- id parsing ----
@@ -1226,6 +1570,220 @@ mod tests {
             index.records[0].state,
             AssetState::Expired { .. }
         ));
+    }
+
+    // ---- moderation ----
+
+    // These encode the rule the Asset Manager got wrong: an operation reporting
+    // `done` is ingestion, not a verdict. Every case below came from the shape
+    // newnew13bot_v2 polls in production.
+
+    #[test]
+    fn an_unfinished_review_is_not_an_approval() {
+        for status in ["Pending", "InReview", "AwaitingReview", ""] {
+            let entry = serde_json::json!({ "reviewStatus": status, "isModerated": false });
+            assert_eq!(
+                parse_moderation_entry(&entry),
+                Some(ModerationStatus::InReview),
+                "reviewStatus {status}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_finished_unmoderated_review_is_an_approval() {
+        let entry = serde_json::json!({ "reviewStatus": "Finished", "isModerated": false });
+        assert_eq!(
+            parse_moderation_entry(&entry),
+            Some(ModerationStatus::Approved)
+        );
+    }
+
+    #[test]
+    fn a_finished_moderated_review_is_a_rejection() {
+        let entry = serde_json::json!({ "reviewStatus": "Finished", "isModerated": true });
+        assert_eq!(
+            parse_moderation_entry(&entry),
+            Some(ModerationStatus::Rejected)
+        );
+    }
+
+    #[test]
+    fn does_not_require_wins_over_is_moderated() {
+        // Asset types that skip review report `isModerated: true` in this
+        // combination on occasion. Reading it as a block would fail every
+        // upload of a type that was never going to be reviewed.
+        let entry = serde_json::json!({ "reviewStatus": "DoesNotRequire", "isModerated": true });
+        assert_eq!(
+            parse_moderation_entry(&entry),
+            Some(ModerationStatus::Approved)
+        );
+    }
+
+    #[test]
+    fn a_missing_review_status_is_treated_as_unfinished() {
+        // Waiting on an asset that turns out to be fine costs a poll. Calling
+        // it approved when it is not is what this whole change exists to stop,
+        // so the ambiguous case waits.
+        let entry = serde_json::json!({ "isModerated": false });
+        assert_eq!(
+            parse_moderation_entry(&entry),
+            Some(ModerationStatus::InReview)
+        );
+    }
+
+    #[test]
+    fn an_entry_with_neither_field_yields_no_verdict() {
+        assert_eq!(parse_moderation_entry(&serde_json::json!({})), None);
+        assert_eq!(
+            parse_moderation_entry(&serde_json::json!({ "name": "x" })),
+            None
+        );
+    }
+
+    #[test]
+    fn moderation_response_pairs_by_id_not_position() {
+        let body = serde_json::json!({
+            "data": [
+                { "id": 30, "reviewStatus": "Finished", "isModerated": true },
+                { "id": 10, "reviewStatus": "DoesNotRequire", "isModerated": false }
+            ]
+        });
+        assert_eq!(
+            parse_moderation_response(&body),
+            vec![
+                (30, ModerationStatus::Rejected),
+                (10, ModerationStatus::Approved),
+            ]
+        );
+    }
+
+    #[test]
+    fn moderation_response_degrades_rather_than_failing() {
+        assert!(parse_moderation_response(&serde_json::json!({})).is_empty());
+        assert!(parse_moderation_response(&serde_json::json!({ "data": "nope" })).is_empty());
+        // An entry with no id, and one with no verdict fields, are both skipped
+        // while the usable entry survives.
+        let mixed = serde_json::json!({
+            "data": [
+                { "reviewStatus": "Finished" },
+                { "id": 5 },
+                { "id": 7, "reviewStatus": "Finished", "isModerated": false }
+            ]
+        });
+        assert_eq!(
+            parse_moderation_response(&mixed),
+            vec![(7, ModerationStatus::Approved)]
+        );
+    }
+
+    // ---- review scheduling ----
+
+    #[test]
+    fn review_polling_is_slower_than_operation_polling_at_every_tier() {
+        for age in [30u64, 600, 7200] {
+            let age = Duration::from_secs(age);
+            assert!(
+                review_poll_interval_for_age(age) > poll_interval_for_age(age),
+                "age {age:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn review_batch_is_oldest_first_and_capped() {
+        let mut records = Vec::new();
+        for (i, hour) in [5i64, 1, 3].into_iter().enumerate() {
+            records.push(record(
+                &format!("r{i}"),
+                AssetState::InReview {
+                    asset_id: 100 + i as u64,
+                    revision_id: None,
+                    since: at(hour),
+                },
+            ));
+        }
+        let batch = next_review_batch(&records, at(6), 2);
+        assert_eq!(
+            batch,
+            vec![("r1".to_string(), 101), ("r2".to_string(), 102)]
+        );
+    }
+
+    #[test]
+    fn a_review_outlives_an_operation_by_days() {
+        let mut index = AssetIndex::default();
+        index.records.push(record(
+            "a",
+            AssetState::InReview {
+                asset_id: 7,
+                revision_id: None,
+                since: at(0),
+            },
+        ));
+
+        // Well past OPERATION_TTL_HOURS, and still waiting: audio review runs
+        // long, and expiring it at the operation's TTL reported "timed out" on
+        // assets that were about to be approved.
+        let day_and_a_half = at(0) + chrono::Duration::hours(36);
+        assert!(expire_stale_operations(&mut index, day_and_a_half).is_empty());
+        assert!(!next_review_batch(&index.records, day_and_a_half, 10).is_empty());
+
+        let past = at(0) + chrono::Duration::hours(REVIEW_TTL_HOURS + 1);
+        assert_eq!(expire_stale_operations(&mut index, past), vec!["a"]);
+        assert!(next_review_batch(&index.records, past, 10).is_empty());
+    }
+
+    #[test]
+    fn an_asset_in_review_counts_as_uploaded() {
+        // The bytes are on Roblox and the id is minted. Re-sending them would
+        // mint a second asset and, for audio, burn a second slice of quota.
+        let mut index = AssetIndex::default();
+        let mut in_review = record(
+            "a",
+            AssetState::InReview {
+                asset_id: 42,
+                revision_id: None,
+                since: at(0),
+            },
+        );
+        in_review.file_sha256 = "hash".to_string();
+        index.records.push(in_review);
+
+        let found = index.find_uploaded("hash", Creator::User(1));
+        assert_eq!(found.and_then(|r| r.state.asset_id()), Some(42));
+    }
+
+    #[test]
+    fn in_review_is_active_but_not_terminal() {
+        let state = AssetState::InReview {
+            asset_id: 1,
+            revision_id: None,
+            since: at(0),
+        };
+        // Active keeps the poll timers running; terminal would let
+        // "Clear finished" delete a row that has not finished.
+        assert!(state.is_active());
+        assert!(!state.is_terminal());
+    }
+
+    // ---- upload retry backoff ----
+
+    #[test]
+    fn retry_backoff_grows_and_then_stops() {
+        assert_eq!(upload_retry_backoff(0), Duration::from_secs(5));
+        assert_eq!(upload_retry_backoff(1), Duration::from_secs(10));
+        assert_eq!(upload_retry_backoff(2), Duration::from_secs(20));
+        // Capped, and no overflow at any attempt a caller could reach.
+        assert_eq!(upload_retry_backoff(20), Duration::from_secs(120));
+        assert_eq!(upload_retry_backoff(u32::MAX), Duration::from_secs(120));
+    }
+
+    #[test]
+    fn the_first_retry_waits_long_enough_to_outlast_a_limiter_window() {
+        // Roblox's audio limiter is measured in seconds. Retrying instantly
+        // just spends the next attempt on the same rejection.
+        assert!(upload_retry_backoff(0) >= Duration::from_secs(5));
     }
 
     // ---- index ----

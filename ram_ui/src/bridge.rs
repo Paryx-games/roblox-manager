@@ -5,7 +5,7 @@
 //! back as [`BackendEvent`] through an mpsc channel polled each frame.
 
 use eframe::egui;
-use ram_core::assets::{AssetKind, Creator, OperationOutcome};
+use ram_core::assets::{AssetKind, Creator, ModerationStatus, OperationOutcome};
 use ram_core::auth::RobloxClient;
 use ram_core::models::{Account, AccountStore, Presence};
 use ram_core::{api, assets, assets_api, crypto, process, CoreError};
@@ -163,6 +163,17 @@ pub enum BackendCommand {
         /// `(row_id, operation)` pairs. The caller caps the length.
         operations: Vec<(String, String)>,
     },
+    /// Ask whether a batch of already-uploaded assets has cleared moderation.
+    /// Separate from `PollAssetOperations` because it runs on its own, slower
+    /// cadence and against a different endpoint.
+    PollAssetModeration {
+        user_id: u64,
+        encrypted_cookie: Option<String>,
+        password: String,
+        use_credential_manager: bool,
+        /// `(row_id, asset_id)` pairs. The caller caps the length.
+        assets: Vec<(String, u64)>,
+    },
     /// Grant one universe `Use` access to a batch of assets.
     GrantAssetPermissions {
         user_id: u64,
@@ -170,9 +181,13 @@ pub enum BackendCommand {
         password: String,
         use_credential_manager: bool,
         universe_id: u64,
+        /// Everything to grant, local uploads and inventory picks alike.
         asset_ids: Vec<u64>,
-        /// Row IDs to stamp on success, so the library can show what happened.
-        row_ids: Vec<String>,
+        /// `(row_id, asset_id)` for the subset that came from local rows, so
+        /// the library can stamp what happened. Not parallel to `asset_ids`:
+        /// an asset picked from the inventory has no local row and appears
+        /// only in the list above.
+        row_assets: Vec<(String, u64)>,
     },
     /// Populate the universe picker, and turn a pasted place ID into a
     /// universe ID. `place_id` is `None` when only the list is wanted.
@@ -335,14 +350,24 @@ pub enum BackendEvent {
         message: String,
         retryable: bool,
     },
+    /// Moderation answered for one asset. Only sent when there is an answer:
+    /// an asset Roblox declined to report on stays in review rather than being
+    /// guessed at in either direction.
+    AssetModerationResolved {
+        row_id: String,
+        status: ModerationStatus,
+    },
     /// A `PollAssetOperations` batch finished. Carries nothing: every result
     /// already streamed out as its own event.
     AssetPollBatchDone,
-    /// A universe was granted `Use` on these assets.
+    /// A universe was granted `Use` on these assets. `refused` counts the ones
+    /// Roblox named in the response's per-asset error list, which a 200 does
+    /// not rule out.
     AssetPermissionsGranted {
         universe_id: u64,
         row_ids: Vec<String>,
         granted: usize,
+        refused: usize,
     },
     /// The grant failed. Kept separate from `Error` so the wording can say
     /// which universe, and so a wrong request shape cannot be mistaken for an
@@ -1076,6 +1101,17 @@ async fn handle_command(
             poll_asset_operations(client, &cookie, &operations, tx).await;
             Ok(BackendEvent::AssetPollBatchDone)
         }
+        BackendCommand::PollAssetModeration {
+            user_id,
+            encrypted_cookie,
+            password,
+            use_credential_manager,
+            assets,
+        } => {
+            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            poll_asset_moderation(client, &cookie, &assets, tx).await;
+            Ok(BackendEvent::AssetPollBatchDone)
+        }
         BackendCommand::GrantAssetPermissions {
             user_id,
             encrypted_cookie,
@@ -1083,15 +1119,32 @@ async fn handle_command(
             use_credential_manager,
             universe_id,
             asset_ids,
-            row_ids,
+            row_assets,
         } => {
             let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
             match assets_api::grant_use_permission(client, &cookie, universe_id, &asset_ids).await {
-                Ok(granted) => Ok(BackendEvent::AssetPermissionsGranted {
-                    universe_id,
-                    row_ids,
-                    granted: granted.len(),
-                }),
+                Ok(outcome) => {
+                    for (asset_id, message) in &outcome.failures {
+                        match asset_id {
+                            Some(id) => info!("grant refused for asset {id}: {message}"),
+                            None => info!("grant refused: {message}"),
+                        }
+                    }
+                    // Only the rows Roblox actually confirmed get stamped, so
+                    // the local mirror never claims access the experience does
+                    // not have.
+                    let granted_rows = row_assets
+                        .into_iter()
+                        .filter(|(_, asset_id)| outcome.granted.contains(asset_id))
+                        .map(|(row_id, _)| row_id)
+                        .collect();
+                    Ok(BackendEvent::AssetPermissionsGranted {
+                        universe_id,
+                        row_ids: granted_rows,
+                        granted: outcome.granted.len(),
+                        refused: outcome.failures.len(),
+                    })
+                }
                 // Reported against the grant, not as a generic error: a wrong
                 // request shape here must not read as an upload failure.
                 Err(e) => Ok(BackendEvent::AssetPermissionsFailed {
@@ -1220,6 +1273,11 @@ async fn handle_command(
 /// without waiting for the next tick.
 const UPLOAD_POLL_BURST: &[u64] = &[1, 2, 4];
 
+/// The same burst for audio, which is slower to ingest than anything else this
+/// app uploads. Giving up after 7 seconds left a queue full of rows that had
+/// perfectly good operations behind them and simply had not been asked twice.
+const AUDIO_POLL_BURST: &[u64] = &[2, 3, 5, 8, 12];
+
 /// Gap between polls inside one batch. Keeps a large backlog to a few requests
 /// per second per account instead of a burst.
 const POLL_SPACING_MS: u64 = 250;
@@ -1253,8 +1311,17 @@ async fn upload_asset(
         Err(e) => {
             let retryable = match &e {
                 CoreError::RobloxApi { status, .. } => assets_api::is_retryable_status(*status),
-                // A dead cookie or a local read failure will not fix itself.
                 CoreError::RateLimited | CoreError::Http(_) => true,
+                // Both of these look terminal and usually are not. Roblox
+                // emits bare 403s on `apis.roblox.com` under load with a
+                // perfectly good cookie, and a bulk batch rotating the CSRF
+                // token out from under its own concurrent requests exhausts
+                // the token retries the same way. Calling either one fatal is
+                // what turned a transient blip into a queue of dead rows with
+                // no way back. If the cookie really is revoked the retries
+                // exhaust and the row still fails, just later and honestly.
+                CoreError::CookieRejected | CoreError::AuthFailed(_) => true,
+                // A local read failure or a decrypt failure will not fix itself.
                 _ => false,
             };
             error!("upload failed for row {row_id}: {e}");
@@ -1332,10 +1399,7 @@ async fn upload_asset_inner(
     let Some(operation) = created.operation else {
         // No operation to poll. Either Roblox resolved it inline, or it told us
         // nothing useful, and `parse_operation_response` already decided which.
-        return Ok(BackendEvent::AssetOperationResolved {
-            row_id,
-            outcome: created.outcome,
-        });
+        return Ok(finish_upload(client, &cookie, row_id, created.outcome, tx).await);
     };
 
     let _ = tx.send(BackendEvent::AssetOperationCreated {
@@ -1345,17 +1409,18 @@ async fn upload_asset_inner(
     });
 
     if !matches!(created.outcome, OperationOutcome::StillPending) {
-        return Ok(BackendEvent::AssetOperationResolved {
-            row_id,
-            outcome: created.outcome,
-        });
+        return Ok(finish_upload(client, &cookie, row_id, created.outcome, tx).await);
     }
 
-    for wait in UPLOAD_POLL_BURST {
+    let burst = match kind {
+        AssetKind::Audio => AUDIO_POLL_BURST,
+        _ => UPLOAD_POLL_BURST,
+    };
+    for wait in burst {
         tokio::time::sleep(Duration::from_secs(*wait)).await;
         match assets_api::poll_operation(client, &cookie, &operation).await {
             Ok(OperationOutcome::StillPending) => continue,
-            Ok(outcome) => return Ok(BackendEvent::AssetOperationResolved { row_id, outcome }),
+            Ok(outcome) => return Ok(finish_upload(client, &cookie, row_id, outcome, tx).await),
             // A failed poll is not a failed upload. Leave it Pending and let
             // the UI's timer keep asking.
             Err(e) => {
@@ -1369,6 +1434,45 @@ async fn upload_asset_inner(
         row_id,
         outcome: OperationOutcome::StillPending,
     })
+}
+
+/// Report an operation's outcome, and for an approval ask moderation about it
+/// once before handing the row to the timer.
+///
+/// The immediate check is what keeps the common case fast: Decals and Models
+/// come back `DoesNotRequire` and land on Approved in the same breath as the
+/// upload, so only assets that genuinely are in review ever show as such.
+async fn finish_upload(
+    client: &RobloxClient,
+    cookie: &str,
+    row_id: String,
+    outcome: OperationOutcome,
+    tx: &mpsc::UnboundedSender<BackendEvent>,
+) -> BackendEvent {
+    let OperationOutcome::Approved { asset_id, .. } = outcome else {
+        return BackendEvent::AssetOperationResolved { row_id, outcome };
+    };
+
+    // Order matters: the row has to reach `InReview` (which is what
+    // `AssetOperationResolved` with an approval now means) before any verdict
+    // lands on it, or the verdict has nothing to apply to.
+    let _ = tx.send(BackendEvent::AssetOperationResolved {
+        row_id: row_id.clone(),
+        outcome,
+    });
+
+    match assets_api::fetch_moderation_statuses(client, cookie, &[asset_id]).await {
+        Ok(statuses) => match statuses.into_iter().next() {
+            Some((_, status)) => BackendEvent::AssetModerationResolved { row_id, status },
+            None => BackendEvent::AssetPollBatchDone,
+        },
+        // Not knowing is not a verdict. The row stays in review and the timer
+        // asks again.
+        Err(e) => {
+            info!("first moderation check for {row_id} failed, deferring to the timer: {e}");
+            BackendEvent::AssetPollBatchDone
+        }
+    }
 }
 
 /// Poll a batch serially, streaming one event per operation. Serial and paced
@@ -1396,5 +1500,36 @@ async fn poll_asset_operations(
             // having a bad day.
             Err(e) => info!("poll of {operation} failed: {e}"),
         }
+    }
+}
+
+/// Ask moderation about a batch and stream back only the rows that got a
+/// verdict.
+///
+/// One request covers the whole batch, so unlike operation polling there is
+/// nothing to pace. Rows Roblox says nothing about are left alone.
+async fn poll_asset_moderation(
+    client: &RobloxClient,
+    cookie: &str,
+    assets: &[(String, u64)],
+    tx: &mpsc::UnboundedSender<BackendEvent>,
+) {
+    let asset_ids: Vec<u64> = assets.iter().map(|(_, id)| *id).collect();
+    let statuses = match assets_api::fetch_moderation_statuses(client, cookie, &asset_ids).await {
+        Ok(statuses) => statuses,
+        Err(e) => {
+            info!("moderation poll of {} asset(s) failed: {e}", asset_ids.len());
+            return;
+        }
+    };
+
+    for (row_id, asset_id) in assets {
+        let Some((_, status)) = statuses.iter().find(|(id, _)| id == asset_id) else {
+            continue;
+        };
+        let _ = tx.send(BackendEvent::AssetModerationResolved {
+            row_id: row_id.clone(),
+            status: status.clone(),
+        });
     }
 }

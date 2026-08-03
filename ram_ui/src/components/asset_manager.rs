@@ -285,6 +285,10 @@ struct RowView {
     path: String,
     state: AssetState,
     created_at: DateTime<Utc>,
+    /// Mirrors the record's fields so the status cell can tell a row that is
+    /// ready from one that is serving out a retry backoff.
+    attempts: u32,
+    retry_at: Option<DateTime<Utc>>,
 }
 
 /// An edit collected while drawing, applied once the table's borrows are done.
@@ -1403,7 +1407,7 @@ fn queue_view(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetManag
                     .on_hover_text(&record.path);
                 });
                 row.col(|ui| {
-                    if status_cell(ui, &record.state) {
+                    if status_cell(ui, record) {
                         retried = Some(record.row_id.clone());
                     }
                 });
@@ -1459,14 +1463,14 @@ fn queue_actions(
     rows: &[RowView],
     result: &mut AssetManagerResult,
 ) {
+    // Every failure is offered, not just the ones classified retryable, for the
+    // same reason the per-row Retry button is: the classification is a guess
+    // about Roblox's mood, and being wrong about it must not strand a row.
     let uploadable: Vec<String> = rows
         .iter()
         .filter(|r| {
             cx.state.checked.contains(&r.row_id)
-                && matches!(
-                    r.state,
-                    AssetState::Queued | AssetState::Failed { retryable: true, .. }
-                )
+                && matches!(r.state, AssetState::Queued | AssetState::Failed { .. })
         })
         .map(|r| r.row_id.clone())
         .collect();
@@ -1537,16 +1541,27 @@ fn queue_actions(
 }
 
 /// Draw a row's status. Returns `true` when the user asked to retry it.
-fn status_cell(ui: &mut egui::Ui, state: &AssetState) -> bool {
+fn status_cell(ui: &mut egui::Ui, row: &RowView) -> bool {
     let amber = egui::Color32::from_rgb(220, 160, 40);
     let red = egui::Color32::from_rgb(200, 60, 60);
     let green = egui::Color32::from_rgb(80, 180, 100);
+    let blue = egui::Color32::from_rgb(90, 150, 220);
     let mut retry = false;
 
-    match state {
-        AssetState::Queued => {
-            ui.weak("Ready");
-        }
+    match &row.state {
+        AssetState::Queued => match row.retry_at {
+            // A row that failed and is waiting out its backoff. Saying "Ready"
+            // here reads as stuck, because nothing appears to happen for the
+            // next minute or two.
+            Some(at) => {
+                ui.spinner();
+                ui.colored_label(amber, format!("Retrying {}", format_countdown(at)))
+                    .on_hover_text(format!("Attempt {} starts shortly", row.attempts + 1));
+            }
+            None => {
+                ui.weak("Ready");
+            }
+        },
         AssetState::Invalid { reason } => {
             ui.colored_label(red, "Not supported").on_hover_text(reason);
         }
@@ -1560,13 +1575,23 @@ fn status_cell(ui: &mut egui::Ui, state: &AssetState) -> bool {
         }
         AssetState::Pending { since, .. } => {
             ui.spinner();
-            ui.label(format!("In review {}", format_elapsed(*since)));
+            ui.label(format!("Processing {}", format_elapsed(*since)))
+                .on_hover_text("Roblox is still ingesting the file.");
+        }
+        AssetState::InReview {
+            asset_id, since, ..
+        } => {
+            ui.spinner();
+            ui.colored_label(blue, format!("In review {}", format_elapsed(*since)))
+                .on_hover_text(format!(
+                    "Uploaded as {asset_id}. Roblox has not published a moderation verdict yet, so the asset may not be usable."
+                ));
         }
         AssetState::Approved { asset_id, .. } => {
             let id = asset_id.to_string();
             if ui
                 .colored_label(green, &id)
-                .on_hover_text("Click to copy the asset ID")
+                .on_hover_text("Approved. Click to copy the asset ID")
                 .clicked()
             {
                 ui.ctx().copy_text(id);
@@ -1578,7 +1603,19 @@ fn status_cell(ui: &mut egui::Ui, state: &AssetState) -> bool {
         AssetState::Failed { message, retryable } => {
             let color = if *retryable { amber } else { red };
             ui.colored_label(color, "Failed").on_hover_text(message);
-            if *retryable && ui.small_button("Retry").clicked() {
+            // Offered whatever the classification. `retryable` decides whether
+            // the app re-sends on its own; it must not decide whether the user
+            // is allowed to, because a misclassified failure otherwise leaves
+            // the row with no way forward but deleting and re-adding the file.
+            if ui
+                .small_button("Retry")
+                .on_hover_text(if *retryable {
+                    "Send this file again"
+                } else {
+                    "Send this file again. Roblox called this permanent, so it will probably fail the same way."
+                })
+                .clicked()
+            {
                 retry = true;
             }
         }
@@ -1645,6 +1682,8 @@ fn visible_rows(cx: &AssetsCtx<'_>, keep: impl Fn(&AssetState) -> bool) -> Vec<R
             path: r.file_path.to_string_lossy().into_owned(),
             state: r.state.clone(),
             created_at: r.updated_at.unwrap_or(r.created_at),
+            attempts: r.attempts,
+            retry_at: r.retry_at,
         })
         .collect();
 
@@ -1740,6 +1779,18 @@ fn format_elapsed(since: DateTime<Utc>) -> String {
         format!("{}m", seconds / 60)
     } else {
         format!("{}h", seconds / 3600)
+    }
+}
+
+/// Time until `at`, for a row waiting out a retry backoff. Clamped at zero: the
+/// pump runs on a one-second tick, so "in 0s" is briefly truthful and a
+/// negative countdown never is.
+fn format_countdown(at: DateTime<Utc>) -> String {
+    let seconds = at.signed_duration_since(Utc::now()).num_seconds().max(0);
+    if seconds < 60 {
+        format!("in {seconds}s")
+    } else {
+        format!("in {}m", seconds / 60)
     }
 }
 

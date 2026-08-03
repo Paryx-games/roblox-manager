@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use ram_core::assets::{AssetState, OperationOutcome};
+use ram_core::assets::{AssetKind, AssetState, ModerationStatus, OperationOutcome};
 
 use crate::bridge::{BackendBridge, BackendCommand, BackendEvent, UploadJob};
 use crate::components::{
@@ -236,6 +236,15 @@ pub struct AppState {
     /// unlike the timers above it is recomputed each tick from the age of the
     /// oldest pending operation.
     last_asset_poll: Option<std::time::Instant>,
+    /// Poll cadence for assets waiting on a moderation verdict. Its own timer
+    /// because reviews outlast operations by orders of magnitude.
+    last_moderation_poll: Option<std::time::Instant>,
+    /// Ticks the upload pump so a row held back by its retry backoff or by
+    /// audio spacing gets picked up without waiting for another event.
+    last_upload_pump: Option<std::time::Instant>,
+    /// When the last audio upload was dispatched, for
+    /// [`RmApp::AUDIO_UPLOAD_SPACING`].
+    last_audio_upload: Option<std::time::Instant>,
     /// Debounce for asset index writes. A batch of uploads would otherwise fire
     /// one atomic write per state change.
     last_asset_index_save: Option<std::time::Instant>,
@@ -344,6 +353,9 @@ impl AppState {
             // Not seeded: if a previous run left operations pending, they
             // should be polled on the first frame, not one interval later.
             last_asset_poll: None,
+            last_moderation_poll: None,
+            last_upload_pump: None,
+            last_audio_upload: None,
             last_asset_index_save: None,
             last_launch: None,
             needs_unlock,
@@ -764,23 +776,22 @@ impl AppState {
                 BackendEvent::AssetOperationResolved { row_id, outcome } => {
                     self.apply_operation_outcome(&row_id, outcome);
                 }
+                BackendEvent::AssetModerationResolved { row_id, status } => {
+                    self.apply_moderation_status(&row_id, status);
+                }
                 BackendEvent::AssetUploadFailed {
                     row_id,
                     message,
                     retryable,
                 } => {
-                    if let Some(record) = self.asset_index.get_mut(&row_id) {
-                        record.state = AssetState::Failed { message, retryable };
-                        record.updated_at = Some(chrono::Utc::now());
-                    }
-                    self.asset_index_dirty = true;
-                    self.dispatch_next_uploads();
+                    self.fail_upload(&row_id, message, retryable);
                 }
                 BackendEvent::AssetPollBatchDone => {}
                 BackendEvent::AssetPermissionsGranted {
                     universe_id,
                     row_ids,
                     granted,
+                    refused,
                 } => {
                     for row_id in &row_ids {
                         if let Some(record) = self.asset_index.get_mut(row_id) {
@@ -793,9 +804,17 @@ impl AppState {
                         }
                     }
                     self.save_asset_index();
-                    self.toasts.push(Toast::success(format!(
-                        "Granted {granted} asset(s) to universe {universe_id}"
-                    )));
+                    // A 200 can still carry per-asset refusals, so say what
+                    // actually landed rather than reporting the batch size.
+                    self.toasts.push(if refused > 0 {
+                        Toast::warning(format!(
+                            "Granted {granted} asset(s) to universe {universe_id}, {refused} refused. See the log for which."
+                        ))
+                    } else {
+                        Toast::success(format!(
+                            "Granted {granted} asset(s) to universe {universe_id}"
+                        ))
+                    });
                 }
                 BackendEvent::AssetPermissionsFailed {
                     universe_id,
@@ -1191,6 +1210,30 @@ impl eframe::App for AppState {
             if interval_due(&mut self.last_asset_poll, every) {
                 self.dispatch_asset_poll();
             }
+        }
+
+        // Same shape for moderation, on its own slower clock. Separate rather
+        // than folded into the above because the two wait on different things:
+        // an operation finishes in seconds, a review can take days, and one
+        // timer would have to run at the faster of the two rates.
+        if !self.needs_unlock && self.asset_index.in_review().next().is_some() {
+            let every = self.moderation_poll_interval();
+            if interval_due(&mut self.last_moderation_poll, every) {
+                self.dispatch_moderation_poll();
+            }
+        }
+
+        // Re-send anything whose retry backoff or audio spacing has come due.
+        // Cheap: a scan of the index, and only while something is queued.
+        if !self.needs_unlock
+            && self
+                .asset_index
+                .records
+                .iter()
+                .any(|r| matches!(r.state, AssetState::Queued))
+            && interval_due(&mut self.last_upload_pump, Duration::from_secs(1))
+        {
+            self.dispatch_next_uploads();
         }
 
         // Flush index changes that the debounce has been holding.
@@ -1927,6 +1970,19 @@ impl AppState {
     /// leave headroom.
     const MAX_CONCURRENT_UPLOADS: usize = 3;
 
+    /// Audio uploads run one at a time.
+    ///
+    /// Audio is the only kind with a per-account quota on top of the ordinary
+    /// rate limit, and it is by a wide margin the slowest to ingest. Sending
+    /// three at once is what made a bulk audio import collapse into a column of
+    /// failures while the same files uploaded one by one without complaint.
+    const MAX_CONCURRENT_AUDIO_UPLOADS: usize = 1;
+
+    /// Minimum gap between starting two audio uploads. Serialising them is not
+    /// enough on its own: back-to-back sends still trip the limiter, and its
+    /// window is measured in seconds, not milliseconds.
+    const AUDIO_UPLOAD_SPACING: Duration = Duration::from_secs(3);
+
     /// Largest poll batch per tick. Bounded so a big backlog becomes a steady
     /// trickle instead of one enormous burst.
     const MAX_POLL_BATCH: usize = 25;
@@ -1985,6 +2041,10 @@ impl AppState {
     }
 
     /// Fill free upload slots from the queue, oldest first.
+    ///
+    /// Called on every asset event and on the frame timer, so a row whose
+    /// retry or audio spacing has not come due yet is simply skipped and picked
+    /// up by a later call.
     fn dispatch_next_uploads(&mut self) {
         if self.needs_unlock {
             return;
@@ -2000,8 +2060,26 @@ impl AppState {
             let Some(job) = self.take_next_upload() else {
                 break;
             };
+            if job.kind == AssetKind::Audio {
+                self.last_audio_upload = Some(Instant::now());
+            }
             self.bridge.send(BackendCommand::UploadAsset(Box::new(job)));
         }
+    }
+
+    /// Whether another audio upload may start right now.
+    fn audio_slot_free(&self) -> bool {
+        let audio_in_flight = self
+            .asset_index
+            .records
+            .iter()
+            .filter(|r| matches!(r.state, AssetState::Uploading) && r.kind == AssetKind::Audio)
+            .count();
+        if audio_in_flight >= Self::MAX_CONCURRENT_AUDIO_UPLOADS {
+            return false;
+        }
+        self.last_audio_upload
+            .is_none_or(|last| last.elapsed() >= Self::AUDIO_UPLOAD_SPACING)
     }
 
     /// Claim the next queued row and build its job, marking it `Uploading` so
@@ -2010,12 +2088,19 @@ impl AppState {
     /// Loops rather than returning on the first duplicate: a queue whose head
     /// is all duplicates would otherwise stall with real work behind it.
     fn take_next_upload(&mut self) -> Option<UploadJob> {
+        let now = chrono::Utc::now();
+        let audio_ok = self.audio_slot_free();
         loop {
+            // The loop always makes progress: the only path that continues has
+            // just moved its row out of `Queued`, so it cannot be picked again.
             let row_id = self
                 .asset_index
                 .records
                 .iter()
-                .find(|r| matches!(r.state, AssetState::Queued))
+                .filter(|r| matches!(r.state, AssetState::Queued))
+                // A row waiting out its retry backoff is not ready yet.
+                .filter(|r| r.retry_at.is_none_or(|at| now >= at))
+                .find(|r| audio_ok || r.kind != AssetKind::Audio)
                 .map(|r| r.row_id.clone())?;
 
             let record = self.asset_index.get(&row_id)?;
@@ -2061,6 +2146,8 @@ impl AppState {
 
         if let Some(record) = self.asset_index.get_mut(&row_id) {
             record.state = AssetState::Uploading;
+            record.attempts = record.attempts.saturating_add(1);
+            record.retry_at = None;
         }
         self.asset_index_dirty = true;
         Some(job)
@@ -2108,6 +2195,46 @@ impl AppState {
         }
     }
 
+    /// Ask moderation about everything that has an asset id but no verdict.
+    ///
+    /// Grouped by uploader for the same reason operation polling is: one cookie
+    /// decrypt per account rather than one per row.
+    fn dispatch_moderation_poll(&mut self) {
+        let now = chrono::Utc::now();
+        let batch = ram_core::assets::next_review_batch(
+            &self.asset_index.records,
+            now,
+            Self::MAX_POLL_BATCH,
+        );
+        if batch.is_empty() {
+            return;
+        }
+
+        let mut by_account: HashMap<u64, Vec<(String, u64)>> = HashMap::new();
+        for (row_id, asset_id) in batch {
+            let Some(record) = self.asset_index.get(&row_id) else {
+                continue;
+            };
+            by_account
+                .entry(record.uploaded_by)
+                .or_default()
+                .push((row_id, asset_id));
+        }
+
+        for (user_id, assets) in by_account {
+            let Some(account) = self.store.find_by_id(user_id) else {
+                continue;
+            };
+            self.bridge.send(BackendCommand::PollAssetModeration {
+                user_id,
+                encrypted_cookie: account.encrypted_cookie.clone(),
+                password: self.master_password.clone(),
+                use_credential_manager: self.config.use_credential_manager,
+                assets,
+            });
+        }
+    }
+
     /// How long until the next poll, from the age of the oldest pending upload.
     fn asset_poll_interval(&self) -> Duration {
         let now = chrono::Utc::now();
@@ -2124,6 +2251,25 @@ impl AppState {
             .and_then(|d| d.to_std().ok())
             .unwrap_or_default();
         ram_core::assets::poll_interval_for_age(age)
+    }
+
+    /// How long until the next moderation poll, from the age of the oldest
+    /// asset still in review.
+    fn moderation_poll_interval(&self) -> Duration {
+        let now = chrono::Utc::now();
+        let oldest = self
+            .asset_index
+            .in_review()
+            .filter_map(|r| match &r.state {
+                AssetState::InReview { since, .. } => Some(*since),
+                _ => None,
+            })
+            .min();
+        let age = oldest
+            .map(|since| now.signed_duration_since(since))
+            .and_then(|d| d.to_std().ok())
+            .unwrap_or_default();
+        ram_core::assets::review_poll_interval_for_age(age)
     }
 
     /// Largest thumbnail batch per request. Roblox accepts long ID lists, but
@@ -2208,29 +2354,64 @@ impl AppState {
         });
     }
 
-    /// Grant a universe `Use` on the given rows. Rows with no asset ID yet are
-    /// skipped: there is nothing on Roblox to grant against.
-    fn grant_universe_access(&mut self, universe_id: u64, row_ids: Vec<String>) {
+    /// Grant a universe `Use` on the given selection keys.
+    ///
+    /// The selection spans two key spaces, because the library and the
+    /// inventory share one set: a library key is a local `row_id`, an inventory
+    /// key is the asset ID of something already on Roblox. Resolving only the
+    /// first meant a selection made in the inventory came out empty and
+    /// reported itself as an unfinished upload.
+    ///
+    /// Local rows with no asset ID yet are genuinely skipped: there is nothing
+    /// on Roblox to grant against.
+    fn grant_universe_access(&mut self, universe_id: u64, keys: Vec<String>) {
         let mut asset_ids = Vec::new();
-        let mut granted_rows = Vec::new();
+        let mut row_assets = Vec::new();
         let mut uploader = None;
-        for row_id in row_ids {
-            let Some(record) = self.asset_index.get(&row_id) else {
-                continue;
-            };
-            let Some(asset_id) = record.state.asset_id() else {
-                continue;
-            };
-            uploader.get_or_insert(record.uploaded_by);
-            asset_ids.push(asset_id);
-            granted_rows.push(row_id);
+        let mut unfinished = 0usize;
+
+        for key in keys {
+            match self.asset_index.get(&key) {
+                Some(record) => match record.state.asset_id() {
+                    Some(asset_id) => {
+                        // A local row knows which account uploaded it, which
+                        // for a group upload is not the acting account.
+                        uploader.get_or_insert(record.uploaded_by);
+                        asset_ids.push(asset_id);
+                        row_assets.push((key, asset_id));
+                    }
+                    None => unfinished += 1,
+                },
+                // Not a local row, so it came from the inventory and the key is
+                // the asset ID itself. `row_id` is a UUID, so the two key
+                // spaces cannot collide.
+                None => match key.parse::<u64>() {
+                    Ok(asset_id) => asset_ids.push(asset_id),
+                    Err(_) => continue,
+                },
+            }
         }
+
         if asset_ids.is_empty() {
-            self.toasts
-                .push(Toast::info("Nothing to grant. Assets must finish uploading first."));
+            // Two different failures, and telling them apart is the whole point
+            // of the message.
+            self.toasts.push(Toast::info(if unfinished > 0 {
+                "Nothing to grant. Those assets have not finished uploading."
+            } else {
+                "Nothing to grant. Select some assets first."
+            }));
             return;
         }
-        let Some(user_id) = uploader else { return };
+
+        // Inventory assets have no uploader on record, so the grant is signed
+        // by whichever account is browsing. That is the account whose rights
+        // put the asset on screen in the first place.
+        let uploader = uploader.or(self.asset_manager_state.acting_user_id);
+        let Some(user_id) = uploader else {
+            self.toasts
+                .push(Toast::error("No account selected to sign the grant."));
+            return;
+        };
         let Some(account) = self.store.find_by_id(user_id) else {
             return;
         };
@@ -2241,7 +2422,7 @@ impl AppState {
             use_credential_manager: self.config.use_credential_manager,
             universe_id,
             asset_ids,
-            row_ids: granted_rows,
+            row_assets,
         });
     }
 
@@ -2341,6 +2522,13 @@ impl AppState {
         }
     }
 
+    /// Apply the result of an upload operation.
+    ///
+    /// An approval here means Roblox finished *ingesting* the file, not that
+    /// the asset may be used, so the row lands on `InReview` and waits for a
+    /// moderation verdict. The one exception is an asset type that never needs
+    /// review, and that is decided by the verdict itself rather than guessed at
+    /// from the kind.
     fn apply_operation_outcome(&mut self, row_id: &str, outcome: OperationOutcome) {
         let now = chrono::Utc::now();
         let Some(record) = self.asset_index.get_mut(row_id) else {
@@ -2354,19 +2542,18 @@ impl AppState {
                 asset_id,
                 revision_id,
             } => {
-                record.state = AssetState::Approved {
+                record.state = AssetState::InReview {
                     asset_id,
                     revision_id,
+                    since: now,
                 };
                 record.updated_at = Some(now);
-                let auto_grant = record.auto_grant_universe;
-                self.toasts
-                    .push(Toast::success(format!("{name} uploaded as {asset_id}")));
-                // Requirement: an asset that clears moderation is granted to
-                // the batch's universe with no further clicks.
-                if let Some(universe_id) = auto_grant {
-                    self.grant_universe_access(universe_id, vec![row_id.to_string()]);
-                }
+                record.retry_at = None;
+                // No toast here. Assets that skip review reach Approved in the
+                // same breath and would toast twice, and for the ones that do
+                // wait, "uploaded" is the claim that was misleading in the
+                // first place. The row shows "In review" with a spinner; the
+                // toast belongs to the verdict.
             }
             OperationOutcome::Rejected { reason } => {
                 record.state = AssetState::Rejected {
@@ -2377,6 +2564,12 @@ impl AppState {
                     .push(Toast::error(format!("{name} was rejected: {reason}")));
             }
             OperationOutcome::Failed { message, retryable } => {
+                // Deliberately not routed through `fail_upload`: that re-sends
+                // the file, and by the time an operation exists Roblox may
+                // already hold the asset. `DEADLINE_EXCEEDED` in particular
+                // means "no answer", not "nothing happened", and a silent
+                // re-send there mints a duplicate and burns another slice of
+                // the audio quota. The user gets a Retry button instead.
                 record.state = AssetState::Failed {
                     message: message.clone(),
                     retryable,
@@ -2386,6 +2579,100 @@ impl AppState {
                     .push(Toast::error(format!("{name} failed: {message}")));
             }
         }
+        self.save_asset_index();
+        self.dispatch_next_uploads();
+    }
+
+    /// Apply a moderation verdict to a row that is waiting on one.
+    fn apply_moderation_status(&mut self, row_id: &str, status: ModerationStatus) {
+        let now = chrono::Utc::now();
+        let Some(record) = self.asset_index.get_mut(row_id) else {
+            return;
+        };
+        // Only a row actually in review can take a verdict. Anything else is a
+        // late answer for a row the user has since retried or removed.
+        let AssetState::InReview {
+            asset_id,
+            revision_id,
+            ..
+        } = record.state
+        else {
+            return;
+        };
+        let name = record.display_name.clone();
+
+        match status {
+            // Still waiting. The timer keeps asking.
+            ModerationStatus::InReview => return,
+            ModerationStatus::Approved => {
+                record.state = AssetState::Approved {
+                    asset_id,
+                    revision_id,
+                };
+                record.updated_at = Some(now);
+                let auto_grant = record.auto_grant_universe;
+                self.toasts
+                    .push(Toast::success(format!("{name} approved as {asset_id}")));
+                // Requirement: an asset that clears moderation is granted to
+                // the batch's universe with no further clicks. Deliberately
+                // here and not on upload: granting a universe access to an
+                // asset that moderation later blocks is a grant that silently
+                // does nothing.
+                if let Some(universe_id) = auto_grant {
+                    self.grant_universe_access(universe_id, vec![row_id.to_string()]);
+                }
+            }
+            ModerationStatus::Rejected => {
+                let reason = format!("Moderation blocked asset {asset_id}");
+                record.state = AssetState::Rejected {
+                    reason: reason.clone(),
+                };
+                record.updated_at = Some(now);
+                self.toasts
+                    .push(Toast::error(format!("{name} was rejected: {reason}")));
+            }
+        }
+        self.save_asset_index();
+    }
+
+    /// Record an upload failure, and put the row back in the queue if it is
+    /// worth another attempt.
+    ///
+    /// Only for failures raised before an operation existed, where nothing was
+    /// created on Roblox and re-sending is therefore free of consequence. The
+    /// automatic re-send is the difference between a bulk batch that rides out
+    /// a rate limit and one that leaves a screen of dead rows. Attempts are
+    /// counted on the record, so a row cannot loop: once the budget is spent it
+    /// stays `Failed` and waits for the user.
+    fn fail_upload(&mut self, row_id: &str, message: String, retryable: bool) {
+        let now = chrono::Utc::now();
+        let Some(record) = self.asset_index.get_mut(row_id) else {
+            return;
+        };
+        let name = record.display_name.clone();
+        let attempts = record.attempts;
+
+        if retryable && attempts < ram_core::assets::MAX_UPLOAD_ATTEMPTS {
+            let wait = ram_core::assets::upload_retry_backoff(attempts.saturating_sub(1));
+            record.state = AssetState::Queued;
+            record.retry_at =
+                Some(now + chrono::Duration::from_std(wait).unwrap_or_else(|_| chrono::TimeDelta::seconds(30)));
+            record.updated_at = Some(now);
+            tracing::info!(
+                "upload of {row_id} failed ({message}); attempt {attempts} of {}, retrying in {wait:?}",
+                ram_core::assets::MAX_UPLOAD_ATTEMPTS
+            );
+        } else {
+            record.state = AssetState::Failed {
+                message: message.clone(),
+                retryable,
+            };
+            record.retry_at = None;
+            record.updated_at = Some(now);
+            self.toasts
+                .push(Toast::error(format!("{name} failed: {message}")));
+        }
+
         self.save_asset_index();
         self.dispatch_next_uploads();
     }
@@ -2512,6 +2799,11 @@ impl AppState {
             asset_manager::AssetManagerAction::RetryRow(row_id) => {
                 if let Some(record) = self.asset_index.get_mut(&row_id) {
                     record.state = AssetState::Queued;
+                    // A hand-pressed retry is a fresh decision, so it gets a
+                    // fresh budget and goes out now rather than serving out the
+                    // backoff of the automatic attempts that preceded it.
+                    record.attempts = 0;
+                    record.retry_at = None;
                 }
                 self.save_asset_index();
                 self.dispatch_next_uploads();
