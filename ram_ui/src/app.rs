@@ -122,7 +122,7 @@ struct AddAccountDialog {
 /// tokens are dropped and surrounding quotes/whitespace are trimmed.
 fn parse_bulk_cookies(input: &str) -> Vec<String> {
     input
-        .split(|c: char| matches!(c, '\n' | '\r' | ',' | ';' | '\t'))
+        .split(['\n', '\r', ',', ';', '\t'])
         .map(|s| s.trim().trim_matches('"').trim())
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
@@ -894,15 +894,10 @@ impl eframe::App for AppState {
         // Uses wall-clock time so the cadence is reliable in reactive mode
         // (the frame counter approach we used before only fired when the
         // user happened to interact 600 times).
-        if self.config.kill_background_roblox || self.config.multi_instance_enabled {
-            let now = std::time::Instant::now();
-            let due = self
-                .last_tray_kill
-                .map_or(true, |t| now.duration_since(t) >= std::time::Duration::from_secs(10));
-            if due {
-                self.last_tray_kill = Some(now);
-                ram_core::process::kill_tray_roblox();
-            }
+        if (self.config.kill_background_roblox || self.config.multi_instance_enabled)
+            && interval_due(&mut self.last_tray_kill, Duration::from_secs(10))
+        {
+            ram_core::process::kill_tray_roblox();
         }
 
         // Periodically refresh presence for visible accounts (every 10s)

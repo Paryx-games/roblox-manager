@@ -1,13 +1,36 @@
 workflow:
   rules:
     - if: $CI_COMMIT_TAG =~ /^v/
+    - if: $CI_COMMIT_BRANCH == "main"
 
 stages:
+  - check
   - build
   - release
 
 variables:
   CARGO_TERM_COLOR: always
+
+# Lint and test every push to main. Tag pipelines skip this and go straight
+# to build, since the tagged commit already passed on its way through main.
+check:
+  stage: check
+  tags:
+    - windows
+    - self-hosted
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  # No cache stanza on purpose. This is a shell runner, so its build
+  # directory (and target/ inside it) already persists between jobs, and
+  # GitLab's cache would zip and unzip several GB of artifacts to
+  # reproduce something we already have on disk.
+  script:
+    # Same PATH fixup as the build job, see the comment there.
+    - $env:PATH = "C:\Users\Keeper\.cargo\bin;" + $env:PATH
+    - rustup default stable
+    # clippy implies check, so there's no separate cargo check step.
+    - cargo clippy --workspace --all-targets -- -D warnings
+    - cargo test --workspace
 
 build:
   stage: build
