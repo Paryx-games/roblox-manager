@@ -1,6 +1,6 @@
 [package]
 name = "ram_core"
-version = "1.7.0"
+version = "1.8.0"
 edition = "2021"
 description = "Core library for RM - Roblox Account Manager"
 license = "MIT"
@@ -17,6 +17,7 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 
 aes-gcm = "0.10"
+argon2 = { version = "0.5", default-features = false, features = ["alloc"] }
 rand = "0.8"
 sha2 = "0.10"
 base64 = "0.22"

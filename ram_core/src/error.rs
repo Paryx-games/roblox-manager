@@ -33,6 +33,17 @@ pub enum CoreError {
     #[error("Keyring error: {0}")]
     Keyring(String),
 
+    /// The store is wrapped by a device key that this machine's credential
+    /// store does not have: the OS profile was reset, the credential was
+    /// cleared, or the file was copied from another machine. Distinct from a
+    /// decrypt failure because no password will ever open it and the UI needs
+    /// to say so plainly.
+    #[error(
+        "This account store is bound to a different device, or its key was removed \
+         from the credential store. It cannot be decrypted here."
+    )]
+    DeviceKeyMissing,
+
     #[error("Account not found: {0}")]
     AccountNotFound(String),
 
