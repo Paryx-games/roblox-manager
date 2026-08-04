@@ -19,15 +19,28 @@ use ram_core::crypto::{self, StoreMode};
 use ram_core::models::{Account, AccountStore};
 use std::path::PathBuf;
 
-/// `true` when this machine has a usable credential store.
+/// Make sure the device key exists before any test uses it, exactly once per
+/// test binary.
+///
+/// Every test here shares the one machine-wide device key entry, and cargo runs
+/// them in parallel. Without this, a run against a credential store that has no
+/// key yet has each test generate its own and write it: last write wins, and
+/// the tests that lost saved stores wrapped in a key the credential store no
+/// longer holds. That is precisely how this suite failed on a fresh CI runner
+/// while passing on a developer machine where the key already existed.
+///
+/// Returns `false` when the credential store is unusable, so tests skip rather
+/// than fail on a box that has no keyring at all.
 fn keyring_available() -> bool {
-    match crypto::device_key() {
+    use std::sync::OnceLock;
+    static READY: OnceLock<bool> = OnceLock::new();
+    *READY.get_or_init(|| match crypto::device_key_or_create() {
         Ok(_) => true,
         Err(e) => {
             eprintln!("skipping: credential store unavailable ({e})");
             false
         }
-    }
+    })
 }
 
 fn scratch(name: &str) -> PathBuf {

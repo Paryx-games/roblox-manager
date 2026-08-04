@@ -252,6 +252,18 @@ pub fn device_key() -> Result<Option<StoreKey>, CoreError> {
 /// Read the device wrapping key, generating and persisting one if this device
 /// does not have it yet. Used when *creating* or re-keying a store, never when
 /// opening an existing one.
+///
+/// The generated key is deliberately **read back** rather than returned
+/// directly. Two processes reaching a fresh credential store at the same time
+/// both generate a key and both write; only the last write survives, so a
+/// caller that trusted its own copy would wrap its store in a key the
+/// credential store no longer holds and no later run could open it. Reading
+/// back makes both callers converge on whichever key actually landed.
+///
+/// `keyring` offers no atomic create-if-absent, so a narrow window remains: a
+/// second writer can still land between our write and our read-back. That
+/// leaves the store openable (the read-back key is the live one) and only
+/// costs the losing writer its own generated key, which nothing has used yet.
 pub fn device_key_or_create() -> Result<StoreKey, CoreError> {
     if let Some(k) = device_key()? {
         return Ok(k);
@@ -260,8 +272,19 @@ pub fn device_key_or_create() -> Result<StoreKey, CoreError> {
     device_key_entry()?
         .set_password(&B64.encode(key.0))
         .map_err(|e| CoreError::Keyring(e.to_string()))?;
-    tracing::info!("Generated a new device key in the OS credential store");
-    Ok(key)
+
+    match device_key()? {
+        Some(k) => {
+            tracing::info!("Generated a new device key in the OS credential store");
+            Ok(k)
+        }
+        // Written, then absent. Something else is clearing the entry, and
+        // wrapping a store under a key that is already gone would produce a
+        // file nothing can open. Fail loudly instead.
+        None => Err(CoreError::Keyring(
+            "the device key vanished immediately after being written".into(),
+        )),
+    }
 }
 
 /// Remove the device key from the credential store. Only meaningful when the
