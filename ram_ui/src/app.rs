@@ -605,27 +605,42 @@ impl AppState {
                             self.toasts.push(Toast::success("Account store unlocked"));
                         }
                         self.offer_passwordless_if_due();
-                    }
 
-                    self.trigger_refresh();
-                    self.trigger_revalidation();
+                        // Held back during an upgrade: the backend re-keys a
+                        // clone of the store taken just above, so anything a
+                        // refresh wrote into `self.store` in the meantime would
+                        // be discarded when the upgraded copy replaces it.
+                        self.trigger_refresh();
+                        self.trigger_revalidation();
+                    }
                 }
                 BackendEvent::StoreRekeyed { store, session } => {
                     let upgraded = self.pending_legacy_upgrade;
-                    self.store = *store;
                     self.store_session = Some(*session);
                     self.pending_legacy_upgrade = false;
                     self.unlock_password_used.clear();
 
                     if upgraded {
+                        // Only an upgrade rewrites account data (every cookie
+                        // is re-encrypted). A plain rewrap returns the same
+                        // store it was given, and adopting that stale clone
+                        // would discard anything a refresh landed meanwhile.
+                        self.store = *store;
                         tracing::info!("Upgraded the account store to the envelope format");
                         self.offer_passwordless_if_due();
+                        // Deferred from StoreUnlocked, above.
+                        self.trigger_refresh();
+                        self.trigger_revalidation();
                     } else {
                         let msg = match self.store_session.as_ref().map(|s| s.needs_password()) {
                             Some(true) => "Master password set",
                             _ => "This PC now unlocks your accounts automatically",
                         };
                         self.toasts.push(Toast::success(msg));
+                        // The backend wrote the clone it was handed. Save again
+                        // under the new session so any change that landed while
+                        // the re-key was in flight reaches disk too.
+                        self.auto_save();
                     }
                 }
                 BackendEvent::DeviceKeyMissing => {
