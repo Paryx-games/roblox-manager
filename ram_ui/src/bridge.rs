@@ -23,7 +23,7 @@ pub enum BackendCommand {
     /// Validate a cookie and add the account.
     AddAccount {
         cookie: String,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
     },
     /// Add an account WITHOUT requiring `validate_cookie` to succeed. Looks
@@ -34,7 +34,7 @@ pub enum BackendCommand {
     AddAccountForced {
         cookie: String,
         username: String,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
     },
     /// Remove an account by user ID.
@@ -58,7 +58,7 @@ pub enum BackendCommand {
     LaunchGameEncrypted {
         user_id: u64,
         encrypted_cookie: Option<String>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
         place_id: u64,
         job_id: Option<String>,
@@ -72,10 +72,28 @@ pub enum BackendCommand {
     SaveStore {
         store: AccountStore,
         path: PathBuf,
-        password: String,
+        session: crypto::StoreSession,
     },
-    /// Load the account store from disk.
-    LoadStore { path: PathBuf, password: String },
+    /// Open a device-mode store with no user interaction. Sent automatically at
+    /// startup when [`crypto::peek_mode`] reports the store needs no password.
+    UnlockWithDevice { path: PathBuf },
+    /// Open a password-mode (or pre-envelope) store with a typed password.
+    UnlockWithPassword { path: PathBuf, password: String },
+    /// Rewrite an already-unlocked store under new key material: switching
+    /// between device and password mode, changing the master password, or
+    /// upgrading a pre-envelope file. Runs on the backend because Argon2id
+    /// takes long enough to drop frames on the UI thread.
+    RekeyStore {
+        store: AccountStore,
+        path: PathBuf,
+        session: crypto::StoreSession,
+        /// `Some` switches to (or stays on) password mode; `None` switches to
+        /// device mode.
+        new_password: Option<String>,
+        /// Set when `session` came from a pre-envelope file, so the data key is
+        /// rotated and every cookie re-encrypted rather than merely rewrapped.
+        upgrade_legacy: bool,
+    },
     /// Kill all Roblox instances.
     KillAll,
     /// Refresh avatars + presence for all accounts, decrypting a cookie on this side.
@@ -84,7 +102,7 @@ pub enum BackendCommand {
         /// The first account's encrypted cookie (or None if credential manager).
         first_user_id: u64,
         encrypted_cookie: Option<String>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
     },
     /// Lightweight presence-only refresh for a subset of visible accounts.
@@ -92,14 +110,14 @@ pub enum BackendCommand {
         user_ids: Vec<u64>,
         first_user_id: u64,
         encrypted_cookie: Option<String>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
     },
     /// Launch multiple accounts into the same game sequentially.
     BulkLaunchEncrypted {
         /// (user_id, encrypted_cookie) pairs for each account.
         accounts: Vec<(u64, Option<String>)>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
         place_id: u64,
         job_id: Option<String>,
@@ -116,7 +134,7 @@ pub enum BackendCommand {
     RevalidateAll {
         /// (user_id, encrypted_cookie) pairs for each account.
         accounts: Vec<(u64, Option<String>)>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
     },
     /// Arrange all Roblox windows in a tiled grid.
@@ -137,14 +155,14 @@ pub enum BackendCommand {
         /// The encrypted cookie + auth info needed for the authenticated API call.
         first_user_id: u64,
         encrypted_cookie: Option<String>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
     },
     /// Decrypt the cookie and open a webview pre-logged-in as this account.
     BrowseAsAccount {
         user_id: u64,
         encrypted_cookie: Option<String>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
         profile_dir: PathBuf,
         /// Label for the webview window title (username or anon tag).
@@ -158,7 +176,7 @@ pub enum BackendCommand {
     PollAssetOperations {
         user_id: u64,
         encrypted_cookie: Option<String>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
         /// `(row_id, operation)` pairs. The caller caps the length.
         operations: Vec<(String, String)>,
@@ -169,7 +187,7 @@ pub enum BackendCommand {
     PollAssetModeration {
         user_id: u64,
         encrypted_cookie: Option<String>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
         /// `(row_id, asset_id)` pairs. The caller caps the length.
         assets: Vec<(String, u64)>,
@@ -178,7 +196,7 @@ pub enum BackendCommand {
     GrantAssetPermissions {
         user_id: u64,
         encrypted_cookie: Option<String>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
         universe_id: u64,
         /// Everything to grant, local uploads and inventory picks alike.
@@ -194,7 +212,7 @@ pub enum BackendCommand {
     FetchUniverseTargets {
         user_id: u64,
         encrypted_cookie: Option<String>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
         place_id: Option<u64>,
     },
@@ -203,14 +221,14 @@ pub enum BackendCommand {
     FetchPublishGroups {
         user_id: u64,
         encrypted_cookie: Option<String>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
     },
     /// One page of a creator's inventory for the browse pane.
     FetchCreations {
         user_id: u64,
         encrypted_cookie: Option<String>,
-        password: String,
+        session: crypto::StoreSession,
         use_credential_manager: bool,
         creator: Creator,
         kind: AssetKind,
@@ -226,7 +244,7 @@ pub struct UploadJob {
     pub row_id: String,
     pub user_id: u64,
     pub encrypted_cookie: Option<String>,
-    pub password: String,
+    pub session: crypto::StoreSession,
     pub use_credential_manager: bool,
     pub creator: Creator,
     pub kind: AssetKind,
@@ -240,7 +258,10 @@ impl BackendCommand {
     /// (serially, in receive order) by `backend_loop` rather than spawned, so
     /// two saves can never interleave into a torn file or land out of order.
     fn is_serial_persistence(&self) -> bool {
-        matches!(self, BackendCommand::SaveStore { .. })
+        matches!(
+            self,
+            BackendCommand::SaveStore { .. } | BackendCommand::RekeyStore { .. }
+        )
     }
 }
 
@@ -273,8 +294,23 @@ pub enum BackendEvent {
     GameLaunched,
     /// Store saved.
     StoreSaved,
-    /// Store loaded from disk.
-    StoreLoaded(AccountStore),
+    /// Store opened from disk, with the session that holds its data key.
+    StoreUnlocked {
+        store: Box<AccountStore>,
+        session: Box<crypto::StoreSession>,
+        /// The file predates the envelope format and should be upgraded before
+        /// anything tries to save it.
+        legacy: bool,
+    },
+    /// The store could not be opened because this device's key is gone. No
+    /// password will help, so the UI offers recovery rather than a retry.
+    DeviceKeyMissing,
+    /// A re-key finished: the store and session below supersede the current
+    /// ones and are already on disk.
+    StoreRekeyed {
+        store: Box<AccountStore>,
+        session: Box<crypto::StoreSession>,
+    },
     /// All Roblox instances killed (count).
     Killed(usize),
     /// Progress update during a bulk launch (launched_so_far, total).
@@ -519,7 +555,7 @@ async fn handle_command(
     match cmd {
         BackendCommand::AddAccount {
             cookie,
-            password,
+            session,
             use_credential_manager,
         } => {
             let (user_id, username, display_name) = match client
@@ -549,7 +585,7 @@ async fn handle_command(
                 crypto::credential_store(user_id, &cookie)?;
                 None
             } else {
-                Some(crypto::encrypt_cookie(&cookie, &password)?)
+                Some(crypto::encrypt_cookie(&cookie, &session)?)
             };
             account.encrypted_cookie = encrypted.clone();
             account.last_validated = Some(chrono::Utc::now());
@@ -581,7 +617,7 @@ async fn handle_command(
         BackendCommand::AddAccountForced {
             cookie,
             username,
-            password,
+            session,
             use_credential_manager,
         } => {
             // Cookie didn't validate but the user wants to add the account
@@ -599,7 +635,7 @@ async fn handle_command(
                 crypto::credential_store(user_id, &cookie)?;
                 None
             } else {
-                Some(crypto::encrypt_cookie(&cookie, &password)?)
+                Some(crypto::encrypt_cookie(&cookie, &session)?)
             };
             account.encrypted_cookie = encrypted.clone();
             // Cookie failed validation upstream — record it as expired so the
@@ -672,7 +708,7 @@ async fn handle_command(
         BackendCommand::LaunchGameEncrypted {
             user_id,
             encrypted_cookie,
-            password,
+            session,
             use_credential_manager,
             place_id,
             job_id,
@@ -688,7 +724,7 @@ async fn handle_command(
                 let enc = encrypted_cookie.ok_or_else(|| {
                     CoreError::Crypto("no encrypted cookie stored for this account".into())
                 })?;
-                crypto::decrypt_cookie(&enc, &password)?
+                crypto::decrypt_cookie(&enc, &session)?
             };
             if multi_instance {
                 process::enable_multi_instance()?;
@@ -729,14 +765,52 @@ async fn handle_command(
         BackendCommand::SaveStore {
             store,
             path,
-            password,
+            session,
         } => {
-            crypto::save_encrypted(&path, &store, &password)?;
+            crypto::save_store(&path, &store, &session)?;
             Ok(BackendEvent::StoreSaved)
         }
-        BackendCommand::LoadStore { path, password } => {
-            let store = crypto::load_encrypted(&path, &password)?;
-            Ok(BackendEvent::StoreLoaded(store))
+        BackendCommand::UnlockWithDevice { path } => match crypto::unlock_with_device(&path) {
+            Ok((store, session)) => Ok(BackendEvent::StoreUnlocked {
+                store: Box::new(store),
+                session: Box::new(session),
+                legacy: false,
+            }),
+            // Surfaced as its own event: a missing device key is not something
+            // the user can retype their way out of.
+            Err(CoreError::DeviceKeyMissing) => Ok(BackendEvent::DeviceKeyMissing),
+            Err(e) => Err(e),
+        },
+        BackendCommand::UnlockWithPassword { path, password } => {
+            let (store, session) = crypto::unlock_with_password(&path, &password)?;
+            let legacy = session.is_legacy();
+            Ok(BackendEvent::StoreUnlocked {
+                store: Box::new(store),
+                session: Box::new(session),
+                legacy,
+            })
+        }
+        BackendCommand::RekeyStore {
+            store,
+            path,
+            session,
+            new_password,
+            upgrade_legacy,
+        } => {
+            let (store, session) = if upgrade_legacy {
+                // Rotates onto a fresh data key and re-encrypts every cookie.
+                // All-or-nothing: a failure here leaves the old file in place.
+                crypto::upgrade_v1(&store, &session, new_password.as_deref())?
+            } else {
+                (store, crypto::rewrap(&session, new_password.as_deref())?)
+            };
+            // Not `save_store`: that would leave a `.bak` readable under the
+            // key we just retired, which backup recovery would happily open.
+            crypto::save_rekeyed(&path, &store, &session)?;
+            Ok(BackendEvent::StoreRekeyed {
+                store: Box::new(store),
+                session: Box::new(session),
+            })
         }
         BackendCommand::KillAll => {
             let count = process::kill_all_roblox()?;
@@ -746,7 +820,7 @@ async fn handle_command(
             user_ids,
             first_user_id,
             encrypted_cookie,
-            password,
+            session,
             use_credential_manager,
         } => {
             let cookie = if use_credential_manager {
@@ -755,7 +829,7 @@ async fn handle_command(
                 let enc = encrypted_cookie.ok_or_else(|| {
                     CoreError::Crypto("no encrypted cookie for refresh".into())
                 })?;
-                crypto::decrypt_cookie(&enc, &password)?
+                crypto::decrypt_cookie(&enc, &session)?
             };
             // Avatars and presence are independent calls over the same account
             // list. They used to share a `?`, so one failed avatar batch
@@ -780,7 +854,7 @@ async fn handle_command(
             user_ids,
             first_user_id,
             encrypted_cookie,
-            password,
+            session,
             use_credential_manager,
         } => {
             let cookie = if use_credential_manager {
@@ -789,14 +863,14 @@ async fn handle_command(
                 let enc = encrypted_cookie.ok_or_else(|| {
                     CoreError::Crypto("no encrypted cookie for refresh".into())
                 })?;
-                crypto::decrypt_cookie(&enc, &password)?
+                crypto::decrypt_cookie(&enc, &session)?
             };
             let presences = api::fetch_presences(client, &cookie, &user_ids).await?;
             Ok(BackendEvent::PresencesUpdated(presences))
         }
         BackendCommand::BulkLaunchEncrypted {
             accounts,
-            password,
+            session,
             use_credential_manager,
             place_id,
             job_id,
@@ -830,7 +904,7 @@ async fn handle_command(
                     crypto::credential_load(first.0)?
                 } else {
                     match &first.1 {
-                        Some(enc) => crypto::decrypt_cookie(enc, &password)?,
+                        Some(enc) => crypto::decrypt_cookie(enc, &session)?,
                         None => {
                             return Err(CoreError::Crypto(
                                 "no encrypted cookie for first account".into(),
@@ -864,7 +938,7 @@ async fn handle_command(
                     crypto::credential_load(*user_id)
                 } else {
                     match encrypted_cookie {
-                        Some(enc) => crypto::decrypt_cookie(enc, &password),
+                        Some(enc) => crypto::decrypt_cookie(enc, &session),
                         None => Err(CoreError::Crypto(
                             "no encrypted cookie stored".into(),
                         )),
@@ -923,7 +997,7 @@ async fn handle_command(
         }
         BackendCommand::RevalidateAll {
             accounts,
-            password,
+            session,
             use_credential_manager,
         } => {
             for (user_id, encrypted_cookie) in &accounts {
@@ -931,7 +1005,7 @@ async fn handle_command(
                     crypto::credential_load(*user_id)
                 } else {
                     match encrypted_cookie {
-                        Some(enc) => crypto::decrypt_cookie(enc, &password),
+                        Some(enc) => crypto::decrypt_cookie(enc, &session),
                         None => continue,
                     }
                 };
@@ -1040,7 +1114,7 @@ async fn handle_command(
         BackendCommand::BrowseAsAccount {
             user_id,
             encrypted_cookie,
-            password,
+            session,
             use_credential_manager,
             profile_dir,
             label,
@@ -1051,7 +1125,7 @@ async fn handle_command(
                 let enc = encrypted_cookie.ok_or_else(|| {
                     CoreError::Crypto("no encrypted cookie stored for this account".into())
                 })?;
-                crypto::decrypt_cookie(&enc, &password)?
+                crypto::decrypt_cookie(&enc, &session)?
             };
             crate::browser_login::spawn_browse_as(profile_dir, cookie, label)
                 .map_err(CoreError::Process)?;
@@ -1062,7 +1136,7 @@ async fn handle_command(
             server_name,
             first_user_id,
             encrypted_cookie,
-            password,
+            session,
             use_credential_manager,
         } => {
             let cookie = if use_credential_manager {
@@ -1071,7 +1145,7 @@ async fn handle_command(
                 let enc = encrypted_cookie.ok_or_else(|| {
                     CoreError::Crypto("no encrypted cookie for share link resolution".into())
                 })?;
-                crypto::decrypt_cookie(&enc, &password)?
+                crypto::decrypt_cookie(&enc, &session)?
             };
             match api::resolve_share_link(client, &cookie, &share_code).await {
                 Ok((place_id, universe_id, link_code, access_code)) => {
@@ -1093,35 +1167,35 @@ async fn handle_command(
         BackendCommand::PollAssetOperations {
             user_id,
             encrypted_cookie,
-            password,
+            session,
             use_credential_manager,
             operations,
         } => {
-            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             poll_asset_operations(client, &cookie, &operations, tx).await;
             Ok(BackendEvent::AssetPollBatchDone)
         }
         BackendCommand::PollAssetModeration {
             user_id,
             encrypted_cookie,
-            password,
+            session,
             use_credential_manager,
             assets,
         } => {
-            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             poll_asset_moderation(client, &cookie, &assets, tx).await;
             Ok(BackendEvent::AssetPollBatchDone)
         }
         BackendCommand::GrantAssetPermissions {
             user_id,
             encrypted_cookie,
-            password,
+            session,
             use_credential_manager,
             universe_id,
             asset_ids,
             row_assets,
         } => {
-            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             match assets_api::grant_use_permission(client, &cookie, universe_id, &asset_ids).await {
                 Ok(outcome) => {
                     for (asset_id, message) in &outcome.failures {
@@ -1156,11 +1230,11 @@ async fn handle_command(
         BackendCommand::FetchUniverseTargets {
             user_id,
             encrypted_cookie,
-            password,
+            session,
             use_credential_manager,
             place_id,
         } => {
-            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             // The listing is provisional, so a failure must not take the place
             // resolution down with it. Both legs degrade independently.
             let universes = match assets_api::list_manageable_universes(client, &cookie).await {
@@ -1186,10 +1260,10 @@ async fn handle_command(
         BackendCommand::FetchPublishGroups {
             user_id,
             encrypted_cookie,
-            password,
+            session,
             use_credential_manager,
         } => {
-            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             let groups = match assets_api::list_publishable_groups(client, &cookie).await {
                 Ok(groups) => groups,
                 Err(e) => {
@@ -1202,13 +1276,13 @@ async fn handle_command(
         BackendCommand::FetchCreations {
             user_id,
             encrypted_cookie,
-            password,
+            session,
             use_credential_manager,
             creator,
             kind,
             cursor,
         } => {
-            let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             let appended = cursor.is_some();
             match assets_api::list_creations(client, &cookie, creator, kind, cursor.as_deref())
                 .await
@@ -1286,7 +1360,7 @@ const POLL_SPACING_MS: u64 = 250;
 fn decrypt_for(
     user_id: u64,
     encrypted_cookie: Option<String>,
-    password: &str,
+    session: &crypto::StoreSession,
     use_credential_manager: bool,
 ) -> Result<String, CoreError> {
     if use_credential_manager {
@@ -1294,7 +1368,7 @@ fn decrypt_for(
     }
     let enc = encrypted_cookie
         .ok_or_else(|| CoreError::Crypto("no encrypted cookie stored for this account".into()))?;
-    crypto::decrypt_cookie(&enc, password)
+    crypto::decrypt_cookie(&enc, session)
 }
 
 /// Run one upload to completion, or as far as it gets. Errors are reported
@@ -1343,7 +1417,7 @@ async fn upload_asset_inner(
         row_id,
         user_id,
         encrypted_cookie,
-        password,
+        session,
         use_credential_manager,
         creator,
         kind,
@@ -1352,7 +1426,7 @@ async fn upload_asset_inner(
         file_path,
     } = job;
 
-    let cookie = decrypt_for(user_id, encrypted_cookie, &password, use_credential_manager)?;
+    let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
 
     // Reading and hashing 20 MB is tens of milliseconds of blocking work. Doing
     // it on a runtime worker would stall the presence and avatar tasks that

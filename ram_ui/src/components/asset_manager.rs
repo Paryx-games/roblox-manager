@@ -261,7 +261,7 @@ pub struct AssetsCtx<'a> {
     /// Cached thumbnail PNGs, keyed by asset ID.
     pub thumbnails: &'a HashMap<u64, Vec<u8>>,
     /// False when no master password is loaded, so no cookie can be decrypted.
-    pub has_password: bool,
+    pub unlocked: bool,
     /// The index on disk must not be written (newer schema, or unreadable).
     pub read_only: bool,
 }
@@ -1516,7 +1516,7 @@ fn queue_actions(
         );
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let enabled = !uploadable.is_empty() && cx.has_password && !cx.read_only;
+            let enabled = !uploadable.is_empty() && cx.unlocked && !cx.read_only;
             let label = if uploadable.is_empty() {
                 "Upload".to_string()
             } else {
@@ -1526,7 +1526,7 @@ fn queue_actions(
                 egui::Button::new(egui::RichText::new(label).color(egui::Color32::WHITE))
                     .fill(ui.visuals().selection.bg_fill);
             let response = ui.add_enabled(enabled, button);
-            let response = if !cx.has_password {
+            let response = if !cx.unlocked {
                 response.on_disabled_hover_text(
                     "Unlock the account store first, so cookies can be decrypted.",
                 )

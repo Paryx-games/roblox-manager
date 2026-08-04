@@ -11,7 +11,7 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 ## Features
 
 - **Multi-Account Management** - Add, remove, and organize Roblox accounts with cookie-based auth
-- **Encrypted Storage** - AES-256-GCM encryption or Windows Credential Manager
+- **Encrypted Storage** - AES-256-GCM, unlocked automatically via Windows Credential Manager. An optional master password (Argon2id) is available for anyone who wants one
 - **Multi-Instance** - Launch multiple Roblox clients simultaneously
 - **Bulk Launch** - Launch selected accounts into the same server sequentially
 - **Privacy Mode** - Clears tracking cookies before each launch
@@ -53,7 +53,7 @@ RUST_LOG=debug cargo run
 
 ## Usage
 
-1. **First launch** - Set a master password when adding your first account
+1. **First launch** - Nothing to set up. Encryption configures itself on this PC
 2. **Add accounts** - Click "+ Add Account" and paste your `.ROBLOSECURITY` cookie
 3. **Launch** - Select an account, enter a Place ID, and click Launch
 4. **Bulk launch** - Ctrl+click or Shift+click to select multiple accounts, then use the group panel

@@ -83,8 +83,6 @@ struct AddAccountDialog {
     open: bool,
     step: AddAccountStep,
     cookie_input: String,
-    /// Staging field for password — only committed on submit.
-    password_input: String,
     /// True while we're waiting for the backend to validate.
     loading: bool,
     /// Error message from the last failed attempt.
@@ -149,7 +147,14 @@ pub struct AppState {
     config: AppConfig,
     config_path: PathBuf,
     store: AccountStore,
-    master_password: String,
+    /// Holds the unlocked store's data key. `None` until the store is opened,
+    /// which for a device-mode store happens automatically at startup and for a
+    /// password-mode store happens when the user types their password.
+    ///
+    /// Replaces the old `master_password: String`: the password itself is no
+    /// longer kept around after unlock, and an empty string is no longer
+    /// overloaded to mean "not unlocked yet".
+    store_session: Option<ram_core::crypto::StoreSession>,
 
     bridge: BackendBridge,
     toasts: Toasts,
@@ -253,12 +258,32 @@ pub struct AppState {
     /// single/quick launch inside the cooldown window.
     last_launch: Option<std::time::Instant>,
 
-    /// Password prompt shown on first launch when store file exists.
+    /// Password prompt shown on first launch when the store on disk is
+    /// password-locked. A device-mode store opens without ever setting this.
     needs_unlock: bool,
     unlock_password_input: String,
-    /// Show the "forgot password" bubble on the unlock screen, which offers to
-    /// wipe the undecryptable account store and restart fresh.
-    show_forgot_password: bool,
+    /// The password that just unlocked the store, held only long enough to
+    /// re-encrypt a legacy store under it. Cleared as soon as the upgrade
+    /// round-trip returns.
+    unlock_password_used: String,
+    /// Set while the startup unlock is in flight so the unlock screen shows a
+    /// spinner instead of flashing an empty password box.
+    unlocking: bool,
+    /// Show the recovery dialog offered on the unlock screen, which explains
+    /// what is and is not recoverable before offering to wipe the store.
+    show_recovery: bool,
+    /// Typed confirmation guarding the wipe in the recovery dialog.
+    recovery_confirm_input: String,
+    /// The store opened, but it predates the envelope format. Set until the
+    /// upgrade round-trip finishes.
+    pending_legacy_upgrade: bool,
+    /// Offer to stop asking for a password, shown once after an existing
+    /// password user unlocks. Their answer is recorded in
+    /// `config.offered_passwordless` either way.
+    show_passwordless_offer: bool,
+    /// The store is device-locked but this machine's key is gone, so no
+    /// password can open it. Drives a different unlock screen.
+    device_key_missing: bool,
 
     /// When set, shows a confirmation dialog before removing the account.
     confirm_remove: Option<u64>,
@@ -275,7 +300,20 @@ pub struct AppState {
 impl AppState {
     pub fn new(mut config: AppConfig, config_path: PathBuf) -> Self {
         let bridge = BackendBridge::spawn();
-        let needs_unlock = config.accounts_path.is_file();
+
+        // How the store on disk is locked decides whether the user sees
+        // anything at all before the app opens. A read error here (unreadable
+        // file, permissions) is treated as "password-locked": the unlock screen
+        // can explain itself, whereas the main UI would just look empty.
+        let store_mode = match ram_core::crypto::peek_mode(&config.accounts_path) {
+            Ok(mode) => mode,
+            Err(e) => {
+                tracing::warn!("Could not read the account store header: {e}");
+                Some(ram_core::crypto::StoreMode::Password)
+            }
+        };
+        let needs_unlock = store_mode.is_some();
+        let unlock_silently = store_mode == Some(ram_core::crypto::StoreMode::Device);
 
         // If multi-instance was previously enabled, run the same validation as
         // the UI toggle: kill tray processes, wait, then only acquire the mutex
@@ -314,7 +352,7 @@ impl AppState {
             config,
             config_path,
             store: AccountStore::default(),
-            master_password: String::new(),
+            store_session: None,
             bridge,
             toasts: Toasts::default(),
             active_tab: Tab::Accounts,
@@ -348,7 +386,7 @@ impl AppState {
             frame_count: 0,
             last_tray_kill: None,
             // Seeded to "now" so the first tick lands one full interval in,
-            // rather than firing a redundant round at startup (StoreLoaded
+            // rather than firing a redundant round at startup (StoreUnlocked
             // already kicks off a refresh and revalidation).
             last_presence_poll: Some(std::time::Instant::now()),
             last_avatar_refresh: Some(std::time::Instant::now()),
@@ -363,12 +401,26 @@ impl AppState {
             last_launch: None,
             needs_unlock,
             unlock_password_input: String::new(),
-            show_forgot_password: false,
+            unlock_password_used: String::new(),
+            unlocking: unlock_silently,
+            show_recovery: false,
+            recovery_confirm_input: String::new(),
+            pending_legacy_upgrade: false,
+            show_passwordless_offer: false,
+            device_key_missing: false,
             confirm_remove: None,
             update_available: None,
             show_changelog: false,
             tutorial: tutorial::TutorialState::default(),
         };
+
+        // A device-locked store needs no interaction: open it now so the first
+        // frame the user sees is the account list, not a password box.
+        if unlock_silently {
+            state.bridge.send(BackendCommand::UnlockWithDevice {
+                path: state.config.accounts_path.clone(),
+            });
+        }
 
         // Check for updates on startup
         state.bridge.send(BackendCommand::CheckForUpdates {
@@ -452,7 +504,6 @@ impl AppState {
                         self.add_dialog.loading = false;
                         self.add_dialog.last_error = None;
                         self.add_dialog.cookie_input.clear();
-                        self.add_dialog.password_input.clear();
                         self.add_dialog.browser_login_pending = false;
                         self.add_dialog.browser_login_rx = None;
                         self.add_dialog.rejected_cookie = None;
@@ -515,13 +566,71 @@ impl AppState {
                 BackendEvent::StoreSaved => {
                     // silent
                 }
-                BackendEvent::StoreLoaded(store) => {
-                    self.store = store;
+                BackendEvent::StoreUnlocked {
+                    store,
+                    session,
+                    legacy,
+                } => {
+                    let was_password = session.needs_password();
+                    self.store = *store;
+                    self.store_session = Some(*session);
                     self.needs_unlock = false;
-                    self.toasts
-                        .push(Toast::success("Account store unlocked"));
+                    self.unlocking = false;
+                    self.device_key_missing = false;
+                    self.unlock_password_input.clear();
+
+                    if legacy {
+                        // Pre-envelope file. Rotate it onto a fresh data key
+                        // before anything can try to save through the old one;
+                        // `auto_save` refuses to write a legacy session for
+                        // exactly this window.
+                        self.pending_legacy_upgrade = true;
+                        self.bridge.send(BackendCommand::RekeyStore {
+                            store: self.store.clone(),
+                            path: self.config.accounts_path.clone(),
+                            session: self
+                                .store_session
+                                .clone()
+                                .expect("session was just set"),
+                            // Keep the password they already have; the offer to
+                            // drop it comes after, as an explicit choice.
+                            new_password: Some(self.unlock_password_used.clone()),
+                            upgrade_legacy: true,
+                        });
+                    } else {
+                        // Only toast when the user actually did something. A
+                        // device-mode store opens before the window is drawn,
+                        // and announcing that is noise.
+                        if was_password {
+                            self.toasts.push(Toast::success("Account store unlocked"));
+                        }
+                        self.offer_passwordless_if_due();
+                    }
+
                     self.trigger_refresh();
                     self.trigger_revalidation();
+                }
+                BackendEvent::StoreRekeyed { store, session } => {
+                    let upgraded = self.pending_legacy_upgrade;
+                    self.store = *store;
+                    self.store_session = Some(*session);
+                    self.pending_legacy_upgrade = false;
+                    self.unlock_password_used.clear();
+
+                    if upgraded {
+                        tracing::info!("Upgraded the account store to the envelope format");
+                        self.offer_passwordless_if_due();
+                    } else {
+                        let msg = match self.store_session.as_ref().map(|s| s.needs_password()) {
+                            Some(true) => "Master password set",
+                            _ => "This PC now unlocks your accounts automatically",
+                        };
+                        self.toasts.push(Toast::success(msg));
+                    }
+                }
+                BackendEvent::DeviceKeyMissing => {
+                    self.unlocking = false;
+                    self.device_key_missing = true;
                 }
                 BackendEvent::Killed(count) => {
                     self.toasts
@@ -628,6 +737,11 @@ impl AppState {
                     }
                 }
                 BackendEvent::Error(msg) => {
+                    // A failed unlock or re-key must clear its in-flight flag,
+                    // or the unlock screen sits on a spinner with no way back.
+                    self.unlocking = false;
+                    self.pending_legacy_upgrade = false;
+
                     if self.add_dialog.bulk_running {
                         // Don't toast or block the dialog mid-batch — count
                         // the failure and move on. The summary screen reports
@@ -710,7 +824,6 @@ impl AppState {
                     self.add_dialog.loading = false;
                     self.add_dialog.last_error = None;
                     self.add_dialog.cookie_input.clear();
-                    self.add_dialog.password_input.clear();
                     self.add_dialog.browser_login_pending = false;
                     self.add_dialog.browser_login_rx = None;
                     self.add_dialog.rejected_cookie = None;
@@ -930,14 +1043,111 @@ impl AppState {
         }
     }
 
-    fn auto_save(&self) {
-        if !self.master_password.is_empty() {
-            self.bridge.send(BackendCommand::SaveStore {
-                store: self.store.clone(),
-                path: self.config.accounts_path.clone(),
-                password: self.master_password.clone(),
-            });
+    /// The unlocked store session, if there is one.
+    ///
+    /// Every command that touches a cookie needs this. It is `None` only before
+    /// the store is unlocked or while a legacy store is mid-upgrade, and the UI
+    /// paths that could send such a command are gated behind `needs_unlock`.
+    fn session(&self) -> Option<ram_core::crypto::StoreSession> {
+        self.store_session.clone()
+    }
+
+    /// The session to save under, creating a device-mode one on first use.
+    ///
+    /// This is what makes passwordless the default: a brand-new install gets a
+    /// data key wrapped by the OS credential store the moment it has something
+    /// to save, with nothing to prompt for. Returns `None` only when the
+    /// credential store is unavailable, which callers report rather than
+    /// silently writing the store out unencrypted.
+    fn ensure_session(&mut self) -> Option<ram_core::crypto::StoreSession> {
+        if let Some(s) = &self.store_session {
+            return Some(s.clone());
         }
+        match ram_core::crypto::create_device_session() {
+            Ok(s) => {
+                tracing::info!("Created a device-locked account store");
+                self.store_session = Some(s.clone());
+                Some(s)
+            }
+            Err(e) => {
+                tracing::error!("Could not create a device-locked store: {e}");
+                self.toasts.push(Toast::error(format!(
+                    "Could not set up encryption: {e}. Set a master password in Settings instead."
+                )));
+                None
+            }
+        }
+    }
+
+    /// Show the one-time offer to stop requiring a master password.
+    ///
+    /// Only fires for someone who actually has a password to drop, and only
+    /// once: `config.offered_passwordless` is set as soon as they answer, so
+    /// declining sticks. New installs are passwordless already and never see it.
+    fn offer_passwordless_if_due(&mut self) {
+        if self.config.offered_passwordless {
+            return;
+        }
+        let has_password = self
+            .store_session
+            .as_ref()
+            .is_some_and(|s| s.needs_password());
+        if !has_password {
+            // Nothing to offer, but record that we got here so a user who later
+            // sets a password on purpose is not second-guessed about it.
+            self.config.offered_passwordless = true;
+            let _ = self.config.save(&self.config_path);
+            return;
+        }
+        self.show_passwordless_offer = true;
+    }
+
+    /// Record the user's answer to the passwordless offer so it is asked once.
+    fn dismiss_passwordless_offer(&mut self) {
+        self.show_passwordless_offer = false;
+        self.config.offered_passwordless = true;
+        if let Err(e) = self.config.save(&self.config_path) {
+            tracing::warn!("Could not record the passwordless choice: {e}");
+        }
+    }
+
+    /// Switch the store between device and password locking. `None` drops the
+    /// password; `Some` sets or replaces it.
+    fn rekey_store(&mut self, new_password: Option<String>) {
+        let Some(session) = self.session() else {
+            self.toasts
+                .push(Toast::error("Unlock the account store first"));
+            return;
+        };
+        self.bridge.send(BackendCommand::RekeyStore {
+            store: self.store.clone(),
+            path: self.config.accounts_path.clone(),
+            session,
+            new_password,
+            upgrade_legacy: false,
+        });
+    }
+
+    /// Persist the store. Silently does nothing before the store is unlocked,
+    /// which is when there is no data worth writing anyway.
+    ///
+    /// Note this no longer keys off "is a password set": that older gate meant
+    /// credential-manager users, who never set one, never had their account
+    /// roster written to disk at all.
+    fn auto_save(&self) {
+        let Some(session) = self.session() else {
+            return;
+        };
+        if session.is_legacy() {
+            // Mid-upgrade: saving now would write a store still keyed by the
+            // old unsalted KDF. The upgrade round-trip saves for us.
+            return;
+        }
+        self.bridge.send(BackendCommand::SaveStore {
+            store: self.store.clone(),
+            path: self.config.accounts_path.clone(),
+            session,
+        });
     }
 
     /// Pop the next queued cookie and dispatch an AddAccount for it. When the
@@ -947,10 +1157,19 @@ impl AppState {
     fn dispatch_next_bulk(&mut self) {
         match self.add_dialog.bulk_queue.pop() {
             Some(cookie) => {
+                // Creates the device-locked store on the first import into a
+                // fresh install. Failing here means no encryption is available,
+                // so the batch stops rather than proceeding unprotected.
+                let Some(session) = self.ensure_session() else {
+                    self.add_dialog.bulk_queue.clear();
+                    self.add_dialog.bulk_running = false;
+                    self.add_dialog.loading = false;
+                    return;
+                };
                 self.add_dialog.loading = true;
                 self.bridge.send(BackendCommand::AddAccount {
                     cookie,
-                    password: self.master_password.clone(),
+                    session: session.clone(),
                     use_credential_manager: self.config.use_credential_manager,
                 });
             }
@@ -979,6 +1198,9 @@ impl AppState {
     }
 
     fn trigger_refresh(&self) {
+        let Some(session) = self.session() else {
+            return;
+        };
         let user_ids: Vec<u64> = self.store.accounts.iter().map(|a| a.user_id).collect();
         if user_ids.is_empty() {
             return;
@@ -988,7 +1210,7 @@ impl AppState {
                 user_ids,
                 first_user_id: first.user_id,
                 encrypted_cookie: first.encrypted_cookie.clone(),
-                password: self.master_password.clone(),
+                session: session.clone(),
                 use_credential_manager: self.config.use_credential_manager,
             });
         }
@@ -996,6 +1218,9 @@ impl AppState {
 
     /// Lightweight presence-only refresh for the currently visible accounts.
     fn trigger_presence_refresh(&self) {
+        let Some(session) = self.session() else {
+            return;
+        };
         if self.visible_user_ids.is_empty() {
             return;
         }
@@ -1004,7 +1229,7 @@ impl AppState {
                 user_ids: self.visible_user_ids.clone(),
                 first_user_id: first.user_id,
                 encrypted_cookie: first.encrypted_cookie.clone(),
-                password: self.master_password.clone(),
+                session: session.clone(),
                 use_credential_manager: self.config.use_credential_manager,
             });
         }
@@ -1075,6 +1300,9 @@ impl AppState {
     }
 
     fn open_browser_as(&mut self, user_id: u64) {
+        let Some(session) = self.session() else {
+            return;
+        };
         let Some(account) = self.store.find_by_id(user_id) else {
             return;
         };
@@ -1095,7 +1323,7 @@ impl AppState {
         self.bridge.send(BackendCommand::BrowseAsAccount {
             user_id,
             encrypted_cookie: account.encrypted_cookie.clone(),
-            password: self.master_password.clone(),
+            session: session.clone(),
             use_credential_manager: self.config.use_credential_manager,
             profile_dir,
             label,
@@ -1104,6 +1332,9 @@ impl AppState {
 
     /// Revalidate all account cookies in the background.
     fn trigger_revalidation(&self) {
+        let Some(session) = self.session() else {
+            return;
+        };
         if self.store.accounts.is_empty() {
             return;
         }
@@ -1115,7 +1346,7 @@ impl AppState {
             .collect();
         self.bridge.send(BackendCommand::RevalidateAll {
             accounts,
-            password: self.master_password.clone(),
+            session: session.clone(),
             use_credential_manager: self.config.use_credential_manager,
         });
     }
@@ -1249,43 +1480,78 @@ impl eframe::App for AppState {
 
         // ---- Unlock screen ----
         if self.needs_unlock {
+            let mut submit = false;
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(80.0);
-                    ui.heading("🔒 RM | Unlock Account Store");
-                    ui.add_space(16.0);
-                    ui.label("Enter your master password to decrypt accounts:");
-                    ui.add_space(8.0);
 
-                    let response = ui.add(
-                        egui::TextEdit::singleline(&mut self.unlock_password_input)
-                            .password(true)
-                            .hint_text("Master password"),
-                    );
+                    if self.device_key_missing {
+                        // No password exists for this store, so offering a
+                        // password box would be a dead end. Say what happened.
+                        ui.heading("🔒 RM | Cannot Unlock On This PC");
+                        ui.add_space(16.0);
+                        ui.label(
+                            "This account store unlocks automatically, but the key for it is \
+                             missing from this PC's credential store.",
+                        );
+                        ui.add_space(4.0);
+                        ui.label(
+                            egui::RichText::new(
+                                "That usually means the store was copied from another PC, or \
+                                 Windows credentials were reset.",
+                            )
+                            .small()
+                            .weak(),
+                        );
+                    } else if self.unlocking {
+                        ui.heading("🔒 RM | Unlocking");
+                        ui.add_space(16.0);
+                        ui.spinner();
+                    } else {
+                        ui.heading("🔒 RM | Unlock Account Store");
+                        ui.add_space(16.0);
+                        ui.label("Enter your master password to decrypt accounts:");
+                        ui.add_space(8.0);
 
-                    ui.add_space(8.0);
-                    let enter_pressed =
-                        response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        let response = ui.add(
+                            egui::TextEdit::singleline(&mut self.unlock_password_input)
+                                .password(true)
+                                .hint_text("Master password"),
+                        );
 
-                    if ui.button("Unlock").clicked() || enter_pressed {
-                        let pw = self.unlock_password_input.clone();
-                        self.master_password = pw.clone();
-                        self.bridge.send(BackendCommand::LoadStore {
-                            path: self.config.accounts_path.clone(),
-                            password: pw,
-                        });
+                        ui.add_space(8.0);
+                        let enter_pressed = response.lost_focus()
+                            && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        if ui.button("Unlock").clicked() || enter_pressed {
+                            submit = true;
+                        }
                     }
 
                     ui.add_space(6.0);
-                    if ui
-                        .link(egui::RichText::new("Forgot password?").weak().small())
-                        .clicked()
-                    {
-                        self.show_forgot_password = true;
+                    let link = if self.device_key_missing {
+                        "Recovery options"
+                    } else {
+                        "Forgot password?"
+                    };
+                    if ui.link(egui::RichText::new(link).weak().small()).clicked() {
+                        self.show_recovery = true;
                     }
                 });
             });
-            self.show_forgot_password_dialog(ctx);
+
+            if submit {
+                let pw = self.unlock_password_input.clone();
+                // Held only until the store opens: a legacy store is re-encrypted
+                // under it, and it is cleared as soon as that finishes.
+                self.unlock_password_used = pw.clone();
+                self.unlocking = true;
+                self.bridge.send(BackendCommand::UnlockWithPassword {
+                    path: self.config.accounts_path.clone(),
+                    password: pw,
+                });
+            }
+
+            self.show_recovery_dialog(ctx);
             self.toasts.show(ctx);
             return;
         }
@@ -1374,6 +1640,9 @@ impl eframe::App for AppState {
         // ---- Changelog window ----
         self.show_changelog_window(ctx);
 
+        // ---- One-time offer to stop requiring a master password ----
+        self.show_passwordless_offer_dialog(ctx);
+
         // ---- First-launch tutorial overlay ----
         tutorial::show_overlay(ctx, &mut self.tutorial);
 
@@ -1443,7 +1712,6 @@ impl AppState {
                             self.add_dialog.browser_login_rx = None;
                             self.add_dialog.rejected_cookie = None;
                             self.add_dialog.pending_moderated = None;
-                            self.add_dialog.password_input = self.master_password.clone();
                             self.tutorial.advance_from(tutorial::TutorialStep::AddAccount);
                         }
                         sidebar::SidebarAction::CopyJobId(job_id) => {
@@ -1482,12 +1750,14 @@ impl AppState {
                                     .store
                                     .find_by_id(user_id)
                                     .map(|a| (a.user_id, a.encrypted_cookie.clone()));
-                                if let Some((uid, enc)) = acc_lookup {
+                                if let (Some((uid, enc)), Some(session)) =
+                                    (acc_lookup, self.session())
+                                {
                                     if self.try_consume_launch_slot() {
                                         self.bridge.send(BackendCommand::LaunchGameEncrypted {
                                             user_id: uid,
                                             encrypted_cookie: enc,
-                                            password: self.master_password.clone(),
+                                            session: session.clone(),
                                             use_credential_manager: self.config.use_credential_manager,
                                             place_id,
                                             job_id,
@@ -1671,19 +1941,21 @@ impl AppState {
                                 .filter(|a| self.selected_ids.contains(&a.user_id))
                                 .map(|a| (a.user_id, a.encrypted_cookie.clone()))
                                 .collect();
-                            self.bridge.send(BackendCommand::BulkLaunchEncrypted {
-                                accounts,
-                                password: self.master_password.clone(),
-                                use_credential_manager: self.config.use_credential_manager,
-                                place_id,
-                                job_id,
-                                link_code: None,
-                                access_code: None,
-                                multi_instance: self.config.multi_instance_enabled,
-                                kill_background: self.config.kill_background_roblox,
-                                privacy_mode: self.config.privacy_mode,
-                                launch_delay_secs: self.config.launch_delay_secs,
-                            });
+                            if let Some(session) = self.session() {
+                                self.bridge.send(BackendCommand::BulkLaunchEncrypted {
+                                    accounts,
+                                    session,
+                                    use_credential_manager: self.config.use_credential_manager,
+                                    place_id,
+                                    job_id,
+                                    link_code: None,
+                                    access_code: None,
+                                    multi_instance: self.config.multi_instance_enabled,
+                                    kill_background: self.config.kill_background_roblox,
+                                    privacy_mode: self.config.privacy_mode,
+                                    launch_delay_secs: self.config.launch_delay_secs,
+                                });
+                            }
                         }
                         group_panel::GroupPanelAction::ClearSelection => {
                             self.selected_ids.clear();
@@ -1717,11 +1989,16 @@ impl AppState {
                     if let Some(a) = result.action {
                         match a {
                             main_panel::MainPanelAction::LaunchGame { place_id, job_id } => {
-                                if self.try_consume_launch_slot() {
+                                // Session first, so a locked store does not
+                                // spend the launch-delay slot on a launch that
+                                // cannot happen.
+                                let ready =
+                                    self.session().filter(|_| self.try_consume_launch_slot());
+                                if let Some(session) = ready {
                                     self.bridge.send(BackendCommand::LaunchGameEncrypted {
                                         user_id: account.user_id,
                                         encrypted_cookie: account.encrypted_cookie.clone(),
-                                        password: self.master_password.clone(),
+                                        session,
                                         use_credential_manager: self.config.use_credential_manager,
                                         place_id,
                                         job_id,
@@ -1847,22 +2124,26 @@ impl AppState {
                                 .store
                                 .find_by_id(uid)
                                 .map(|a| (a.user_id, a.encrypted_cookie.clone()));
-                            if let Some((user_id, enc)) = acc_lookup {
-                                if self.try_consume_launch_slot() {
-                                    self.bridge.send(BackendCommand::LaunchGameEncrypted {
-                                        user_id,
-                                        encrypted_cookie: enc,
-                                        password: self.master_password.clone(),
-                                        use_credential_manager: self.config.use_credential_manager,
-                                        place_id,
-                                        job_id: None,
-                                        link_code: Some(link_code.clone()),
-                                        access_code: ac.clone(),
-                                        multi_instance: self.config.multi_instance_enabled,
-                                        kill_background: self.config.kill_background_roblox,
-                                        privacy_mode: self.config.privacy_mode,
-                                    });
-                                }
+                            // Session first, so a locked store does not spend
+                            // the launch-delay slot on a launch that cannot
+                            // happen.
+                            let ready = self
+                                .session()
+                                .filter(|_| self.try_consume_launch_slot());
+                            if let (Some((user_id, enc)), Some(session)) = (acc_lookup, ready) {
+                                self.bridge.send(BackendCommand::LaunchGameEncrypted {
+                                    user_id,
+                                    encrypted_cookie: enc,
+                                    session,
+                                    use_credential_manager: self.config.use_credential_manager,
+                                    place_id,
+                                    job_id: None,
+                                    link_code: Some(link_code.clone()),
+                                    access_code: ac.clone(),
+                                    multi_instance: self.config.multi_instance_enabled,
+                                    kill_background: self.config.kill_background_roblox,
+                                    privacy_mode: self.config.privacy_mode,
+                                });
                             }
                         } else if self.selected_ids.len() > 1 {
                             let accounts: Vec<(u64, Option<String>)> = self
@@ -1872,19 +2153,21 @@ impl AppState {
                                 .filter(|a| self.selected_ids.contains(&a.user_id))
                                 .map(|a| (a.user_id, a.encrypted_cookie.clone()))
                                 .collect();
-                            self.bridge.send(BackendCommand::BulkLaunchEncrypted {
-                                accounts,
-                                password: self.master_password.clone(),
-                                use_credential_manager: self.config.use_credential_manager,
-                                place_id,
-                                job_id: None,
-                                link_code: Some(link_code),
-                                access_code: ac,
-                                multi_instance: self.config.multi_instance_enabled,
-                                kill_background: self.config.kill_background_roblox,
-                                privacy_mode: self.config.privacy_mode,
-                                launch_delay_secs: self.config.launch_delay_secs,
-                            });
+                            if let Some(session) = self.session() {
+                                self.bridge.send(BackendCommand::BulkLaunchEncrypted {
+                                    accounts,
+                                    session,
+                                    use_credential_manager: self.config.use_credential_manager,
+                                    place_id,
+                                    job_id: None,
+                                    link_code: Some(link_code),
+                                    access_code: ac,
+                                    multi_instance: self.config.multi_instance_enabled,
+                                    kill_background: self.config.kill_background_roblox,
+                                    privacy_mode: self.config.privacy_mode,
+                                    launch_delay_secs: self.config.launch_delay_secs,
+                                });
+                            }
                         }
                     }
                     private_servers::PrivateServerAction::Resolve(idx) => {
@@ -1901,13 +2184,18 @@ impl AppState {
                         server_name,
                     } => {
                         // Need an authenticated account to resolve share links
-                        if let Some(acc) = self.store.accounts.first() {
+                        let acc = self
+                            .store
+                            .accounts
+                            .first()
+                            .map(|a| (a.user_id, a.encrypted_cookie.clone()));
+                        if let (Some((first_user_id, enc)), Some(session)) = (acc, self.session()) {
                             self.bridge.send(BackendCommand::ResolveShareLink {
                                 share_code,
                                 server_name,
-                                first_user_id: acc.user_id,
-                                encrypted_cookie: acc.encrypted_cookie.clone(),
-                                password: self.master_password.clone(),
+                                first_user_id,
+                                encrypted_cookie: enc,
+                                session,
                                 use_credential_manager: self.config.use_credential_manager,
                             });
                             self.toasts.push(Toast::info("Resolving share link..."));
@@ -2138,6 +2426,7 @@ impl AppState {
     }
 
     fn build_upload_job(&mut self, row_id: &str) -> Option<UploadJob> {
+        let session = self.session()?;
         let row_id = row_id.to_string();
         let record = self.asset_index.get(&row_id)?;
         let uploader = record.uploaded_by;
@@ -2148,7 +2437,7 @@ impl AppState {
             row_id: row_id.clone(),
             user_id: uploader,
             encrypted_cookie,
-            password: self.master_password.clone(),
+            session: session.clone(),
             use_credential_manager: self.config.use_credential_manager,
             creator: record.creator,
             kind: record.kind,
@@ -2169,6 +2458,9 @@ impl AppState {
     /// Ask about everything currently in moderation, grouped by account so one
     /// cookie decrypt covers a whole batch.
     fn dispatch_asset_poll(&mut self) {
+        let Some(session) = self.session() else {
+            return;
+        };
         let now = chrono::Utc::now();
         let expired = ram_core::assets::expire_stale_operations(&mut self.asset_index, now);
         if !expired.is_empty() {
@@ -2201,7 +2493,7 @@ impl AppState {
             self.bridge.send(BackendCommand::PollAssetOperations {
                 user_id,
                 encrypted_cookie: account.encrypted_cookie.clone(),
-                password: self.master_password.clone(),
+                session: session.clone(),
                 use_credential_manager: self.config.use_credential_manager,
                 operations,
             });
@@ -2213,6 +2505,9 @@ impl AppState {
     /// Grouped by uploader for the same reason operation polling is: one cookie
     /// decrypt per account rather than one per row.
     fn dispatch_moderation_poll(&mut self) {
+        let Some(session) = self.session() else {
+            return;
+        };
         let now = chrono::Utc::now();
         let batch = ram_core::assets::next_review_batch(
             &self.asset_index.records,
@@ -2241,7 +2536,7 @@ impl AppState {
             self.bridge.send(BackendCommand::PollAssetModeration {
                 user_id,
                 encrypted_cookie: account.encrypted_cookie.clone(),
-                password: self.master_password.clone(),
+                session: session.clone(),
                 use_credential_manager: self.config.use_credential_manager,
                 assets,
             });
@@ -2331,6 +2626,9 @@ impl AppState {
         let asset_manager::TreeNode::Inventory(creator) = node else {
             return;
         };
+        let Some(session) = self.session() else {
+            return;
+        };
         let Some(user_id) = self.asset_manager_state.acting_user_id else {
             return;
         };
@@ -2340,7 +2638,7 @@ impl AppState {
         self.bridge.send(BackendCommand::FetchCreations {
             user_id,
             encrypted_cookie: account.encrypted_cookie.clone(),
-            password: self.master_password.clone(),
+            session: session.clone(),
             use_credential_manager: self.config.use_credential_manager,
             creator,
             kind,
@@ -2352,6 +2650,9 @@ impl AppState {
     /// resolve a pasted place ID at the same time (one cookie decrypt covers
     /// both).
     fn fetch_universe_targets(&mut self, place_id: Option<u64>) {
+        let Some(session) = self.session() else {
+            return;
+        };
         let Some(user_id) = self.asset_manager_state.acting_user_id else {
             return;
         };
@@ -2361,7 +2662,7 @@ impl AppState {
         self.bridge.send(BackendCommand::FetchUniverseTargets {
             user_id,
             encrypted_cookie: account.encrypted_cookie.clone(),
-            password: self.master_password.clone(),
+            session: session.clone(),
             use_credential_manager: self.config.use_credential_manager,
             place_id,
         });
@@ -2378,6 +2679,9 @@ impl AppState {
     /// Local rows with no asset ID yet are genuinely skipped: there is nothing
     /// on Roblox to grant against.
     fn grant_universe_access(&mut self, universe_id: u64, keys: Vec<String>) {
+        let Some(session) = self.session() else {
+            return;
+        };
         let mut asset_ids = Vec::new();
         let mut row_assets = Vec::new();
         let mut uploader = None;
@@ -2431,7 +2735,7 @@ impl AppState {
         self.bridge.send(BackendCommand::GrantAssetPermissions {
             user_id,
             encrypted_cookie: account.encrypted_cookie.clone(),
-            password: self.master_password.clone(),
+            session: session.clone(),
             use_credential_manager: self.config.use_credential_manager,
             universe_id,
             asset_ids,
@@ -2721,7 +3025,7 @@ impl AppState {
                         groups: &self.publish_groups,
                         remote: &self.remote_inventory,
                         thumbnails: &self.asset_thumbnails,
-                        has_password: !self.master_password.is_empty()
+                        unlocked: self.store_session.is_some()
                             || self.config.use_credential_manager,
                         read_only: self.asset_index_read_only,
                     };
@@ -2739,7 +3043,7 @@ impl AppState {
                 groups: &self.publish_groups,
                 remote: &self.remote_inventory,
                 thumbnails: &self.asset_thumbnails,
-                has_password: !self.master_password.is_empty()
+                unlocked: self.store_session.is_some()
                     || self.config.use_credential_manager,
                 read_only: self.asset_index_read_only,
             };
@@ -2762,11 +3066,15 @@ impl AppState {
             self.publish_groups.clear();
             self.fetch_universe_targets(None);
             if let Some(user_id) = self.asset_manager_state.acting_user_id {
-                if let Some(account) = self.store.find_by_id(user_id) {
+                let enc = self
+                    .store
+                    .find_by_id(user_id)
+                    .map(|a| a.encrypted_cookie.clone());
+                if let (Some(encrypted_cookie), Some(session)) = (enc, self.session()) {
                     self.bridge.send(BackendCommand::FetchPublishGroups {
                         user_id,
-                        encrypted_cookie: account.encrypted_cookie.clone(),
-                        password: self.master_password.clone(),
+                        encrypted_cookie,
+                        session,
                         use_credential_manager: self.config.use_credential_manager,
                     });
                 }
@@ -3036,7 +3344,10 @@ impl AppState {
 
     fn show_settings_tab(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            let has_password = !self.master_password.is_empty();
+            let has_password = self
+                .store_session
+                .as_ref()
+                .is_some_and(|s| s.needs_password());
             let action = settings::show(
                 ui,
                 &mut self.config,
@@ -3096,24 +3407,20 @@ impl AppState {
                     self.toasts.push(Toast::info("Multi-instance disabled (takes effect after restart)"));
                 }
                 Some(settings::SettingsAction::ChangePassword { new_password }) => {
-                    let old_password = self.master_password.clone();
-                    // Re-encrypt every account's cookie with the new password
-                    for account in &mut self.store.accounts {
-                        if let Some(ref enc) = account.encrypted_cookie {
-                            if let Ok(plain) = ram_core::crypto::decrypt_cookie(enc, &old_password) {
-                                if let Ok(new_enc) = ram_core::crypto::encrypt_cookie(&plain, &new_password) {
-                                    account.encrypted_cookie = Some(new_enc);
-                                }
-                            }
-                        }
-                    }
-                    self.master_password = new_password;
-                    self.auto_save();
-                    self.toasts.push(Toast::success("Password changed - store re-encrypted"));
+                    // Rewraps the data key under the new password. The old
+                    // version walked every account re-encrypting cookies one by
+                    // one and swallowed failures, which left any cookie that
+                    // failed to decrypt stranded on the previous password with
+                    // no way back. Nothing per-account happens here at all now.
+                    self.rekey_store(Some(new_password));
                 }
                 Some(settings::SettingsAction::ClearPassword) => {
-                    self.master_password.clear();
-                    self.toasts.push(Toast::info("Password cleared"));
+                    // Rewraps under the device key. The old version merely
+                    // cleared the in-memory password, which left the file on
+                    // disk encrypted under a password the app no longer had —
+                    // and silently stopped saving, because `auto_save` was
+                    // gated on that string being non-empty.
+                    self.rekey_store(None);
                 }
                 None => {}
             }
@@ -3146,18 +3453,15 @@ impl AppState {
                     self.add_dialog.browser_login_pending = false;
                     self.add_dialog.browser_login_rx = None;
                     self.add_dialog.last_error = None;
-                    // If the user already has a master password set (or
-                    // credential-manager mode is on), there's nothing left
-                    // for them to confirm — send the cookie straight to the
-                    // backend instead of making them click "Add" redundantly.
-                    let needs_password = !self.config.use_credential_manager
-                        && self.master_password.is_empty();
-                    if !needs_password {
-                        let cookie = self.add_dialog.cookie_input.trim().to_string();
+                    // Nothing left for the user to confirm: encryption sets
+                    // itself up. Send the cookie straight to the backend rather
+                    // than making them click "Add" redundantly.
+                    let cookie = self.add_dialog.cookie_input.trim().to_string();
+                    if let Some(session) = self.ensure_session() {
                         self.add_dialog.loading = true;
                         self.bridge.send(BackendCommand::AddAccount {
                             cookie,
-                            password: self.master_password.clone(),
+                            session,
                             use_credential_manager: self.config.use_credential_manager,
                         });
                     }
@@ -3309,14 +3613,16 @@ impl AppState {
                     let profile_dir = crate::data_dir()
                         .join("webview_browse_as")
                         .join(uid.to_string());
-                    self.bridge.send(BackendCommand::BrowseAsAccount {
-                        user_id: uid,
-                        encrypted_cookie: enc,
-                        password: self.master_password.clone(),
-                        use_credential_manager: self.config.use_credential_manager,
-                        profile_dir,
-                        label,
-                    });
+                    if let Some(session) = self.session() {
+                        self.bridge.send(BackendCommand::BrowseAsAccount {
+                            user_id: uid,
+                            encrypted_cookie: enc,
+                            session,
+                            use_credential_manager: self.config.use_credential_manager,
+                            profile_dir,
+                            label,
+                        });
+                    }
                 }
             }
             if mod_revalidate {
@@ -3326,20 +3632,23 @@ impl AppState {
                 // pasted the cookie fresh, so a clean account now skips the
                 // moderation confirm.
                 if let Some(pending) = self.add_dialog.pending_moderated.take() {
+                    let session = self.session();
                     let raw_cookie = if self.config.use_credential_manager {
                         ram_core::crypto::credential_load(pending.account.user_id).ok()
                     } else {
-                        pending.encrypted_cookie.as_ref().and_then(|enc| {
-                            ram_core::crypto::decrypt_cookie(enc, &self.master_password).ok()
-                        })
+                        pending
+                            .encrypted_cookie
+                            .as_ref()
+                            .zip(session.as_ref())
+                            .and_then(|(enc, s)| ram_core::crypto::decrypt_cookie(enc, s).ok())
                     };
-                    match raw_cookie {
-                        Some(cookie) => {
+                    match raw_cookie.zip(session) {
+                        Some((cookie, session)) => {
                             self.add_dialog.loading = true;
                             self.add_dialog.last_error = None;
                             self.bridge.send(BackendCommand::AddAccount {
                                 cookie,
-                                password: self.master_password.clone(),
+                                session,
                                 use_credential_manager: self.config.use_credential_manager,
                             });
                         }
@@ -3367,7 +3676,6 @@ impl AppState {
                     self.toasts.push(Toast::success(format!("Added {name}")));
                     self.add_dialog.open = false;
                     self.add_dialog.cookie_input.clear();
-                    self.add_dialog.password_input.clear();
                     self.add_dialog.browser_login_pending = false;
                     self.add_dialog.browser_login_rx = None;
                     self.tutorial.advance_from(tutorial::TutorialStep::EnterCookie);
@@ -3385,7 +3693,6 @@ impl AppState {
                 self.add_dialog.pending_moderated = None;
                 self.add_dialog.open = false;
                 self.add_dialog.cookie_input.clear();
-                self.add_dialog.password_input.clear();
                 self.add_dialog.browser_login_pending = false;
                 self.add_dialog.browser_login_rx = None;
             }
@@ -3645,33 +3952,11 @@ impl AppState {
                             );
                             ui.add_space(8.0);
 
-                            let needs_password = !self
-                                .config
-                                .use_credential_manager
-                                && self.master_password.is_empty();
-                            if needs_password {
-                                ui.label(
-                                    "Set a master password for encryption:",
-                                );
-                                ui.add(
-                                    egui::TextEdit::singleline(
-                                        &mut self.add_dialog.password_input,
-                                    )
-                                    .password(true)
-                                    .hint_text("Master password"),
-                                );
-                                ui.add_space(4.0);
-                            }
-
-                            let valid = count > 0
-                                && (!needs_password
-                                    || !self
-                                        .add_dialog
-                                        .password_input
-                                        .is_empty());
+                            // No password prompt: `dispatch_next_bulk` sets up
+                            // device-locked encryption on its own.
                             if ui
                                 .add_enabled(
-                                    valid,
+                                    count > 0,
                                     egui::Button::new(format!(
                                         "Import {count} account(s)",
                                     )),
@@ -3683,12 +3968,6 @@ impl AppState {
                                 );
                                 // Reverse so pop() yields paste order.
                                 cookies.reverse();
-                                if needs_password {
-                                    self.master_password = self
-                                        .add_dialog
-                                        .password_input
-                                        .clone();
-                                }
                                 self.add_dialog.bulk_total = cookies.len();
                                 self.add_dialog.bulk_succeeded = 0;
                                 self.add_dialog.bulk_failed = 0;
@@ -3701,27 +3980,17 @@ impl AppState {
                     }
                 }
 
-                // Shared footer — master password (if needed), error, submit.
-                // Skipped on Choose (nothing to submit) and Bulk (handles its
-                // own submit/progress UI above).
+                // Shared footer — error and submit. Skipped on Choose (nothing
+                // to submit) and Bulk (handles its own submit/progress UI).
+                //
+                // There is no master-password field here any more: a new store
+                // is device-locked, which needs nothing from the user. Setting a
+                // password is now a deliberate choice made in Settings.
                 if matches!(
                     self.add_dialog.step,
                     AddAccountStep::Choose | AddAccountStep::Bulk
                 ) {
                     return;
-                }
-
-                let needs_password = !self.config.use_credential_manager
-                    && self.master_password.is_empty();
-                if needs_password {
-                    ui.label("Set a master password for encryption:");
-                    ui.add_enabled(
-                        !self.add_dialog.loading,
-                        egui::TextEdit::singleline(&mut self.add_dialog.password_input)
-                            .password(true)
-                            .hint_text("Master password"),
-                    );
-                    ui.add_space(4.0);
                 }
 
                 if let Some(err) = &self.add_dialog.last_error {
@@ -3741,8 +4010,7 @@ impl AppState {
                         ui.label("Validating cookie...");
                     });
                 } else {
-                    let valid = !self.add_dialog.cookie_input.trim().is_empty()
-                        && (!needs_password || !self.add_dialog.password_input.is_empty());
+                    let valid = !self.add_dialog.cookie_input.trim().is_empty();
                     let button_label = if self.add_dialog.last_error.is_some() {
                         "Retry"
                     } else {
@@ -3754,18 +4022,17 @@ impl AppState {
                             .clicked()
                         {
                             let cookie = self.add_dialog.cookie_input.trim().to_string();
-                            if needs_password {
-                                self.master_password =
-                                    self.add_dialog.password_input.clone();
+                            // Sets up device-locked encryption on the first add.
+                            if let Some(session) = self.ensure_session() {
+                                self.add_dialog.loading = true;
+                                self.add_dialog.last_error = None;
+                                self.add_dialog.rejected_cookie = None;
+                                self.bridge.send(BackendCommand::AddAccount {
+                                    cookie,
+                                    session,
+                                    use_credential_manager: self.config.use_credential_manager,
+                                });
                             }
-                            self.add_dialog.loading = true;
-                            self.add_dialog.last_error = None;
-                            self.add_dialog.rejected_cookie = None;
-                            self.bridge.send(BackendCommand::AddAccount {
-                                cookie,
-                                password: self.master_password.clone(),
-                                use_credential_manager: self.config.use_credential_manager,
-                            });
                         }
                         // When the backend rejected the cookie, give the user
                         // a way to investigate (e.g. see the moderation page)
@@ -3885,20 +4152,20 @@ impl AppState {
                                             .force_add_username
                                             .trim()
                                             .to_string();
-                                        self.add_dialog.loading = true;
-                                        self.add_dialog.last_error = None;
-                                        self.bridge.send(
-                                            BackendCommand::AddAccountForced {
-                                                cookie,
-                                                username,
-                                                password: self
-                                                    .master_password
-                                                    .clone(),
-                                                use_credential_manager: self
-                                                    .config
-                                                    .use_credential_manager,
-                                            },
-                                        );
+                                        if let Some(session) = self.ensure_session() {
+                                            self.add_dialog.loading = true;
+                                            self.add_dialog.last_error = None;
+                                            self.bridge.send(
+                                                BackendCommand::AddAccountForced {
+                                                    cookie,
+                                                    username,
+                                                    session,
+                                                    use_credential_manager: self
+                                                        .config
+                                                        .use_credential_manager,
+                                                },
+                                            );
+                                        }
                                     }
                                     if ui.button("Cancel").clicked() {
                                         self.add_dialog.force_add_form_open = false;
@@ -3951,75 +4218,323 @@ impl AppState {
         }
     }
 
-    fn show_forgot_password_dialog(&mut self, ctx: &egui::Context) {
-        if !self.show_forgot_password {
+    /// The one-time offer, shown to an existing password user after they
+    /// unlock, to switch this PC over to automatic unlocking.
+    ///
+    /// Deliberately a question rather than a silent migration: dropping a
+    /// password someone chose to set is a security-relevant change, and the
+    /// answer is remembered either way so it is asked exactly once.
+    fn show_passwordless_offer_dialog(&mut self, ctx: &egui::Context) {
+        if !self.show_passwordless_offer {
             return;
         }
         let mut open = true;
-        let mut clear_and_relaunch = false;
-        let mut cancel = false;
-        egui::Window::new("Forgot Password")
+        let mut accept = false;
+        let mut decline = false;
+
+        egui::Window::new("Stop asking for your password?")
             .open(&mut open)
             .resizable(false)
             .collapsible(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
+                ui.set_max_width(430.0);
                 ui.label(
-                    "Account stores cannot be decrypted without the master password.\n\
-                     To proceed, you must clear the account stores and start over.",
+                    "RM can unlock your accounts automatically on this PC, so you never have \
+                     to type a master password again.",
+                );
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new(
+                        "Your accounts stay encrypted either way. The difference is where the \
+                         key comes from: Windows Credential Manager instead of your password.",
+                    )
+                    .small()
+                    .weak(),
+                );
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new(
+                        "Keep the password if you want the store to stay unreadable even to \
+                         someone using your Windows account.",
+                    )
+                    .small()
+                    .weak(),
+                );
+                ui.add_space(12.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Stop asking on this PC").clicked() {
+                        accept = true;
+                    }
+                    if ui.button("Keep my password").clicked() {
+                        decline = true;
+                    }
+                });
+            });
+
+        if accept {
+            self.rekey_store(None);
+        }
+        if accept || decline || !open {
+            self.dismiss_passwordless_offer();
+        }
+    }
+
+    /// Recovery options on the unlock screen.
+    ///
+    /// The original version of this dialog offered exactly one action, wiping
+    /// the store, on the premise that a failed unlock means a forgotten
+    /// password. It does not: an AES-GCM authentication failure is equally
+    /// consistent with a damaged file, which `crypto` recovers from
+    /// automatically using the very `.bak` that wiping deletes. So this dialog
+    /// leads with the non-destructive options, names the files, and puts the
+    /// wipe behind a typed confirmation.
+    fn show_recovery_dialog(&mut self, ctx: &egui::Context) {
+        if !self.show_recovery {
+            return;
+        }
+        let store_path = self.config.accounts_path.clone();
+        let backup = ram_core::storage::backup_path(&store_path);
+        let folder = store_path
+            .parent()
+            .map(|p| p.display().to_string())
+            .unwrap_or_default();
+        let device_mode = self.device_key_missing;
+
+        let mut open = true;
+        let mut wipe = false;
+        let mut cancel = false;
+        let mut reveal = false;
+
+        egui::Window::new("Recovery Options")
+            .open(&mut open)
+            .resizable(false)
+            .collapsible(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.set_max_width(460.0);
+
+                if device_mode {
+                    ui.label(
+                        "This store is locked to a PC whose key is no longer available, so \
+                         there is no password that will open it here.",
+                    );
+                    ui.add_space(6.0);
+                    ui.label(
+                        "If you still have the original PC, copy the store back from there. \
+                         Otherwise the accounts will have to be added again.",
+                    );
+                } else {
+                    ui.label("Two different things produce this error:");
+                    ui.add_space(6.0);
+                    ui.label("• The password is wrong. Try other passwords first.");
+                    ui.label(
+                        "• The file is damaged. RM already tried the backup automatically, \
+                         so this is the less likely of the two.",
+                    );
+                    ui.add_space(6.0);
+                    ui.label(
+                        egui::RichText::new(
+                            "There is no way to recover the accounts without the password. \
+                             The encryption has no back door, by design.",
+                        )
+                        .small()
+                        .weak(),
+                    );
+                }
+
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(10.0);
+
+                ui.label(
+                    egui::RichText::new("Before wiping anything, copy these files somewhere safe:")
+                        .strong(),
+                );
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new(format!("{}\n{}", store_path.display(), backup.display()))
+                        .small()
+                        .monospace(),
+                );
+                ui.add_space(6.0);
+                if !folder.is_empty() && ui.button("📂  Open containing folder").clicked() {
+                    reveal = true;
+                }
+
+                ui.add_space(10.0);
+                ui.separator();
+                ui.add_space(10.0);
+
+                ui.label(
+                    egui::RichText::new("Start over with an empty account store")
+                        .strong()
+                        .color(egui::Color32::from_rgb(200, 90, 60)),
+                );
+                ui.add_space(4.0);
+                ui.label(
+                    "This permanently deletes the store and its backup, and any cookies RM \
+                     saved to Windows Credential Manager. It cannot be undone. Your settings, \
+                     presets and private servers are kept.",
                 );
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
+                    ui.label("Type");
+                    ui.label(egui::RichText::new("DELETE").strong().monospace());
+                    ui.label("to confirm:");
+                });
+                ui.add_space(4.0);
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.recovery_confirm_input)
+                        .hint_text("DELETE")
+                        .desired_width(140.0),
+                );
+
+                ui.add_space(10.0);
+                ui.horizontal(|ui| {
+                    let confirmed = self.recovery_confirm_input.trim() == "DELETE";
                     if ui
-                        .button("🗑  Clear account stores and relaunch")
+                        .add_enabled(
+                            confirmed,
+                            egui::Button::new("🗑  Delete everything and start over"),
+                        )
                         .clicked()
                     {
-                        clear_and_relaunch = true;
+                        wipe = true;
                     }
                     if ui.button("Cancel").clicked() {
                         cancel = true;
                     }
                 });
             });
-        self.show_forgot_password = open && !cancel && !clear_and_relaunch;
-        if clear_and_relaunch {
-            self.clear_account_stores_and_relaunch();
+
+        if reveal {
+            self.reveal_in_file_manager(&store_path);
+        }
+        self.show_recovery = open && !cancel && !wipe;
+        if cancel || wipe || !open {
+            self.recovery_confirm_input.clear();
+        }
+        if wipe {
+            self.wipe_account_store();
         }
     }
 
-    /// Delete the encrypted account store (and its last-known-good backup) from
-    /// the data dir, then relaunch so the user lands on first-run setup. App
-    /// settings (`config.json`) and everything else on disk are left untouched.
-    fn clear_account_stores_and_relaunch(&mut self) {
-        let mut cleared = true;
+    /// Open the store's folder in the OS file manager so the user can copy the
+    /// files out before wiping.
+    fn reveal_in_file_manager(&mut self, path: &std::path::Path) {
+        let Some(folder) = path.parent() else {
+            return;
+        };
+        #[cfg(windows)]
+        let result = std::process::Command::new("explorer").arg(folder).spawn();
+        #[cfg(target_os = "macos")]
+        let result = std::process::Command::new("open").arg(folder).spawn();
+        #[cfg(all(not(windows), not(target_os = "macos")))]
+        let result = std::process::Command::new("xdg-open").arg(folder).spawn();
+
+        if let Err(e) = result {
+            tracing::warn!("Could not open {}: {e}", folder.display());
+            self.toasts
+                .push(Toast::error(format!("Could not open {}", folder.display())));
+        }
+    }
+
+    /// Delete the account store, its backup and every credential RM owns, then
+    /// carry on in-process with an empty store.
+    ///
+    /// Deliberately does not relaunch. Spawning a replacement and calling
+    /// `exit(0)` raced the process being replaced: the child runs
+    /// `AppState::new`, which re-acquires the Roblox singleton mutex, while the
+    /// parent still holds it, so multi-instance silently switched itself off.
+    /// `exit(0)` also skipped the config save. Resetting state in place has
+    /// neither problem and lands the user on the same first-run screen.
+    fn wipe_account_store(&mut self) {
+        let store_path = self.config.accounts_path.clone();
+
+        // Credential Manager entries first, while the roster that names them is
+        // still loaded. Deleting the store first would orphan them permanently:
+        // nothing else records which user IDs RM created.
+        let mut orphaned = 0usize;
+        for account in &self.store.accounts {
+            if let Err(e) = ram_core::crypto::credential_delete(account.user_id) {
+                tracing::warn!(
+                    "Could not delete the credential for user {}: {e}",
+                    account.user_id
+                );
+                orphaned += 1;
+            }
+        }
+        if let Err(e) = ram_core::crypto::delete_device_key() {
+            tracing::warn!("Could not delete the device key: {e}");
+        }
+
+        // Both copies, and any temp file a crashed write left behind.
+        let mut failed = Vec::new();
         for path in [
-            self.config.accounts_path.clone(),
-            ram_core::storage::backup_path(&self.config.accounts_path),
+            store_path.clone(),
+            ram_core::storage::backup_path(&store_path),
         ] {
             match std::fs::remove_file(&path) {
-                Ok(()) => tracing::info!("Deleted account store {}", path.display()),
+                Ok(()) => tracing::info!("Deleted {}", path.display()),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 Err(e) => {
-                    tracing::warn!("Failed to delete {}: {e}", path.display());
-                    cleared = false;
+                    tracing::warn!("Could not delete {}: {e}", path.display());
+                    failed.push(path);
                 }
             }
         }
-        if !cleared {
-            self.toasts
-                .push(Toast::error("Failed to clear the account stores"));
+
+        if !failed.is_empty() {
+            // Report exactly what survived. The previous version claimed total
+            // failure after having already deleted the backup, which left the
+            // user believing their data was intact when the recovery copy was
+            // already gone.
+            let names: Vec<String> = failed
+                .iter()
+                .map(|p| {
+                    p.file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| p.display().to_string())
+                })
+                .collect();
+            self.toasts.push(Toast::error(format!(
+                "Could not delete {}. Delete it by hand, then restart RM.",
+                names.join(" and ")
+            )));
             return;
         }
 
-        match std::env::current_exe()
-            .and_then(|exe| std::process::Command::new(exe).spawn().map(|_| ()))
-        {
-            Ok(()) => std::process::exit(0),
-            Err(e) => {
-                tracing::error!("Failed to relaunch after clearing account stores: {e}");
-                self.toasts
-                    .push(Toast::error("Cleared account stores — please restart the app"));
-            }
+        // Reset in place. `store_session` is dropped here, which zeroes the
+        // data key it held.
+        self.store = AccountStore::default();
+        self.store_session = None;
+        self.needs_unlock = false;
+        self.unlocking = false;
+        self.device_key_missing = false;
+        self.pending_legacy_upgrade = false;
+        self.show_passwordless_offer = false;
+        self.unlock_password_input.clear();
+        self.unlock_password_used.clear();
+        self.selected_ids.clear();
+        self.avatar_bytes.clear();
+        self.anonymized_avatar_bytes.clear();
+        self.active_tab = Tab::Accounts;
+
+        // A store created from here on is passwordless, so the one-time offer
+        // has nothing left to ask about.
+        self.config.offered_passwordless = true;
+        if let Err(e) = self.config.save(&self.config_path) {
+            tracing::warn!("Could not save config after wiping the store: {e}");
+        }
+
+        if orphaned > 0 {
+            self.toasts.push(Toast::error(format!(
+                "Account store deleted, but {orphaned} saved credential(s) could not be removed"
+            )));
+        } else {
+            self.toasts
+                .push(Toast::success("Account store deleted. Add an account to start over."));
         }
     }
 

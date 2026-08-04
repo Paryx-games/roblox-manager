@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.8.0
+
+### Added
+- **No more master password.** New installs encrypt the account store with a key held in Windows Credential Manager, so RM opens straight to your accounts. The file on disk is still AES-256-GCM and is useless on its own.
+- Existing password users are asked once, after unlocking, whether to switch. Declining is remembered.
+- **Set a master password** is now a deliberate choice in Settings, along with **Stop asking for a password**. Both take effect immediately.
+
+### Fixed
+- **Changing your password could strand accounts.** Every cookie was re-encrypted one at a time and failures were skipped silently, leaving those accounts readable only with the old password. Re-keying now rewrites 32 bytes of header and touches no cookie at all.
+- **Clearing the password did nothing on disk.** It only forgot the password in memory, left the file encrypted with it, and silently stopped saving.
+- **Credential Manager mode never saved your account list.** Saving was gated on having a master password, which that mode never sets.
+- **The old password still worked after changing it.** The backup copy was left encrypted under the retired password, and opening it rolled the store back.
+- Master passwords now use Argon2id with a per-file salt, replacing unsalted SHA-256. The old format is read and upgraded automatically on first unlock.
+- Cookies no longer run 100k hash rounds each time one is decrypted.
+
 ## v1.7.0
 
 ### Fixed

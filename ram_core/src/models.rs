@@ -204,6 +204,12 @@ pub struct AppConfig {
     /// app never need.
     #[serde(default)]
     pub developer_options: bool,
+    /// Whether the one-time "stop asking for a password on this PC?" prompt has
+    /// been shown. Set once the user answers either way, so declining is
+    /// remembered and the prompt never nags. Defaults to false, which is
+    /// correct for users upgrading from a release that predates it.
+    #[serde(default)]
+    pub offered_passwordless: bool,
 }
 
 fn default_sort_mode() -> String {
@@ -241,6 +247,9 @@ impl Default for AppConfig {
             sort_mode: "Custom".to_string(),
             private_servers: Vec::new(),
             developer_options: false,
+            // A fresh install is passwordless from the start, so there is
+            // nothing to offer to switch away from.
+            offered_passwordless: true,
         }
     }
 }
