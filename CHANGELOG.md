@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.7.0
+
+### Fixed
+- **Preset chips did not wrap.** Past a certain number of presets, the last chip was squeezed into a one-letter-wide column at the edge of the panel instead of moving to the next row. Affected the launch panel and bulk launch.
+- Preset names longer than 24 characters are shortened on the chip, with the full name on hover.
+
 ## v1.6.0
 
 ### Fixed

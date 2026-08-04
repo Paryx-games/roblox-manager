@@ -80,26 +80,7 @@ pub fn show(
 
         // Preset quick-select chips (same set as the single-launch view).
         if !presets.is_empty() {
-            ui.horizontal_wrapped(|ui| {
-                ui.label("Presets:");
-                for (i, preset) in presets.iter().enumerate() {
-                    // push_id keeps each chip's click target distinct even
-                    // when multiple presets share a name.
-                    ui.push_id(i, |ui| {
-                        let btn = ui.small_button(&preset.name)
-                            .on_hover_text(match &preset.job_id {
-                                Some(j) if !j.is_empty() => {
-                                    format!("Place {}, Job {}", preset.place_id, j)
-                                }
-                                _ => format!("Place {}", preset.place_id),
-                            });
-                        if btn.clicked() {
-                            *place_id_input = preset.place_id.to_string();
-                            *job_id_input = preset.job_id.clone().unwrap_or_default();
-                        }
-                    });
-                }
-            });
+            super::preset_chips(ui, "Presets:", presets, place_id_input, job_id_input);
             ui.add_space(4.0);
         }
 

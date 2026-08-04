@@ -223,33 +223,15 @@ pub fn show(
 
                 // Preset quick-select chips
                 if !presets.is_empty() {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(
-                            egui::RichText::new("Presets")
-                                .color(ui.visuals().weak_text_color()),
-                        );
-                        for (i, preset) in presets.iter().enumerate() {
-                            // push_id disambiguates buttons that share a
-                            // label — without it egui hashes by label alone
-                            // and clicks on later chips register against
-                            // the first matching one.
-                            ui.push_id(i, |ui| {
-                                let btn = ui.small_button(&preset.name).on_hover_text(
-                                    match &preset.job_id {
-                                        Some(j) if !j.is_empty() => {
-                                            format!("Place {}, Job {}", preset.place_id, j)
-                                        }
-                                        _ => format!("Place {}", preset.place_id),
-                                    },
-                                );
-                                if btn.clicked() {
-                                    state.place_id_input = preset.place_id.to_string();
-                                    state.job_id_input =
-                                        preset.job_id.clone().unwrap_or_default();
-                                }
-                            });
-                        }
-                    });
+                    let label = egui::RichText::new("Presets")
+                        .color(ui.visuals().weak_text_color());
+                    super::preset_chips(
+                        ui,
+                        label,
+                        presets,
+                        &mut state.place_id_input,
+                        &mut state.job_id_input,
+                    );
                     ui.add_space(8.0);
                 }
 
