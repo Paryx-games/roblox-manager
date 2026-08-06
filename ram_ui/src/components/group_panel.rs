@@ -4,6 +4,8 @@
 use eframe::egui;
 use ram_core::models::{Account, LaunchPreset};
 
+use crate::theme::ThemeUi;
+
 /// Actions the group panel can request.
 pub enum GroupPanelAction {
     /// Launch all selected accounts into the given place/server.
@@ -51,7 +53,7 @@ pub fn show(
             .show(ui, |ui| {
                 for (idx, account) in selected_accounts.iter().enumerate() {
                     ui.horizontal(|ui| {
-                        let dot = presence_color(account.last_presence.user_presence_type);
+                        let dot = ui.theme().presence(account.last_presence.user_presence_type);
                         let (dot_rect, _) =
                             ui.allocate_exact_size(egui::vec2(10.0, 14.0), egui::Sense::hover());
                         ui.painter().circle_filled(
@@ -126,13 +128,4 @@ pub fn show(
     }); // ScrollArea
 
     action
-}
-
-fn presence_color(presence_type: u8) -> egui::Color32 {
-    match presence_type {
-        1 => egui::Color32::from_rgb(60, 180, 75),
-        2 => egui::Color32::from_rgb(30, 144, 255),
-        3 => egui::Color32::from_rgb(255, 165, 0),
-        _ => egui::Color32::from_rgb(130, 130, 130),
-    }
 }

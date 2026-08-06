@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use eframe::egui;
 use ram_core::models::PrivateServer;
 
+use crate::theme::ThemeUi;
+
 /// Actions the private servers panel can request.
 pub enum PrivateServerAction {
     /// Add a new private server entry and resolve its place name.
@@ -130,7 +132,7 @@ pub fn show(
             ui.add_space(4.0);
 
             if let Some(ref err) = state.add_error {
-                ui.colored_label(egui::Color32::from_rgb(255, 100, 100), err);
+                ui.colored_label(ui.theme().danger_text, err);
                 ui.add_space(2.0);
             }
 
@@ -188,7 +190,7 @@ pub fn show(
             ui.add_space(4.0);
 
             if servers.is_empty() {
-                ui.colored_label(egui::Color32::GRAY, "No private servers saved yet.");
+                ui.colored_label(ui.theme().text_muted, "No private servers saved yet.");
             } else {
                 let mut remove_idx: Option<usize> = None;
                 let mut resolve_idx: Option<usize> = None;
@@ -272,7 +274,7 @@ pub fn show(
                                             ui.strong(format!("Place {pid}"));
                                         }
                                         ui.colored_label(
-                                            egui::Color32::GRAY,
+                                            ui.theme().text_muted,
                                             format!(
                                                 "{} server{}",
                                                 group.len(),

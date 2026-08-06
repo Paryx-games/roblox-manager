@@ -14,6 +14,7 @@ use crate::components::{
     asset_manager, group_panel, main_panel, presets_panel, private_servers, settings, sidebar,
     tutorial,
 };
+use crate::theme::ThemeUi;
 use crate::toast::{Toast, Toasts};
 
 /// Wall-clock interval gate for background work. Returns `true` and stamps
@@ -44,6 +45,47 @@ fn anonymize_avatar(bytes: &[u8]) -> Option<Vec<u8>> {
         .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
         .ok()?;
     Some(out)
+}
+
+/// The body of [`AppState::instance_attribution_summary`], as a free function
+/// over exactly the four things it reads. Split out from the method so it can
+/// be exercised without standing up an `AppState`, which owns a live backend
+/// bridge and a tokio runtime.
+fn attribution_summary(
+    tracked: &[ram_core::instances::TrackedInstance],
+    accounts: &[ram_core::models::Account],
+    anonymize_names: bool,
+    roblox_instance_count: usize,
+) -> String {
+    if tracked.is_empty() {
+        return "None of these were launched by RM, or they have not been \
+                matched to an account yet."
+            .to_string();
+    }
+
+    let mut lines = vec!["Launched by RM (best guess):".to_string()];
+    for instance in tracked {
+        let who = accounts
+            .iter()
+            .find(|a| a.user_id == instance.user_id)
+            .map(|a| {
+                if anonymize_names {
+                    format!("Account #{}", sidebar::anon_tag(a.user_id))
+                } else {
+                    a.label().to_string()
+                }
+            })
+            .unwrap_or_else(|| format!("user {}", instance.user_id));
+        lines.push(format!("  PID {} - {who}", instance.pid));
+    }
+
+    let untracked = roblox_instance_count.saturating_sub(tracked.len());
+    if untracked > 0 {
+        lines.push(format!(
+            "{untracked} other instance(s) not matched to an account."
+        ));
+    }
+    lines.join("\n")
 }
 
 // ---------------------------------------------------------------------------
@@ -222,8 +264,17 @@ pub struct AppState {
     /// User IDs currently visible in the sidebar (after search filtering).
     visible_user_ids: Vec<u64>,
 
-    /// Cached flag from sysinfo (refreshed lazily).
+    /// Cached flag, refreshed from `BackendEvent::InstancesUpdated`.
     roblox_running: bool,
+    /// Every running Roblox client, whoever started it. Cached rather than
+    /// counted per frame: `sysinfo` has to walk the whole process table, which
+    /// is not something to do on the paint thread at 60fps.
+    roblox_instance_count: usize,
+    /// Clients RM launched, and the account each is believed to belong to.
+    /// Attribution is inferred from launch timing and can be wrong; see
+    /// [`ram_core::instances`]. Substrate for later per-account actions, so
+    /// nothing acts on it yet beyond display.
+    tracked_instances: Vec<ram_core::instances::TrackedInstance>,
     /// Frame counter to throttle background refreshes.
     frame_count: u64,
     /// Wall-clock timestamp of the last tray-kill sweep. Frame-counter timers
@@ -237,6 +288,7 @@ pub struct AppState {
     last_presence_poll: Option<std::time::Instant>,
     last_avatar_refresh: Option<std::time::Instant>,
     last_revalidation: Option<std::time::Instant>,
+    last_instance_sweep: Option<std::time::Instant>,
     /// Poll cadence for in-flight asset uploads. Interval is adaptive, so
     /// unlike the timers above it is recomputed each tick from the age of the
     /// oldest pending operation.
@@ -383,6 +435,8 @@ impl AppState {
             asset_thumbnails_retry_at: HashMap::new(),
             visible_user_ids: Vec::new(),
             roblox_running: false,
+            roblox_instance_count: 0,
+            tracked_instances: Vec::new(),
             frame_count: 0,
             last_tray_kill: None,
             // Seeded to "now" so the first tick lands one full interval in,
@@ -391,6 +445,9 @@ impl AppState {
             last_presence_poll: Some(std::time::Instant::now()),
             last_avatar_refresh: Some(std::time::Instant::now()),
             last_revalidation: Some(std::time::Instant::now()),
+            // Not seeded: the first frame should establish what is running
+            // rather than showing "nothing" for two seconds.
+            last_instance_sweep: None,
             // Not seeded: if a previous run left operations pending, they
             // should be polled on the first frame, not one interval later.
             last_asset_poll: None,
@@ -456,6 +513,21 @@ impl AppState {
     }
 
     // ---- Event processing ----
+
+    /// Human-readable version of the PID-to-account map, for the hover text on
+    /// the running-instance counter.
+    ///
+    /// Deliberately hedged wording. Attribution is inferred from launch timing
+    /// (see [`ram_core::instances`]) and can be wrong, so the tooltip must not
+    /// read as a fact the user can rely on to, say, kill the right client.
+    fn instance_attribution_summary(&self) -> String {
+        attribution_summary(
+            &self.tracked_instances,
+            &self.store.accounts,
+            self.config.anonymize_names,
+            self.roblox_instance_count,
+        )
+    }
 
     fn process_events(&mut self) {
         for event in self.bridge.poll() {
@@ -653,6 +725,14 @@ impl AppState {
                 }
                 BackendEvent::WindowsArranged => {
                     // silent — arrangement complete
+                }
+                BackendEvent::InstancesUpdated {
+                    instances,
+                    running_count,
+                } => {
+                    self.tracked_instances = instances;
+                    self.roblox_instance_count = running_count;
+                    self.roblox_running = running_count > 0;
                 }
                 BackendEvent::AccountRevalidated {
                     user_id,
@@ -1410,9 +1490,13 @@ impl eframe::App for AppState {
             }
         }
 
-        // Periodically refresh roblox_running flag (every ~120 frames ≈ 2s)
-        if self.frame_count.is_multiple_of(120) {
-            self.roblox_running = ram_core::process::is_roblox_running();
+        // Reconcile the PID-to-account map, and with it `roblox_running` and
+        // the instance count. Every 2 seconds of wall clock, not every 120
+        // frames: the frame rate swings by two orders of magnitude between
+        // idle and animating, so a frame counter is not a clock. Process
+        // enumeration happens on the backend thread.
+        if interval_due(&mut self.last_instance_sweep, Duration::from_secs(2)) {
+            self.bridge.send(BackendCommand::SweepInstances);
         }
 
         // Periodically kill background tray Roblox processes when enabled.
@@ -1612,16 +1696,17 @@ impl eframe::App for AppState {
                         self.trigger_refresh();
                     }
                     if self.roblox_running {
-                        let count = ram_core::process::roblox_instance_count();
+                        let count = self.roblox_instance_count;
                         ui.colored_label(
-                            egui::Color32::from_rgb(30, 144, 255),
+                            ui.theme().info,
                             format!("● {count} Roblox instance{}", if count == 1 { "" } else { "s" }),
-                        );
+                        )
+                        .on_hover_text(self.instance_attribution_summary());
                         ui.separator();
                     }
                     if self.selected_ids.len() > 1 {
                         ui.colored_label(
-                            egui::Color32::from_rgb(130, 180, 255),
+                            ui.theme().accent_text,
                             format!("{} selected", self.selected_ids.len()),
                         );
                         ui.separator();
@@ -1769,7 +1854,7 @@ impl AppState {
                                     (acc_lookup, self.session())
                                 {
                                     if self.try_consume_launch_slot() {
-                                        self.bridge.send(BackendCommand::LaunchGameEncrypted {
+                                        self.bridge.send(BackendCommand::LaunchGame {
                                             user_id: uid,
                                             encrypted_cookie: enc,
                                             session: session.clone(),
@@ -2010,7 +2095,7 @@ impl AppState {
                                 let ready =
                                     self.session().filter(|_| self.try_consume_launch_slot());
                                 if let Some(session) = ready {
-                                    self.bridge.send(BackendCommand::LaunchGameEncrypted {
+                                    self.bridge.send(BackendCommand::LaunchGame {
                                         user_id: account.user_id,
                                         encrypted_cookie: account.encrypted_cookie.clone(),
                                         session,
@@ -2146,7 +2231,7 @@ impl AppState {
                                 .session()
                                 .filter(|_| self.try_consume_launch_slot());
                             if let (Some((user_id, enc)), Some(session)) = (acc_lookup, ready) {
-                                self.bridge.send(BackendCommand::LaunchGameEncrypted {
+                                self.bridge.send(BackendCommand::LaunchGame {
                                     user_id,
                                     encrypted_cookie: enc,
                                     session,
@@ -2829,7 +2914,7 @@ impl AppState {
                 ui.horizontal(|ui| {
                     let target = self.asset_manager_state.grant_universe;
                     let grant = egui::Button::new(
-                        egui::RichText::new("Grant").color(egui::Color32::WHITE),
+                        egui::RichText::new("Grant").color(ui.theme().on_accent),
                     )
                     .fill(ui.visuals().selection.bg_fill);
                     if ui.add_enabled(target.is_some(), grant).clicked() {
@@ -3317,14 +3402,14 @@ impl AppState {
                 ));
                 ui.add_space(4.0);
                 ui.colored_label(
-                    egui::Color32::from_rgb(220, 160, 40),
+                    ui.theme().warning,
                     "This cannot be undone. Every asset is permanent, public, and moderated \
                      under that account.",
                 );
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     let upload = egui::Button::new(
-                        egui::RichText::new("Upload").color(egui::Color32::WHITE),
+                        egui::RichText::new("Upload").color(ui.theme().on_accent),
                     )
                     .fill(ui.visuals().selection.bg_fill);
                     if ui.add(upload).clicked() {
@@ -3524,9 +3609,9 @@ impl AppState {
                     let info = acc.moderation.as_ref().expect("moderation present");
                     let banned = info.is_banned;
                     let title_color = if banned {
-                        egui::Color32::from_rgb(255, 110, 110)
+                        ui.theme().danger_text
                     } else {
-                        egui::Color32::from_rgb(240, 180, 80)
+                        ui.theme().warning_text
                     };
                     ui.colored_label(
                         title_color,
@@ -3804,7 +3889,7 @@ impl AppState {
                         } else if !self.add_dialog.cookie_input.is_empty() {
                             ui.label(
                                 egui::RichText::new("Cookie captured.")
-                                    .color(egui::Color32::from_rgb(120, 200, 120)),
+                                    .color(ui.theme().success_text),
                             );
                         } else {
                             ui.label("Sign-in canceled.");
@@ -4012,7 +4097,7 @@ impl AppState {
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
                         ui.colored_label(
-                            egui::Color32::from_rgb(200, 60, 60),
+                            ui.theme().danger,
                             format!("⚠ {err}"),
                         );
                     });
@@ -4384,7 +4469,7 @@ impl AppState {
                 ui.label(
                     egui::RichText::new("Start over with an empty account store")
                         .strong()
-                        .color(egui::Color32::from_rgb(200, 90, 60)),
+                        .color(ui.theme().danger),
                 );
                 ui.add_space(4.0);
                 ui.label(
@@ -4659,5 +4744,129 @@ impl AppState {
             });
         }
         ui.label(job);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ram_core::instances::TrackedInstance;
+    use ram_core::models::Account;
+
+    fn instance(pid: u32, user_id: u64) -> TrackedInstance {
+        TrackedInstance {
+            pid,
+            user_id,
+            place_id: 606,
+            launched_at: chrono::DateTime::from_timestamp(1_700_000_000, 0).unwrap(),
+        }
+    }
+
+    fn account(user_id: u64, username: &str) -> Account {
+        Account::new(user_id, username.to_string(), username.to_string())
+    }
+
+    #[test]
+    fn nothing_tracked_says_so_without_claiming_there_is_nothing_running() {
+        let summary = attribution_summary(&[], &[account(7, "alice")], false, 3);
+        assert_eq!(
+            summary,
+            "None of these were launched by RM, or they have not been \
+             matched to an account yet."
+        );
+        // The early return means the count is not mentioned at all, which is
+        // the point: with no mappings there is nothing to say about which of
+        // the three is whose.
+        assert!(!summary.contains('3'), "{summary}");
+    }
+
+    #[test]
+    fn each_tracked_pid_is_listed_against_its_account_label() {
+        let accounts = vec![account(7, "alice"), account(8, "bob")];
+        let tracked = vec![instance(1234, 7), instance(5678, 8)];
+
+        let summary = attribution_summary(&tracked, &accounts, false, 2);
+
+        assert_eq!(
+            summary,
+            "Launched by RM (best guess):\n  PID 1234 - alice\n  PID 5678 - bob"
+        );
+    }
+
+    /// The label, not the username: an aliased account is shown the way the
+    /// sidebar shows it.
+    #[test]
+    fn an_alias_wins_over_the_username() {
+        let mut a = account(7, "alice");
+        a.alias = "main".to_string();
+        let summary = attribution_summary(&[instance(1234, 7)], &[a], false, 1);
+        assert!(summary.contains("PID 1234 - main"), "{summary}");
+        assert!(!summary.contains("alice"), "{summary}");
+    }
+
+    /// The stale-attribution case: the registry still maps a PID to an account
+    /// the store no longer has. It must degrade to the raw ID rather than drop
+    /// the line or panic.
+    #[test]
+    fn an_instance_whose_account_is_gone_falls_back_to_the_raw_id() {
+        let summary = attribution_summary(&[instance(1234, 99)], &[], false, 1);
+        assert!(summary.contains("PID 1234 - user 99"), "{summary}");
+    }
+
+    #[test]
+    fn anonymize_replaces_every_name_with_its_stable_tag() {
+        let accounts = vec![account(7, "alice"), account(8, "bob")];
+        let tracked = vec![instance(1234, 7), instance(5678, 8)];
+
+        let summary = attribution_summary(&tracked, &accounts, true, 2);
+
+        assert!(!summary.contains("alice"), "{summary}");
+        assert!(!summary.contains("bob"), "{summary}");
+        assert!(
+            summary.contains(&format!("PID 1234 - Account #{}", sidebar::anon_tag(7))),
+            "{summary}"
+        );
+        assert!(
+            summary.contains(&format!("PID 5678 - Account #{}", sidebar::anon_tag(8))),
+            "{summary}"
+        );
+    }
+
+    /// Anonymizing hides the name, not the identity of the account the store
+    /// no longer knows: there is no name to hide, so the raw ID still shows.
+    /// Worth pinning because it is the one way a user ID reaches the tooltip
+    /// with anonymize on.
+    #[test]
+    fn anonymize_does_not_cover_an_account_missing_from_the_store() {
+        let summary = attribution_summary(&[instance(1234, 99)], &[], true, 1);
+        assert!(summary.contains("PID 1234 - user 99"), "{summary}");
+    }
+
+    #[test]
+    fn clients_rm_did_not_launch_are_counted_on_a_trailing_line() {
+        let accounts = vec![account(7, "alice")];
+        let summary = attribution_summary(&[instance(1234, 7)], &accounts, false, 4);
+        assert!(
+            summary.ends_with("3 other instance(s) not matched to an account."),
+            "{summary}"
+        );
+    }
+
+    #[test]
+    fn the_trailing_line_is_omitted_when_rm_launched_everything() {
+        let accounts = vec![account(7, "alice")];
+        let summary = attribution_summary(&[instance(1234, 7)], &accounts, false, 1);
+        assert!(!summary.contains("other instance"), "{summary}");
+    }
+
+    /// The subtraction is saturating for a reason: the running count comes from
+    /// a different sample of the process table than the map, so it can lag
+    /// behind and be smaller. That must not underflow.
+    #[test]
+    fn a_running_count_behind_the_map_does_not_underflow() {
+        let accounts = vec![account(7, "alice"), account(8, "bob")];
+        let tracked = vec![instance(1234, 7), instance(5678, 8)];
+        let summary = attribution_summary(&tracked, &accounts, false, 0);
+        assert!(!summary.contains("other instance"), "{summary}");
     }
 }

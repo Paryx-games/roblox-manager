@@ -7,12 +7,22 @@
 use eframe::egui;
 use ram_core::assets::{AssetKind, Creator, ModerationStatus, OperationOutcome};
 use ram_core::auth::RobloxClient;
+use ram_core::instances::{InstanceRegistry, TrackedInstance};
 use ram_core::models::{Account, AccountStore, Presence};
 use ram_core::{api, assets, assets_api, crypto, process, CoreError};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tracing::{error, info};
+use tracing::{error, info, warn};
+
+/// The PID-to-account map, shared between the command loop and the spawned
+/// tasks that launch games.
+///
+/// A `std::sync::Mutex` rather than tokio's: every critical section is a few
+/// vector operations with no `.await` inside, so an async mutex would buy
+/// nothing and cost a scheduling point.
+type Registry = Arc<Mutex<InstanceRegistry>>;
 
 // ---------------------------------------------------------------------------
 // Commands (UI → Backend)
@@ -39,23 +49,17 @@ pub enum BackendCommand {
     },
     /// Remove an account by user ID.
     RemoveAccount { user_id: u64 },
-    /// Refresh avatar URLs for all accounts.
-    RefreshAvatars { user_ids: Vec<u64>, cookie: String },
-    /// Refresh presence for all accounts.
-    RefreshPresence { user_ids: Vec<u64>, cookie: String },
-    /// Launch the game for an account.
+    /// Launch the game for an account. The cookie is named by `user_id` and
+    /// decrypted on the backend thread; it never crosses the channel in the
+    /// clear.
+    ///
+    /// There used to be a second `LaunchGameEncrypted` beside this, and this
+    /// one took a plaintext cookie from the UI. Nothing had constructed the
+    /// plaintext variant since cookie decryption moved to the backend, so the
+    /// two were not really a pair: one was dead. Same for the `RefreshAvatars`
+    /// and `RefreshPresence` variants that sat above, both superseded by
+    /// `RefreshAll` / `RefreshPresenceOnly`.
     LaunchGame {
-        cookie: String,
-        place_id: u64,
-        job_id: Option<String>,
-        link_code: Option<String>,
-        access_code: Option<String>,
-        multi_instance: bool,
-        kill_background: bool,
-        privacy_mode: bool,
-    },
-    /// Launch the game, decrypting the cookie on the backend side.
-    LaunchGameEncrypted {
         user_id: u64,
         encrypted_cookie: Option<String>,
         session: crypto::StoreSession,
@@ -137,6 +141,10 @@ pub enum BackendCommand {
         session: crypto::StoreSession,
         use_credential_manager: bool,
     },
+    /// Reconcile the PID-to-account map against the processes actually
+    /// running: attribute clients that have appeared since the last sweep,
+    /// and drop mappings whose process is gone. Sent on a timer.
+    SweepInstances,
     /// Arrange all Roblox windows in a tiled grid.
     ArrangeWindows,
     /// Check GitLab for a newer release.
@@ -328,6 +336,14 @@ pub enum BackendEvent {
     },
     /// An error occurred during a background operation.
     Error(String),
+    /// The result of a sweep. Sent whenever the map or the running count
+    /// changed, so the UI can render per-account instance state without
+    /// enumerating processes on the paint thread.
+    InstancesUpdated {
+        instances: Vec<TrackedInstance>,
+        /// Every running client, including ones RM did not launch.
+        running_count: usize,
+    },
     /// Windows were arranged.
     WindowsArranged,
     /// A newer version is available on GitLab.
@@ -506,10 +522,15 @@ async fn backend_loop(
     tx: mpsc::UnboundedSender<BackendEvent>,
 ) {
     let client = RobloxClient::default();
+    // Owned here, not by the UI: a launch has to snapshot the PID set on the
+    // same side of the channel that issues the launch, or a slow frame between
+    // the two would let an unrelated client slip into the window.
+    let registry: Registry = Arc::new(Mutex::new(InstanceRegistry::new()));
 
     while let Some(cmd) = rx.recv().await {
         let client = client.clone();
         let tx = tx.clone();
+        let registry = Arc::clone(&registry);
 
         // Account-store writes MUST run serially and in the order they were
         // enqueued. Spawning them (as we do for everything else) let two saves
@@ -520,7 +541,7 @@ async fn backend_loop(
         // write has fully landed. The write itself is fast (encrypt + atomic
         // rename), so blocking the loop here is fine.
         if cmd.is_serial_persistence() {
-            match handle_command(cmd, &client, &tx).await {
+            match handle_command(cmd, &client, &tx, &registry).await {
                 Ok(evt) => {
                     let _ = tx.send(evt);
                 }
@@ -534,7 +555,7 @@ async fn backend_loop(
 
         // Every other command runs as its own spawned task for concurrency.
         tokio::spawn(async move {
-            match handle_command(cmd, &client, &tx).await {
+            match handle_command(cmd, &client, &tx, &registry).await {
                 Ok(evt) => {
                     let _ = tx.send(evt);
                 }
@@ -551,6 +572,7 @@ async fn handle_command(
     cmd: BackendCommand,
     client: &RobloxClient,
     tx: &mpsc::UnboundedSender<BackendEvent>,
+    registry: &Registry,
 ) -> Result<BackendEvent, CoreError> {
     match cmd {
         BackendCommand::AddAccount {
@@ -690,22 +712,7 @@ async fn handle_command(
             let _ = crypto::credential_delete(user_id);
             Ok(BackendEvent::AccountRemoved { user_id })
         }
-        BackendCommand::RefreshAvatars { user_ids, cookie: _ } => {
-            // Avatars are cosmetic: log a failure rather than surfacing an
-            // error toast for something the user can't act on.
-            let avatars = api::fetch_avatars(client, &user_ids)
-                .await
-                .unwrap_or_else(|e| {
-                    info!("Avatar refresh failed (non-fatal): {e}");
-                    Vec::new()
-                });
-            Ok(BackendEvent::AvatarsUpdated(avatars))
-        }
-        BackendCommand::RefreshPresence { user_ids, cookie } => {
-            let presences = api::fetch_presences(client, &cookie, &user_ids).await?;
-            Ok(BackendEvent::PresencesUpdated(presences))
-        }
-        BackendCommand::LaunchGameEncrypted {
+        BackendCommand::LaunchGame {
             user_id,
             encrypted_cookie,
             session,
@@ -736,29 +743,7 @@ async fn handle_command(
                 process::clear_roblox_cookies();
             }
             let ticket = client.generate_auth_ticket(&cookie).await?;
-            process::launch_game(&ticket, place_id, job_id.as_deref(), link_code.as_deref(), access_code.as_deref())?;
-            Ok(BackendEvent::GameLaunched)
-        }
-        BackendCommand::LaunchGame {
-            cookie,
-            place_id,
-            job_id,
-            link_code,
-            access_code,
-            multi_instance,
-            kill_background,
-            privacy_mode,
-        } => {
-            if multi_instance {
-                process::enable_multi_instance()?;
-            }
-            if kill_background || multi_instance {
-                process::kill_tray_roblox();
-            }
-            if privacy_mode {
-                process::clear_roblox_cookies();
-            }
-            let ticket = client.generate_auth_ticket(&cookie).await?;
+            note_launch(registry, user_id, place_id);
             process::launch_game(&ticket, place_id, job_id.as_deref(), link_code.as_deref(), access_code.as_deref())?;
             Ok(BackendEvent::GameLaunched)
         }
@@ -948,6 +933,11 @@ async fn handle_command(
                     Ok(cookie) => {
                         match client.generate_auth_ticket(&cookie).await {
                             Ok(ticket) => {
+                                // Snapshot before each launch in the batch, not
+                                // once for the batch: by the time account three
+                                // goes out, accounts one and two have clients
+                                // that must not look new.
+                                note_launch(registry, *user_id, place_id);
                                 if let Err(e) = process::launch_game(
                                     &ticket,
                                     place_id,
@@ -1068,6 +1058,7 @@ async fn handle_command(
             }
             Ok(BackendEvent::StoreSaved)
         }
+        BackendCommand::SweepInstances => Ok(sweep_instances(registry)),
         BackendCommand::ArrangeWindows => {
             // Small delay to let Roblox windows finish appearing
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
@@ -1356,6 +1347,57 @@ const AUDIO_POLL_BURST: &[u64] = &[2, 3, 5, 8, 12];
 /// per second per account instead of a burst.
 const POLL_SPACING_MS: u64 = 250;
 
+/// Snapshot the running clients and queue an attribution for `user_id`.
+///
+/// Must be called immediately before the launch itself: the snapshot is what
+/// distinguishes the client this launch produces from the ones already up.
+/// Enumerating processes takes a few milliseconds, which is why it happens
+/// after the auth ticket (a network round trip) rather than before it.
+fn note_launch(registry: &Registry, user_id: u64, place_id: u64) {
+    let live = process::roblox_pids();
+    match registry.lock() {
+        Ok(mut reg) => reg.note_launch(user_id, place_id, &live, chrono::Utc::now()),
+        // A poisoned registry means a previous holder panicked. Attribution is
+        // a convenience; refusing to launch over it would not be.
+        Err(e) => warn!("instance registry unavailable, launch will not be attributed: {e}"),
+    }
+}
+
+/// Reconcile the registry against reality and report the result.
+fn sweep_instances(registry: &Registry) -> BackendEvent {
+    let live = process::roblox_pids();
+    let running_count = live.len();
+    let Ok(mut reg) = registry.lock() else {
+        return BackendEvent::InstancesUpdated {
+            instances: Vec::new(),
+            running_count,
+        };
+    };
+    let outcome = reg.sweep(&live, chrono::Utc::now());
+    for instance in &outcome.attributed {
+        info!(
+            "Attributed Roblox PID {} to user {} (place {})",
+            instance.pid, instance.user_id, instance.place_id
+        );
+    }
+    for instance in &outcome.exited {
+        info!("Roblox PID {} (user {}) exited", instance.pid, instance.user_id);
+    }
+    for launch in &outcome.abandoned {
+        // Worth a line: it means either the launch failed silently or the
+        // client took longer than the window, and both are things a user
+        // reporting "it did not launch" will want in the log.
+        info!(
+            "No Roblox client appeared for user {} within the attribution window",
+            launch.user_id
+        );
+    }
+    BackendEvent::InstancesUpdated {
+        instances: reg.snapshot(),
+        running_count,
+    }
+}
+
 /// The cookie-decrypt idiom used by every account-scoped command.
 fn decrypt_for(
     user_id: u64,
@@ -1605,5 +1647,276 @@ async fn poll_asset_moderation(
             row_id: row_id.clone(),
             status: status.clone(),
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // Serial-persistence classification
+    // -----------------------------------------------------------------------
+
+    /// What [`BackendCommand::is_serial_persistence`] is required to answer, as
+    /// a second opinion written out variant by variant.
+    ///
+    /// This match deliberately has no `_` arm. `BackendCommand` carries
+    /// `#[allow(dead_code)]`, so a variant nobody constructs yet still compiles
+    /// and the classifier in the production code would silently treat it as
+    /// non-serial. Here it cannot: adding a variant breaks this file until
+    /// somebody writes down which side of the line it falls on.
+    ///
+    /// The line: does handling this command write the account store to disk? If
+    /// yes it must be `true`, because `backend_loop` only handles `true`
+    /// commands inline. A `false` command is `tokio::spawn`ed, and two spawned
+    /// writers on the same file are the v1.4.4 corruption bug.
+    fn writes_the_store(cmd: &BackendCommand) -> bool {
+        use BackendCommand as C;
+        match cmd {
+            // Encrypts and rewrites the store file.
+            C::SaveStore { .. } => true,
+            // Rewraps the key material and rewrites the store file.
+            C::RekeyStore { .. } => true,
+
+            // Everything below either only reads the store, touches a different
+            // file, or does no file I/O at all.
+            C::AddAccount { .. }
+            | C::AddAccountForced { .. }
+            | C::RemoveAccount { .. }
+            | C::LaunchGame { .. }
+            | C::UnlockWithDevice { .. }
+            | C::UnlockWithPassword { .. }
+            | C::KillAll
+            | C::RefreshAll { .. }
+            | C::RefreshPresenceOnly { .. }
+            | C::BulkLaunchEncrypted { .. }
+            | C::RevalidateAll { .. }
+            | C::SweepInstances
+            | C::ArrangeWindows
+            | C::CheckForUpdates { .. }
+            | C::ResolvePlace { .. }
+            | C::ResolveShareLink { .. }
+            | C::BrowseAsAccount { .. }
+            | C::UploadAsset(_)
+            | C::PollAssetOperations { .. }
+            | C::PollAssetModeration { .. }
+            | C::GrantAssetPermissions { .. }
+            | C::FetchUniverseTargets { .. }
+            | C::FetchPublishGroups { .. }
+            | C::FetchCreations { .. }
+            | C::FetchAssetThumbnails { .. } => false,
+        }
+    }
+
+    /// A throwaway session. `create_password_session` derives its key with
+    /// Argon2id and never touches the OS credential store, so it works headless
+    /// and needs no cleanup. Built once and cloned: the KDF is the slow part.
+    fn session() -> crypto::StoreSession {
+        crypto::create_password_session("test-only").expect("password session")
+    }
+
+    fn path() -> PathBuf {
+        PathBuf::from("accounts.rmenc")
+    }
+
+    /// One command of every shape that matters to the classification, plus the
+    /// two that must be serial.
+    fn sample_commands() -> Vec<BackendCommand> {
+        let s = session();
+        vec![
+            BackendCommand::SaveStore {
+                store: AccountStore::default(),
+                path: path(),
+                session: s.clone(),
+            },
+            BackendCommand::RekeyStore {
+                store: AccountStore::default(),
+                path: path(),
+                session: s.clone(),
+                new_password: None,
+                upgrade_legacy: false,
+            },
+            // The other three corners of `RekeyStore`: still a store write, so
+            // still serial, whichever direction the re-key goes.
+            BackendCommand::RekeyStore {
+                store: AccountStore::default(),
+                path: path(),
+                session: s.clone(),
+                new_password: Some("hunter2".to_string()),
+                upgrade_legacy: true,
+            },
+            BackendCommand::SweepInstances,
+            BackendCommand::KillAll,
+            BackendCommand::ArrangeWindows,
+            BackendCommand::RemoveAccount { user_id: 7 },
+            BackendCommand::UnlockWithDevice { path: path() },
+            BackendCommand::UnlockWithPassword {
+                path: path(),
+                password: "hunter2".to_string(),
+            },
+            BackendCommand::AddAccount {
+                cookie: "COOKIE".to_string(),
+                session: s.clone(),
+                use_credential_manager: false,
+            },
+            BackendCommand::LaunchGame {
+                user_id: 7,
+                encrypted_cookie: None,
+                session: s.clone(),
+                use_credential_manager: false,
+                place_id: 606,
+                job_id: None,
+                link_code: None,
+                access_code: None,
+                multi_instance: false,
+                kill_background: false,
+                privacy_mode: false,
+            },
+            BackendCommand::CheckForUpdates {
+                current_version: "1.8.1".to_string(),
+            },
+            BackendCommand::FetchAssetThumbnails {
+                asset_ids: Vec::new(),
+            },
+        ]
+    }
+
+    #[test]
+    fn only_store_writes_are_classified_as_serial() {
+        for cmd in sample_commands() {
+            assert_eq!(
+                cmd.is_serial_persistence(),
+                writes_the_store(&cmd),
+                "a command was classified against what it does to the store file"
+            );
+        }
+    }
+
+    /// Stated flat, so the failure message names the command rather than an
+    /// index into a loop.
+    #[test]
+    fn save_and_rekey_are_serial() {
+        let s = session();
+        assert!(BackendCommand::SaveStore {
+            store: AccountStore::default(),
+            path: path(),
+            session: s.clone(),
+        }
+        .is_serial_persistence());
+        assert!(BackendCommand::RekeyStore {
+            store: AccountStore::default(),
+            path: path(),
+            session: s,
+            new_password: None,
+            upgrade_legacy: false,
+        }
+        .is_serial_persistence());
+    }
+
+    /// The sweep runs on a timer and would otherwise stall the whole command
+    /// loop behind a process-table walk every few seconds. It must stay
+    /// spawnable.
+    #[test]
+    fn the_instance_sweep_is_not_serial() {
+        assert!(!BackendCommand::SweepInstances.is_serial_persistence());
+    }
+
+    // -----------------------------------------------------------------------
+    // Registry glue
+    // -----------------------------------------------------------------------
+
+    fn fresh_registry() -> Registry {
+        Arc::new(Mutex::new(InstanceRegistry::new()))
+    }
+
+    /// Poison the registry the way production would: a holder of the lock
+    /// panics. The panic is expected and its backtrace on stderr is noise, not
+    /// a failure.
+    fn poisoned_registry() -> Registry {
+        let registry = fresh_registry();
+        let handle = Arc::clone(&registry);
+        let _ = std::thread::spawn(move || {
+            let _guard = handle.lock().expect("first lock is clean");
+            panic!("poisoning the registry on purpose");
+        })
+        .join();
+        assert!(registry.lock().is_err(), "the registry should be poisoned");
+        registry
+    }
+
+    /// Reads the real process table, which is fine: the assertion is about the
+    /// pending queue, and that grows whether or not Roblox is running.
+    #[test]
+    fn note_launch_queues_one_pending_attribution_per_call() {
+        let registry = fresh_registry();
+
+        note_launch(&registry, 7, 606);
+        assert_eq!(registry.lock().unwrap().pending_count(), 1);
+
+        note_launch(&registry, 8, 606);
+        assert_eq!(registry.lock().unwrap().pending_count(), 2);
+    }
+
+    /// A poisoned registry must not take the launch down with it: attribution
+    /// is a tooltip, and refusing to launch over a lost tooltip would be worse
+    /// than the lost tooltip.
+    #[test]
+    fn note_launch_gives_up_quietly_on_a_poisoned_registry() {
+        let registry = poisoned_registry();
+
+        note_launch(&registry, 7, 606);
+
+        let inner = registry.lock().unwrap_or_else(|e| e.into_inner());
+        assert_eq!(
+            inner.pending_count(),
+            0,
+            "nothing should have been queued through a poisoned lock"
+        );
+    }
+
+    #[test]
+    fn sweeping_a_registry_that_launched_nothing_attributes_nothing() {
+        let registry = fresh_registry();
+
+        let BackendEvent::InstancesUpdated {
+            instances,
+            running_count: _,
+        } = sweep_instances(&registry)
+        else {
+            panic!("the sweep must report InstancesUpdated");
+        };
+
+        // Whatever this machine happens to be running, none of it was launched
+        // through this registry, so none of it can be attributed. The count
+        // itself is a live sample of the process table and is pinned in
+        // `sweeping_a_poisoned_registry_still_reports_a_count` instead.
+        assert!(instances.is_empty(), "{instances:?}");
+    }
+
+    /// The poisoned path still has to report the running count, because the
+    /// UI's instance badge is driven by it. Only the attributions are lost.
+    #[test]
+    fn sweeping_a_poisoned_registry_still_reports_a_count() {
+        let registry = poisoned_registry();
+
+        // The count is read from the live process table, so it is pinned to the
+        // window this test brackets around the call rather than to a fixed
+        // number. A machine with Roblox open must still see it reported.
+        let before = process::roblox_pids().len();
+        let BackendEvent::InstancesUpdated {
+            instances,
+            running_count,
+        } = sweep_instances(&registry)
+        else {
+            panic!("the sweep must report InstancesUpdated");
+        };
+        let after = process::roblox_pids().len();
+
+        assert!(instances.is_empty(), "{instances:?}");
+        assert!(
+            running_count >= before.min(after) && running_count <= before.max(after),
+            "{running_count} outside the sampled range {before}..={after}"
+        );
     }
 }

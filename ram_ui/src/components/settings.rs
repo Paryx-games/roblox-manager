@@ -3,6 +3,8 @@
 use eframe::egui;
 use ram_core::models::AppConfig;
 
+use crate::theme::ThemeUi;
+
 /// Actions the settings panel can emit.
 #[allow(dead_code)]
 pub enum SettingsAction {
@@ -28,6 +30,7 @@ pub fn show(
     settings_state: &mut SettingsState,
     roblox_running: bool,
 ) -> Option<SettingsAction> {
+    let theme = ui.theme();
     let mut action: Option<SettingsAction> = None;
 
     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -73,13 +76,13 @@ pub fn show(
         }
         if config.multi_instance_enabled {
             ui.colored_label(
-                egui::Color32::from_rgb(220, 160, 40),
+                theme.warning,
                 "\u{26a0} This interacts with Hyperion anti-cheat and may carry ban risk.",
             );
         }
         if !config.multi_instance_enabled && roblox_running {
             ui.colored_label(
-                egui::Color32::from_rgb(180, 180, 180),
+                theme.text_muted,
                 "Close all Roblox processes (including tray) before enabling.",
             );
         }
@@ -91,7 +94,7 @@ pub fn show(
         ).on_hover_text("Kills idle \"always running\" Roblox processes (--launch-to-tray).");
         if config.multi_instance_enabled && !config.kill_background_roblox {
             ui.colored_label(
-                egui::Color32::from_rgb(220, 160, 40),
+                theme.warning,
                 "⚠ Recommended when multi-instance is enabled. Tray processes stack up.",
             );
         }
@@ -154,7 +157,7 @@ pub fn show(
         );
         if config.developer_options {
             ui.colored_label(
-                egui::Color32::from_rgb(220, 160, 40),
+                theme.warning,
                 "\u{26a0} Uploads are permanent and public. Every asset is moderated under the account that uploaded it.",
             );
         }
@@ -249,7 +252,7 @@ pub fn show(
             && !passwords_match
         {
             ui.colored_label(
-                egui::Color32::from_rgb(200, 60, 60),
+                theme.danger,
                 "Passwords do not match.",
             );
         }

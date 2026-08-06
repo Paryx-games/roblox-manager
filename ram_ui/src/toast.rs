@@ -123,13 +123,16 @@ impl Toasts {
 
         let screen = ctx.screen_rect();
         let mut y = screen.max.y - 10.0;
+        let theme = crate::theme::of(ctx);
 
         for toast in self.queue.iter().rev() {
+            // Fill strengths, not text strengths: the message is drawn in
+            // `on_accent` on top of this.
             let color = match toast.level {
-                ToastLevel::Info => egui::Color32::from_rgb(60, 120, 200),
-                ToastLevel::Success => egui::Color32::from_rgb(50, 170, 80),
-                ToastLevel::Warning => egui::Color32::from_rgb(220, 160, 40),
-                ToastLevel::Error => egui::Color32::from_rgb(200, 60, 60),
+                ToastLevel::Info => theme.accent,
+                ToastLevel::Success => theme.success,
+                ToastLevel::Warning => theme.warning,
+                ToastLevel::Error => theme.danger,
             };
 
             let id = egui::Id::new(toast.created);
@@ -152,7 +155,7 @@ impl Toasts {
                         .inner_margin(8.0);
                     frame.show(ui, |ui| {
                         ui.set_min_width(width - 16.0);
-                        ui.colored_label(egui::Color32::WHITE, &toast.message);
+                        ui.colored_label(theme.on_accent, &toast.message);
                     });
                 });
         }

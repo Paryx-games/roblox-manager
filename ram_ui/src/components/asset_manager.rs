@@ -19,6 +19,8 @@ use ram_core::assets::{AssetIndex, AssetKind, AssetState, Creator};
 use ram_core::assets_api::{CreationItem, GroupTarget, UniverseTarget};
 use ram_core::models::Account;
 
+use crate::theme::ThemeUi;
+
 /// Which of the tab's two views is showing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum View {
@@ -305,7 +307,7 @@ pub fn show(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>) -> AssetManagerResult {
 
     if cx.read_only {
         ui.colored_label(
-            egui::Color32::from_rgb(220, 160, 40),
+            ui.theme().warning,
             "\u{26a0} This asset list was written by a newer version of RM, or could not be read. \
              Changes will not be saved.",
         );
@@ -792,7 +794,7 @@ fn inventory_view(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetM
         // Show Roblox's actual reason, not a generic one. The common case by
         // far is a group the account has no role in, and telling the user
         // "could not load" sends them looking for a fault that is not there.
-        ui.colored_label(egui::Color32::from_rgb(200, 60, 60), error);
+        ui.colored_label(ui.theme().danger, error);
         ui.add_space(2.0);
         ui.label(
             egui::RichText::new("Recent > Uploads still works, and needs no network.")
@@ -1128,7 +1130,7 @@ fn toolbar(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetManagerR
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let import = egui::Button::new(
-                egui::RichText::new("Import").color(egui::Color32::WHITE),
+                egui::RichText::new("Import").color(ui.theme().on_accent),
             )
             .fill(ui.visuals().selection.bg_fill);
             if ui
@@ -1523,7 +1525,7 @@ fn queue_actions(
                 format!("Upload {}", uploadable.len())
             };
             let button =
-                egui::Button::new(egui::RichText::new(label).color(egui::Color32::WHITE))
+                egui::Button::new(egui::RichText::new(label).color(ui.theme().on_accent))
                     .fill(ui.visuals().selection.bg_fill);
             let response = ui.add_enabled(enabled, button);
             let response = if !cx.unlocked {
@@ -1542,10 +1544,16 @@ fn queue_actions(
 
 /// Draw a row's status. Returns `true` when the user asked to retry it.
 fn status_cell(ui: &mut egui::Ui, row: &RowView) -> bool {
-    let amber = egui::Color32::from_rgb(220, 160, 40);
-    let red = egui::Color32::from_rgb(200, 60, 60);
-    let green = egui::Color32::from_rgb(80, 180, 100);
-    let blue = egui::Color32::from_rgb(90, 150, 220);
+    // Not a uniform choice. Green and blue take the `_text` tokens, the
+    // variants meant to be read on a dark surface. Amber and red take the
+    // fill-strength `warning` and `danger`, which is what these two labels
+    // have been drawn in since before the theme existed; the conversion kept
+    // the shipped values rather than restyling the table.
+    let theme = ui.theme();
+    let amber = theme.warning;
+    let red = theme.danger;
+    let green = theme.success_text;
+    let blue = theme.accent_text;
     let mut retry = false;
 
     match &row.state {

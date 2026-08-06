@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.8.1
+
+### Fixed
+- **Your authentication ticket was being written to the log file.** Launching a game recorded the full launch URI at debug level, and that URI carries a live Roblox auth ticket. Logs are now scrubbed of cookies, auth tickets, CSRF tokens, and your Windows username.
+- **Log files grew without limit.** `rm.log` is now a dated daily file and only the last 7 are kept.
+- **Lower idle CPU.** The running instance counter walked the full process list on every frame.
+
+### Added
+- **Running Roblox clients are matched to the account that launched them.** Hover the instance counter to see which window belongs to which account. This is a best guess, so starting Roblox by hand or bulk launching quickly can attribute a window to the wrong account.
+
+### Changed
+- Color consistency fixes throughout the UI, where the same state was drawn in slightly different shades in different places.
+
 ## v1.8.0
 
 ### Added

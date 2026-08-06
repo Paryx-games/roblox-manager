@@ -99,7 +99,11 @@ pub fn launch_game(
     }
 
     info!("Launching game - place {place_id}");
-    debug!("URI: {uri}");
+    // Never the raw URI: `gameinfo:` carries a live Roblox authentication
+    // ticket, and this line runs under `RUST_LOG=debug` straight into rm.log,
+    // which users paste into bug reports. The redacted form still shows how the
+    // URI was assembled, which is the only reason to log it.
+    debug!("URI: {}", crate::redact::scrub(&uri));
 
     open_uri(&uri)?;
     Ok(())
@@ -141,25 +145,34 @@ pub fn find_roblox_player() -> Option<PathBuf> {
 // Process tracking
 // ---------------------------------------------------------------------------
 
-/// Check if any `RobloxPlayerBeta.exe` is currently running.
-pub fn is_roblox_running() -> bool {
+/// Image name of the Roblox client process. The bootstrapper and the installer
+/// have other names; only this one is an actual game client.
+pub const ROBLOX_PLAYER_EXE: &str = "RobloxPlayerBeta.exe";
+
+/// PIDs of every running Roblox client.
+///
+/// The single source of truth for "what is running": [`is_roblox_running`],
+/// [`roblox_instance_count`] and [`crate::instances`] all read from this, so
+/// they cannot disagree about the same moment.
+pub fn roblox_pids() -> std::collections::HashSet<u32> {
     use sysinfo::System;
     let mut sys = System::new();
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     sys.processes()
         .values()
-        .any(|p| p.name().to_string_lossy() == "RobloxPlayerBeta.exe")
+        .filter(|p| p.name().to_string_lossy() == ROBLOX_PLAYER_EXE)
+        .map(|p| p.pid().as_u32())
+        .collect()
+}
+
+/// Check if any `RobloxPlayerBeta.exe` is currently running.
+pub fn is_roblox_running() -> bool {
+    !roblox_pids().is_empty()
 }
 
 /// Count how many Roblox player instances are running.
 pub fn roblox_instance_count() -> usize {
-    use sysinfo::System;
-    let mut sys = System::new();
-    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-    sys.processes()
-        .values()
-        .filter(|p| p.name().to_string_lossy() == "RobloxPlayerBeta.exe")
-        .count()
+    roblox_pids().len()
 }
 
 /// Kill all running Roblox player instances.

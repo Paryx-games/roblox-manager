@@ -9,6 +9,8 @@ use std::path::PathBuf;
 use eframe::egui;
 use ram_core::models::LaunchPreset;
 
+use crate::theme::ThemeUi;
+
 /// Actions the presets panel can request from the app.
 pub enum PresetsAction {
     /// Persist `preset`. If `path` is `Some` it's an in-place edit of that
@@ -112,7 +114,7 @@ pub fn show(
 
             ui.add_space(4.0);
             if let Some(err) = &state.error {
-                ui.colored_label(egui::Color32::from_rgb(255, 100, 100), err);
+                ui.colored_label(ui.theme().danger_text, err);
                 ui.add_space(2.0);
             }
 
@@ -167,7 +169,7 @@ pub fn show(
 
             if presets.is_empty() {
                 ui.colored_label(
-                    egui::Color32::GRAY,
+                    ui.theme().text_muted,
                     "No presets yet. Create one above to launch favorite games faster.",
                 );
                 return;
@@ -195,7 +197,7 @@ pub fn show(
                                         ),
                                         _ => format!("Place {}", preset.place_id),
                                     };
-                                    ui.colored_label(egui::Color32::GRAY, detail);
+                                    ui.colored_label(ui.theme().text_muted, detail);
                                 });
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
