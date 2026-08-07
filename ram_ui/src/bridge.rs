@@ -7,7 +7,7 @@
 use eframe::egui;
 use ram_core::assets::{AssetKind, Creator, ModerationStatus, OperationOutcome};
 use ram_core::auth::RobloxClient;
-use ram_core::instances::{InstanceRegistry, TrackedInstance};
+use ram_core::instances::{Attribution, InstanceRegistry, TrackedInstance};
 use ram_core::models::{Account, AccountStore, Presence};
 use ram_core::{api, assets, assets_api, crypto, process, CoreError};
 use std::path::PathBuf;
@@ -16,13 +16,28 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
+/// Everything the instance sweep owns.
+///
+/// The map and the command-line cache are one lock rather than two because
+/// they are only ever touched together: a sweep scans, then reconciles, and a
+/// launch snapshots, then queues. Splitting them would add a second lock whose
+/// only purpose is to be taken in the same breath as the first.
+#[derive(Debug, Default)]
+struct InstanceState {
+    registry: InstanceRegistry,
+    /// Keeps the sweep from re-reading the command line of a process it has
+    /// already identified. Lives here, next to the map, so it is pruned on the
+    /// same cadence.
+    tokens: process::LaunchTokenCache,
+}
+
 /// The PID-to-account map, shared between the command loop and the spawned
 /// tasks that launch games.
 ///
-/// A `std::sync::Mutex` rather than tokio's: every critical section is a few
-/// vector operations with no `.await` inside, so an async mutex would buy
-/// nothing and cost a scheduling point.
-type Registry = Arc<Mutex<InstanceRegistry>>;
+/// A `std::sync::Mutex` rather than tokio's: every critical section is a
+/// process-table walk and a few vector operations with no `.await` inside, so
+/// an async mutex would buy nothing and cost a scheduling point.
+type Registry = Arc<Mutex<InstanceState>>;
 
 // ---------------------------------------------------------------------------
 // Commands (UI → Backend)
@@ -525,7 +540,7 @@ async fn backend_loop(
     // Owned here, not by the UI: a launch has to snapshot the PID set on the
     // same side of the channel that issues the launch, or a slow frame between
     // the two would let an unrelated client slip into the window.
-    let registry: Registry = Arc::new(Mutex::new(InstanceRegistry::new()));
+    let registry: Registry = Arc::new(Mutex::new(InstanceState::default()));
 
     while let Some(cmd) = rx.recv().await {
         let client = client.clone();
@@ -743,8 +758,15 @@ async fn handle_command(
                 process::clear_roblox_cookies();
             }
             let ticket = client.generate_auth_ticket(&cookie).await?;
-            note_launch(registry, user_id, place_id);
-            process::launch_game(&ticket, place_id, job_id.as_deref(), link_code.as_deref(), access_code.as_deref())?;
+            let launchtime = note_launch(registry, user_id, place_id);
+            process::launch_game(
+                &ticket,
+                place_id,
+                job_id.as_deref(),
+                link_code.as_deref(),
+                access_code.as_deref(),
+                launchtime,
+            )?;
             Ok(BackendEvent::GameLaunched)
         }
         BackendCommand::SaveStore {
@@ -937,13 +959,14 @@ async fn handle_command(
                                 // once for the batch: by the time account three
                                 // goes out, accounts one and two have clients
                                 // that must not look new.
-                                note_launch(registry, *user_id, place_id);
+                                let launchtime = note_launch(registry, *user_id, place_id);
                                 if let Err(e) = process::launch_game(
                                     &ticket,
                                     place_id,
                                     resolved_job_id.as_deref(),
                                     link_code.as_deref(),
                                     access_code.as_deref(),
+                                    launchtime,
                                 ) {
                                     error!("Bulk launch failed for user {user_id}: {e}");
                                     failed += 1;
@@ -1347,37 +1370,67 @@ const AUDIO_POLL_BURST: &[u64] = &[2, 3, 5, 8, 12];
 /// per second per account instead of a burst.
 const POLL_SPACING_MS: u64 = 250;
 
-/// Snapshot the running clients and queue an attribution for `user_id`.
+/// Mint this launch's attribution token, snapshot the running clients, and
+/// queue the mapping. Returns the token to stamp into the launch URI.
 ///
-/// Must be called immediately before the launch itself: the snapshot is what
+/// Must be called immediately before the launch itself, and the token must be
+/// minted here rather than inside `launch_game`, so that the mapping is on
+/// record before the client it describes can possibly exist. A sweep landing in
+/// the gap would otherwise see an unrecognised client.
+///
+/// The snapshot matters only to the appearance-order fallback: it is what
 /// distinguishes the client this launch produces from the ones already up.
 /// Enumerating processes takes a few milliseconds, which is why it happens
 /// after the auth ticket (a network round trip) rather than before it.
-fn note_launch(registry: &Registry, user_id: u64, place_id: u64) {
-    let live = process::roblox_pids();
+fn note_launch(registry: &Registry, user_id: u64, place_id: u64) -> i64 {
+    let launchtime = process::next_launchtime();
     match registry.lock() {
-        Ok(mut reg) => reg.note_launch(user_id, place_id, &live, chrono::Utc::now()),
+        Ok(mut state) => {
+            let live = state.tokens.scan();
+            state
+                .registry
+                .note_launch(user_id, place_id, launchtime, &live, chrono::Utc::now());
+        }
         // A poisoned registry means a previous holder panicked. Attribution is
-        // a convenience; refusing to launch over it would not be.
+        // a convenience; refusing to launch over it would not be. The token is
+        // still stamped into the URI, so a later sweep on a healthy registry
+        // simply reports the client as unattributed rather than mis-assigning
+        // it.
         Err(e) => warn!("instance registry unavailable, launch will not be attributed: {e}"),
     }
+    launchtime
 }
 
 /// Reconcile the registry against reality and report the result.
 fn sweep_instances(registry: &Registry) -> BackendEvent {
-    let live = process::roblox_pids();
-    let running_count = live.len();
-    let Ok(mut reg) = registry.lock() else {
+    let Ok(mut state) = registry.lock() else {
+        // No cache to scan through, but the badge still needs a number.
         return BackendEvent::InstancesUpdated {
             instances: Vec::new(),
-            running_count,
+            running_count: process::roblox_pids().len(),
         };
     };
-    let outcome = reg.sweep(&live, chrono::Utc::now());
+    let live = state.tokens.scan();
+    let running_count = live.len();
+    let outcome = state.registry.sweep(&live, chrono::Utc::now());
+
     for instance in &outcome.attributed {
+        // Say which kind. "Matched" is a fact about the process; "guessed" is
+        // an inference, and a log that does not distinguish them is a log that
+        // cannot be used to work out why an attribution was wrong.
+        let how = match instance.attribution {
+            Attribution::Exact => "matched",
+            Attribution::Inferred => "guessed (command line unreadable)",
+        };
         info!(
-            "Attributed Roblox PID {} to user {} (place {})",
+            "Roblox PID {} {how} to user {} (place {})",
             instance.pid, instance.user_id, instance.place_id
+        );
+    }
+    for instance in &outcome.upgraded {
+        info!(
+            "Roblox PID {} confirmed as user {} by its command line",
+            instance.pid, instance.user_id
         );
     }
     for instance in &outcome.exited {
@@ -1392,8 +1445,9 @@ fn sweep_instances(registry: &Registry) -> BackendEvent {
             launch.user_id
         );
     }
+
     BackendEvent::InstancesUpdated {
-        instances: reg.snapshot(),
+        instances: state.registry.snapshot(),
         running_count,
     }
 }
@@ -1827,7 +1881,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     fn fresh_registry() -> Registry {
-        Arc::new(Mutex::new(InstanceRegistry::new()))
+        Arc::new(Mutex::new(InstanceState::default()))
     }
 
     /// Poison the registry the way production would: a holder of the lock
@@ -1852,10 +1906,28 @@ mod tests {
         let registry = fresh_registry();
 
         note_launch(&registry, 7, 606);
-        assert_eq!(registry.lock().unwrap().pending_count(), 1);
+        assert_eq!(registry.lock().unwrap().registry.pending_count(), 1);
 
         note_launch(&registry, 8, 606);
-        assert_eq!(registry.lock().unwrap().pending_count(), 2);
+        assert_eq!(registry.lock().unwrap().registry.pending_count(), 2);
+    }
+
+    /// Two launches must never share a token, or the sweep would attribute one
+    /// account's client to the other with full confidence. Back-to-back calls
+    /// are the case that matters: a bulk launch issues them inside the same
+    /// millisecond.
+    #[test]
+    fn every_launch_gets_a_token_of_its_own() {
+        let registry = fresh_registry();
+        let tokens: Vec<i64> = (0..50).map(|_| note_launch(&registry, 7, 606)).collect();
+
+        let mut sorted = tokens.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(sorted.len(), tokens.len(), "duplicate launchtime: {tokens:?}");
+        // And they only ever go up, so an older launch cannot collide with a
+        // newer one after a clock correction either.
+        assert!(tokens.windows(2).all(|w| w[0] < w[1]), "{tokens:?}");
     }
 
     /// A poisoned registry must not take the launch down with it: attribution
@@ -1865,11 +1937,13 @@ mod tests {
     fn note_launch_gives_up_quietly_on_a_poisoned_registry() {
         let registry = poisoned_registry();
 
-        note_launch(&registry, 7, 606);
+        // The token is still minted, so the launch URI is still stamped and the
+        // client simply reads as unattributed later.
+        assert!(note_launch(&registry, 7, 606) > 0);
 
         let inner = registry.lock().unwrap_or_else(|e| e.into_inner());
         assert_eq!(
-            inner.pending_count(),
+            inner.registry.pending_count(),
             0,
             "nothing should have been queued through a poisoned lock"
         );

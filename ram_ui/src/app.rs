@@ -47,6 +47,56 @@ fn anonymize_avatar(bytes: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// How an account is named in anything RM shows or sets on screen.
+///
+/// One function so the instance tooltip and the Roblox window title cannot
+/// drift apart on the thing that matters: with `anonymize_names` on, neither
+/// may contain the username or the alias.
+fn account_display_label(
+    accounts: &[ram_core::models::Account],
+    user_id: u64,
+    anonymize_names: bool,
+) -> String {
+    accounts
+        .iter()
+        .find(|a| a.user_id == user_id)
+        .map(|a| {
+            if anonymize_names {
+                format!("Account #{}", sidebar::anon_tag(a.user_id))
+            } else {
+                a.label().to_string()
+            }
+        })
+        .unwrap_or_else(|| format!("user {user_id}"))
+}
+
+/// What each attributed client's window should be called.
+///
+/// Pure, and split out from [`AppState::retitle_roblox_windows`] for one
+/// reason: a window title is world-readable. Any process on the machine can ask
+/// for it, and it shows up in screenshots, screen shares, and stream captures.
+/// A user who turned on `anonymize_names` asked for their usernames not to be
+/// on screen, and a title bar is very much on screen, so the rule that
+/// `anonymize_names` blanks the name is worth being able to assert directly.
+///
+/// Inferred attributions are titled too. Getting it wrong writes a wrong name
+/// on a title bar, which is cosmetic, so the bar is lower than it is for kill.
+fn instance_window_titles(
+    tracked: &[ram_core::instances::TrackedInstance],
+    accounts: &[ram_core::models::Account],
+    anonymize_names: bool,
+) -> Vec<(u32, String)> {
+    tracked
+        .iter()
+        .map(|instance| {
+            (
+                instance.pid,
+                account_display_label(accounts, instance.user_id, anonymize_names),
+            )
+        })
+        .collect()
+}
+
 /// The body of [`AppState::instance_attribution_summary`], as a free function
 /// over exactly the four things it reads. Split out from the method so it can
 /// be exercised without standing up an `AppState`, which owns a live backend
@@ -57,26 +107,25 @@ fn attribution_summary(
     anonymize_names: bool,
     roblox_instance_count: usize,
 ) -> String {
+    use ram_core::instances::Attribution;
+
     if tracked.is_empty() {
         return "None of these were launched by RM, or they have not been \
                 matched to an account yet."
             .to_string();
     }
 
-    let mut lines = vec!["Launched by RM (best guess):".to_string()];
+    let mut lines = vec!["Launched by RM:".to_string()];
     for instance in tracked {
-        let who = accounts
-            .iter()
-            .find(|a| a.user_id == instance.user_id)
-            .map(|a| {
-                if anonymize_names {
-                    format!("Account #{}", sidebar::anon_tag(a.user_id))
-                } else {
-                    a.label().to_string()
-                }
-            })
-            .unwrap_or_else(|| format!("user {}", instance.user_id));
-        lines.push(format!("  PID {} - {who}", instance.pid));
+        let who = account_display_label(accounts, instance.user_id, anonymize_names);
+        // Only the guesses are marked. An unmarked line was read off the
+        // client's own command line and is not a guess, so hedging it would
+        // make the two indistinguishable again.
+        let suffix = match instance.attribution {
+            Attribution::Exact => "",
+            Attribution::Inferred => "  (best guess)",
+        };
+        lines.push(format!("  PID {} - {who}{suffix}", instance.pid));
     }
 
     let untracked = roblox_instance_count.saturating_sub(tracked.len());
@@ -270,11 +319,24 @@ pub struct AppState {
     /// counted per frame: `sysinfo` has to walk the whole process table, which
     /// is not something to do on the paint thread at 60fps.
     roblox_instance_count: usize,
-    /// Clients RM launched, and the account each is believed to belong to.
-    /// Attribution is inferred from launch timing and can be wrong; see
-    /// [`ram_core::instances`]. Substrate for later per-account actions, so
-    /// nothing acts on it yet beyond display.
+    /// Clients RM launched, and the account each belongs to. Mostly read off
+    /// the client's own command line and therefore exact; see
+    /// [`ram_core::instances`] for when it is not, and check
+    /// `TrackedInstance::attribution` before acting destructively.
     tracked_instances: Vec<ram_core::instances::TrackedInstance>,
+    /// What each client's window was called before RM renamed it, so switching
+    /// the feature off puts things back instead of leaving Roblox wearing our
+    /// labels. Refreshed whenever Roblox rewrites its own title, so this holds
+    /// Roblox's latest intent and not the "Roblox" placeholder we first
+    /// displaced. Keyed by PID; entries are dropped when the client exits.
+    original_window_titles: std::collections::HashMap<u32, String>,
+    /// Previous frame's value of `config.rename_roblox_windows`, so the moment
+    /// the user unticks it can be noticed and acted on.
+    renaming_was_enabled: bool,
+    /// When RM last asked for a launch. Sweeps run faster for a short while
+    /// afterwards, because that is the only window in which the delay between a
+    /// client appearing and being named is something the user is watching for.
+    last_launch_request: Option<std::time::Instant>,
     /// Frame counter to throttle background refreshes.
     frame_count: u64,
     /// Wall-clock timestamp of the last tray-kill sweep. Frame-counter timers
@@ -400,6 +462,8 @@ impl AppState {
             _ => sidebar::SortOrder::Custom,
         };
 
+        let renaming_enabled_at_start = config.rename_roblox_windows;
+
         let mut state = Self {
             config,
             config_path,
@@ -437,6 +501,10 @@ impl AppState {
             roblox_running: false,
             roblox_instance_count: 0,
             tracked_instances: Vec::new(),
+            original_window_titles: std::collections::HashMap::new(),
+            // Read before `config` is moved into the struct below.
+            renaming_was_enabled: renaming_enabled_at_start,
+            last_launch_request: None,
             frame_count: 0,
             last_tray_kill: None,
             // Seeded to "now" so the first tick lands one full interval in,
@@ -517,9 +585,215 @@ impl AppState {
     /// Human-readable version of the PID-to-account map, for the hover text on
     /// the running-instance counter.
     ///
-    /// Deliberately hedged wording. Attribution is inferred from launch timing
-    /// (see [`ram_core::instances`]) and can be wrong, so the tooltip must not
-    /// read as a fact the user can rely on to, say, kill the right client.
+    /// Lines that came from reading the client's command line are stated
+    /// plainly; the ones that fell back to guessing are marked. See
+    /// [`ram_core::instances`] for what separates them.
+    /// Name each attributed client's window after its account, so tiled clients
+    /// are tellable apart.
+    ///
+    /// Called from the sweep result rather than from a timer of its own, which
+    /// is also the reapply loop: Roblox rewrites its own title as it loads (it
+    /// comes up as "Roblox" and becomes the place name once in-game), so a
+    /// title set once at launch does not survive. `apply_instance_titles` reads
+    /// the current title first and only writes when it differs, so the steady
+    /// state costs one `GetWindowTextW` per client every two seconds and no
+    /// writes at all.
+    fn retitle_roblox_windows(&mut self) {
+        // Opt-in. This is the only place RM writes to a Roblox window instead of
+        // merely reading or repositioning it, so it stays off until asked for.
+        if !self.config.rename_roblox_windows {
+            return;
+        }
+        // Forget clients that have exited, so the restore list cannot grow for
+        // the life of the session or name a PID that has since been reused.
+        let live: std::collections::HashSet<u32> =
+            self.tracked_instances.iter().map(|i| i.pid).collect();
+        self.original_window_titles.retain(|pid, _| live.contains(pid));
+
+        let titles = instance_window_titles(
+            &self.tracked_instances,
+            &self.store.accounts,
+            self.config.anonymize_names,
+        );
+        if titles.is_empty() {
+            return;
+        }
+        // Whatever we displaced is what Roblox last wanted the window called.
+        // Recording it on every rewrite (not just the first) is what keeps the
+        // restore from putting back the "Roblox" placeholder shown while the
+        // client was still loading.
+        for (pid, previous) in ram_core::process::apply_instance_titles(&titles) {
+            self.original_window_titles.insert(pid, previous);
+        }
+    }
+
+    /// Put every window RM renamed back the way Roblox had it.
+    ///
+    /// Called when the setting is switched off and again on exit. Leaving
+    /// Roblox wearing RM's labels after RM has stopped managing them, or after
+    /// it has closed entirely, is a mess the user cannot undo without
+    /// restarting the client.
+    fn restore_roblox_window_titles(&mut self) {
+        if self.original_window_titles.is_empty() {
+            return;
+        }
+        let originals: Vec<(u32, String)> = self
+            .original_window_titles
+            .iter()
+            .map(|(pid, title)| (*pid, title.clone()))
+            .collect();
+        ram_core::process::restore_instance_titles(&originals);
+        self.original_window_titles.clear();
+    }
+
+    /// Bring one account's client to the front.
+    ///
+    /// Run inline on the UI thread rather than queued to the backend on
+    /// purpose. `SetForegroundWindow` is granted to the process that already
+    /// owns the foreground window, and at this moment that is RM, because the
+    /// user just clicked a menu item in it. Handing the call to another thread
+    /// via a channel would only widen the gap in which that stops being true.
+    fn focus_instance(&mut self, pid: u32) {
+        if ram_core::process::focus_instance(pid) {
+            return;
+        }
+        self.toasts.push(Toast::error(format!(
+            "Could not bring PID {pid} to the front. Windows refused, or the client has no window yet."
+        )));
+    }
+
+    /// Kill one account's client, after `ram_core` re-verifies it is really
+    /// that client.
+    ///
+    /// This does not trust `tracked_instances`. It passes the recorded launch
+    /// token down, and the kill only happens if the live process still carries
+    /// it. Everything this function decides is presentation: which instance the
+    /// user meant, and what to say when the verification refuses.
+    fn kill_instance(&mut self, pid: u32) {
+        let Some(instance) = self
+            .tracked_instances
+            .iter()
+            .find(|i| i.pid == pid)
+            .cloned()
+        else {
+            self.toasts.push(Toast::error(
+                "That client is no longer being tracked. Nothing was killed.",
+            ));
+            return;
+        };
+        // An inferred mapping has no confirmed token, so verification cannot
+        // pass and the kill would fail with a confusing message. Say the real
+        // reason instead, and do not pretend the option was live.
+        if !instance.attribution.is_exact() {
+            self.toasts.push(Toast::error(
+                "RM could not read that client's command line, so it cannot \
+                 confirm which account it belongs to. Use Kill All instead.",
+            ));
+            return;
+        }
+        match ram_core::process::kill_verified_instance(pid, instance.launchtime) {
+            Ok(()) => {
+                let who = account_display_label(
+                    &self.store.accounts,
+                    instance.user_id,
+                    self.config.anonymize_names,
+                );
+                self.toasts.push(Toast::info(format!("Closed {who}'s client")));
+                // The sweep reaps the mapping within a couple of seconds, but
+                // dropping it now keeps the menu from offering a dead PID in
+                // the meantime.
+                self.tracked_instances.retain(|i| i.pid != pid);
+            }
+            Err(e) => self.toasts.push(Toast::error(e.to_string())),
+        }
+    }
+
+    /// Launch `user_id` into whatever server `target_user_id` is in.
+    ///
+    /// Goes through the ordinary `LaunchGame` command rather than a path of its
+    /// own, so multi-instance, privacy mode, the tray kill, and the launch
+    /// delay all apply exactly as they do to any other launch. The only thing
+    /// this adds is where to land.
+    ///
+    /// The place and job come from the target's cached presence, which the
+    /// sidebar refreshes every ten seconds. That is the weak point and it is
+    /// unavoidable: there is no way to ask Roblox "is job X still alive"
+    /// without walking the whole server list for the place. If the server has
+    /// closed in the meantime, Roblox rejects the join rather than silently
+    /// dropping the account somewhere else, so the failure is at least visible
+    /// to the user in the client.
+    fn join_account_server(&mut self, user_id: u64, target_user_id: u64) {
+        let target = self.store.find_by_id(target_user_id).map(|a| {
+            (
+                account_display_label(
+                    &self.store.accounts,
+                    target_user_id,
+                    self.config.anonymize_names,
+                ),
+                a.last_presence.clone(),
+            )
+        });
+        let Some((target_name, presence)) = target else {
+            self.toasts
+                .push(Toast::error("That account is no longer in the list."));
+            return;
+        };
+
+        // Two distinct reasons the join cannot happen, worth separate wording:
+        // the account is not playing, versus it is playing but Roblox is not
+        // telling RM where. The second happens when the target's join privacy
+        // hides the server, and "not in a game" would be a lie.
+        if presence.user_presence_type != 2 {
+            self.toasts.push(Toast::error(format!(
+                "{target_name} is not in a game right now."
+            )));
+            return;
+        }
+        let (Some(place_id), Some(job_id)) = (presence.place_id, presence.game_id.clone()) else {
+            self.toasts.push(Toast::error(format!(
+                "Roblox is not reporting which server {target_name} is in, so RM \
+                 cannot follow. Their join privacy setting may be hiding it."
+            )));
+            return;
+        };
+
+        let Some(account) = self
+            .store
+            .find_by_id(user_id)
+            .map(|a| (a.user_id, a.encrypted_cookie.clone()))
+        else {
+            self.toasts
+                .push(Toast::error("That account is no longer in the list."));
+            return;
+        };
+        // Check the session before spending the launch slot, so a locked store
+        // does not eat the user's next launch window.
+        let Some(session) = self.session() else {
+            self.toasts
+                .push(Toast::error("Unlock the store before launching."));
+            return;
+        };
+        if !self.try_consume_launch_slot() {
+            return;
+        }
+
+        self.bridge.send(BackendCommand::LaunchGame {
+            user_id: account.0,
+            encrypted_cookie: account.1,
+            session,
+            use_credential_manager: self.config.use_credential_manager,
+            place_id,
+            job_id: Some(job_id),
+            link_code: None,
+            access_code: None,
+            multi_instance: self.config.multi_instance_enabled,
+            kill_background: self.config.kill_background_roblox,
+            privacy_mode: self.config.privacy_mode,
+        });
+        self.toasts
+            .push(Toast::info(format!("Joining {target_name}'s server")));
+    }
+
     fn instance_attribution_summary(&self) -> String {
         attribution_summary(
             &self.tracked_instances,
@@ -612,12 +886,21 @@ impl AppState {
                     }
                 }
                 BackendEvent::GameLaunched => {
+                    // Start the fast-sweep window here rather than at each of the
+                    // six call sites that can ask for a launch. The client does
+                    // not exist yet either way, so this is still well ahead of
+                    // anything there is to attribute.
+                    self.last_launch_request = Some(std::time::Instant::now());
                     self.toasts.push(Toast::success("Game launched"));
                     if self.config.auto_arrange_windows {
                         self.bridge.send(BackendCommand::ArrangeWindows);
                     }
                 }
                 BackendEvent::BulkLaunchProgress { launched, total } => {
+                    // Each iteration re-arms the window, so a long bulk launch
+                    // stays responsive to its last client rather than to its
+                    // first.
+                    self.last_launch_request = Some(std::time::Instant::now());
                     self.toasts
                         .push(Toast::info(format!("Launching {launched}/{total}...")));
                 }
@@ -733,6 +1016,7 @@ impl AppState {
                     self.tracked_instances = instances;
                     self.roblox_instance_count = running_count;
                     self.roblox_running = running_count > 0;
+                    self.retitle_roblox_windows();
                 }
                 BackendEvent::AccountRevalidated {
                     user_id,
@@ -1455,6 +1739,9 @@ impl eframe::App for AppState {
     /// Flush anything the 500 ms index debounce is still holding. Without this,
     /// closing the app within half a second of a state change loses it.
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        // Hand the clients their own titles back. They outlive RM, so a rename
+        // left behind sticks until the user restarts the client.
+        self.restore_roblox_window_titles();
         if self.asset_index_dirty {
             self.save_asset_index();
         }
@@ -1495,7 +1782,23 @@ impl eframe::App for AppState {
         // frames: the frame rate swings by two orders of magnitude between
         // idle and animating, so a frame counter is not a clock. Process
         // enumeration happens on the backend thread.
-        if interval_due(&mut self.last_instance_sweep, Duration::from_secs(2)) {
+        // The user just unticked "name Roblox windows". Undo what we did rather
+        // than abandoning the clients under RM's labels.
+        if self.renaming_was_enabled && !self.config.rename_roblox_windows {
+            self.restore_roblox_window_titles();
+        }
+        self.renaming_was_enabled = self.config.rename_roblox_windows;
+
+        // Sweep hard for a while after a launch, idle the rest of the time. A
+        // client takes a few seconds to appear and the 2 second cadence sat on
+        // top of that, so naming it visibly lagged the window opening. Outside
+        // that window nobody is waiting, and each sweep costs a ReadProcessMemory
+        // against every client, so the slow cadence is the one to default to.
+        let sweep_every = match self.last_launch_request {
+            Some(t) if t.elapsed() < Duration::from_secs(30) => Duration::from_millis(400),
+            _ => Duration::from_secs(2),
+        };
+        if interval_due(&mut self.last_instance_sweep, sweep_every) {
             self.bridge.send(BackendCommand::SweepInstances);
         }
 
@@ -1776,6 +2079,7 @@ impl AppState {
                     self.config.anonymize_names,
                     &self.config.groups,
                     avatars,
+                    &self.tracked_instances,
                 );
                 self.visible_user_ids = result.visible_user_ids;
                 self.tutorial.add_btn_rect = result.add_btn_rect;
@@ -1820,6 +2124,18 @@ impl AppState {
                         }
                         sidebar::SidebarAction::OpenBrowserAs(user_id) => {
                             self.open_browser_as(user_id);
+                        }
+                        sidebar::SidebarAction::FocusInstance(pid) => {
+                            self.focus_instance(pid);
+                        }
+                        sidebar::SidebarAction::KillInstance(pid) => {
+                            self.kill_instance(pid);
+                        }
+                        sidebar::SidebarAction::JoinAccountServer {
+                            user_id,
+                            target_user_id,
+                        } => {
+                            self.join_account_server(user_id, target_user_id);
                         }
                         sidebar::SidebarAction::QuickLaunch(user_id) => {
                             // Prefer the first saved preset (with its Job ID
@@ -4750,15 +5066,28 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ram_core::instances::TrackedInstance;
+    use ram_core::instances::{Attribution, TrackedInstance};
     use ram_core::models::Account;
 
+    /// A client RM read the launchtime off, which is the normal case.
     fn instance(pid: u32, user_id: u64) -> TrackedInstance {
         TrackedInstance {
             pid,
+            start_time: 1_000,
             user_id,
             place_id: 606,
+            launchtime: 1_700_000_000_000 + pid as i64,
             launched_at: chrono::DateTime::from_timestamp(1_700_000_000, 0).unwrap(),
+            attribution: Attribution::Exact,
+        }
+    }
+
+    /// A client whose command line could not be read, paired by appearance
+    /// order.
+    fn guessed(pid: u32, user_id: u64) -> TrackedInstance {
+        TrackedInstance {
+            attribution: Attribution::Inferred,
+            ..instance(pid, user_id)
         }
     }
 
@@ -4789,7 +5118,89 @@ mod tests {
 
         assert_eq!(
             summary,
-            "Launched by RM (best guess):\n  PID 1234 - alice\n  PID 5678 - bob"
+            "Launched by RM:\n  PID 1234 - alice\n  PID 5678 - bob"
+        );
+    }
+
+    /// The heading no longer hedges, so the hedge has to live on the individual
+    /// line that earned it. A confirmed line and a guessed line must not read
+    /// the same.
+    #[test]
+    fn only_the_guessed_lines_are_marked_as_guesses() {
+        let accounts = vec![account(7, "alice"), account(8, "bob")];
+        let tracked = vec![instance(1234, 7), guessed(5678, 8)];
+
+        let summary = attribution_summary(&tracked, &accounts, false, 2);
+
+        assert_eq!(
+            summary,
+            "Launched by RM:\n  PID 1234 - alice\n  PID 5678 - bob  (best guess)"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Window titles
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn each_attributed_client_is_titled_with_its_account_label() {
+        let mut bob = account(8, "bob");
+        bob.alias = "farmer".to_string();
+        let accounts = vec![account(7, "alice"), bob];
+        let tracked = vec![instance(1234, 7), instance(5678, 8)];
+
+        assert_eq!(
+            instance_window_titles(&tracked, &accounts, false),
+            vec![
+                (1234, "alice".to_string()),
+                // The alias, matching what the sidebar shows.
+                (5678, "farmer".to_string()),
+            ]
+        );
+    }
+
+    /// The one that matters. A window title is readable by every process on the
+    /// machine and appears in screenshots and screen shares, so a user who
+    /// turned anonymize on must not have their username written into one.
+    #[test]
+    fn anonymize_keeps_names_out_of_window_titles() {
+        let mut bob = account(8, "bob");
+        bob.alias = "farmer".to_string();
+        let accounts = vec![account(7, "alice"), bob];
+        let tracked = vec![instance(1234, 7), instance(5678, 8)];
+
+        let titles = instance_window_titles(&tracked, &accounts, true);
+
+        for (_, title) in &titles {
+            assert!(!title.contains("alice"), "{title}");
+            assert!(!title.contains("bob"), "{title}");
+            assert!(!title.contains("farmer"), "alias leaked: {title}");
+        }
+        assert_eq!(
+            titles,
+            vec![
+                (1234, format!("Account #{}", sidebar::anon_tag(7))),
+                (5678, format!("Account #{}", sidebar::anon_tag(8))),
+            ]
+        );
+    }
+
+    /// An inferred mapping still gets a title. Being wrong writes the wrong
+    /// name on a title bar, which is cosmetic, unlike being wrong about a kill.
+    #[test]
+    fn an_inferred_client_is_titled_too() {
+        let accounts = vec![account(7, "alice")];
+        assert_eq!(
+            instance_window_titles(&[guessed(1234, 7)], &accounts, false),
+            vec![(1234, "alice".to_string())]
+        );
+    }
+
+    #[test]
+    fn a_client_whose_account_is_gone_is_titled_with_its_raw_id() {
+        assert_eq!(
+            instance_window_titles(&[instance(1234, 99)], &[], false),
+            vec![(1234, "user 99".to_string())]
         );
     }
 

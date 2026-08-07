@@ -6,6 +6,7 @@
 //!   - Groups are collapsible, colored containers that visually encapsulate their accounts.
 
 use eframe::egui;
+use ram_core::instances::TrackedInstance;
 use ram_core::models::{Account, GroupMeta};
 
 use crate::theme::{Theme, ThemeUi};
@@ -152,6 +153,14 @@ pub enum SidebarAction {
     },
     /// User confirmed changing from custom sort → lose custom order.
     ResetCustomOrder,
+    /// Bring this account's Roblox client to the front.
+    FocusInstance(u32),
+    /// Close this account's Roblox client. Only ever emitted for an attribution
+    /// RM confirmed by reading the client's command line; `ram_core` re-checks
+    /// that immediately before terminating anyway.
+    KillInstance(u32),
+    /// Launch `user_id` into whatever server `target_user_id` is currently in.
+    JoinAccountServer { user_id: u64, target_user_id: u64 },
 }
 
 /// Sidebar result: actions to process and the list of currently visible user IDs.
@@ -165,6 +174,7 @@ pub struct SidebarResult {
 }
 
 /// Draw the sidebar. Returns actions + visible account IDs.
+#[allow(clippy::too_many_arguments)]
 pub fn show(
     ui: &mut egui::Ui,
     state: &mut SidebarState,
@@ -173,6 +183,9 @@ pub fn show(
     anonymize: bool,
     groups: &HashMap<String, GroupMeta>,
     avatar_bytes: &HashMap<u64, Vec<u8>>,
+    // Running clients RM has matched to an account, so a row can offer to
+    // focus or close its own.
+    instances: &[TrackedInstance],
 ) -> SidebarResult {
     let mut actions: Vec<SidebarAction> = Vec::new();
     let mut add_btn_rect = egui::Rect::NOTHING;
@@ -506,6 +519,7 @@ pub fn show(
                                         groups,
                                         is_custom,
                                         avatar_bytes,
+                                        instances,
                                     );
                                     flat_idx += 1;
                                 }
@@ -532,6 +546,7 @@ pub fn show(
                         groups,
                         is_custom,
                         avatar_bytes,
+                        instances,
                     );
                     flat_idx += 1;
                 }
@@ -611,6 +626,7 @@ fn render_account_row(
     _groups: &HashMap<String, GroupMeta>,
     is_custom: bool,
     avatar_bytes: &HashMap<u64, Vec<u8>>,
+    instances: &[TrackedInstance],
 ) {
     let theme = ui.theme();
     let is_selected = selected_ids.contains(&account.user_id);
@@ -850,6 +866,79 @@ fn render_account_row(
             ui.close_menu();
         }
         ui.separator();
+
+        // ---- This account's running clients ----
+        let mine: Vec<&TrackedInstance> = instances
+            .iter()
+            .filter(|i| i.user_id == account.user_id)
+            .collect();
+        if !mine.is_empty() {
+            // The PID is only worth showing when there is more than one client
+            // to tell apart. With a single one it is noise.
+            let show_pid = mine.len() > 1;
+            for instance in &mine {
+                let suffix = if show_pid {
+                    format!(" (PID {})", instance.pid)
+                } else {
+                    String::new()
+                };
+                if ui.button(format!("\u{1f5b5}  Focus client{suffix}")).clicked() {
+                    actions.push(SidebarAction::FocusInstance(instance.pid));
+                    ui.close_menu();
+                }
+                // Killing is gated on RM having actually read this client's
+                // command line. A mapping that fell back to appearance order
+                // cannot be re-verified at kill time, so the button is shown
+                // disabled with the reason rather than offered and then
+                // refused, or worse, honoured on a guess.
+                let can_kill = instance.attribution.is_exact();
+                let kill = ui.add_enabled(
+                    can_kill,
+                    egui::Button::new(format!("\u{2716}  Close client{suffix}")),
+                );
+                if !can_kill {
+                    kill.on_disabled_hover_text(
+                        "RM could not read this client's command line, so it cannot \
+                         confirm the client belongs to this account. Use Kill All.",
+                    );
+                } else if kill.clicked() {
+                    actions.push(SidebarAction::KillInstance(instance.pid));
+                    ui.close_menu();
+                }
+            }
+            ui.separator();
+        }
+
+        // ---- Join another managed account's server ----
+        let joinable: Vec<&Account> = flat_list
+            .iter()
+            .map(|(_, a)| *a)
+            .filter(|a| {
+                a.user_id != account.user_id
+                    && a.last_presence.user_presence_type == 2
+                    && a.last_presence.place_id.is_some()
+                    && a.last_presence.game_id.is_some()
+            })
+            .collect();
+        if !joinable.is_empty() {
+            ui.menu_button("\u{1f517}  Join server of", |ui| {
+                for other in &joinable {
+                    let name = if anonymize {
+                        format!("Account #{}", anon_tag(other.user_id))
+                    } else {
+                        other.label().to_string()
+                    };
+                    if ui.button(name).clicked() {
+                        actions.push(SidebarAction::JoinAccountServer {
+                            user_id: account.user_id,
+                            target_user_id: other.user_id,
+                        });
+                        ui.close_menu();
+                    }
+                }
+            });
+            ui.separator();
+        }
 
         // Game session info
         if let Some(ref gid) = account.last_presence.game_id {

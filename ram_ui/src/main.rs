@@ -124,6 +124,51 @@ impl<W: std::io::Write> Drop for ScrubbingWriter<W> {
     }
 }
 
+/// Marker recording that the pre-rotation log has already been dealt with.
+const LEGACY_LOG_PURGED_MARKER: &str = ".rm.log.purged";
+
+/// Delete the pre-rotation `rm.log`, once.
+///
+/// Before daily rotation existed, everything appended forever to a single
+/// `rm.log`. Two problems with leaving it lying around. It is unbounded, and it
+/// predates the scrubbing writer, so on at least one machine it accumulated
+/// 1,593 INFO lines each containing a full Roblox launch URI, `gameinfo:`
+/// authentication ticket and all. Those tickets are long expired, but the file
+/// is exactly the kind of thing a user attaches to a bug report, and nothing
+/// will ever rewrite it because nothing writes to that name any more.
+///
+/// Only `rm.log` is touched. The rotating files are `rm.<date>.log` and are
+/// live history that the user may still need.
+///
+/// The marker file is what makes this once rather than every start. Deleting
+/// the log alone would be nearly idempotent, but a user who deliberately
+/// recreates `rm.log` (say, to pin an old session while debugging) should not
+/// have RM quietly eat it on every launch.
+fn purge_legacy_log(data_dir: &std::path::Path) {
+    let marker = data_dir.join(LEGACY_LOG_PURGED_MARKER);
+    if marker.exists() {
+        return;
+    }
+    let legacy = data_dir.join("rm.log");
+    if legacy.is_file() {
+        match std::fs::remove_file(&legacy) {
+            Ok(()) => tracing::info!("Removed the pre-rotation rm.log"),
+            Err(e) => {
+                // Most likely another RM still has it open. Leave the marker
+                // unwritten so the next start tries again.
+                tracing::warn!("Could not remove the pre-rotation rm.log: {e}");
+                return;
+            }
+        }
+    }
+    // Written whether or not the file existed: a fresh install has nothing to
+    // purge and should not keep checking. Through `atomic_swap` rather than a
+    // bare `fs::write` because that is the house rule for anything that
+    // persists across runs, even a zero-byte sentinel: a half-created marker
+    // would be indistinguishable from a real one.
+    let _ = ram_core::storage::atomic_swap(&marker, b"");
+}
+
 /// Canonical data directory: `%APPDATA%\RM`.
 pub fn data_dir() -> PathBuf {
     let base = std::env::var("APPDATA")
@@ -259,6 +304,11 @@ fn main() {
         let code = browser_login::run_browse_as_child(profile_dir, cookie_in, label);
         std::process::exit(code);
     }
+
+    // Get rid of the pre-rotation log, which predates the scrubbing writer and
+    // can still be holding launch URIs. After the subscriber is installed so
+    // the outcome is logged, and before anything else runs.
+    purge_legacy_log(&data_dir);
 
     // Offer to migrate legacy data from the exe directory
     maybe_migrate_legacy_data(&data_dir);
@@ -403,6 +453,72 @@ mod tests {
         assert!(contents.contains("session cookie"), "{contents}");
         assert!(!contents.contains("ABCDEF"), "cookie hit the file: {contents}");
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // -----------------------------------------------------------------------
+    // Legacy log purge
+    // -----------------------------------------------------------------------
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "ram_purge_{tag}_{}_{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// The pre-rotation file goes, and the rotated ones beside it do not. The
+    /// second half is the part worth pinning: those are live history and are
+    /// named only one character apart.
+    #[test]
+    fn the_pre_rotation_log_is_removed_and_the_rotated_ones_are_not() {
+        let dir = temp_dir("basic");
+        std::fs::write(dir.join("rm.log"), b"gameinfo:LEAKED").unwrap();
+        std::fs::write(dir.join("rm.2026-08-05.log"), b"keep me").unwrap();
+        std::fs::write(dir.join("rm.2026-08-06.log"), b"keep me too").unwrap();
+
+        purge_legacy_log(&dir);
+
+        assert!(!dir.join("rm.log").exists(), "the legacy log survived");
+        assert!(dir.join("rm.2026-08-05.log").is_file());
+        assert!(dir.join("rm.2026-08-06.log").is_file());
+        assert!(dir.join(LEGACY_LOG_PURGED_MARKER).is_file());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Once, not on every start. A user who deliberately puts an `rm.log` back
+    /// (pinning an old session while debugging) must not have RM eat it on the
+    /// next launch.
+    #[test]
+    fn a_recreated_log_is_left_alone_on_later_starts() {
+        let dir = temp_dir("once");
+        std::fs::write(dir.join("rm.log"), b"old").unwrap();
+        purge_legacy_log(&dir);
+        assert!(!dir.join("rm.log").exists());
+
+        std::fs::write(dir.join("rm.log"), b"deliberately put back").unwrap();
+        purge_legacy_log(&dir);
+
+        assert_eq!(
+            std::fs::read_to_string(dir.join("rm.log")).unwrap(),
+            "deliberately put back"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A fresh install has nothing to purge and must still stop checking.
+    #[test]
+    fn a_clean_data_dir_is_marked_without_touching_anything() {
+        let dir = temp_dir("clean");
+        purge_legacy_log(&dir);
+        assert!(dir.join(LEGACY_LOG_PURGED_MARKER).is_file());
+        assert!(!dir.join("rm.log").exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

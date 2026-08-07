@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.9.0
+
+### Added
+- **Right-click an account to kill or focus its client.** Killing used to be all or nothing. RM re-checks the process is really that account's client before it terminates anything.
+- **Join the server another account is in.** Right-click an account, pick one that is currently in a game, and it launches straight into that server.
+- **Optional window naming.** Roblox windows can be named after their account so tiled clients are tellable apart. Off by default, in Settings. Unticking it puts the original titles back.
+
+### Changed
+- **Running clients are now matched to their account exactly.** RM reads a token off the client's own command line instead of guessing from the order windows appear in. Bulk launches no longer mix accounts up, and a Roblox you started yourself is no longer mistaken for one of RM's. Where the command line cannot be read, the old guess is still used and is labelled as one.
+- Joining a specific server now uses the same request form the Roblox client itself sends.
+
+### Fixed
+- **Old log files are deleted on first launch.** Logs written before v1.8.1 could contain a Roblox authentication ticket. The current logs never do.
+
 ## v1.8.1
 
 ### Fixed

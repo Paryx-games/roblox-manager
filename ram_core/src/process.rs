@@ -13,10 +13,13 @@
 //! **This technique interacts with Hyperion (Byfron) and carries ban risk.**
 //! It is gated behind `AppConfig::multi_instance_enabled` (default: off).
 
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicI64, Ordering};
 use tracing::{debug, info, warn};
 
 use crate::error::CoreError;
+use crate::instances::{classify_cmdline, LiveClient};
 
 // ---------------------------------------------------------------------------
 // Privacy — clear Roblox cookie tracking file
@@ -52,6 +55,107 @@ pub fn clear_roblox_cookies() {
 // Game launch via URI scheme
 // ---------------------------------------------------------------------------
 
+/// The last `launchtime` this process handed out.
+///
+/// `launchtime` is the whole basis of [`crate::instances`] attribution: it is
+/// stamped into the launch URI, reaches the spawned client's command line, and
+/// is looked up there. That only works if it is unique, and the obvious source
+/// (`Utc::now().timestamp_millis()`) is not: two launches in the same
+/// millisecond collide, and a bulk launch fires them back to back.
+static LAST_LAUNCHTIME: AtomicI64 = AtomicI64::new(0);
+
+/// Mint a `launchtime` that no other launch in this process will ever reuse.
+///
+/// Normally the wall clock in milliseconds. When the clock has not advanced
+/// since the last call (or has gone backwards over an NTP correction) it
+/// returns one past the previous value instead of a duplicate. Uniqueness is
+/// guaranteed outright rather than merely likely, because a collision would
+/// silently attribute one account's client to another.
+///
+/// Call this immediately before [`launch_game`] and register the mapping with
+/// [`crate::instances::InstanceRegistry::note_launch`] before the launch goes
+/// out, so a sweep landing in between cannot see the client first.
+pub fn next_launchtime() -> i64 {
+    let now = chrono::Utc::now().timestamp_millis();
+    // `fetch_update` retries its compare-exchange internally, so two threads
+    // racing here still come away with different numbers. The closure never
+    // returns `None`, so the `Result` cannot actually be `Err`.
+    let previous = LAST_LAUNCHTIME
+        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |last| {
+            Some(if now > last { now } else { last + 1 })
+        })
+        .unwrap_or(now);
+    if now > previous {
+        now
+    } else {
+        previous + 1
+    }
+}
+
+/// Assemble the `placelauncherurl` query for one launch.
+///
+/// Three shapes, each mirroring one that has been observed working rather than
+/// assembled from first principles:
+///
+/// * **`RequestGameJob`** when a job ID is given. This is what the Roblox web
+///   client itself emits when you join a specific server, down to the
+///   `joinAttemptId` and the `www.roblox.com` host. RM used to send
+///   `RequestGame` with a `gameId` bolted on, a form that appears nowhere in
+///   any captured launch and was never verified to place the client in the
+///   requested server at all.
+/// * **`RequestPrivateGame`** for private servers, unchanged.
+/// * **`RequestGame`** for a plain place launch, unchanged. This is the form
+///   RM has always sent and the one every captured RM launch used.
+fn place_launcher_query(
+    place_id: u64,
+    job_id: Option<&str>,
+    link_code: Option<&str>,
+    access_code: Option<&str>,
+) -> String {
+    let browser_tracker_id: u64 = rand::random::<u64>() % 1_000_000_000;
+
+    // A specific server, and not a private one: the web client's job-join form.
+    if let (Some(jid), None) = (job_id, link_code) {
+        let join_attempt = uuid::Uuid::new_v4();
+        return format!(
+            "https%3A%2F%2Fwww.roblox.com%2Fgame%2FPlaceLauncher.ashx\
+             %3Frequest%3DRequestGameJob\
+             %26browserTrackerId%3D{browser_tracker_id}\
+             %26placeId%3D{place_id}\
+             %26gameId%3D{jid}\
+             %26joinAttemptId%3D{join_attempt}"
+        );
+    }
+
+    let request_type = if link_code.is_some() {
+        "RequestPrivateGame"
+    } else {
+        "RequestGame"
+    };
+    let mut query = format!(
+        "https%3A%2F%2Fassetgame.roblox.com%2Fgame%2FPlaceLauncher.ashx\
+         %3Frequest%3D{request_type}\
+         %26browserTrackerId%3D{browser_tracker_id}\
+         %26placeId%3D{place_id}\
+         %26isPlayTogetherGame%3Dfalse"
+    );
+    if let Some(jid) = job_id {
+        // Only reachable alongside a link code, where the private-server
+        // request already names the server and the job ID is supplementary.
+        query.push_str(&format!("%26gameId%3D{jid}"));
+    }
+    if let Some(ac) = access_code {
+        query.push_str(&format!("%26accessCode%3D{ac}"));
+    } else if let Some(code) = link_code {
+        // Fallback: use linkCode as accessCode for old-format URLs.
+        query.push_str(&format!("%26accessCode%3D{code}"));
+    }
+    if let Some(lc) = link_code {
+        query.push_str(&format!("%26linkCode%3D{lc}"));
+    }
+    query
+}
+
 /// Build the `roblox-player://` URI and open it via the default handler.
 ///
 /// `ticket` — the rbx-authentication-ticket from [`crate::auth::RobloxClient`].
@@ -59,46 +163,31 @@ pub fn clear_roblox_cookies() {
 /// `job_id` — optional server Job ID for joining a specific server.
 /// `link_code` — optional private server link code.
 /// `access_code` — optional UUID access code for private servers.
+/// `launchtime` — the attribution token, from [`next_launchtime`].
+///
+/// `launchtime` is taken rather than minted here on purpose. The caller has to
+/// register it against the account *before* the client can exist, and the only
+/// way to guarantee that ordering is for the caller to hold the number first.
+/// Returning it from this function would leave a window between the spawn and
+/// the registration in which a sweep could see the client and fall back to
+/// guessing at a process RM already knows the answer for.
 pub fn launch_game(
     ticket: &str,
     place_id: u64,
     job_id: Option<&str>,
     link_code: Option<&str>,
     access_code: Option<&str>,
+    launchtime: i64,
 ) -> Result<(), CoreError> {
-    let browser_tracker_id: u64 = rand::random::<u64>() % 1_000_000_000;
-    let timestamp = chrono::Utc::now().timestamp_millis();
-
-    let request_type = if link_code.is_some() {
-        "RequestPrivateGame"
-    } else {
-        "RequestGame"
-    };
-
-    let mut uri = format!(
+    let query = place_launcher_query(place_id, job_id, link_code, access_code);
+    let uri = format!(
         "roblox-player:1+launchmode:play\
          +gameinfo:{ticket}\
-         +launchtime:{timestamp}\
-         +placelauncherurl:https%3A%2F%2Fassetgame.roblox.com%2Fgame%2FPlaceLauncher.ashx\
-         %3Frequest%3D{request_type}\
-         %26browserTrackerId%3D{browser_tracker_id}\
-         %26placeId%3D{place_id}\
-         %26isPlayTogetherGame%3Dfalse"
+         +launchtime:{launchtime}\
+         +placelauncherurl:{query}"
     );
-    if let Some(jid) = job_id {
-        uri.push_str(&format!("%26gameId%3D{jid}"));
-    }
-    if let Some(ac) = access_code {
-        uri.push_str(&format!("%26accessCode%3D{ac}"));
-    } else if let Some(code) = link_code {
-        // Fallback: use linkCode as accessCode for old-format URLs.
-        uri.push_str(&format!("%26accessCode%3D{code}"));
-    }
-    if let Some(lc) = link_code {
-        uri.push_str(&format!("%26linkCode%3D{lc}"));
-    }
 
-    info!("Launching game - place {place_id}");
+    info!("Launching game - place {place_id} (launchtime {launchtime})");
     // Never the raw URI: `gameinfo:` carries a live Roblox authentication
     // ticket, and this line runs under `RUST_LOG=debug` straight into rm.log,
     // which users paste into bug reports. The redacted form still shows how the
@@ -170,6 +259,89 @@ pub fn is_roblox_running() -> bool {
     !roblox_pids().is_empty()
 }
 
+/// Enumerates live Roblox clients and reads each one's `launchtime`, keeping
+/// what it learns so the same process is not read twice.
+///
+/// Reading a command line means `OpenProcess` + `NtQueryInformationProcess` +
+/// three `ReadProcessMemory` calls per client. Cheap once, wasteful every two
+/// seconds forever, so a successful answer is cached.
+///
+/// # Keying
+///
+/// Entries are keyed on `(pid, start_time)`, never the PID alone. Windows
+/// recycles PIDs, and a cache hit on a recycled PID would report the *previous*
+/// process's account. A changed start time is therefore a different process and
+/// gets read afresh.
+///
+/// `start_time` comes from `sysinfo`, which on Windows reads it via
+/// `GetProcessTimes`. It was checked against a live Hyperion-protected client
+/// on the target machine and reports a correct creation time even though the
+/// same `sysinfo` process entry returns an *empty* command line, which is why
+/// the command line itself goes through the native PEB walk instead. There was
+/// no need to call `GetProcessTimes` directly.
+///
+/// Its resolution is one second, so in principle a process that started, died,
+/// and had its PID reissued all inside the same second could hit a stale entry.
+/// The consequence would be one wrong `launchtime` for one client, corrected on
+/// the next sweep after that process exits.
+#[derive(Debug, Default)]
+pub struct LaunchTokenCache {
+    /// Only *successful* reads live here. A read that failed is retried on the
+    /// next sweep: a client's PEB is not always readable the instant it
+    /// appears, and caching that failure would strand the client on the
+    /// inferred path for its whole lifetime.
+    resolved: HashMap<(u32, u64), crate::instances::LaunchToken>,
+}
+
+impl LaunchTokenCache {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Every running Roblox client, with whatever is known about who launched
+    /// it.
+    pub fn scan(&mut self) -> Vec<LiveClient> {
+        use sysinfo::System;
+        let mut sys = System::new();
+        sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+
+        let mut clients = Vec::new();
+        for process in sys.processes().values() {
+            if process.name().to_string_lossy() != ROBLOX_PLAYER_EXE {
+                continue;
+            }
+            let pid = process.pid().as_u32();
+            let key = (pid, process.start_time());
+            let token = match self.resolved.get(&key) {
+                Some(known) => *known,
+                None => {
+                    // Never `sysinfo`'s own `cmd()`: it comes back empty for
+                    // every Roblox client (Hyperion), verified on the target
+                    // machine. Straight to the PEB walk.
+                    let token = classify_cmdline(native_get_cmdline(pid).as_deref());
+                    if token != crate::instances::LaunchToken::Unreadable {
+                        self.resolved.insert(key, token);
+                    }
+                    token
+                }
+            };
+            clients.push(LiveClient {
+                pid,
+                start_time: key.1,
+                token,
+            });
+        }
+
+        // Drop anything that is no longer running, or the map grows for the
+        // life of the session.
+        let live: std::collections::HashSet<(u32, u64)> =
+            clients.iter().map(|c| (c.pid, c.start_time)).collect();
+        self.resolved.retain(|key, _| live.contains(key));
+
+        clients
+    }
+}
+
 /// Count how many Roblox player instances are running.
 pub fn roblox_instance_count() -> usize {
     roblox_pids().len()
@@ -209,27 +381,43 @@ pub fn kill_tray_roblox() -> usize {
         .iter()
         .filter(|(_, p)| p.name().to_string_lossy() == "RobloxPlayerBeta.exe")
         .collect();
-    info!("kill_tray_roblox: found {} Roblox process(es)", roblox.len());
+    // Every 10 seconds for the whole session when the feature is on, so DEBUG.
+    // At INFO this alone was a meaningful share of a 3.7 MB log file.
+    debug!("kill_tray_roblox: found {} Roblox process(es)", roblox.len());
     let targets: Vec<_> = roblox
         .iter()
         .filter(|(_, p)| {
-            let cmd = p.cmd();
-            let args: Vec<String> = cmd.iter().map(|a| a.to_string_lossy().to_string()).collect();
-            info!("  PID {} — cmd len={}, args: {:?}", p.pid(), cmd.len(), args);
+            // Log the *answer*, never the command line. A Roblox client's
+            // command line contains the full launch URI, and that carries a
+            // live `gameinfo:` authentication ticket. This runs at INFO for
+            // anyone with multi-instance or kill-background enabled, so the
+            // old `info!("native cmdline: {cmdline:?}")` here put 1,593
+            // tickets into one user's log file before it was caught. The
+            // scrubbing writer in `ram_ui` does redact them on the way to
+            // disk, but the only line worth writing is whether the flag was
+            // there. Anything that genuinely needs a command line in a log
+            // must pass it through `crate::redact::scrub` first.
+            let args: Vec<String> = p
+                .cmd()
+                .iter()
+                .map(|a| a.to_string_lossy().to_string())
+                .collect();
             if !args.is_empty() {
-                // sysinfo could read the command line — check directly
-                return args.iter().any(|a| a.contains("--launch-to-tray"));
+                // sysinfo could read the command line — check directly.
+                let tray = args.iter().any(|a| a.contains("--launch-to-tray"));
+                debug!("  PID {} — launch-to-tray: {tray} (via sysinfo)", p.pid());
+                return tray;
             }
-            // sysinfo returned empty cmd (protected/elevated process).
-            // Fall back to reading the command line directly from the PEB.
-            let raw_pid = p.pid().as_u32();
-            match native_get_cmdline(raw_pid) {
+            // sysinfo returned an empty cmd, which is what it does for every
+            // Roblox client. Fall back to reading the PEB directly.
+            match native_get_cmdline(p.pid().as_u32()) {
                 Some(cmdline) => {
-                    info!("  PID {} — native cmdline: {:?}", p.pid(), cmdline);
-                    cmdline.contains("--launch-to-tray")
+                    let tray = cmdline.contains("--launch-to-tray");
+                    debug!("  PID {} — launch-to-tray: {tray}", p.pid());
+                    tray
                 }
                 None => {
-                    info!("  PID {} — native cmdline query also failed", p.pid());
+                    debug!("  PID {} — command line unreadable", p.pid());
                     false
                 }
             }
@@ -283,11 +471,40 @@ pub fn kill_tray_roblox() -> usize {
 /// Works without admin privileges for same-user processes.
 #[cfg(windows)]
 fn native_get_cmdline(pid: u32) -> Option<String> {
-    use std::mem::{size_of, zeroed};
-    use windows_sys::Win32::Foundation::{CloseHandle, FALSE, HANDLE};
+    use windows_sys::Win32::Foundation::{CloseHandle, FALSE};
     use windows_sys::Win32::System::Threading::{
         OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
     };
+
+    let handle =
+        unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid) };
+    if handle.is_null() {
+        debug!("  native_get_cmdline: OpenProcess failed for PID {pid}");
+        return None;
+    }
+    let result = unsafe { read_cmdline_from_handle(handle) };
+    unsafe { CloseHandle(handle) };
+    result
+}
+
+/// The PEB walk itself, against a handle the caller already holds.
+///
+/// Split out from [`native_get_cmdline`] so that a caller about to *act* on a
+/// process can check and act through one handle. A handle names one specific
+/// process object for as long as it is open, so nothing can slip a recycled PID
+/// in between the check and the kill. Re-opening by PID would leave exactly
+/// that gap, which is the difference between a hint and a guarantee.
+///
+/// # Safety
+///
+/// `handle` must be a live process handle opened with at least
+/// `PROCESS_QUERY_INFORMATION | PROCESS_VM_READ`.
+#[cfg(windows)]
+unsafe fn read_cmdline_from_handle(
+    handle: windows_sys::Win32::Foundation::HANDLE,
+) -> Option<String> {
+    use std::mem::{size_of, zeroed};
+    use windows_sys::Win32::Foundation::{FALSE, HANDLE};
     use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 
     // NtQueryInformationProcess is not in windows-sys, so we load it from ntdll.
@@ -324,16 +541,7 @@ fn native_get_cmdline(pid: u32) -> Option<String> {
     };
     let nt_query: NtQueryInformationProcessFn = unsafe { std::mem::transmute(fn_ptr?) };
 
-    // Open the target process
-    let handle = unsafe {
-        OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid)
-    };
-    if handle.is_null() {
-        info!("  native_get_cmdline: OpenProcess failed for PID {pid}");
-        return None;
-    }
-
-    let result = (|| -> Option<String> {
+    (|| -> Option<String> {
         // Step 1: Get the PEB address via NtQueryInformationProcess
         let mut pbi: ProcessBasicInformation = unsafe { zeroed() };
         let status = unsafe {
@@ -346,7 +554,7 @@ fn native_get_cmdline(pid: u32) -> Option<String> {
             )
         };
         if status != 0 {
-            info!("  native_get_cmdline: NtQueryInformationProcess failed: 0x{status:08x}");
+            debug!("  native_get_cmdline: NtQueryInformationProcess failed: 0x{status:08x}");
             return None;
         }
 
@@ -366,7 +574,7 @@ fn native_get_cmdline(pid: u32) -> Option<String> {
             )
         };
         if ok == FALSE || bytes_read != size_of::<usize>() {
-            info!("  native_get_cmdline: ReadProcessMemory (PEB) failed");
+            debug!("  native_get_cmdline: ReadProcessMemory (PEB) failed");
             return None;
         }
 
@@ -401,7 +609,7 @@ fn native_get_cmdline(pid: u32) -> Option<String> {
             )
         };
         if ok == FALSE || bytes_read != us_size {
-            info!("  native_get_cmdline: ReadProcessMemory (UNICODE_STRING) failed");
+            debug!("  native_get_cmdline: ReadProcessMemory (UNICODE_STRING) failed");
             return None;
         }
 
@@ -422,15 +630,337 @@ fn native_get_cmdline(pid: u32) -> Option<String> {
             )
         };
         if ok == FALSE {
-            info!("  native_get_cmdline: ReadProcessMemory (string data) failed");
+            debug!("  native_get_cmdline: ReadProcessMemory (string data) failed");
             return None;
         }
 
         Some(String::from_utf16_lossy(&buf))
+    })()
+}
+
+// ---------------------------------------------------------------------------
+// Per-account actions — kill and focus one attributed client
+// ---------------------------------------------------------------------------
+
+/// Terminate one Roblox client, but only after proving it is still the client
+/// RM attributed to this account.
+///
+/// The PID-to-account map is a hint. It is refreshed every couple of seconds,
+/// which means there is always a window in which the process it names has
+/// exited and Windows has handed the number to something else. Killing on the
+/// strength of the map alone would eventually kill the wrong process, and the
+/// wrong process could be anything on the machine.
+///
+/// So the map is not what authorises the kill. This is:
+///
+/// 1. Open the process once, for query, read, **and** terminate. Everything
+///    below happens through that one handle, which pins the process object, so
+///    there is no gap between deciding and acting.
+/// 2. Confirm the image is really `RobloxPlayerBeta.exe`.
+/// 3. Read the command line and confirm it carries `expected_launchtime`, the
+///    token RM minted for this account's launch.
+/// 4. Only then terminate.
+///
+/// Any failure returns an error naming what did not line up, and kills nothing.
+/// Note that step 3 cannot pass for an [`crate::instances::Attribution::Inferred`]
+/// mapping whose command line was never readable in the first place, which is
+/// the intended outcome: RM does not kill on a guess.
+#[cfg(windows)]
+pub fn kill_verified_instance(pid: u32, expected_launchtime: i64) -> Result<(), CoreError> {
+    use windows_sys::Win32::Foundation::{CloseHandle, FALSE};
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, TerminateProcess, PROCESS_QUERY_INFORMATION,
+        PROCESS_TERMINATE, PROCESS_VM_READ,
+    };
+
+    let handle = unsafe {
+        OpenProcess(
+            PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_TERMINATE,
+            FALSE,
+            pid,
+        )
+    };
+    if handle.is_null() {
+        return Err(CoreError::Process(format!(
+            "Could not open PID {pid}. It has probably already exited."
+        )));
+    }
+
+    // Everything from here runs through `handle`, so bail out via this closure
+    // rather than returning directly: the handle has to be closed either way.
+    let verdict = (|| -> Result<(), CoreError> {
+        let mut buf = [0u16; 260];
+        let mut len: u32 = buf.len() as u32;
+        let ok = unsafe { QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut len) };
+        if ok == 0 {
+            return Err(CoreError::Process(format!(
+                "Could not identify PID {pid}. Nothing was killed."
+            )));
+        }
+        let image = String::from_utf16_lossy(&buf[..len as usize]);
+        let is_client = image
+            .rsplit(['\\', '/'])
+            .next()
+            .is_some_and(|name| name.eq_ignore_ascii_case(ROBLOX_PLAYER_EXE));
+        if !is_client {
+            return Err(CoreError::Process(format!(
+                "PID {pid} is not a Roblox client any more. Nothing was killed."
+            )));
+        }
+
+        let Some(cmdline) = (unsafe { read_cmdline_from_handle(handle) }) else {
+            return Err(CoreError::Process(format!(
+                "Could not read PID {pid} to confirm which account it belongs to. \
+                 Nothing was killed."
+            )));
+        };
+        match crate::instances::parse_launchtime(&cmdline) {
+            Some(found) if found == expected_launchtime => {}
+            Some(_) => {
+                return Err(CoreError::Process(format!(
+                    "PID {pid} belongs to a different launch than the one recorded \
+                     for this account. Nothing was killed."
+                )))
+            }
+            None => {
+                return Err(CoreError::Process(format!(
+                    "PID {pid} carries no RM launch token, so it was not started by \
+                     this account. Nothing was killed."
+                )))
+            }
+        }
+
+        if unsafe { TerminateProcess(handle, 1) } == 0 {
+            return Err(CoreError::Process(format!(
+                "Windows refused to terminate PID {pid}."
+            )));
+        }
+        Ok(())
     })();
 
     unsafe { CloseHandle(handle) };
-    result
+    if verdict.is_ok() {
+        info!("Killed verified Roblox client PID {pid}");
+    }
+    verdict
+}
+
+#[cfg(not(windows))]
+pub fn kill_verified_instance(_pid: u32, _expected_launchtime: i64) -> Result<(), CoreError> {
+    Err(CoreError::Process(
+        "per-account kill is only supported on Windows".into(),
+    ))
+}
+
+/// Every visible, titled top-level window belonging to one of `pids`.
+///
+/// Shared by focus and retitling so both agree on what "the client's window"
+/// means. The visible-and-titled filter is the same one `arrange_roblox_windows`
+/// uses, and it is what skips Roblox's invisible helper windows.
+#[cfg(windows)]
+fn windows_for_pids(
+    pids: &std::collections::HashSet<u32>,
+) -> Vec<(windows_sys::Win32::Foundation::HWND, u32)> {
+    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, TRUE};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetWindowTextLengthW, GetWindowThreadProcessId, IsWindowVisible,
+    };
+
+    struct EnumState<'a> {
+        pids: &'a std::collections::HashSet<u32>,
+        found: Vec<(HWND, u32)>,
+    }
+
+    unsafe extern "system" fn callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let state = &mut *(lparam as *mut EnumState);
+        if IsWindowVisible(hwnd) == 0 {
+            return TRUE;
+        }
+        let mut pid: u32 = 0;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        if !state.pids.contains(&pid) {
+            return TRUE;
+        }
+        if GetWindowTextLengthW(hwnd) > 0 {
+            state.found.push((hwnd, pid));
+        }
+        TRUE
+    }
+
+    let mut state = EnumState {
+        pids,
+        found: Vec::new(),
+    };
+    unsafe {
+        EnumWindows(Some(callback), &mut state as *mut EnumState as LPARAM);
+    }
+    state.found
+}
+
+/// Bring one client's window to the front.
+///
+/// `SetForegroundWindow` is not a request Windows always honours. It succeeds
+/// when the calling process already owns the foreground window, which is the
+/// case here because the user just clicked a menu item in RM, and that is why
+/// this is called straight from the UI thread rather than queued to the backend.
+/// If it is refused anyway, the fallback attaches RM's input queue to the
+/// target's for the duration of the call, which is the standard way to borrow
+/// the foreground right.
+///
+/// Returns false when the client has no visible window, or when Windows refused
+/// both attempts. Callers should say so rather than pretending it worked.
+#[cfg(windows)]
+pub fn focus_instance(pid: u32) -> bool {
+    use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, IsIconic,
+        SetForegroundWindow, ShowWindow, SW_RESTORE,
+    };
+
+    let pids: std::collections::HashSet<u32> = std::iter::once(pid).collect();
+    let Some(&(hwnd, _)) = windows_for_pids(&pids).first() else {
+        debug!("focus_instance: PID {pid} has no visible window");
+        return false;
+    };
+
+    unsafe {
+        // A minimized window will not come forward on its own.
+        if IsIconic(hwnd) != 0 {
+            ShowWindow(hwnd, SW_RESTORE);
+        }
+        if SetForegroundWindow(hwnd) != 0 {
+            return true;
+        }
+
+        // Refused. Borrow the foreground thread's input state and try again.
+        let foreground = GetForegroundWindow();
+        if foreground.is_null() {
+            return false;
+        }
+        let target_thread = GetWindowThreadProcessId(foreground, std::ptr::null_mut());
+        let our_thread = GetCurrentThreadId();
+        if target_thread == 0 || target_thread == our_thread {
+            return false;
+        }
+        AttachThreadInput(our_thread, target_thread, 1);
+        BringWindowToTop(hwnd);
+        let ok = SetForegroundWindow(hwnd) != 0;
+        SetFocus(hwnd);
+        AttachThreadInput(our_thread, target_thread, 0);
+        ok
+    }
+}
+
+#[cfg(not(windows))]
+pub fn focus_instance(_pid: u32) -> bool {
+    false
+}
+
+/// Retitle each client's window so tiled clients are tellable apart.
+///
+/// Roblox rewrites its own title as it loads (it starts as "Roblox" and becomes
+/// the place name), so this is called again on every sweep. It is cheap to
+/// repeat because it reads the current title first and only calls
+/// `SetWindowTextW` when it actually differs, so the steady state is one
+/// `GetWindowTextW` per client every couple of seconds and no writes at all.
+/// That is what keeps "reapply on sweep" from being a busy loop.
+///
+/// Returns `(pid, title_that_was_there)` for every window actually rewritten,
+/// so the caller can put the original back when the feature is turned off.
+///
+/// That return value is also how the caller keeps its idea of the original
+/// *fresh*. Roblox rewrites its own title as it loads, so the first thing we
+/// displace is usually the placeholder "Roblox" rather than the place name the
+/// user would expect to see restored. Every later rewrite by Roblox shows up
+/// here as another prior title, so a caller that keeps the most recent one ends
+/// up holding Roblox's latest intent rather than whatever happened to be there
+/// the first time we looked.
+///
+/// The caller decides what the titles say, which is deliberate: honouring
+/// `anonymize_names` needs the account list, and a window title is readable by
+/// every process on the machine and shows up in screenshots and screen shares.
+#[cfg(windows)]
+pub fn apply_instance_titles(titles: &[(u32, String)]) -> Vec<(u32, String)> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::SetWindowTextW;
+
+    if titles.is_empty() {
+        return Vec::new();
+    }
+    let wanted: HashMap<u32, &str> = titles
+        .iter()
+        .map(|(pid, title)| (*pid, title.as_str()))
+        .collect();
+    let pids: std::collections::HashSet<u32> = wanted.keys().copied().collect();
+
+    let mut displaced = Vec::new();
+    for (hwnd, pid) in windows_for_pids(&pids) {
+        let Some(&want) = wanted.get(&pid) else {
+            continue;
+        };
+        let current = window_title(hwnd);
+        if current == want {
+            continue;
+        }
+        let wide: Vec<u16> = want.encode_utf16().chain(std::iter::once(0)).collect();
+        if unsafe { SetWindowTextW(hwnd, wide.as_ptr()) } != 0 {
+            displaced.push((pid, current));
+        }
+    }
+    displaced
+}
+
+#[cfg(not(windows))]
+pub fn apply_instance_titles(_titles: &[(u32, String)]) -> Vec<(u32, String)> {
+    Vec::new()
+}
+
+/// Put back the titles RM displaced, for when the feature is switched off or
+/// RM is closing. Best effort: a client that has since exited is skipped, and
+/// so is one whose title no longer matches anything we know about.
+///
+/// Returns how many were restored.
+#[cfg(windows)]
+pub fn restore_instance_titles(originals: &[(u32, String)]) -> usize {
+    use windows_sys::Win32::UI::WindowsAndMessaging::SetWindowTextW;
+
+    if originals.is_empty() {
+        return 0;
+    }
+    let wanted: HashMap<u32, &str> = originals
+        .iter()
+        .map(|(pid, title)| (*pid, title.as_str()))
+        .collect();
+    let pids: std::collections::HashSet<u32> = wanted.keys().copied().collect();
+
+    let mut restored = 0usize;
+    for (hwnd, pid) in windows_for_pids(&pids) {
+        let Some(&want) = wanted.get(&pid) else {
+            continue;
+        };
+        if window_title(hwnd) == want {
+            continue;
+        }
+        let wide: Vec<u16> = want.encode_utf16().chain(std::iter::once(0)).collect();
+        if unsafe { SetWindowTextW(hwnd, wide.as_ptr()) } != 0 {
+            restored += 1;
+        }
+    }
+    restored
+}
+
+#[cfg(not(windows))]
+pub fn restore_instance_titles(_originals: &[(u32, String)]) -> usize {
+    0
+}
+
+/// Read one window's title.
+#[cfg(windows)]
+fn window_title(hwnd: windows_sys::Win32::Foundation::HWND) -> String {
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowTextW;
+    let mut buf = [0u16; 256];
+    let len = unsafe { GetWindowTextW(hwnd, buf.as_mut_ptr(), buf.len() as i32) };
+    String::from_utf16_lossy(&buf[..len.max(0) as usize])
 }
 
 // ---------------------------------------------------------------------------
@@ -663,4 +1193,166 @@ pub fn arrange_roblox_windows() {
 #[cfg(not(windows))]
 pub fn arrange_roblox_windows() {
     info!("Window arrangement is only supported on Windows");
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // Attribution token
+    // -----------------------------------------------------------------------
+
+    /// The property the whole of `crate::instances` rests on. A bulk launch
+    /// issues these back to back, well inside one millisecond, and two launches
+    /// sharing a token would attribute one account's client to another with
+    /// full confidence.
+    #[test]
+    fn launch_tokens_are_unique_and_increasing() {
+        let tokens: Vec<i64> = (0..1_000).map(|_| next_launchtime()).collect();
+        assert!(
+            tokens.windows(2).all(|w| w[0] < w[1]),
+            "tokens must strictly increase"
+        );
+        let mut deduped = tokens.clone();
+        deduped.sort_unstable();
+        deduped.dedup();
+        assert_eq!(deduped.len(), tokens.len(), "duplicate token issued");
+    }
+
+    /// It is still a timestamp, not a counter from zero: the value has to be
+    /// plausible as `launchtime` to Roblox and readable as a time by a human
+    /// reading a log.
+    #[test]
+    fn a_launch_token_is_a_millisecond_timestamp() {
+        let now = chrono::Utc::now().timestamp_millis();
+        let token = next_launchtime();
+        // Within a second either way of the wall clock. Other tests in this
+        // module may have nudged the counter past `now` by a few units.
+        assert!((token - now).abs() < 1_000, "token {token} vs now {now}");
+    }
+
+    // -----------------------------------------------------------------------
+    // Launch URI
+    // -----------------------------------------------------------------------
+
+    /// A plain place launch is byte-for-byte the shape RM has always sent, and
+    /// the only shape every captured RM launch used. Pinned so the job-ID work
+    /// cannot quietly change it.
+    #[test]
+    fn a_plain_launch_still_uses_the_request_game_form() {
+        let query = place_launcher_query(606, None, None, None);
+        assert!(query.contains("assetgame.roblox.com"), "{query}");
+        assert!(query.contains("%3Frequest%3DRequestGame%26"), "{query}");
+        assert!(query.contains("%26placeId%3D606"), "{query}");
+        assert!(query.contains("%26isPlayTogetherGame%3Dfalse"), "{query}");
+        assert!(!query.contains("gameId"), "{query}");
+        assert!(!query.contains("joinAttemptId"), "{query}");
+    }
+
+    /// Joining a specific server uses `RequestGameJob`, which is what the
+    /// Roblox web client itself emits. The previous `RequestGame` + `gameId`
+    /// form appears in no captured launch from any client, RM's included.
+    #[test]
+    fn a_job_launch_uses_the_request_game_job_form() {
+        let job = "f196c5f0-f601-4244-a620-39dc62807f1c";
+        let query = place_launcher_query(4_282_985_734, Some(job), None, None);
+
+        assert!(query.contains("www.roblox.com"), "{query}");
+        assert!(query.contains("%3Frequest%3DRequestGameJob%26"), "{query}");
+        assert!(query.contains("%26placeId%3D4282985734"), "{query}");
+        assert!(query.contains(&format!("%26gameId%3D{job}")), "{query}");
+        assert!(query.contains("%26joinAttemptId%3D"), "{query}");
+        // The job form does not carry this, and adding it would be inventing
+        // a shape rather than copying an observed one.
+        assert!(!query.contains("isPlayTogetherGame"), "{query}");
+    }
+
+    /// Every job launch gets its own attempt ID, the way a fresh page load
+    /// would.
+    #[test]
+    fn each_job_launch_gets_a_fresh_join_attempt_id() {
+        let job = Some("f196c5f0-f601-4244-a620-39dc62807f1c");
+        assert_ne!(
+            place_launcher_query(1, job, None, None),
+            place_launcher_query(1, job, None, None)
+        );
+    }
+
+    /// Private servers are unchanged, including the case where a job ID rides
+    /// along with the link code.
+    #[test]
+    fn a_private_server_launch_is_unchanged() {
+        let query = place_launcher_query(606, None, Some("LINK"), Some("ACCESS"));
+        assert!(query.contains("assetgame.roblox.com"), "{query}");
+        assert!(query.contains("%3Frequest%3DRequestPrivateGame%26"), "{query}");
+        assert!(query.contains("%26accessCode%3DACCESS"), "{query}");
+        assert!(query.contains("%26linkCode%3DLINK"), "{query}");
+        assert!(!query.contains("RequestGameJob"), "{query}");
+    }
+
+    #[test]
+    fn a_private_server_falls_back_to_the_link_code_as_access_code() {
+        let query = place_launcher_query(606, None, Some("LINK"), None);
+        assert!(query.contains("%26accessCode%3DLINK"), "{query}");
+    }
+
+    /// A job ID alongside a link code must stay on the private-server request,
+    /// not get promoted to the job form.
+    #[test]
+    fn a_private_server_with_a_job_id_stays_a_private_request() {
+        let query = place_launcher_query(606, Some("JOB"), Some("LINK"), None);
+        assert!(query.contains("%3Frequest%3DRequestPrivateGame%26"), "{query}");
+        assert!(query.contains("%26gameId%3DJOB"), "{query}");
+    }
+
+    // -----------------------------------------------------------------------
+    // Attribution round trip
+    // -----------------------------------------------------------------------
+
+    /// The end-to-end property, minus the actual spawn: the token RM stamps
+    /// into the URI is the token a reader pulls back out of the command line
+    /// the URI becomes. If this breaks, every attribution silently degrades to
+    /// the fallback.
+    #[test]
+    fn the_stamped_token_is_the_one_read_back() {
+        let launchtime = next_launchtime();
+        let query = place_launcher_query(606, None, None, None);
+        let uri = format!(
+            "roblox-player:1+launchmode:play\
+             +gameinfo:A-TICKET\
+             +launchtime:{launchtime}\
+             +placelauncherurl:{query}"
+        );
+        // Roughly how Windows presents it on the client's command line.
+        let cmdline = format!(r#""C:\Roblox\RobloxPlayerBeta.exe" {uri}"#);
+
+        assert_eq!(
+            crate::instances::parse_launchtime(&cmdline),
+            Some(launchtime)
+        );
+        assert_eq!(
+            crate::instances::classify_cmdline(Some(&cmdline)),
+            crate::instances::LaunchToken::Found(launchtime)
+        );
+    }
+
+    /// The launch URI carries a live authentication ticket, and it reaches the
+    /// log through `debug!`. The scrubber has to catch it in the exact shape
+    /// this module builds, not just in the shape its own tests use.
+    #[test]
+    fn the_ticket_is_scrubbed_out_of_the_uri_this_module_builds() {
+        let query = place_launcher_query(606, None, None, None);
+        let uri = format!(
+            "roblox-player:1+launchmode:play+gameinfo:LIVE-TICKET-VALUE\
+             +launchtime:1700000000000+placelauncherurl:{query}"
+        );
+        let scrubbed = crate::redact::scrub(&uri);
+        assert!(!scrubbed.contains("LIVE-TICKET-VALUE"), "{scrubbed}");
+        assert!(scrubbed.contains("gameinfo:<redacted>"), "{scrubbed}");
+        // The rest still has to be readable or there is no point logging it.
+        assert!(scrubbed.contains("launchtime:1700000000000"), "{scrubbed}");
+        assert!(scrubbed.contains("placeId%3D606"), "{scrubbed}");
+    }
 }
