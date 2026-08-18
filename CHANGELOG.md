@@ -3,6 +3,10 @@
 ## v1.9.0
 
 ### Added
+- **Pinned accounts.** Pin accounts from the sidebar so they stay at the top in every sort mode. The pin uses one icon whose color changes between muted and active states.
+- **Per-account Roblox player paths.** Set a custom player executable for one account or a selection of accounts from the expanded `...` menu. Custom paths are stored in normal settings and override the global Settings path.
+- **Account metadata.** The expanded account panel now shows the effective player path, Roblox account creation date, and account age in years, months, days, and hours.
+- **Groups tab.** Added an empty Groups tab as the starting point for group management improvements.
 - **Right-click an account to kill or focus its client.** Killing used to be all or nothing. RM re-checks the process is really that account's client before it terminates anything.
 - **Join the server another account is in.** Right-click an account, pick one that is currently in a game, and it launches straight into that server.
 - **Optional window naming.** Roblox windows can be named after their account so tiled clients are tellable apart. Off by default, in Settings. Unticking it puts the original titles back.
