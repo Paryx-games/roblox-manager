@@ -2165,12 +2165,29 @@ impl AppState {
                                 .push(Toast::error("Unlock the store before managing groups."));
                             return;
                         };
-                        let accounts = selected_accounts
+                        let accounts: Vec<(u64, Option<String>)> = selected_accounts
                             .iter()
+                            .filter(|account| {
+                                let joined = self
+                                    .groups_state
+                                    .memberships
+                                    .iter()
+                                    .find(|membership| membership.user_id == account.user_id)
+                                    .is_some_and(|membership| membership.joined);
+                                joined != join
+                            })
                             .map(|account| (account.user_id, account.encrypted_cookie.clone()))
                             .collect();
+                        if accounts.is_empty() {
+                            self.toasts.push(Toast::info(if join {
+                                "All selected accounts are already in the group."
+                            } else {
+                                "None of the selected accounts are in the group."
+                            }));
+                            return;
+                        }
                         self.groups_state.action_in_flight = true;
-                        self.groups_state.pending_actions = selected_accounts.len();
+                        self.groups_state.pending_actions = accounts.len();
                         self.bridge.send(BackendCommand::ChangeGroupMembership {
                             group_id,
                             join,

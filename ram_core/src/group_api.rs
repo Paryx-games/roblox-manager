@@ -170,7 +170,8 @@ pub async fn change_membership(
     } else {
         format!("https://groups.roblox.com/v1/groups/{group_id}/users/{user_id}")
     };
-    let response = client.request(method, &url, cookie, None).await?;
+    let body = serde_json::json!({});
+    let response = client.request(method, &url, cookie, Some(&body)).await?;
     if response.status().is_success() {
         Ok(())
     } else {
@@ -192,13 +193,16 @@ async fn get_value(client: &RobloxClient, url: &str) -> Result<Value, CoreError>
 }
 
 fn value_string(value: &Value, key: &str) -> Option<String> {
-    value.get(key).and_then(Value::as_str).map(ToOwned::to_owned)
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned)
 }
 
 fn value_u64(value: &Value, key: &str) -> Option<u64> {
-    value.get(key).and_then(|value| {
-        value.as_u64().or_else(|| value.as_str()?.parse().ok())
-    })
+    value
+        .get(key)
+        .and_then(|value| value.as_u64().or_else(|| value.as_str()?.parse().ok()))
 }
 
 fn value_bool(value: &Value, key: &str) -> Option<bool> {

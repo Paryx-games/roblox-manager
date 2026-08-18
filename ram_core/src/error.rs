@@ -24,6 +24,10 @@ pub enum CoreError {
     #[error("Cookie rejected by Roblox (403, no CSRF challenge)")]
     CookieRejected,
 
+    /// A 403 without a CSRF challenge, retaining Roblox's response reason.
+    #[error("Roblox rejected the request (403, no CSRF challenge): {0}")]
+    CookieRejectedWithReason(String),
+
     #[error("Rate limited by Roblox. Retry after backoff.")]
     RateLimited,
 

@@ -265,7 +265,11 @@ impl RobloxClient {
                         // The cookie is revoked or Roblox wants a challenge
                         // solved. Reporting it as a CSRF failure sent users
                         // chasing the wrong bug.
-                        return Err(CoreError::CookieRejected);
+                        let reason = resp.text().await.unwrap_or_default();
+                        if reason.trim().is_empty() {
+                            return Err(CoreError::CookieRejected);
+                        }
+                        return Err(CoreError::CookieRejectedWithReason(reason));
                     };
 
                     {
