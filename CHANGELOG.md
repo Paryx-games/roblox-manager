@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.10.0
+
+### Added
+- **Account Age sorting.** Sort accounts by Roblox account age from youngest to oldest or oldest to youngest.
+- **Sortable direction control.** Name and Account Age sorting now support ascending and descending directions. The direction control is disabled for Custom and Status sorting, where it does not apply.
+- **Groups workspace.** Enter a Roblox group ID to view its icon, title, description, owner, verification state, member count, current announcement, and recent wall posts.
+- **Selected-account group membership.** From the Groups tab, inspect each selected account's role and join or leave the loaded group for all selected accounts. Actions run through the account's authenticated session and report each result separately.
+
+### Changed
+- Sort mode and sort direction are persisted in settings and restored when RM starts.
+- Pinned accounts remain above all other accounts regardless of the selected sort mode or direction.
+
 ## v1.9.0
 
 ### Added
