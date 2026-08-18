@@ -19,7 +19,20 @@ pub struct GroupInfo {
     pub public_entry_allowed: bool,
     #[serde(default)]
     pub has_verified_badge: bool,
+    pub has_social_modules: bool,
+    pub community_tier: Option<u8>,
+    pub created: Option<DateTime<Utc>>,
+    pub shout: Option<GroupShout>,
     pub owner: Option<GroupOwner>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupSearchResult {
+    pub id: u64,
+    pub name: String,
+    pub description: String,
+    pub member_count: u64,
+    pub has_verified_badge: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -79,8 +92,48 @@ pub async fn fetch_group(client: &RobloxClient, group_id: u64) -> Result<GroupIn
         member_count: value_u64(&value, "memberCount").unwrap_or_default(),
         public_entry_allowed: value_bool(&value, "publicEntryAllowed").unwrap_or(false),
         has_verified_badge: value_bool(&value, "hasVerifiedBadge").unwrap_or(false),
+        has_social_modules: value_bool(&value, "hasSocialModules").unwrap_or(false),
+        community_tier: value
+            .get("communityTier")
+            .and_then(|tier| value_u64(tier, "currentTier"))
+            .map(|tier| tier as u8),
+        created: parse_date(value.get("created")),
+        shout: value.get("shout").and_then(parse_shout),
         owner,
     })
+}
+
+pub async fn search_groups(
+    client: &RobloxClient,
+    keyword: &str,
+) -> Result<Vec<GroupSearchResult>, CoreError> {
+    let mut url = reqwest::Url::parse("https://groups.roblox.com/v1/groups/search")
+        .map_err(|error| CoreError::RobloxApi {
+            status: 0,
+            message: error.to_string(),
+        })?;
+    url.query_pairs_mut()
+        .append_pair("keyword", keyword.trim())
+        .append_pair("limit", "10");
+    let value = get_value(client, url.as_str()).await?;
+    Ok(value
+        .get("data")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    Some(GroupSearchResult {
+                        id: value_u64(item, "id")?,
+                        name: value_string(item, "name")?,
+                        description: value_string(item, "description").unwrap_or_default(),
+                        member_count: value_u64(item, "memberCount").unwrap_or_default(),
+                        has_verified_badge: value_bool(item, "hasVerifiedBadge").unwrap_or(false),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default())
 }
 
 pub async fn fetch_group_icon(
@@ -105,16 +158,6 @@ pub async fn fetch_group_icon(
         return Ok(None);
     };
     Ok(Some(client.get_bytes(&url, "").await?))
-}
-
-pub async fn fetch_group_shout(
-    client: &RobloxClient,
-    group_id: u64,
-) -> Result<Option<GroupShout>, CoreError> {
-    let url = format!("https://groups.roblox.com/v1/groups/{group_id}/status");
-    let value = get_value(client, &url).await?;
-    let shout = parse_shout(&value);
-    Ok(shout.filter(|shout| !shout.body.trim().is_empty()))
 }
 
 pub async fn fetch_group_announcements(
@@ -211,7 +254,7 @@ fn value_bool(value: &Value, key: &str) -> Option<bool> {
 
 fn parse_owner(value: &Value) -> Option<GroupOwner> {
     Some(GroupOwner {
-        id: value_u64(value, "id")?,
+        id: value_u64(value, "id").or_else(|| value_u64(value, "userId"))?,
         username: value_string(value, "username").unwrap_or_default(),
         display_name: value_string(value, "displayName").unwrap_or_default(),
     })

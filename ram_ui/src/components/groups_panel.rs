@@ -2,13 +2,16 @@
 
 use eframe::egui;
 use egui::Widget;
-use ram_core::group_api::{GroupAnnouncement, GroupInfo, GroupMembership, GroupShout};
+use ram_core::group_api::{
+    GroupAnnouncement, GroupInfo, GroupMembership, GroupSearchResult, GroupShout,
+};
 use ram_core::models::Account;
 
 use crate::theme::ThemeUi;
 
 pub enum GroupsPanelAction {
     Load { group_id: u64 },
+    Search { keyword: String },
     Join,
     Leave,
     OpenGroupPage,
@@ -17,6 +20,8 @@ pub enum GroupsPanelAction {
 #[derive(Default)]
 pub struct GroupsPanelState {
     pub group_id_input: String,
+    pub search_input: String,
+    pub search_results: Vec<GroupSearchResult>,
     pub loaded_group_id: Option<u64>,
     pub group: Option<GroupInfo>,
     pub icon_bytes: Option<Vec<u8>>,
@@ -26,6 +31,7 @@ pub struct GroupsPanelState {
     pub loading: bool,
     pub action_in_flight: bool,
     pub pending_actions: usize,
+    pub challenge_user_id: Option<u64>,
     pub error: Option<String>,
 }
 
@@ -86,6 +92,54 @@ pub fn show(
             }
         });
 
+        section_frame.show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.label("Search groups");
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.search_input)
+                        .hint_text("Search by group name")
+                        .desired_width(220.0),
+                );
+                if ui
+                    .add_enabled(!state.loading, egui::Button::new("Search"))
+                    .clicked()
+                {
+                    if state.search_input.trim().is_empty() {
+                        state.error = Some("Enter a group name to search.".to_string());
+                    } else {
+                        action = Some(GroupsPanelAction::Search {
+                            keyword: state.search_input.trim().to_string(),
+                        });
+                    }
+                }
+            });
+            for result in &state.search_results {
+                if ui
+                    .selectable_label(
+                        false,
+                        format!(
+                            "{}  ·  {} members{}",
+                            result.name,
+                            result.member_count,
+                            if result.has_verified_badge { "  · Verified" } else { "" }
+                        ),
+                    )
+                    .clicked()
+                {
+                    state.group_id_input = result.id.to_string();
+                    action = Some(GroupsPanelAction::Load { group_id: result.id });
+                }
+                if !result.description.is_empty() {
+                    ui.label(
+                        egui::RichText::new(&result.description)
+                            .small()
+                            .color(ui.visuals().weak_text_color()),
+                    );
+                }
+            }
+        });
+
         let Some(group) = state.group.as_ref() else {
             ui.add_space(10.0);
             section_frame.show(ui, |ui| {
@@ -123,6 +177,20 @@ pub fn show(
                     ui.heading(&group.name);
                     ui.label(format!("Group ID: {}", group.id));
                     ui.label(format!("{} members", group.member_count));
+                    if let Some(tier) = group.community_tier {
+                        ui.label(format!("Community tier: {tier}"));
+                    }
+                    ui.label(if group.public_entry_allowed {
+                        "Public entry allowed"
+                    } else {
+                        "Public entry restricted"
+                    });
+                    if group.has_social_modules {
+                        ui.label("Social links enabled");
+                    }
+                    if let Some(created) = group.created {
+                        ui.label(format!("Created: {}", created.format("%Y-%m-%d")));
+                    }
                     if let Some(owner) = &group.owner {
                         ui.label(format!("Owner: {}", owner.display_name_or_username()));
                     }
@@ -213,7 +281,9 @@ pub fn show(
             ui.add_space(4.0);
             if state.announcements.is_empty() {
                 ui.label(
-                    egui::RichText::new("No recent posts were returned for this group.")
+                    egui::RichText::new(
+                        "Wall posts are not available through Roblox's current public group API.",
+                    )
                         .color(ui.visuals().weak_text_color()),
                 );
             } else {

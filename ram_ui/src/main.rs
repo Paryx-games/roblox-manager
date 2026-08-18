@@ -301,7 +301,16 @@ fn main() {
         let profile_dir = PathBuf::from(&args[2]);
         let cookie_in = PathBuf::from(&args[3]);
         let label = args.get(4).cloned().unwrap_or_default();
-        let code = browser_login::run_browse_as_child(profile_dir, cookie_in, label);
+        let code = if let Some(destination_url) = args.get(5) {
+            browser_login::run_browse_as_child_to(
+                profile_dir,
+                cookie_in,
+                label,
+                destination_url.clone(),
+            )
+        } else {
+            browser_login::run_browse_as_child(profile_dir, cookie_in, label)
+        };
         std::process::exit(code);
     }
 

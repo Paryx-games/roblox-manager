@@ -1378,6 +1378,10 @@ impl AppState {
                     self.groups_state.loading = false;
                     self.groups_state.error = None;
                 }
+                BackendEvent::GroupsSearched(groups) => {
+                    self.groups_state.search_results = groups;
+                    self.groups_state.loading = false;
+                }
                 BackendEvent::GroupMembershipChanged {
                     user_id,
                     join,
@@ -1417,6 +1421,7 @@ impl AppState {
                         ))),
                     }
                     if challenge_required {
+                        self.groups_state.challenge_user_id = Some(user_id);
                         self.groups_state.error = Some(
                             "Roblox requires an interactive security challenge for this action. Complete it on the group page, then retry membership changes."
                                 .to_string(),
@@ -1788,6 +1793,7 @@ impl AppState {
             use_credential_manager: self.config.use_credential_manager,
             profile_dir,
             label,
+            destination_url: None,
         });
     }
 
@@ -2153,6 +2159,10 @@ impl AppState {
             if let Some(action) = groups_panel::show(ui, &mut self.groups_state, &selected_accounts)
             {
                 match action {
+                    groups_panel::GroupsPanelAction::Search { keyword } => {
+                        self.groups_state.loading = true;
+                        self.bridge.send(BackendCommand::SearchGroups { keyword });
+                    }
                     groups_panel::GroupsPanelAction::Load { group_id } => {
                         self.groups_state.loading = true;
                         self.groups_state.error = None;
@@ -2207,10 +2217,32 @@ impl AppState {
                         });
                     }
                     groups_panel::GroupsPanelAction::OpenGroupPage => {
-                        if let Some(group_id) = self.groups_state.loaded_group_id {
-                            ui.ctx().open_url(egui::OpenUrl::new_tab(format!(
-                                "https://www.roblox.com/communities/{group_id}"
-                            )));
+                        if let (Some(group_id), Some(user_id)) = (
+                            self.groups_state.loaded_group_id,
+                            self.groups_state.challenge_user_id,
+                        ) {
+                            let account = self.store.find_by_id(user_id).cloned();
+                            if let (Some(account), Some(session)) = (account, self.session()) {
+                                let profile_dir = crate::data_dir()
+                                    .join("webview_browse_as")
+                                    .join(user_id.to_string());
+                                let label = if self.config.anonymize_names {
+                                    format!("#{user_id}")
+                                } else {
+                                    account.username.clone()
+                                };
+                                self.bridge.send(BackendCommand::BrowseAsAccount {
+                                    user_id,
+                                    encrypted_cookie: account.encrypted_cookie,
+                                    session,
+                                    use_credential_manager: self.config.use_credential_manager,
+                                    profile_dir,
+                                    label,
+                                    destination_url: Some(format!(
+                                        "https://www.roblox.com/communities/{group_id}"
+                                    )),
+                                });
+                            }
                         }
                     }
                 }
@@ -4305,6 +4337,7 @@ impl AppState {
                             use_credential_manager: self.config.use_credential_manager,
                             profile_dir,
                             label,
+                            destination_url: None,
                         });
                     }
                 }

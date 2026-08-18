@@ -191,6 +191,8 @@ pub enum BackendCommand {
         profile_dir: PathBuf,
         /// Label for the webview window title (username or anon tag).
         label: String,
+        /// Optional safe Roblox URL to open after authentication.
+        destination_url: Option<String>,
     },
     /// Upload one staged file. Boxed because the payload dwarfs every other
     /// variant, and `clippy::large_enum_variant` is a hard error in CI.
@@ -250,6 +252,8 @@ pub enum BackendCommand {
     },
     /// Load public group details and membership roles for selected accounts.
     FetchGroup { group_id: u64, user_ids: Vec<u64> },
+    /// Search public groups by name or keyword.
+    SearchGroups { keyword: String },
     /// Join or leave a group for selected accounts.
     ChangeGroupMembership {
         group_id: u64,
@@ -472,6 +476,8 @@ pub enum BackendEvent {
         announcements: Vec<ram_core::group_api::GroupAnnouncement>,
         memberships: Vec<ram_core::group_api::GroupMembership>,
     },
+    /// Public group search results.
+    GroupsSearched(Vec<ram_core::group_api::GroupSearchResult>),
     /// Result of one selected account's group membership change.
     GroupMembershipChanged {
         user_id: u64,
@@ -1187,6 +1193,7 @@ async fn handle_command(
             use_credential_manager,
             profile_dir,
             label,
+            destination_url,
         } => {
             let cookie = if use_credential_manager {
                 crypto::credential_load(user_id)?
@@ -1196,7 +1203,7 @@ async fn handle_command(
                 })?;
                 crypto::decrypt_cookie(&enc, &session)?
             };
-            crate::browser_login::spawn_browse_as(profile_dir, cookie, label)
+            crate::browser_login::spawn_browse_as_to(profile_dir, cookie, label, destination_url)
                 .map_err(CoreError::Process)?;
             Ok(BackendEvent::BrowseAsLaunched)
         }
@@ -1348,13 +1355,10 @@ async fn handle_command(
                 .await
                 .ok()
                 .flatten();
-            let shout = group_api::fetch_group_shout(client, group_id)
-                .await
-                .ok()
-                .flatten();
             let announcements = group_api::fetch_group_announcements(client, group_id)
                 .await
                 .unwrap_or_default();
+            let shout = group.shout.clone();
             let mut memberships = Vec::with_capacity(user_ids.len());
             for user_id in user_ids {
                 if let Ok(membership) = group_api::fetch_membership(client, group_id, user_id).await
@@ -1369,6 +1373,10 @@ async fn handle_command(
                 announcements,
                 memberships,
             })
+        }
+        BackendCommand::SearchGroups { keyword } => {
+            let groups = group_api::search_groups(client, &keyword).await?;
+            Ok(BackendEvent::GroupsSearched(groups))
         }
         BackendCommand::ChangeGroupMembership {
             group_id,
@@ -1877,6 +1885,7 @@ mod tests {
             | C::FetchUniverseTargets { .. }
             | C::FetchPublishGroups { .. }
             | C::FetchGroup { .. }
+            | C::SearchGroups { .. }
             | C::ChangeGroupMembership { .. }
             | C::FetchCreations { .. }
             | C::FetchAssetThumbnails { .. } => false,

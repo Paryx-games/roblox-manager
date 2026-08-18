@@ -191,6 +191,16 @@ fn try_extract_cookie(webview: &wry::WebView) -> Option<String> {
 /// disk longer than the spawn race. `label` is the username (or anon tag)
 /// shown in the window title.
 pub fn spawn_browse_as(profile_dir: PathBuf, cookie: String, label: String) -> Result<(), String> {
+    spawn_browse_as_to(profile_dir, cookie, label, None)
+}
+
+/// Parent-side variant that opens the authenticated webview at a destination URL.
+pub fn spawn_browse_as_to(
+    profile_dir: PathBuf,
+    cookie: String,
+    label: String,
+    destination_url: Option<String>,
+) -> Result<(), String> {
     std::fs::create_dir_all(&profile_dir)
         .map_err(|e| format!("create profile dir: {e}"))?;
     let cookie_in = profile_dir.join("cookie.in");
@@ -206,6 +216,7 @@ pub fn spawn_browse_as(profile_dir: PathBuf, cookie: String, label: String) -> R
         .arg(&profile_dir)
         .arg(&cookie_in)
         .arg(&label)
+        .args(destination_url.into_iter())
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -220,7 +231,7 @@ pub fn spawn_browse_as(profile_dir: PathBuf, cookie: String, label: String) -> R
 
 /// Entry point for the browse-as child. Returns an exit code for `std::process::exit`.
 pub fn run_browse_as_child(profile_dir: PathBuf, cookie_in: PathBuf, label: String) -> i32 {
-    match run_browse_as_inner(profile_dir, cookie_in, label) {
+    match run_browse_as_inner(profile_dir, cookie_in, label, None) {
         Ok(()) => 0,
         Err(e) => {
             warn!("browse_as child: {e}");
@@ -229,7 +240,27 @@ pub fn run_browse_as_child(profile_dir: PathBuf, cookie_in: PathBuf, label: Stri
     }
 }
 
-fn run_browse_as_inner(profile_dir: PathBuf, cookie_in: PathBuf, label: String) -> Result<(), String> {
+pub fn run_browse_as_child_to(
+    profile_dir: PathBuf,
+    cookie_in: PathBuf,
+    label: String,
+    destination_url: String,
+) -> i32 {
+    match run_browse_as_inner(profile_dir, cookie_in, label, Some(destination_url)) {
+        Ok(()) => 0,
+        Err(e) => {
+            warn!("browse_as child: {e}");
+            1
+        }
+    }
+}
+
+fn run_browse_as_inner(
+    profile_dir: PathBuf,
+    cookie_in: PathBuf,
+    label: String,
+    destination_url: Option<String>,
+) -> Result<(), String> {
     info!("browse_as child: start, profile={}", profile_dir.display());
 
     // Read and immediately delete the cookie hand-off file.
@@ -275,7 +306,10 @@ fn run_browse_as_inner(profile_dir: PathBuf, cookie_in: PathBuf, label: String) 
     let cookie_js_literal = serde_json::to_string(&cookie_value)
         .map_err(|e| format!("serialize cookie for JS: {e}"))?;
     let boot_path_js = serde_json::to_string(BROWSE_AS_BOOT_PATH).unwrap();
-    let home_url_js = serde_json::to_string(BROWSE_AS_HOME_URL).unwrap();
+    let destination_url = destination_url
+        .filter(|url| url.starts_with("https://www.roblox.com/"))
+        .unwrap_or_else(|| BROWSE_AS_HOME_URL.to_string());
+    let home_url_js = serde_json::to_string(&destination_url).unwrap();
     let init_script = format!(
         r#"(function(){{
             try {{

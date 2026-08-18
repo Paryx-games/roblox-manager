@@ -6,6 +6,7 @@
 - **Account Age sorting.** Sort accounts by Roblox account age from youngest to oldest or oldest to youngest.
 - **Sortable direction control.** Name and Account Age sorting now support ascending and descending directions. The direction control is disabled for Custom and Status sorting, where it does not apply.
 - **Groups workspace.** Enter a Roblox group ID to view its icon, title, description, owner, verification state, member count, current announcement, and recent wall posts.
+- **Group search and capability details.** Search public groups by name, select a result to load it, and view public-entry status, community tier, social-module availability, and creation date.
 - **Selected-account group membership.** From the Groups tab, inspect each selected account's role and join or leave the loaded group for all selected accounts. Actions run through the account's authenticated session and report each result separately.
 
 ### Changed
@@ -17,6 +18,8 @@
 - **Groups tab response errors.** Group details, announcements, icons, membership checks, and join/leave actions no longer fail on common Roblox response-shape variations with a generic "error decoding response body" message.
 - **Group membership 403s.** Membership requests now send the expected JSON body, skip accounts already in the requested state, and preserve Roblox's actual rejection reason instead of reporting every 403 as a rejected cookie.
 - **Interactive group challenges.** When Roblox requires a security challenge that the API cannot complete automatically, the Groups page now explains the blocker and opens the community page for manual verification.
+- **Authenticated group-page redirect.** The challenge recovery action now reuses the account browser window, logs in as the affected account, and redirects directly to that group's community page.
+- **Wall feed availability.** Roblox's current public group API returns 404 for the legacy wall-post feed; the Groups page now uses the embedded group shout for announcements and explains when wall posts are unavailable instead of showing a misleading empty feed.
 
 ## v1.9.0
 
