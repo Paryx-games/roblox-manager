@@ -50,6 +50,7 @@ pub enum BackendCommand {
         cookie: String,
         session: crypto::StoreSession,
         use_credential_manager: bool,
+        is_launch_enabled: bool,
     },
     /// Add an account WITHOUT requiring `validate_cookie` to succeed. Looks
     /// up the canonical user identity by username (works for terminated
@@ -61,9 +62,12 @@ pub enum BackendCommand {
         username: String,
         session: crypto::StoreSession,
         use_credential_manager: bool,
+        is_launch_enabled: bool,
     },
     /// Remove an account by user ID.
-    RemoveAccount { user_id: u64 },
+    RemoveAccount {
+        user_id: u64,
+    },
     /// Launch the game for an account. The cookie is named by `user_id` and
     /// decrypted on the backend thread; it never crosses the channel in the
     /// clear.
@@ -96,9 +100,14 @@ pub enum BackendCommand {
     },
     /// Open a device-mode store with no user interaction. Sent automatically at
     /// startup when [`crypto::peek_mode`] reports the store needs no password.
-    UnlockWithDevice { path: PathBuf },
+    UnlockWithDevice {
+        path: PathBuf,
+    },
     /// Open a password-mode (or pre-envelope) store with a typed password.
-    UnlockWithPassword { path: PathBuf, password: String },
+    UnlockWithPassword {
+        path: PathBuf,
+        password: String,
+    },
     /// Rewrite an already-unlocked store under new key material: switching
     /// between device and password mode, changing the master password, or
     /// upgrading a pre-envelope file. Runs on the backend because Argon2id
@@ -166,7 +175,9 @@ pub enum BackendCommand {
         options: ram_core::models::TilingOptions,
         delay_secs: u64,
     },
-    CheckForUpdates { current_version: String },
+    CheckForUpdates {
+        current_version: String,
+    },
     /// Resolve a place ID to its name (for private server auto-check).
     ResolvePlace {
         place_id: u64,
@@ -253,9 +264,14 @@ pub enum BackendCommand {
         use_credential_manager: bool,
     },
     /// Load public group details and membership roles for selected accounts.
-    FetchGroup { group_id: u64, user_ids: Vec<u64> },
+    FetchGroup {
+        group_id: u64,
+        user_ids: Vec<u64>,
+    },
     /// Search public groups by name or keyword.
-    SearchGroups { keyword: String },
+    SearchGroups {
+        keyword: String,
+    },
     /// Join or leave a group for selected accounts.
     ChangeGroupMembership {
         group_id: u64,
@@ -275,7 +291,9 @@ pub enum BackendCommand {
         cursor: Option<String>,
     },
     /// Thumbnail images for the icon views. Unauthenticated, so no cookie.
-    FetchAssetThumbnails { asset_ids: Vec<u64> },
+    FetchAssetThumbnails {
+        asset_ids: Vec<u64>,
+    },
 }
 
 /// Everything one upload needs. The cookie arrives encrypted and is decrypted
@@ -632,6 +650,7 @@ async fn handle_command(
             cookie,
             session,
             use_credential_manager,
+            is_launch_enabled,
         } => {
             let (user_id, username, display_name) = match client.validate_cookie(&cookie).await {
                 Ok(t) => t,
@@ -652,6 +671,7 @@ async fn handle_command(
                 }
             };
             let mut account = Account::new(user_id, username, display_name);
+            account.is_launch_enabled = is_launch_enabled;
 
             let encrypted = if use_credential_manager {
                 crypto::credential_store(user_id, &cookie)?;
@@ -695,6 +715,7 @@ async fn handle_command(
             username,
             session,
             use_credential_manager,
+            is_launch_enabled,
         } => {
             // Cookie didn't validate but the user wants to add the account
             // anyway. Resolve the canonical identity by username so the entry
@@ -705,6 +726,7 @@ async fn handle_command(
                     .ok_or_else(|| CoreError::AccountNotFound(username.clone()))?;
 
             let mut account = Account::new(user_id, canonical_username, display_name);
+            account.is_launch_enabled = is_launch_enabled;
 
             let encrypted = if use_credential_manager {
                 crypto::credential_store(user_id, &cookie)?;
@@ -1951,6 +1973,7 @@ mod tests {
                 cookie: "COOKIE".to_string(),
                 session: s.clone(),
                 use_credential_manager: false,
+                is_launch_enabled: true,
             },
             BackendCommand::LaunchGame {
                 user_id: 7,

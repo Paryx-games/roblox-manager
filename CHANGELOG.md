@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.11.0
+
+### Added
+- **Account launch controls.** Enable or disable launching for each account from its `...` menu. Disabled accounts remain available for management but cannot be launched by RM.
+- **Launch-state account sections.** The sidebar now separates accounts into collapsible Enabled, Restricted by Roblox, and Disabled sections. Disabled rows are muted and marked clearly.
+- **Import launch preference.** Add Account now offers an enabled-by-default checkbox that applies the chosen launch state to browser, manual, forced, and bulk imports.
+
+### Changed
+- Launch controls now block disabled and Roblox-restricted accounts across the main panel, quick launch, server join, bulk launch, and private-server launch paths.
+- **Groups workspace.** Group discovery now uses the same find-and-results layout as the other management tabs, with search as the primary path and group-ID lookup as a secondary option.
+
 ## v1.10.0
 
 ### Added

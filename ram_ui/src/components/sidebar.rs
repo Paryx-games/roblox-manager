@@ -115,6 +115,8 @@ pub struct SidebarState {
     pub sort_direction: SortDirection,
     /// Which groups are currently collapsed in the sidebar.
     pub collapsed_groups: HashSet<String>,
+    /// Which account-status sections are collapsed in the sidebar.
+    pub collapsed_account_sections: HashSet<String>,
     /// Group editor popup state.
     pub editing_group: Option<GroupEditorState>,
     /// Pending sort change that needs user confirmation (warning about losing custom order).
@@ -130,6 +132,7 @@ impl Default for SidebarState {
             sort_order: SortOrder::Custom,
             sort_direction: SortDirection::Ascending,
             collapsed_groups: HashSet::new(),
+            collapsed_account_sections: HashSet::new(),
             editing_group: None,
             pending_sort_change: None,
             path_editor: None,
@@ -200,6 +203,8 @@ pub enum SidebarAction {
     },
     /// Toggle pinned state for an account (always shows at top when pinned).
     TogglePinAccount(u64),
+    /// Toggle whether RM may launch this account.
+    ToggleLaunchEnabled(u64),
     /// Set or clear an account's plain-text config path override.
     SetCustomPath {
         user_ids: Vec<u64>,
@@ -402,6 +407,32 @@ pub fn show(
             }
         }
 
+        let mut restricted: Vec<(usize, &Account)> = Vec::new();
+        let mut disabled: Vec<(usize, &Account)> = Vec::new();
+        filtered.retain(|item| {
+            if item
+                .1
+                .moderation
+                .as_ref()
+                .is_some_and(|info| info.is_active())
+            {
+                restricted.push(*item);
+                false
+            } else if !item.1.is_launch_enabled {
+                disabled.push(*item);
+                false
+            } else {
+                true
+            }
+        });
+
+        let enabled_collapsed = state.collapsed_account_sections.contains("enabled");
+        let restricted_collapsed = state.collapsed_account_sections.contains("restricted");
+        let disabled_collapsed = state.collapsed_account_sections.contains("disabled");
+        let show_enabled = is_searching || !enabled_collapsed;
+        let show_restricted = is_searching || !restricted_collapsed;
+        let show_disabled = is_searching || !disabled_collapsed;
+
         // ---- Partition by group ----
         let mut ungrouped: Vec<(usize, &Account)> = Vec::new();
         let mut by_group: HashMap<&str, Vec<(usize, &Account)>> = HashMap::new();
@@ -435,11 +466,19 @@ pub fn show(
         // Groups first, then ungrouped.
         let mut flat_list: Vec<(usize, &Account)> = Vec::new();
         for name in &group_names {
-            if is_searching || !state.collapsed_groups.contains(*name) {
+            if show_enabled && (is_searching || !state.collapsed_groups.contains(*name)) {
                 flat_list.extend_from_slice(&by_group[name]);
             }
         }
-        flat_list.extend_from_slice(&ungrouped);
+        if show_enabled {
+            flat_list.extend_from_slice(&ungrouped);
+        }
+        if show_restricted {
+            flat_list.extend_from_slice(&restricted);
+        }
+        if show_disabled {
+            flat_list.extend_from_slice(&disabled);
+        }
 
         let is_custom = state.sort_order == SortOrder::Custom;
 
@@ -450,228 +489,305 @@ pub fn show(
             .show(ui, |ui| {
                 let mut flat_idx: usize = 0;
 
+                let enabled_visible = show_account_section_header(
+                    ui,
+                    state,
+                    "enabled",
+                    "Enabled",
+                    filtered.len(),
+                    ui.theme().accent_text,
+                );
                 // Groups first (above ungrouped accounts)
-                for &group_name in &group_names {
-                    let meta = groups.get(group_name);
-                    let color = meta.map(|m| m.color).unwrap_or([130, 130, 130]);
-                    let members = &by_group[group_name];
-                    let is_collapsed = state.collapsed_groups.contains(group_name);
-                    let show_members = is_searching || !is_collapsed;
-                    let group_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
-                    let bg_color = egui::Color32::from_rgba_premultiplied(
-                        color[0] / 8,
-                        color[1] / 8,
-                        color[2] / 8,
-                        30,
-                    );
+                if enabled_visible || is_searching {
+                    for &group_name in &group_names {
+                        let meta = groups.get(group_name);
+                        let color = meta.map(|m| m.color).unwrap_or([130, 130, 130]);
+                        let members = &by_group[group_name];
+                        let is_collapsed = state.collapsed_groups.contains(group_name);
+                        let show_members = is_searching || !is_collapsed;
+                        let group_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
+                        let bg_color = egui::Color32::from_rgba_premultiplied(
+                            color[0] / 8,
+                            color[1] / 8,
+                            color[2] / 8,
+                            30,
+                        );
 
-                    // Outer frame for the whole group
-                    egui::Frame::none()
-                        .fill(bg_color)
-                        .stroke(egui::Stroke::new(1.0, group_color.gamma_multiply(0.4)))
-                        .rounding(egui::Rounding::same(4.0))
-                        .inner_margin(egui::Margin::same(2.0))
-                        .outer_margin(egui::Margin {
-                            top: 2.0,
-                            bottom: 4.0,
-                            ..Default::default()
-                        })
-                        .show(ui, |ui: &mut egui::Ui| {
-                            // ---- Group header ----
-                            let header_height = 24.0;
-                            let sense = if is_custom {
-                                egui::Sense::click_and_drag()
-                            } else {
-                                egui::Sense::click()
-                            };
-                            let (rect, response) = ui.allocate_exact_size(
-                                egui::vec2(ui.available_width(), header_height),
-                                sense,
-                            );
-
-                            // Drag source: group header (Custom mode only)
-                            if is_custom && response.drag_started() {
-                                response.dnd_set_drag_payload(DragPayload::Group {
-                                    name: group_name.to_string(),
-                                });
-                            }
-
-                            // Header background on hover
-                            if response.hovered() || response.contains_pointer() {
-                                ui.painter().rect_filled(
-                                    rect,
-                                    2.0,
-                                    group_color.gamma_multiply(0.15),
+                        // Outer frame for the whole group
+                        egui::Frame::none()
+                            .fill(bg_color)
+                            .stroke(egui::Stroke::new(1.0, group_color.gamma_multiply(0.4)))
+                            .rounding(egui::Rounding::same(4.0))
+                            .inner_margin(egui::Margin::same(2.0))
+                            .outer_margin(egui::Margin {
+                                top: 2.0,
+                                bottom: 4.0,
+                                ..Default::default()
+                            })
+                            .show(ui, |ui: &mut egui::Ui| {
+                                // ---- Group header ----
+                                let header_height = 24.0;
+                                let sense = if is_custom {
+                                    egui::Sense::click_and_drag()
+                                } else {
+                                    egui::Sense::click()
+                                };
+                                let (rect, response) = ui.allocate_exact_size(
+                                    egui::vec2(ui.available_width(), header_height),
+                                    sense,
                                 );
-                            }
 
-                            // DnD: drop account on group header → assign to group
-                            let header_bottom_half = ui
-                                .ctx()
-                                .pointer_latest_pos()
-                                .is_some_and(|pos| pos.y > rect.center().y);
+                                // Drag source: group header (Custom mode only)
+                                if is_custom && response.drag_started() {
+                                    response.dnd_set_drag_payload(DragPayload::Group {
+                                        name: group_name.to_string(),
+                                    });
+                                }
 
-                            if let Some(payload) = response.dnd_hover_payload::<DragPayload>() {
-                                match payload.as_ref() {
-                                    DragPayload::Account { user_id, .. } => {
-                                        ui.painter().rect_stroke(
-                                            rect.expand(2.0),
-                                            4.0,
-                                            egui::Stroke::new(2.0, group_color),
-                                        );
-                                        let already_in = accounts
-                                            .iter()
-                                            .find(|a| a.user_id == *user_id)
-                                            .is_some_and(|a| a.group == group_name);
-                                        if !already_in {
-                                            let hint = format!("Add to {}", group_name);
-                                            ui.painter().text(
-                                                egui::pos2(rect.center().x, rect.max.y + 2.0),
-                                                egui::Align2::CENTER_TOP,
-                                                hint,
-                                                egui::FontId::proportional(10.0),
-                                                group_color,
+                                // Header background on hover
+                                if response.hovered() || response.contains_pointer() {
+                                    ui.painter().rect_filled(
+                                        rect,
+                                        2.0,
+                                        group_color.gamma_multiply(0.15),
+                                    );
+                                }
+
+                                // DnD: drop account on group header → assign to group
+                                let header_bottom_half = ui
+                                    .ctx()
+                                    .pointer_latest_pos()
+                                    .is_some_and(|pos| pos.y > rect.center().y);
+
+                                if let Some(payload) = response.dnd_hover_payload::<DragPayload>() {
+                                    match payload.as_ref() {
+                                        DragPayload::Account { user_id, .. } => {
+                                            ui.painter().rect_stroke(
+                                                rect.expand(2.0),
+                                                4.0,
+                                                egui::Stroke::new(2.0, group_color),
+                                            );
+                                            let already_in = accounts
+                                                .iter()
+                                                .find(|a| a.user_id == *user_id)
+                                                .is_some_and(|a| a.group == group_name);
+                                            if !already_in {
+                                                let hint = format!("Add to {}", group_name);
+                                                ui.painter().text(
+                                                    egui::pos2(rect.center().x, rect.max.y + 2.0),
+                                                    egui::Align2::CENTER_TOP,
+                                                    hint,
+                                                    egui::FontId::proportional(10.0),
+                                                    group_color,
+                                                );
+                                            }
+                                        }
+                                        DragPayload::Group { name }
+                                            if is_custom && *name != group_name =>
+                                        {
+                                            // Reorder hint: show line at top or bottom
+                                            let line_y = if header_bottom_half {
+                                                rect.max.y
+                                            } else {
+                                                rect.min.y
+                                            };
+                                            ui.painter().hline(
+                                                rect.x_range(),
+                                                line_y,
+                                                egui::Stroke::new(2.0, ui.theme().drop_reorder),
                                             );
                                         }
+                                        _ => {}
                                     }
-                                    DragPayload::Group { name }
-                                        if is_custom && *name != group_name =>
-                                    {
-                                        // Reorder hint: show line at top or bottom
-                                        let line_y = if header_bottom_half {
-                                            rect.max.y
-                                        } else {
-                                            rect.min.y
-                                        };
-                                        ui.painter().hline(
-                                            rect.x_range(),
-                                            line_y,
-                                            egui::Stroke::new(2.0, ui.theme().drop_reorder),
+                                }
+                                if let Some(payload) = response.dnd_release_payload::<DragPayload>()
+                                {
+                                    match payload.as_ref() {
+                                        DragPayload::Account { user_id, .. } => {
+                                            actions.push(SidebarAction::AssignGroup {
+                                                user_ids: vec![*user_id],
+                                                group: group_name.to_string(),
+                                            });
+                                        }
+                                        DragPayload::Group { name }
+                                            if is_custom && *name != group_name =>
+                                        {
+                                            actions.push(SidebarAction::ReorderGroup {
+                                                group_name: name.clone(),
+                                                target_group: group_name.to_string(),
+                                                insert_after: header_bottom_half,
+                                            });
+                                        }
+                                        _ => {}
+                                    }
+                                }
+
+                                let painter = ui.painter_at(rect);
+
+                                // Color accent bar on the left
+                                painter.rect_filled(
+                                    egui::Rect::from_min_size(
+                                        rect.min,
+                                        egui::vec2(3.0, header_height),
+                                    ),
+                                    0.0,
+                                    group_color,
+                                );
+
+                                // Group name
+                                painter.text(
+                                    egui::pos2(rect.min.x + 10.0, rect.min.y + 4.0),
+                                    egui::Align2::LEFT_TOP,
+                                    group_name,
+                                    egui::FontId::proportional(13.0),
+                                    group_color,
+                                );
+
+                                // Member count
+                                painter.text(
+                                    egui::pos2(rect.max.x - 6.0, rect.min.y + 5.0),
+                                    egui::Align2::RIGHT_TOP,
+                                    format!("{}", members.len()),
+                                    egui::FontId::proportional(11.0),
+                                    ui.theme().text_muted,
+                                );
+
+                                // Click header to toggle collapse
+                                if response.clicked() {
+                                    if is_collapsed {
+                                        state.collapsed_groups.remove(group_name);
+                                    } else {
+                                        state.collapsed_groups.insert(group_name.to_string());
+                                    }
+                                }
+
+                                // Group header context menu
+                                response.context_menu(|ui: &mut egui::Ui| {
+                                    if ui.button("\u{270f}  Edit Group").clicked() {
+                                        state.editing_group = Some(GroupEditorState {
+                                            name: group_name.to_string(),
+                                            color,
+                                            original_name: Some(group_name.to_string()),
+                                            pending_assign: Vec::new(),
+                                        });
+                                        ui.close_menu();
+                                    }
+                                    if ui.button("\u{1f5d1}  Delete Group").clicked() {
+                                        actions.push(SidebarAction::DeleteGroup(
+                                            group_name.to_string(),
+                                        ));
+                                        ui.close_menu();
+                                    }
+                                });
+
+                                // ---- Member rows ----
+                                if show_members {
+                                    for &(_orig_idx, account) in members {
+                                        render_account_row(
+                                            ui,
+                                            account,
+                                            flat_idx,
+                                            selected_ids,
+                                            anonymize,
+                                            &flat_list,
+                                            state,
+                                            &mut actions,
+                                            groups,
+                                            is_custom,
+                                            avatar_bytes,
+                                            instances,
                                         );
+                                        flat_idx += 1;
                                     }
-                                    _ => {}
-                                }
-                            }
-                            if let Some(payload) = response.dnd_release_payload::<DragPayload>() {
-                                match payload.as_ref() {
-                                    DragPayload::Account { user_id, .. } => {
-                                        actions.push(SidebarAction::AssignGroup {
-                                            user_ids: vec![*user_id],
-                                            group: group_name.to_string(),
-                                        });
-                                    }
-                                    DragPayload::Group { name }
-                                        if is_custom && *name != group_name =>
-                                    {
-                                        actions.push(SidebarAction::ReorderGroup {
-                                            group_name: name.clone(),
-                                            target_group: group_name.to_string(),
-                                            insert_after: header_bottom_half,
-                                        });
-                                    }
-                                    _ => {}
-                                }
-                            }
-
-                            let painter = ui.painter_at(rect);
-
-                            // Color accent bar on the left
-                            painter.rect_filled(
-                                egui::Rect::from_min_size(rect.min, egui::vec2(3.0, header_height)),
-                                0.0,
-                                group_color,
-                            );
-
-                            // Group name
-                            painter.text(
-                                egui::pos2(rect.min.x + 10.0, rect.min.y + 4.0),
-                                egui::Align2::LEFT_TOP,
-                                group_name,
-                                egui::FontId::proportional(13.0),
-                                group_color,
-                            );
-
-                            // Member count
-                            painter.text(
-                                egui::pos2(rect.max.x - 6.0, rect.min.y + 5.0),
-                                egui::Align2::RIGHT_TOP,
-                                format!("{}", members.len()),
-                                egui::FontId::proportional(11.0),
-                                ui.theme().text_muted,
-                            );
-
-                            // Click header to toggle collapse
-                            if response.clicked() {
-                                if is_collapsed {
-                                    state.collapsed_groups.remove(group_name);
-                                } else {
-                                    state.collapsed_groups.insert(group_name.to_string());
-                                }
-                            }
-
-                            // Group header context menu
-                            response.context_menu(|ui: &mut egui::Ui| {
-                                if ui.button("\u{270f}  Edit Group").clicked() {
-                                    state.editing_group = Some(GroupEditorState {
-                                        name: group_name.to_string(),
-                                        color,
-                                        original_name: Some(group_name.to_string()),
-                                        pending_assign: Vec::new(),
-                                    });
-                                    ui.close_menu();
-                                }
-                                if ui.button("\u{1f5d1}  Delete Group").clicked() {
-                                    actions
-                                        .push(SidebarAction::DeleteGroup(group_name.to_string()));
-                                    ui.close_menu();
                                 }
                             });
+                    }
 
-                            // ---- Member rows ----
-                            if show_members {
-                                for &(_orig_idx, account) in members {
-                                    render_account_row(
-                                        ui,
-                                        account,
-                                        flat_idx,
-                                        selected_ids,
-                                        anonymize,
-                                        &flat_list,
-                                        state,
-                                        &mut actions,
-                                        groups,
-                                        is_custom,
-                                        avatar_bytes,
-                                        instances,
-                                    );
-                                    flat_idx += 1;
-                                }
-                            }
-                        });
+                    // Spacer between groups and ungrouped
+                    if !group_names.is_empty() && !ungrouped.is_empty() {
+                        ui.add_space(6.0);
+                    }
+
+                    // Ungrouped accounts last
+                    for &(_orig_idx, account) in &ungrouped {
+                        render_account_row(
+                            ui,
+                            account,
+                            flat_idx,
+                            selected_ids,
+                            anonymize,
+                            &flat_list,
+                            state,
+                            &mut actions,
+                            groups,
+                            is_custom,
+                            avatar_bytes,
+                            instances,
+                        );
+                        flat_idx += 1;
+                    }
                 }
 
-                // Spacer between groups and ungrouped
-                if !group_names.is_empty() && !ungrouped.is_empty() {
+                if !restricted.is_empty() {
                     ui.add_space(6.0);
+                    let restricted_visible = show_account_section_header(
+                        ui,
+                        state,
+                        "restricted",
+                        "Restricted by Roblox",
+                        restricted.len(),
+                        ui.theme().warning_text,
+                    );
+                    if restricted_visible || is_searching {
+                        for &(_orig_idx, account) in &restricted {
+                            render_account_row(
+                                ui,
+                                account,
+                                flat_idx,
+                                selected_ids,
+                                anonymize,
+                                &flat_list,
+                                state,
+                                &mut actions,
+                                groups,
+                                false,
+                                avatar_bytes,
+                                instances,
+                            );
+                            flat_idx += 1;
+                        }
+                    }
                 }
 
-                // Ungrouped accounts last
-                for &(_orig_idx, account) in &ungrouped {
-                    render_account_row(
+                if !disabled.is_empty() {
+                    ui.add_space(6.0);
+                    let disabled_visible = show_account_section_header(
                         ui,
-                        account,
-                        flat_idx,
-                        selected_ids,
-                        anonymize,
-                        &flat_list,
                         state,
-                        &mut actions,
-                        groups,
-                        is_custom,
-                        avatar_bytes,
-                        instances,
+                        "disabled",
+                        "Disabled",
+                        disabled.len(),
+                        ui.theme().text_muted,
                     );
-                    flat_idx += 1;
+                    if disabled_visible || is_searching {
+                        for &(_orig_idx, account) in &disabled {
+                            render_account_row(
+                                ui,
+                                account,
+                                flat_idx,
+                                selected_ids,
+                                anonymize,
+                                &flat_list,
+                                state,
+                                &mut actions,
+                                groups,
+                                false,
+                                avatar_bytes,
+                                instances,
+                            );
+                            flat_idx += 1;
+                        }
+                    }
                 }
             });
 
@@ -736,6 +852,30 @@ pub fn show(
 // ---------------------------------------------------------------------------
 // Account row — supports drag-and-drop
 // ---------------------------------------------------------------------------
+
+fn show_account_section_header(
+    ui: &mut egui::Ui,
+    state: &mut SidebarState,
+    key: &str,
+    label: &str,
+    count: usize,
+    color: egui::Color32,
+) -> bool {
+    let is_collapsed = state.collapsed_account_sections.contains(key);
+    let arrow = if is_collapsed { "▶" } else { "▼" };
+    let response = ui.add(
+        egui::Button::new(egui::RichText::new(format!("{arrow}  {label}  {count}")).color(color))
+            .frame(false),
+    );
+    if response.clicked() {
+        if is_collapsed {
+            state.collapsed_account_sections.remove(key);
+        } else {
+            state.collapsed_account_sections.insert(key.to_string());
+        }
+    }
+    !state.collapsed_account_sections.contains(key)
+}
 
 #[allow(clippy::too_many_arguments)]
 fn render_account_row(
@@ -909,6 +1049,8 @@ fn render_account_row(
     let moderated = account.moderation.as_ref().is_some_and(|m| m.is_active());
     let (dot_color, dot_glyph) = if moderated {
         (theme.moderated, Some("!"))
+    } else if !account.is_launch_enabled {
+        (theme.text_faint, Some("−"))
     } else if account.cookie_expired {
         (theme.danger, Some("x"))
     } else {
@@ -941,7 +1083,11 @@ fn render_account_row(
             egui::Align2::LEFT_TOP,
             &display_label,
             egui::FontId::proportional(13.5),
-            ui.style().visuals.text_color(),
+            if account.is_launch_enabled {
+                ui.style().visuals.text_color()
+            } else {
+                theme.text_muted
+            },
         );
         painter.text(
             egui::pos2(text_x, rect.min.y + 22.0),
@@ -957,7 +1103,11 @@ fn render_account_row(
             egui::Align2::LEFT_CENTER,
             &display_label,
             egui::FontId::proportional(13.5),
-            ui.style().visuals.text_color(),
+            if account.is_launch_enabled {
+                ui.style().visuals.text_color()
+            } else {
+                theme.text_muted
+            },
         );
     }
 
@@ -1024,6 +1174,16 @@ fn render_account_row(
 
     // Right-click context menu
     response.context_menu(|ui| {
+        let launch_label = if account.is_launch_enabled {
+            "✕  Disable launching"
+        } else {
+            "✓  Enable launching"
+        };
+        if ui.button(launch_label).clicked() {
+            actions.push(SidebarAction::ToggleLaunchEnabled(account.user_id));
+            ui.close_menu();
+        }
+        ui.separator();
         if ui.button("\u{1f310}  Open browser as").clicked() {
             actions.push(SidebarAction::OpenBrowserAs(account.user_id));
             ui.close_menu();

@@ -1,6 +1,6 @@
 [package]
 name = "ram_ui"
-version = "1.9.0"
+version = "1.11.0"
 edition = "2021"
 description = "GUI for RM — Roblox Account Manager"
 license = "MIT"

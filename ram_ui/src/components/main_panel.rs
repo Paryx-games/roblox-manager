@@ -12,6 +12,7 @@ pub enum MainPanelAction {
         job_id: Option<String>,
     },
     OpenPathEditor,
+    ToggleLaunchEnabled(u64),
     RemoveAccount(u64),
     UpdateAlias {
         user_id: u64,
@@ -107,6 +108,16 @@ pub fn show(
                         |ui| {
                             egui::menu::menu_button(ui, "...", |ui| {
                                 ui.set_min_width(160.0);
+                                let label = if account.is_launch_enabled {
+                                    "✕  Disable launching"
+                                } else {
+                                    "✓  Enable launching"
+                                };
+                                if ui.button(label).clicked() {
+                                    action = Some(MainPanelAction::ToggleLaunchEnabled(account.user_id));
+                                    ui.close_menu();
+                                }
+                                ui.separator();
                                 if ui
                                     .button(
                                         egui::RichText::new("\u{1f5d1}  Remove account")
@@ -256,6 +267,7 @@ pub fn show(
                 ui.add_space(10.0);
 
                 let place_valid = state.place_id_input.parse::<u64>().is_ok();
+                let can_launch = place_valid && account.can_launch();
 
                 // Primary action row — Launch + Open browser as + save-preset
                 // icon button. Launch dominates visually so the user always
@@ -270,7 +282,7 @@ pub fn show(
                     let primary_w = ((avail - icon_w - kill_extra - 12.0) / 2.0).max(120.0);
 
                     let launch_btn = ui.add_enabled(
-                        place_valid,
+                        can_launch,
                         egui::Button::new(
                             egui::RichText::new("\u{1f680}  Launch")
                                 .size(15.0)
@@ -278,13 +290,17 @@ pub fn show(
                                 .color(theme.on_accent),
                         )
                         .min_size(egui::vec2(primary_w, primary_h))
-                        .fill(if place_valid {
+                        .fill(if can_launch {
                             theme.accent
                         } else {
                             ui.visuals().widgets.inactive.bg_fill
                         }),
                     )
-                    .on_hover_text(if place_valid {
+                    .on_hover_text(if !account.is_launch_enabled {
+                        "Launching is disabled for this account. Enable it from the account menu."
+                    } else if account.moderation.as_ref().is_some_and(|info| info.is_active()) {
+                        "Launching is blocked while this account is restricted by Roblox."
+                    } else if place_valid {
                         "Launch this account into the chosen place"
                     } else {
                         "Enter a Place ID to launch"
@@ -298,7 +314,7 @@ pub fn show(
                         }
                     }
                     // Hover/active tint to make the primary obvious.
-                    if launch_btn.hovered() && place_valid {
+                    if launch_btn.hovered() && can_launch {
                         ui.painter().rect_filled(
                             launch_btn.rect,
                             egui::Rounding::same(3.0),
