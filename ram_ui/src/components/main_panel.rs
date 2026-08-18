@@ -7,9 +7,16 @@ use crate::theme::ThemeUi;
 
 /// Actions the main panel can request.
 pub enum MainPanelAction {
-    LaunchGame { place_id: u64, job_id: Option<String> },
+    LaunchGame {
+        place_id: u64,
+        job_id: Option<String>,
+    },
+    OpenPathEditor,
     RemoveAccount(u64),
-    UpdateAlias { user_id: u64, alias: String },
+    UpdateAlias {
+        user_id: u64,
+        alias: String,
+    },
     /// Save the current Place ID / Job ID inputs as a named launch preset.
     SavePreset {
         name: String,
@@ -53,6 +60,7 @@ pub fn show(
     avatar_bytes: Option<&Vec<u8>>,
     presets: &[LaunchPreset],
     anonymize: bool,
+    player_path_label: &str,
 ) -> MainPanelResult {
     let theme = ui.theme();
     let mut action: Option<MainPanelAction> = None;
@@ -107,6 +115,10 @@ pub fn show(
                                     .clicked()
                                 {
                                     action = Some(MainPanelAction::RemoveAccount(account.user_id));
+                                    ui.close_menu();
+                                }
+                                if ui.button("Change path").clicked() {
+                                    action = Some(MainPanelAction::OpenPathEditor);
                                     ui.close_menu();
                                 }
                             })
@@ -446,6 +458,26 @@ pub fn show(
                             ui.end_row();
                         }
 
+                        ui.label(
+                            egui::RichText::new("Player path")
+                                .color(ui.visuals().weak_text_color()),
+                        );
+                        ui.label(player_path_label);
+                        ui.end_row();
+
+                        if let Some(created_at) = account.created_at {
+                            ui.label(
+                                egui::RichText::new("Created")
+                                    .color(ui.visuals().weak_text_color()),
+                            );
+                            ui.label(format!(
+                                "{} ({})",
+                                created_at.format("%Y-%m-%d %H:%M UTC"),
+                                format_account_age(created_at),
+                            ));
+                            ui.end_row();
+                        }
+
                         if let Some(ts) = &account.last_validated {
                             ui.label(
                                 egui::RichText::new("Validated")
@@ -505,6 +537,18 @@ pub fn show(
     }
 }
 
+fn format_account_age(created_at: chrono::DateTime<chrono::Utc>) -> String {
+    let hours = chrono::Utc::now()
+        .signed_duration_since(created_at)
+        .num_hours()
+        .max(0);
+    let years = hours / (24 * 365);
+    let months = (hours % (24 * 365)) / (24 * 30);
+    let days = (hours % (24 * 30)) / 24;
+    let hours = hours % 24;
+    format!("{years} years, {months} months, {days} days, {hours} hours")
+}
+
 /// Show a placeholder when no account is selected.
 pub fn show_empty(ui: &mut egui::Ui) {
     ui.centered_and_justified(|ui| {
@@ -556,11 +600,8 @@ fn draw_avatar(
         );
     } else {
         let (rect, _) = ui.allocate_exact_size(sz, egui::Sense::hover());
-        ui.painter().rect_filled(
-            rect,
-            size / 8.0,
-            ui.theme().surface,
-        );
+        ui.painter()
+            .rect_filled(rect, size / 8.0, ui.theme().surface);
         ui.painter().text(
             rect.center(),
             egui::Align2::CENTER_CENTER,

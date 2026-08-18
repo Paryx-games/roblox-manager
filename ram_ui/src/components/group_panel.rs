@@ -13,6 +13,8 @@ pub enum GroupPanelAction {
         place_id: u64,
         job_id: Option<String>,
     },
+    /// Open the path editor for all selected accounts.
+    OpenPathEditor,
     /// Deselect all.
     ClearSelection,
     /// Kill all Roblox instances.
@@ -40,6 +42,12 @@ pub fn show(
         // Header
         ui.horizontal(|ui| {
             ui.heading(format!("{count} Accounts Selected"));
+            egui::menu::menu_button(ui, "...", |ui| {
+                if ui.button("Change path").clicked() {
+                    action = Some(GroupPanelAction::OpenPathEditor);
+                    ui.close_menu();
+                }
+            });
             if ui.small_button("Clear selection").clicked() {
                 action = Some(GroupPanelAction::ClearSelection);
             }

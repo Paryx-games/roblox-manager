@@ -144,6 +144,7 @@ fn attribution_summary(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Tab {
     Accounts,
+    Groups,
     PrivateServers,
     Presets,
     /// Only reachable while `config.developer_options` is on.
@@ -608,7 +609,8 @@ impl AppState {
         // the life of the session or name a PID that has since been reused.
         let live: std::collections::HashSet<u32> =
             self.tracked_instances.iter().map(|i| i.pid).collect();
-        self.original_window_titles.retain(|pid, _| live.contains(pid));
+        self.original_window_titles
+            .retain(|pid, _| live.contains(pid));
 
         let titles = instance_window_titles(
             &self.tracked_instances,
@@ -698,7 +700,8 @@ impl AppState {
                     instance.user_id,
                     self.config.anonymize_names,
                 );
-                self.toasts.push(Toast::info(format!("Closed {who}'s client")));
+                self.toasts
+                    .push(Toast::info(format!("Closed {who}'s client")));
                 // The sweep reaps the mapping within a couple of seconds, but
                 // dropping it now keeps the menu from offering a dead PID in
                 // the meantime.
@@ -786,6 +789,12 @@ impl AppState {
             job_id: Some(job_id),
             link_code: None,
             access_code: None,
+            player_path: self
+                .config
+                .custom_player_paths
+                .get(&account.0)
+                .cloned()
+                .or_else(|| self.config.roblox_player_path.clone()),
             multi_instance: self.config.multi_instance_enabled,
             kill_background: self.config.kill_background_roblox,
             privacy_mode: self.config.privacy_mode,
@@ -824,16 +833,14 @@ impl AppState {
                 } => {
                     // If the account is moderated, don't add silently — let
                     // the user confirm (or open a browser to investigate).
-                    let moderated =
-                        account.moderation.as_ref().is_some_and(|m| m.is_active());
+                    let moderated = account.moderation.as_ref().is_some_and(|m| m.is_active());
                     if moderated {
                         self.add_dialog.loading = false;
                         self.add_dialog.last_error = None;
-                        self.add_dialog.pending_moderated =
-                            Some(Box::new(PendingModeratedAdd {
-                                account: *account,
-                                encrypted_cookie,
-                            }));
+                        self.add_dialog.pending_moderated = Some(Box::new(PendingModeratedAdd {
+                            account: *account,
+                            encrypted_cookie,
+                        }));
                         // Keep the dialog open so the warning step renders.
                     } else {
                         let name = if self.config.anonymize_names {
@@ -853,7 +860,8 @@ impl AppState {
                         self.add_dialog.browser_login_pending = false;
                         self.add_dialog.browser_login_rx = None;
                         self.add_dialog.rejected_cookie = None;
-                        self.tutorial.advance_from(tutorial::TutorialStep::EnterCookie);
+                        self.tutorial
+                            .advance_from(tutorial::TutorialStep::EnterCookie);
                         self.auto_save();
                     }
                 }
@@ -943,10 +951,7 @@ impl AppState {
                         self.bridge.send(BackendCommand::RekeyStore {
                             store: self.store.clone(),
                             path: self.config.accounts_path.clone(),
-                            session: self
-                                .store_session
-                                .clone()
-                                .expect("session was just set"),
+                            session: self.store_session.clone().expect("session was just set"),
                             // Keep the password they already have; the offer to
                             // drop it comes after, as an explicit choice.
                             new_password: Some(self.unlock_password_used.clone()),
@@ -1023,6 +1028,7 @@ impl AppState {
                     valid,
                     username,
                     display_name,
+                    created_at,
                     moderation,
                 } => {
                     // Track transitions so we only toast on state changes
@@ -1041,10 +1047,11 @@ impl AppState {
                             acc.cookie_expired = true;
                             newly_expired = !was_expired;
                         }
-                        let was_active =
-                            acc.moderation.as_ref().is_some_and(|m| m.is_active());
-                        let now_active =
-                            moderation.as_ref().is_some_and(|m| m.is_active());
+                        if created_at.is_some() {
+                            acc.created_at = created_at;
+                        }
+                        let was_active = acc.moderation.as_ref().is_some_and(|m| m.is_active());
+                        let now_active = moderation.as_ref().is_some_and(|m| m.is_active());
                         newly_moderated = !was_active && now_active;
                         // Merge instead of clobber: when this scan didn't get
                         // a specific reason / expiry (typically because the
@@ -1058,10 +1065,7 @@ impl AppState {
                         // the banner's generic title than to keep displaying a
                         // string that's no more informative than the title.
                         fn is_specific(r: &str) -> bool {
-                            !matches!(
-                                r.trim(),
-                                "Account terminated." | "Account moderated."
-                            )
+                            !matches!(r.trim(), "Account terminated." | "Account moderated.")
                         }
                         acc.moderation = match (acc.moderation.take(), moderation) {
                             (Some(old), Some(mut new)) => {
@@ -1139,7 +1143,12 @@ impl AppState {
                 BackendEvent::UpdateAvailable { version, url } => {
                     self.update_available = Some((version, url));
                 }
-                BackendEvent::PlaceResolved { index, place_name, place_id, icon_bytes } => {
+                BackendEvent::PlaceResolved {
+                    index,
+                    place_name,
+                    place_id,
+                    icon_bytes,
+                } => {
                     if let Some(server) = self.config.private_servers.get_mut(index) {
                         // Only update place_name if the new one is non-empty
                         // (don't overwrite good cached data on transient failures).
@@ -1176,12 +1185,12 @@ impl AppState {
                         universe_id,
                         index: idx,
                     });
-                    self.toasts.push(Toast::success("Share link resolved, private server added"));
+                    self.toasts
+                        .push(Toast::success("Share link resolved, private server added"));
                 }
                 BackendEvent::ShareLinkFailed(msg) => {
-                    self.toasts.push(Toast::error(format!(
-                        "Failed to resolve share link: {msg}"
-                    )));
+                    self.toasts
+                        .push(Toast::error(format!("Failed to resolve share link: {msg}")));
                 }
                 BackendEvent::BrowseAsLaunched => {
                     self.toasts.push(Toast::success("Opening browser..."));
@@ -1208,7 +1217,8 @@ impl AppState {
                     self.add_dialog.rejected_cookie = None;
                     self.add_dialog.force_add_form_open = false;
                     self.add_dialog.force_add_username.clear();
-                    self.tutorial.advance_from(tutorial::TutorialStep::EnterCookie);
+                    self.tutorial
+                        .advance_from(tutorial::TutorialStep::EnterCookie);
                     self.auto_save();
                 }
                 BackendEvent::AddAccountAuthFailed {
@@ -1617,7 +1627,8 @@ impl AppState {
     /// Resolve place names and game icons for private servers that are missing them.
     fn resolve_private_server_icons(&self) {
         for (i, server) in self.config.private_servers.iter().enumerate() {
-            if server.place_name.is_empty() || !self.game_icon_bytes.contains_key(&server.place_id) {
+            if server.place_name.is_empty() || !self.game_icon_bytes.contains_key(&server.place_id)
+            {
                 self.bridge.send(BackendCommand::ResolvePlace {
                     place_id: server.place_id,
                     universe_id: server.universe_id,
@@ -1668,9 +1679,8 @@ impl AppState {
             let needed = std::time::Duration::from_secs(delay as u64);
             if elapsed < needed {
                 let remaining = (needed - elapsed).as_secs() + 1;
-                self.toasts.push(Toast::info(format!(
-                    "Launch cooldown: wait {remaining}s",
-                )));
+                self.toasts
+                    .push(Toast::info(format!("Launch cooldown: wait {remaining}s",)));
                 return false;
             }
         }
@@ -1922,8 +1932,8 @@ impl eframe::App for AppState {
                         );
 
                         ui.add_space(8.0);
-                        let enter_pressed = response.lost_focus()
-                            && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        let enter_pressed =
+                            response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                         if ui.button("Unlock").clicked() || enter_pressed {
                             submit = true;
                         }
@@ -1968,6 +1978,7 @@ impl eframe::App for AppState {
         egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.active_tab, Tab::Accounts, "📋 Accounts");
+                ui.selectable_value(&mut self.active_tab, Tab::Groups, "👥 Groups");
                 ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "🔒 Private Servers");
                 ui.selectable_value(&mut self.active_tab, Tab::Presets, "⭐ Presets");
                 if self.config.developer_options {
@@ -2019,9 +2030,9 @@ impl eframe::App for AppState {
             });
         });
 
-
         match self.active_tab {
             Tab::Accounts => self.show_accounts_tab(ctx),
+            Tab::Groups => self.show_groups_tab(ctx),
             Tab::PrivateServers => self.show_private_servers_tab(ctx),
             Tab::Presets => self.show_presets_tab(ctx),
             Tab::AssetManager => self.show_asset_manager_tab(ctx),
@@ -2059,6 +2070,10 @@ impl eframe::App for AppState {
 // ---------------------------------------------------------------------------
 
 impl AppState {
+    fn show_groups_tab(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default().show(ctx, |_ui| {});
+    }
+
     fn show_accounts_tab(&mut self, ctx: &egui::Context) {
         // Sidebar
         egui::SidePanel::left("sidebar")
@@ -2086,7 +2101,8 @@ impl AppState {
                 self.tutorial.sidebar_accounts_rect = result.accounts_rect;
                 // Tutorial: advance when the sidebar account list area is known
                 if !self.selected_ids.is_empty() {
-                    self.tutorial.advance_from(tutorial::TutorialStep::SelectAccount);
+                    self.tutorial
+                        .advance_from(tutorial::TutorialStep::SelectAccount);
                 }
                 for a in result.actions {
                     match a {
@@ -2116,7 +2132,8 @@ impl AppState {
                             self.add_dialog.browser_login_rx = None;
                             self.add_dialog.rejected_cookie = None;
                             self.add_dialog.pending_moderated = None;
-                            self.tutorial.advance_from(tutorial::TutorialStep::AddAccount);
+                            self.tutorial
+                                .advance_from(tutorial::TutorialStep::AddAccount);
                         }
                         sidebar::SidebarAction::CopyJobId(job_id) => {
                             ui.output_mut(|o| o.copied_text = job_id.clone());
@@ -2146,11 +2163,8 @@ impl AppState {
                                 .first()
                                 .map(|(_, p)| (Some(p.place_id), p.job_id.clone()))
                                 .unwrap_or_else(|| {
-                                    let pid = self
-                                        .main_panel_state
-                                        .place_id_input
-                                        .parse::<u64>()
-                                        .ok();
+                                    let pid =
+                                        self.main_panel_state.place_id_input.parse::<u64>().ok();
                                     let j = {
                                         let t = self.main_panel_state.job_id_input.trim();
                                         if t.is_empty() {
@@ -2174,11 +2188,19 @@ impl AppState {
                                             user_id: uid,
                                             encrypted_cookie: enc,
                                             session: session.clone(),
-                                            use_credential_manager: self.config.use_credential_manager,
+                                            use_credential_manager: self
+                                                .config
+                                                .use_credential_manager,
                                             place_id,
                                             job_id,
                                             link_code: None,
                                             access_code: None,
+                                            player_path: self
+                                                .config
+                                                .custom_player_paths
+                                                .get(&uid)
+                                                .cloned()
+                                                .or_else(|| self.config.roblox_player_path.clone()),
                                             multi_instance: self.config.multi_instance_enabled,
                                             kill_background: self.config.kill_background_roblox,
                                             privacy_mode: self.config.privacy_mode,
@@ -2199,7 +2221,11 @@ impl AppState {
                             }
                             self.auto_save();
                         }
-                        sidebar::SidebarAction::CreateGroup { name, color, assign_user_ids } => {
+                        sidebar::SidebarAction::CreateGroup {
+                            name,
+                            color,
+                            assign_user_ids,
+                        } => {
                             self.config.groups.insert(
                                 name.clone(),
                                 ram_core::models::GroupMeta {
@@ -2227,9 +2253,16 @@ impl AppState {
                             let _ = self.config.save(&self.config_path);
                             self.auto_save();
                         }
-                        sidebar::SidebarAction::EditGroup { old_name, new_name, color } => {
+                        sidebar::SidebarAction::EditGroup {
+                            old_name,
+                            new_name,
+                            color,
+                        } => {
                             let old_meta = self.config.groups.remove(&old_name);
-                            let desc = old_meta.as_ref().map(|m| m.description.clone()).unwrap_or_default();
+                            let desc = old_meta
+                                .as_ref()
+                                .map(|m| m.description.clone())
+                                .unwrap_or_default();
                             let old_sort = old_meta.map(|m| m.sort_order).unwrap_or(u32::MAX);
                             self.config.groups.insert(
                                 new_name.clone(),
@@ -2246,35 +2279,49 @@ impl AppState {
                                     }
                                 }
                                 if self.sidebar_state.collapsed_groups.remove(&old_name) {
-                                    self.sidebar_state
-                                        .collapsed_groups
-                                        .insert(new_name.clone());
+                                    self.sidebar_state.collapsed_groups.insert(new_name.clone());
                                 }
                             }
                             let _ = self.config.save(&self.config_path);
                             self.auto_save();
                         }
-                        sidebar::SidebarAction::ReorderAccount { user_id, target_user_id, insert_after } => {
+                        sidebar::SidebarAction::ReorderAccount {
+                            user_id,
+                            target_user_id,
+                            insert_after,
+                        } => {
                             // Move `user_id` before or after `target_user_id` within the
                             // same group (or both ungrouped). Reassign sort_order values.
-                            let group = self.store.find_by_id(user_id)
+                            let group = self
+                                .store
+                                .find_by_id(user_id)
                                 .map(|a| a.group.clone())
                                 .unwrap_or_default();
                             // Collect accounts in this group, sorted by current sort_order then name.
-                            let mut peers: Vec<(u32, String, u64)> = self.store.accounts.iter()
+                            let mut peers: Vec<(u32, String, u64)> = self
+                                .store
+                                .accounts
+                                .iter()
                                 .filter(|a| a.group == group)
                                 .map(|a| (a.sort_order, a.label().to_lowercase(), a.user_id))
                                 .collect();
                             peers.sort();
-                            let mut ids: Vec<u64> = peers.into_iter().map(|(_, _, id)| id).collect();
+                            let mut ids: Vec<u64> =
+                                peers.into_iter().map(|(_, _, id)| id).collect();
                             // Remove the dragged account.
                             if let Some(drag_pos) = ids.iter().position(|id| *id == user_id) {
                                 ids.remove(drag_pos);
                             }
                             // Find target and insert before or after it.
-                            let target_pos = ids.iter().position(|id| *id == target_user_id)
+                            let target_pos = ids
+                                .iter()
+                                .position(|id| *id == target_user_id)
                                 .unwrap_or(ids.len());
-                            let insert_pos = if insert_after { target_pos + 1 } else { target_pos };
+                            let insert_pos = if insert_after {
+                                target_pos + 1
+                            } else {
+                                target_pos
+                            };
                             ids.insert(insert_pos.min(ids.len()), user_id);
                             // Reassign sequential sort_order values.
                             for (i, uid) in ids.iter().enumerate() {
@@ -2284,19 +2331,33 @@ impl AppState {
                             }
                             self.auto_save();
                         }
-                        sidebar::SidebarAction::ReorderGroup { group_name, target_group, insert_after } => {
+                        sidebar::SidebarAction::ReorderGroup {
+                            group_name,
+                            target_group,
+                            insert_after,
+                        } => {
                             // Move `group_name` before or after `target_group`.
-                            let mut ordered: Vec<(u32, String)> = self.config.groups.iter()
+                            let mut ordered: Vec<(u32, String)> = self
+                                .config
+                                .groups
+                                .iter()
                                 .map(|(name, meta)| (meta.sort_order, name.clone()))
                                 .collect();
                             ordered.sort();
-                            let mut names: Vec<String> = ordered.into_iter().map(|(_, n)| n).collect();
+                            let mut names: Vec<String> =
+                                ordered.into_iter().map(|(_, n)| n).collect();
                             if let Some(pos) = names.iter().position(|n| *n == group_name) {
                                 names.remove(pos);
                             }
-                            let target_pos = names.iter().position(|n| *n == target_group)
+                            let target_pos = names
+                                .iter()
+                                .position(|n| *n == target_group)
                                 .unwrap_or(names.len());
-                            let insert_pos = if insert_after { target_pos + 1 } else { target_pos };
+                            let insert_pos = if insert_after {
+                                target_pos + 1
+                            } else {
+                                target_pos
+                            };
                             names.insert(insert_pos.min(names.len()), group_name);
                             for (i, name) in names.iter().enumerate() {
                                 if let Some(meta) = self.config.groups.get_mut(name) {
@@ -2315,6 +2376,31 @@ impl AppState {
                             }
                             let _ = self.config.save(&self.config_path);
                             self.auto_save();
+                        }
+                        sidebar::SidebarAction::TogglePinAccount(user_id) => {
+                            if let Some(acc) = self.store.find_by_id_mut(user_id) {
+                                acc.is_pinned = !acc.is_pinned;
+                                let pin_status = if acc.is_pinned { "pinned" } else { "unpinned" };
+                                self.toasts
+                                    .push(Toast::info(format!("Account {}", pin_status)));
+                            }
+                            self.auto_save();
+                        }
+                        sidebar::SidebarAction::SetCustomPath { user_ids, path } => {
+                            let has_path = path.is_some();
+                            for user_id in user_ids {
+                                if let Some(path) = path.clone() {
+                                    self.config.custom_player_paths.insert(user_id, path);
+                                } else {
+                                    self.config.custom_player_paths.remove(&user_id);
+                                }
+                            }
+                            let _ = self.config.save(&self.config_path);
+                            self.toasts.push(Toast::info(if has_path {
+                                "Custom Roblox path set"
+                            } else {
+                                "Custom Roblox path cleared"
+                            }));
                         }
                     }
                 }
@@ -2376,6 +2462,12 @@ impl AppState {
                         group_panel::GroupPanelAction::ClearSelection => {
                             self.selected_ids.clear();
                         }
+                        group_panel::GroupPanelAction::OpenPathEditor => {
+                            self.sidebar_state.path_editor = Some(sidebar::PathEditorState {
+                                user_ids: self.selected_ids.iter().copied().collect(),
+                                input: String::new(),
+                            });
+                        }
                         group_panel::GroupPanelAction::KillAll => {
                             self.bridge.send(BackendCommand::KillAll);
                         }
@@ -2392,6 +2484,20 @@ impl AppState {
                     };
                     let preset_view: Vec<ram_core::models::LaunchPreset> =
                         self.presets.iter().map(|(_, p)| p.clone()).collect();
+                    let player_path_label = self
+                        .config
+                        .custom_player_paths
+                        .get(&account.user_id)
+                        .map(|path| format!("Custom ({})", path.display()))
+                        .unwrap_or_else(|| {
+                            let path = self
+                                .config
+                                .roblox_player_path
+                                .as_ref()
+                                .map(|path| path.display().to_string())
+                                .unwrap_or_else(|| "Auto-detect".to_string());
+                            format!("Default ({path})")
+                        });
                     let result = main_panel::show(
                         ui,
                         &account,
@@ -2400,10 +2506,22 @@ impl AppState {
                         avatar_bytes,
                         &preset_view,
                         self.config.anonymize_names,
+                        &player_path_label,
                     );
                     self.tutorial.launch_btn_rect = result.launch_btn_rect;
                     if let Some(a) = result.action {
                         match a {
+                            main_panel::MainPanelAction::OpenPathEditor => {
+                                self.sidebar_state.path_editor = Some(sidebar::PathEditorState {
+                                    user_ids: vec![account.user_id],
+                                    input: self
+                                        .config
+                                        .custom_player_paths
+                                        .get(&account.user_id)
+                                        .map(|path| path.display().to_string())
+                                        .unwrap_or_default(),
+                                });
+                            }
                             main_panel::MainPanelAction::LaunchGame { place_id, job_id } => {
                                 // Session first, so a locked store does not
                                 // spend the launch-delay slot on a launch that
@@ -2420,6 +2538,12 @@ impl AppState {
                                         job_id,
                                         link_code: None,
                                         access_code: None,
+                                        player_path: self
+                                            .config
+                                            .custom_player_paths
+                                            .get(&account.user_id)
+                                            .cloned()
+                                            .or_else(|| self.config.roblox_player_path.clone()),
                                         multi_instance: self.config.multi_instance_enabled,
                                         kill_background: self.config.kill_background_roblox,
                                         privacy_mode: self.config.privacy_mode,
@@ -2445,18 +2569,13 @@ impl AppState {
                                     place_id,
                                     job_id,
                                 };
-                                match ram_core::presets::save(
-                                    &crate::data_dir(),
-                                    &preset,
-                                    None,
-                                ) {
+                                match ram_core::presets::save(&crate::data_dir(), &preset, None) {
                                     Ok(_) => {
                                         self.toasts.push(Toast::success("Preset saved"));
                                         self.reload_presets();
                                     }
                                     Err(e) => {
-                                        self.toasts
-                                            .push(Toast::error(format!("Save failed: {e}")));
+                                        self.toasts.push(Toast::error(format!("Save failed: {e}")));
                                     }
                                 }
                             }
@@ -2490,8 +2609,7 @@ impl AppState {
                 self.selected_ids.clear();
             }
             // Delete: prompt to remove selected account(s)
-            if i.key_pressed(egui::Key::Delete) && !any_text_focused
-                && self.selected_ids.len() == 1
+            if i.key_pressed(egui::Key::Delete) && !any_text_focused && self.selected_ids.len() == 1
             {
                 let uid = *self.selected_ids.iter().next().unwrap();
                 self.confirm_remove = Some(uid);
@@ -2532,8 +2650,16 @@ impl AppState {
                             self.toasts.push(Toast::info("Private server removed"));
                         }
                     }
-                    private_servers::PrivateServerAction::Launch { place_id, link_code, access_code } => {
-                        let ac = if access_code.is_empty() { None } else { Some(access_code.clone()) };
+                    private_servers::PrivateServerAction::Launch {
+                        place_id,
+                        link_code,
+                        access_code,
+                    } => {
+                        let ac = if access_code.is_empty() {
+                            None
+                        } else {
+                            Some(access_code.clone())
+                        };
                         if self.selected_ids.len() == 1 {
                             let uid = *self.selected_ids.iter().next().unwrap();
                             let acc_lookup = self
@@ -2543,9 +2669,7 @@ impl AppState {
                             // Session first, so a locked store does not spend
                             // the launch-delay slot on a launch that cannot
                             // happen.
-                            let ready = self
-                                .session()
-                                .filter(|_| self.try_consume_launch_slot());
+                            let ready = self.session().filter(|_| self.try_consume_launch_slot());
                             if let (Some((user_id, enc)), Some(session)) = (acc_lookup, ready) {
                                 self.bridge.send(BackendCommand::LaunchGame {
                                     user_id,
@@ -2556,6 +2680,12 @@ impl AppState {
                                     job_id: None,
                                     link_code: Some(link_code.clone()),
                                     access_code: ac.clone(),
+                                    player_path: self
+                                        .config
+                                        .custom_player_paths
+                                        .get(&user_id)
+                                        .cloned()
+                                        .or_else(|| self.config.roblox_player_path.clone()),
                                     multi_instance: self.config.multi_instance_enabled,
                                     kill_background: self.config.kill_background_roblox,
                                     privacy_mode: self.config.privacy_mode,
@@ -2643,8 +2773,7 @@ impl AppState {
                         self.reload_presets();
                     }
                     Err(e) => {
-                        self.toasts
-                            .push(Toast::error(format!("Save failed: {e}")));
+                        self.toasts.push(Toast::error(format!("Save failed: {e}")));
                     }
                 }
             }
@@ -3178,9 +3307,7 @@ impl AppState {
             .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
             .show(ctx, |ui| {
                 let count = self.asset_manager_state.selected.len();
-                ui.label(format!(
-                    "Let one experience use {count} selected asset(s)."
-                ));
+                ui.label(format!("Let one experience use {count} selected asset(s)."));
                 ui.add_space(8.0);
 
                 ui.label("Experience:");
@@ -3208,9 +3335,8 @@ impl AppState {
                             .desired_width(200.0)
                             .hint_text("ID or roblox.com/games/... link"),
                     );
-                    let parsed = ram_core::assets::parse_id_input(
-                        &self.asset_manager_state.grant_manual,
-                    );
+                    let parsed =
+                        ram_core::assets::parse_id_input(&self.asset_manager_state.grant_manual);
                     if ui
                         .add_enabled(parsed.is_some(), egui::Button::new("Use as universe"))
                         .clicked()
@@ -3229,10 +3355,9 @@ impl AppState {
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     let target = self.asset_manager_state.grant_universe;
-                    let grant = egui::Button::new(
-                        egui::RichText::new("Grant").color(ui.theme().on_accent),
-                    )
-                    .fill(ui.visuals().selection.bg_fill);
+                    let grant =
+                        egui::Button::new(egui::RichText::new("Grant").color(ui.theme().on_accent))
+                            .fill(ui.visuals().selection.bg_fill);
                     if ui.add_enabled(target.is_some(), grant).clicked() {
                         granted = target;
                     }
@@ -3246,8 +3371,7 @@ impl AppState {
             self.fetch_universe_targets(Some(place_id));
         }
         if let Some(universe_id) = granted {
-            let rows: Vec<String> =
-                self.asset_manager_state.selected.iter().cloned().collect();
+            let rows: Vec<String> = self.asset_manager_state.selected.iter().cloned().collect();
             self.grant_universe_access(universe_id, rows);
             self.asset_manager_state.grant_open = false;
         } else if cancelled || !open {
@@ -3388,8 +3512,10 @@ impl AppState {
         if retryable && attempts < ram_core::assets::MAX_UPLOAD_ATTEMPTS {
             let wait = ram_core::assets::upload_retry_backoff(attempts.saturating_sub(1));
             record.state = AssetState::Queued;
-            record.retry_at =
-                Some(now + chrono::Duration::from_std(wait).unwrap_or_else(|_| chrono::TimeDelta::seconds(30)));
+            record.retry_at = Some(
+                now + chrono::Duration::from_std(wait)
+                    .unwrap_or_else(|_| chrono::TimeDelta::seconds(30)),
+            );
             record.updated_at = Some(now);
             tracing::info!(
                 "upload of {row_id} failed ({message}); attempt {attempts} of {}, retrying in {wait:?}",
@@ -3459,8 +3585,7 @@ impl AppState {
                 groups: &self.publish_groups,
                 remote: &self.remote_inventory,
                 thumbnails: &self.asset_thumbnails,
-                unlocked: self.store_session.is_some()
-                    || self.config.use_credential_manager,
+                unlocked: self.store_session.is_some() || self.config.use_credential_manager,
                 read_only: self.asset_index_read_only,
             };
             result = asset_manager::show(ui, &mut cx);
@@ -3514,8 +3639,8 @@ impl AppState {
                     .add_filter(
                         "Roblox assets",
                         &[
-                            "png", "jpg", "jpeg", "bmp", "tga", "mp3", "ogg", "wav", "flac",
-                            "fbx", "gltf", "glb", "rbxm", "rbxmx", "mp4", "mov",
+                            "png", "jpg", "jpeg", "bmp", "tga", "mp3", "ogg", "wav", "flac", "fbx",
+                            "gltf", "glb", "rbxm", "rbxmx", "mp4", "mov",
                         ],
                     )
                     .add_filter("All files", &["*"])
@@ -3573,11 +3698,8 @@ impl AppState {
                     return;
                 };
                 // Advance every kind that still has a page left.
-                let pending: Vec<(ram_core::assets::AssetKind, String)> = self
-                    .remote_inventory
-                    .cursors
-                    .drain()
-                    .collect();
+                let pending: Vec<(ram_core::assets::AssetKind, String)> =
+                    self.remote_inventory.cursors.drain().collect();
                 self.remote_inventory.inflight += pending.len();
                 for (kind, cursor) in pending {
                     self.fetch_creations(node, kind, Some(cursor));
@@ -3654,9 +3776,7 @@ impl AppState {
                 // Same file, same creator, already uploaded. Flag it rather
                 // than silently re-uploading: assets are permanent and audio
                 // burns a per-account quota.
-                record.state = AssetState::Duplicate {
-                    asset_id: existing,
-                };
+                record.state = AssetState::Duplicate { asset_id: existing };
                 duplicates += 1;
             } else {
                 self.asset_manager_state.checked.insert(row_id);
@@ -3889,8 +4009,7 @@ impl AppState {
                 Ok(crate::browser_login::LoginOutcome::Failed(e)) => {
                     self.add_dialog.browser_login_pending = false;
                     self.add_dialog.browser_login_rx = None;
-                    self.add_dialog.last_error =
-                        Some(format!("Browser login failed: {e}"));
+                    self.add_dialog.last_error = Some(format!("Browser login failed: {e}"));
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
@@ -4094,7 +4213,8 @@ impl AppState {
                     self.add_dialog.cookie_input.clear();
                     self.add_dialog.browser_login_pending = false;
                     self.add_dialog.browser_login_rx = None;
-                    self.tutorial.advance_from(tutorial::TutorialStep::EnterCookie);
+                    self.tutorial
+                        .advance_from(tutorial::TutorialStep::EnterCookie);
                     self.auto_save();
                 }
             }
@@ -4613,13 +4733,12 @@ impl AppState {
             .collapsible(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
-                ui.label(format!("Remove account \"{label}\"? This cannot be undone."));
+                ui.label(format!(
+                    "Remove account \"{label}\"? This cannot be undone."
+                ));
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if ui
-                        .button("🗑  Remove")
-                        .clicked()
-                    {
+                    if ui.button("🗑  Remove").clicked() {
                         self.bridge
                             .send(BackendCommand::RemoveAccount { user_id: uid });
                         keep_open = false;
@@ -4949,8 +5068,9 @@ impl AppState {
                 "Account store deleted, but {orphaned} saved credential(s) could not be removed"
             )));
         } else {
-            self.toasts
-                .push(Toast::success("Account store deleted. Add an account to start over."));
+            self.toasts.push(Toast::success(
+                "Account store deleted. Add an account to start over.",
+            ));
         }
     }
 
@@ -5024,40 +5144,56 @@ impl AppState {
             // Text before the bold marker
             let before = &remaining[..start];
             if !before.is_empty() {
-                job.append(before, 0.0, egui::text::TextFormat {
-                    font_id: normal_font.clone(),
-                    color: normal_color,
-                    ..Default::default()
-                });
+                job.append(
+                    before,
+                    0.0,
+                    egui::text::TextFormat {
+                        font_id: normal_font.clone(),
+                        color: normal_color,
+                        ..Default::default()
+                    },
+                );
             }
             remaining = &remaining[start + 2..];
             // Find the closing **
             if let Some(end) = remaining.find("**") {
                 let bold_text = &remaining[..end];
-                job.append(bold_text, 0.0, egui::text::TextFormat {
-                    font_id: bold_font.clone(),
-                    color: normal_color,
-                    italics: false,
-                    ..Default::default()
-                });
+                job.append(
+                    bold_text,
+                    0.0,
+                    egui::text::TextFormat {
+                        font_id: bold_font.clone(),
+                        color: normal_color,
+                        italics: false,
+                        ..Default::default()
+                    },
+                );
                 remaining = &remaining[end + 2..];
             } else {
                 // No closing ** — just emit the rest as normal
-                job.append(&format!("**{remaining}"), 0.0, egui::text::TextFormat {
-                    font_id: normal_font.clone(),
-                    color: normal_color,
-                    ..Default::default()
-                });
+                job.append(
+                    &format!("**{remaining}"),
+                    0.0,
+                    egui::text::TextFormat {
+                        font_id: normal_font.clone(),
+                        color: normal_color,
+                        ..Default::default()
+                    },
+                );
                 remaining = "";
             }
         }
         // Remaining plain text
         if !remaining.is_empty() {
-            job.append(remaining, 0.0, egui::text::TextFormat {
-                font_id: normal_font,
-                color: normal_color,
-                ..Default::default()
-            });
+            job.append(
+                remaining,
+                0.0,
+                egui::text::TextFormat {
+                    font_id: normal_font,
+                    color: normal_color,
+                    ..Default::default()
+                },
+            );
         }
         ui.label(job);
     }

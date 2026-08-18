@@ -83,6 +83,7 @@ pub enum BackendCommand {
         job_id: Option<String>,
         link_code: Option<String>,
         access_code: Option<String>,
+        player_path: Option<PathBuf>,
         multi_instance: bool,
         kill_background: bool,
         privacy_mode: bool,
@@ -346,6 +347,7 @@ pub enum BackendEvent {
         valid: bool,
         username: String,
         display_name: String,
+        created_at: Option<chrono::DateTime<chrono::Utc>>,
         /// Latest moderation snapshot, or `None` if no enforcement is active.
         moderation: Option<ram_core::models::ModerationInfo>,
     },
@@ -498,7 +500,11 @@ impl BackendBridge {
             rt.block_on(backend_loop(cmd_rx, evt_tx));
         });
 
-        Self { cmd_tx, evt_rx, repaint_ctx: None }
+        Self {
+            cmd_tx,
+            evt_rx,
+            repaint_ctx: None,
+        }
     }
 
     /// Give the bridge an egui context so it can request repaints when events arrive.
@@ -595,10 +601,7 @@ async fn handle_command(
             session,
             use_credential_manager,
         } => {
-            let (user_id, username, display_name) = match client
-                .validate_cookie(&cookie)
-                .await
-            {
+            let (user_id, username, display_name) = match client.validate_cookie(&cookie).await {
                 Ok(t) => t,
                 Err(e) => {
                     // Cookie rejected at the auth layer (401/403 → typically
@@ -626,6 +629,10 @@ async fn handle_command(
             };
             account.encrypted_cookie = encrypted.clone();
             account.last_validated = Some(chrono::Utc::now());
+            account.created_at = api::fetch_public_created_at(client, user_id)
+                .await
+                .ok()
+                .flatten();
 
             // Detect any active moderation on this account so the UI can
             // either warn the user (add flow) or flag it visually (revalidation).
@@ -665,8 +672,7 @@ async fn handle_command(
                     .await?
                     .ok_or_else(|| CoreError::AccountNotFound(username.clone()))?;
 
-            let mut account =
-                Account::new(user_id, canonical_username, display_name);
+            let mut account = Account::new(user_id, canonical_username, display_name);
 
             let encrypted = if use_credential_manager {
                 crypto::credential_store(user_id, &cookie)?;
@@ -675,6 +681,10 @@ async fn handle_command(
                 Some(crypto::encrypt_cookie(&cookie, &session)?)
             };
             account.encrypted_cookie = encrypted.clone();
+            account.created_at = api::fetch_public_created_at(client, user_id)
+                .await
+                .ok()
+                .flatten();
             // Cookie failed validation upstream — record it as expired so the
             // sidebar/main panel reflect reality. The next revalidation will
             // unmark it if the user resolves things in the browser.
@@ -736,6 +746,7 @@ async fn handle_command(
             job_id,
             link_code,
             access_code,
+            player_path,
             multi_instance,
             kill_background,
             privacy_mode,
@@ -766,6 +777,7 @@ async fn handle_command(
                 link_code.as_deref(),
                 access_code.as_deref(),
                 launchtime,
+                player_path.as_deref(),
             )?;
             Ok(BackendEvent::GameLaunched)
         }
@@ -833,9 +845,8 @@ async fn handle_command(
             let cookie = if use_credential_manager {
                 crypto::credential_load(first_user_id)?
             } else {
-                let enc = encrypted_cookie.ok_or_else(|| {
-                    CoreError::Crypto("no encrypted cookie for refresh".into())
-                })?;
+                let enc = encrypted_cookie
+                    .ok_or_else(|| CoreError::Crypto("no encrypted cookie for refresh".into()))?;
                 crypto::decrypt_cookie(&enc, &session)?
             };
             // Avatars and presence are independent calls over the same account
@@ -867,9 +878,8 @@ async fn handle_command(
             let cookie = if use_credential_manager {
                 crypto::credential_load(first_user_id)?
             } else {
-                let enc = encrypted_cookie.ok_or_else(|| {
-                    CoreError::Crypto("no encrypted cookie for refresh".into())
-                })?;
+                let enc = encrypted_cookie
+                    .ok_or_else(|| CoreError::Crypto("no encrypted cookie for refresh".into()))?;
                 crypto::decrypt_cookie(&enc, &session)?
             };
             let presences = api::fetch_presences(client, &cookie, &user_ids).await?;
@@ -904,9 +914,9 @@ async fn handle_command(
                 job_id
             } else {
                 // Decrypt the first account's cookie to make the API call
-                let first = accounts.first().ok_or_else(|| {
-                    CoreError::Process("no accounts to launch".into())
-                })?;
+                let first = accounts
+                    .first()
+                    .ok_or_else(|| CoreError::Process("no accounts to launch".into()))?;
                 let first_cookie = if use_credential_manager {
                     crypto::credential_load(first.0)?
                 } else {
@@ -922,8 +932,10 @@ async fn handle_command(
                 match api::fetch_servers(client, &first_cookie, place_id, None).await {
                     Ok((servers, _)) => {
                         if let Some(server) = servers.into_iter().next() {
-                            info!("Bulk launch: resolved server {} ({}/{} players)",
-                                  server.id, server.playing, server.max_players);
+                            info!(
+                                "Bulk launch: resolved server {} ({}/{} players)",
+                                server.id, server.playing, server.max_players
+                            );
                             Some(server.id)
                         } else {
                             info!("Bulk launch: no public servers found, launching without Job ID");
@@ -946,9 +958,7 @@ async fn handle_command(
                 } else {
                     match encrypted_cookie {
                         Some(enc) => crypto::decrypt_cookie(enc, &session),
-                        None => Err(CoreError::Crypto(
-                            "no encrypted cookie stored".into(),
-                        )),
+                        None => Err(CoreError::Crypto("no encrypted cookie stored".into())),
                     }
                 };
                 match cookie_result {
@@ -967,6 +977,7 @@ async fn handle_command(
                                     link_code.as_deref(),
                                     access_code.as_deref(),
                                     launchtime,
+                                    None,
                                 ) {
                                     error!("Bulk launch failed for user {user_id}: {e}");
                                     failed += 1;
@@ -1029,16 +1040,20 @@ async fn handle_command(
                 match client.validate_cookie(&cookie).await {
                     Ok((_, username, display_name)) => {
                         // Cookie still works — also refresh moderation state.
-                        let moderation =
-                            api::fetch_moderation_status(client, *user_id, &cookie)
-                                .await
-                                .ok()
-                                .flatten();
+                        let moderation = api::fetch_moderation_status(client, *user_id, &cookie)
+                            .await
+                            .ok()
+                            .flatten();
+                        let created_at = api::fetch_public_created_at(client, *user_id)
+                            .await
+                            .ok()
+                            .flatten();
                         let _ = tx.send(BackendEvent::AccountRevalidated {
                             user_id: *user_id,
                             valid: true,
                             username,
                             display_name,
+                            created_at,
                             moderation,
                         });
                     }
@@ -1049,12 +1064,10 @@ async fn handle_command(
                         // *just* terminated and gives us the real reason
                         // before further auth revocation kicks in), and fall
                         // back to the public is-banned flag.
-                        let is_banned =
-                            api::fetch_public_ban_status(client, *user_id)
-                                .await
-                                .unwrap_or(false);
-                        let msg =
-                            api::fetch_moderation_message(client, &cookie).await;
+                        let is_banned = api::fetch_public_ban_status(client, *user_id)
+                            .await
+                            .unwrap_or(false);
+                        let msg = api::fetch_moderation_message(client, &cookie).await;
                         let (reason, expires_at) = match msg {
                             Some((r, e)) => (Some(r), e),
                             None => (None, None),
@@ -1069,11 +1082,16 @@ async fn handle_command(
                         } else {
                             None
                         };
+                        let created_at = api::fetch_public_created_at(client, *user_id)
+                            .await
+                            .ok()
+                            .flatten();
                         let _ = tx.send(BackendEvent::AccountRevalidated {
                             user_id: *user_id,
                             valid: false,
                             username: String::new(),
                             display_name: String::new(),
+                            created_at,
                             moderation,
                         });
                     }
@@ -1090,9 +1108,7 @@ async fn handle_command(
         }
         BackendCommand::CheckForUpdates { current_version } => {
             match api::check_for_updates(&current_version).await {
-                Ok(Some((version, url))) => {
-                    Ok(BackendEvent::UpdateAvailable { version, url })
-                }
+                Ok(Some((version, url))) => Ok(BackendEvent::UpdateAvailable { version, url }),
                 Ok(None) => Ok(BackendEvent::StoreSaved), // no-op event
                 Err(e) => {
                     info!("Update check failed (non-fatal): {e}");
@@ -1100,11 +1116,16 @@ async fn handle_command(
                 }
             }
         }
-        BackendCommand::ResolvePlace { place_id, universe_id, index } => {
+        BackendCommand::ResolvePlace {
+            place_id,
+            universe_id,
+            index,
+        } => {
             // Both the game name and icon endpoints work without auth when we
             // have a universe_id. If we don't, we can't resolve without auth.
             if let Some(uid) = universe_id {
-                let name = api::resolve_universe_name(client, uid).await
+                let name = api::resolve_universe_name(client, uid)
+                    .await
                     .unwrap_or_default();
                 let icon_bytes = match api::fetch_game_icons(client, "", &[uid]).await {
                     Ok(icons) => {
@@ -1119,10 +1140,20 @@ async fn handle_command(
                         None
                     }
                 };
-                Ok(BackendEvent::PlaceResolved { index, place_name: name, place_id, icon_bytes })
+                Ok(BackendEvent::PlaceResolved {
+                    index,
+                    place_name: name,
+                    place_id,
+                    icon_bytes,
+                })
             } else {
                 // No universe_id — cannot resolve without auth. Return empty.
-                Ok(BackendEvent::PlaceResolved { index, place_name: String::new(), place_id, icon_bytes: None })
+                Ok(BackendEvent::PlaceResolved {
+                    index,
+                    place_name: String::new(),
+                    place_id,
+                    icon_bytes: None,
+                })
             }
         }
         BackendCommand::BrowseAsAccount {
@@ -1434,7 +1465,10 @@ fn sweep_instances(registry: &Registry) -> BackendEvent {
         );
     }
     for instance in &outcome.exited {
-        info!("Roblox PID {} (user {}) exited", instance.pid, instance.user_id);
+        info!(
+            "Roblox PID {} (user {}) exited",
+            instance.pid, instance.user_id
+        );
     }
     for launch in &outcome.abandoned {
         // Worth a line: it means either the launch failed silently or the
@@ -1688,7 +1722,10 @@ async fn poll_asset_moderation(
     let statuses = match assets_api::fetch_moderation_statuses(client, cookie, &asset_ids).await {
         Ok(statuses) => statuses,
         Err(e) => {
-            info!("moderation poll of {} asset(s) failed: {e}", asset_ids.len());
+            info!(
+                "moderation poll of {} asset(s) failed: {e}",
+                asset_ids.len()
+            );
             return;
         }
     };
@@ -1823,6 +1860,7 @@ mod tests {
                 job_id: None,
                 link_code: None,
                 access_code: None,
+                player_path: None,
                 multi_instance: false,
                 kill_background: false,
                 privacy_mode: false,
@@ -1924,7 +1962,11 @@ mod tests {
         let mut sorted = tokens.clone();
         sorted.sort_unstable();
         sorted.dedup();
-        assert_eq!(sorted.len(), tokens.len(), "duplicate launchtime: {tokens:?}");
+        assert_eq!(
+            sorted.len(),
+            tokens.len(),
+            "duplicate launchtime: {tokens:?}"
+        );
         // And they only ever go up, so an older launch cannot collide with a
         // newer one after a clock correction either.
         assert!(tokens.windows(2).all(|w| w[0] < w[1]), "{tokens:?}");

@@ -29,6 +29,9 @@ pub struct Account {
     pub last_presence: Presence,
     /// Timestamp of the last successful login/validation.
     pub last_validated: Option<DateTime<Utc>>,
+    /// Public Roblox account creation timestamp, when available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<DateTime<Utc>>,
     /// True if the last automatic revalidation found the cookie expired.
     #[serde(default)]
     pub cookie_expired: bool,
@@ -39,6 +42,9 @@ pub struct Account {
     /// Manual sort position (used in Custom sort mode). `u32::MAX` = not yet positioned.
     #[serde(default = "default_sort_order")]
     pub sort_order: u32,
+    /// Whether this account is pinned (always shows at the top).
+    #[serde(default)]
+    pub is_pinned: bool,
 }
 
 impl Account {
@@ -53,9 +59,11 @@ impl Account {
             avatar_url: String::new(),
             last_presence: Presence::default(),
             last_validated: None,
+            created_at: None,
             cookie_expired: false,
             moderation: None,
             sort_order: u32::MAX,
+            is_pinned: false,
         }
     }
 
@@ -172,6 +180,9 @@ pub struct AppConfig {
     pub launch_delay_secs: u32,
     /// Custom Roblox player install path override.
     pub roblox_player_path: Option<PathBuf>,
+    /// Per-account Roblox player install path overrides, stored in plain config.
+    #[serde(default)]
+    pub custom_player_paths: HashMap<u64, PathBuf>,
     /// Saved window dimensions.
     pub window_width: f32,
     pub window_height: f32,
@@ -243,6 +254,7 @@ impl Default for AppConfig {
             kill_background_roblox: false,
             launch_delay_secs: 0,
             roblox_player_path: None,
+            custom_player_paths: HashMap::new(),
             window_width: 960.0,
             window_height: 640.0,
             groups: HashMap::new(),

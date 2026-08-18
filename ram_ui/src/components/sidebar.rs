@@ -12,6 +12,7 @@ use ram_core::models::{Account, GroupMeta};
 use crate::theme::{Theme, ThemeUi};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+use std::path::PathBuf;
 
 /// Stable 5-character anonymized tag derived from a user ID.
 pub fn anon_tag(user_id: u64) -> String {
@@ -23,7 +24,11 @@ pub fn anon_tag(user_id: u64) -> String {
     let mut val = hash;
     for _ in 0..5 {
         let digit = (val % 36) as u8;
-        buf.push(if digit < 10 { (b'0' + digit) as char } else { (b'a' + digit - 10) as char });
+        buf.push(if digit < 10 {
+            (b'0' + digit) as char
+        } else {
+            (b'a' + digit - 10) as char
+        });
         val /= 36;
     }
     buf
@@ -79,6 +84,11 @@ pub struct GroupEditorState {
     pub pending_assign: Vec<u64>,
 }
 
+pub struct PathEditorState {
+    pub user_ids: Vec<u64>,
+    pub input: String,
+}
+
 /// Persistent state for the sidebar widget.
 pub struct SidebarState {
     pub search_query: String,
@@ -91,6 +101,7 @@ pub struct SidebarState {
     pub editing_group: Option<GroupEditorState>,
     /// Pending sort change that needs user confirmation (warning about losing custom order).
     pub pending_sort_change: Option<SortOrder>,
+    pub path_editor: Option<PathEditorState>,
 }
 
 impl Default for SidebarState {
@@ -102,6 +113,7 @@ impl Default for SidebarState {
             collapsed_groups: HashSet::new(),
             editing_group: None,
             pending_sort_change: None,
+            path_editor: None,
         }
     }
 }
@@ -122,7 +134,10 @@ pub enum SidebarAction {
     /// Open a webview pre-logged in as this account.
     OpenBrowserAs(u64),
     /// Assign accounts to a group (empty string = remove from group).
-    AssignGroup { user_ids: Vec<u64>, group: String },
+    AssignGroup {
+        user_ids: Vec<u64>,
+        group: String,
+    },
     /// Create a new group and optionally assign accounts to it.
     CreateGroup {
         name: String,
@@ -160,7 +175,17 @@ pub enum SidebarAction {
     /// that immediately before terminating anyway.
     KillInstance(u32),
     /// Launch `user_id` into whatever server `target_user_id` is currently in.
-    JoinAccountServer { user_id: u64, target_user_id: u64 },
+    JoinAccountServer {
+        user_id: u64,
+        target_user_id: u64,
+    },
+    /// Toggle pinned state for an account (always shows at top when pinned).
+    TogglePinAccount(u64),
+    /// Set or clear an account's plain-text config path override.
+    SetCustomPath {
+        user_ids: Vec<u64>,
+        path: Option<PathBuf>,
+    },
 }
 
 /// Sidebar result: actions to process and the list of currently visible user IDs.
@@ -193,6 +218,7 @@ pub fn show(
 
     // Group editor floating window.
     show_group_editor(ui, state, &mut actions);
+    show_path_editor(ui, state, &mut actions);
 
     ui.vertical(|ui| {
         ui.heading("Accounts");
@@ -271,25 +297,36 @@ pub fn show(
             .collect();
 
         // Sort helper for the fallback (name-based) tiebreaker.
-        let name_cmp = |a: &Account, b: &Account| {
-            a.label().to_lowercase().cmp(&b.label().to_lowercase())
-        };
+        let name_cmp =
+            |a: &Account, b: &Account| a.label().to_lowercase().cmp(&b.label().to_lowercase());
 
+        // Primary sort: pinned accounts always come first, then sort by selected mode
         match state.sort_order {
             SortOrder::Custom => {
-                // Primary: sort_order ascending, tiebreak: name
+                // Primary: pinned (descending), then sort_order (ascending), tiebreak: name
                 filtered.sort_by(|(_, a), (_, b)| {
-                    a.sort_order.cmp(&b.sort_order).then_with(|| name_cmp(a, b))
+                    b.is_pinned
+                        .cmp(&a.is_pinned)
+                        .then_with(|| a.sort_order.cmp(&b.sort_order))
+                        .then_with(|| name_cmp(a, b))
                 });
             }
             SortOrder::Name => {
-                filtered.sort_by(|(_, a), (_, b)| name_cmp(a, b));
+                // Primary: pinned (descending), then name
+                filtered.sort_by(|(_, a), (_, b)| {
+                    b.is_pinned.cmp(&a.is_pinned).then_with(|| name_cmp(a, b))
+                });
             }
             SortOrder::Status => {
+                // Primary: pinned (descending), then presence (online first), then name
                 filtered.sort_by(|(_, a), (_, b)| {
-                    b.last_presence
-                        .user_presence_type
-                        .cmp(&a.last_presence.user_presence_type)
+                    b.is_pinned
+                        .cmp(&a.is_pinned)
+                        .then_with(|| {
+                            b.last_presence
+                                .user_presence_type
+                                .cmp(&a.last_presence.user_presence_type)
+                        })
                         .then_with(|| name_cmp(a, b))
                 });
             }
@@ -302,7 +339,10 @@ pub fn show(
             if item.1.group.is_empty() {
                 ungrouped.push(item);
             } else {
-                by_group.entry(item.1.group.as_str()).or_default().push(item);
+                by_group
+                    .entry(item.1.group.as_str())
+                    .or_default()
+                    .push(item);
             }
         }
 
@@ -361,7 +401,11 @@ pub fn show(
                         .stroke(egui::Stroke::new(1.0, group_color.gamma_multiply(0.4)))
                         .rounding(egui::Rounding::same(4.0))
                         .inner_margin(egui::Margin::same(2.0))
-                        .outer_margin(egui::Margin { top: 2.0, bottom: 4.0, ..Default::default() })
+                        .outer_margin(egui::Margin {
+                            top: 2.0,
+                            bottom: 4.0,
+                            ..Default::default()
+                        })
                         .show(ui, |ui: &mut egui::Ui| {
                             // ---- Group header ----
                             let header_height = 24.0;
@@ -392,7 +436,9 @@ pub fn show(
                             }
 
                             // DnD: drop account on group header → assign to group
-                            let header_bottom_half = ui.ctx().pointer_latest_pos()
+                            let header_bottom_half = ui
+                                .ctx()
+                                .pointer_latest_pos()
                                 .is_some_and(|pos| pos.y > rect.center().y);
 
                             if let Some(payload) = response.dnd_hover_payload::<DragPayload>() {
@@ -418,9 +464,15 @@ pub fn show(
                                             );
                                         }
                                     }
-                                    DragPayload::Group { name } if is_custom && *name != group_name => {
+                                    DragPayload::Group { name }
+                                        if is_custom && *name != group_name =>
+                                    {
                                         // Reorder hint: show line at top or bottom
-                                        let line_y = if header_bottom_half { rect.max.y } else { rect.min.y };
+                                        let line_y = if header_bottom_half {
+                                            rect.max.y
+                                        } else {
+                                            rect.min.y
+                                        };
                                         ui.painter().hline(
                                             rect.x_range(),
                                             line_y,
@@ -438,7 +490,9 @@ pub fn show(
                                             group: group_name.to_string(),
                                         });
                                     }
-                                    DragPayload::Group { name } if is_custom && *name != group_name => {
+                                    DragPayload::Group { name }
+                                        if is_custom && *name != group_name =>
+                                    {
                                         actions.push(SidebarAction::ReorderGroup {
                                             group_name: name.clone(),
                                             target_group: group_name.to_string(),
@@ -497,9 +551,8 @@ pub fn show(
                                     ui.close_menu();
                                 }
                                 if ui.button("\u{1f5d1}  Delete Group").clicked() {
-                                    actions.push(SidebarAction::DeleteGroup(
-                                        group_name.to_string(),
-                                    ));
+                                    actions
+                                        .push(SidebarAction::DeleteGroup(group_name.to_string()));
                                     ui.close_menu();
                                 }
                             });
@@ -560,16 +613,17 @@ pub fn show(
                 let painter = ui.ctx().layer_painter(layer);
                 let text = match payload.as_ref() {
                     DragPayload::Account { label, user_id } => {
-                        if anonymize { format!("Account #{}", anon_tag(*user_id)) } else { label.clone() }
+                        if anonymize {
+                            format!("Account #{}", anon_tag(*user_id))
+                        } else {
+                            label.clone()
+                        }
                     }
                     DragPayload::Group { name } => format!("\u{1f4c1} {}", name),
                 };
                 let theme = ui.theme();
-                let galley = painter.layout_no_wrap(
-                    text,
-                    egui::FontId::proportional(12.0),
-                    theme.on_accent,
-                );
+                let galley =
+                    painter.layout_no_wrap(text, egui::FontId::proportional(12.0), theme.on_accent);
                 let text_size = galley.size();
                 let label_rect = egui::Rect::from_min_size(
                     egui::pos2(pos.x + 12.0, pos.y - 8.0),
@@ -658,13 +712,16 @@ fn render_account_row(
     let is_ungrouped = account.group.is_empty();
 
     // Determine if cursor is in the bottom half of this row (for insert-after).
-    let pointer_in_bottom_half = ui.ctx().pointer_latest_pos()
+    let pointer_in_bottom_half = ui
+        .ctx()
+        .pointer_latest_pos()
         .is_some_and(|pos| pos.y > rect.center().y);
 
     if let Some(payload) = response.dnd_hover_payload::<DragPayload>() {
         if let DragPayload::Account { user_id, .. } = payload.as_ref() {
             if *user_id != account.user_id {
-                let drag_group = flat_list.iter()
+                let drag_group = flat_list
+                    .iter()
                     .find(|(_, a)| a.user_id == *user_id)
                     .map(|(_, a)| a.group.as_str())
                     .unwrap_or("");
@@ -675,7 +732,11 @@ fn render_account_row(
                     ui.painter()
                         .rect_filled(rect, 2.0, Theme::wash(theme.drop_reorder, 40));
                     // Draw an insertion line at the top or bottom of the row
-                    let line_y = if pointer_in_bottom_half { rect.max.y } else { rect.min.y };
+                    let line_y = if pointer_in_bottom_half {
+                        rect.max.y
+                    } else {
+                        rect.min.y
+                    };
                     ui.painter().hline(
                         rect.x_range(),
                         line_y,
@@ -690,11 +751,8 @@ fn render_account_row(
                         Theme::wash(theme.accent_text, 50)
                     };
                     ui.painter().rect_filled(rect, 2.0, highlight_color);
-                    ui.painter().rect_stroke(
-                        rect,
-                        2.0,
-                        egui::Stroke::new(1.5, theme.success_text),
-                    );
+                    ui.painter()
+                        .rect_stroke(rect, 2.0, egui::Stroke::new(1.5, theme.success_text));
                 }
             }
         }
@@ -702,7 +760,8 @@ fn render_account_row(
     if let Some(payload) = response.dnd_release_payload::<DragPayload>() {
         if let DragPayload::Account { user_id, .. } = payload.as_ref() {
             if *user_id != account.user_id {
-                let drag_group = flat_list.iter()
+                let drag_group = flat_list
+                    .iter()
                     .find(|(_, a)| a.user_id == *user_id)
                     .map(|(_, a)| a.group.as_str())
                     .unwrap_or("");
@@ -761,11 +820,8 @@ fn render_account_row(
             .rounding(egui::Rounding::same(avatar_size / 2.0))
             .paint_at(ui, avatar_rect);
     } else {
-        ui.painter().rect_filled(
-            avatar_rect,
-            avatar_size / 2.0,
-            theme.surface,
-        );
+        ui.painter()
+            .rect_filled(avatar_rect, avatar_size / 2.0, theme.surface);
         ui.painter().text(
             avatar_rect.center(),
             egui::Align2::CENTER_CENTER,
@@ -786,16 +842,15 @@ fn render_account_row(
     } else if account.cookie_expired {
         (theme.danger, Some("x"))
     } else {
-        (theme.presence(account.last_presence.user_presence_type), None)
+        (
+            theme.presence(account.last_presence.user_presence_type),
+            None,
+        )
     };
-    let dot_center =
-        egui::pos2(avatar_rect.max.x - 5.0, avatar_rect.max.y - 5.0);
+    let dot_center = egui::pos2(avatar_rect.max.x - 5.0, avatar_rect.max.y - 5.0);
     // Background "halo" so the dot reads against any avatar color
-    ui.painter().circle_filled(
-        dot_center,
-        6.0,
-        ui.visuals().panel_fill,
-    );
+    ui.painter()
+        .circle_filled(dot_center, 6.0, ui.visuals().panel_fill);
     ui.painter().circle_filled(dot_center, 4.5, dot_color);
     if let Some(glyph) = dot_glyph {
         ui.painter().text(
@@ -836,7 +891,46 @@ fn render_account_row(
         );
     }
 
-    // Click handling (only if not dragging)
+    // ---- Pin button on the right side ----
+    let button_size = 20.0;
+    let button_pad = 4.0;
+    let pin_button_rect = egui::Rect::from_min_size(
+        egui::pos2(
+            rect.max.x - button_size - button_pad,
+            rect.center().y - button_size / 2.0,
+        ),
+        egui::vec2(button_size, button_size),
+    );
+    let pin_icon = "📌";
+    let pin_color = if account.is_pinned {
+        theme.accent_text
+    } else {
+        theme.text_muted
+    };
+
+    painter.text(
+        pin_button_rect.center(),
+        egui::Align2::CENTER_CENTER,
+        pin_icon,
+        egui::FontId::proportional(14.0),
+        pin_color,
+    );
+
+    // Detect clicks on the pin button
+    let pin_response = ui.allocate_rect(pin_button_rect, egui::Sense::click());
+    if pin_response.clicked() {
+        actions.push(SidebarAction::TogglePinAccount(account.user_id));
+    }
+    if pin_response.hovered() {
+        let hover_text = if account.is_pinned {
+            "Unpin account"
+        } else {
+            "Pin to top"
+        };
+        pin_response.on_hover_text(hover_text);
+    }
+
+    // Click handling (only if not dragging or clicking the pin button)
     if response.clicked() {
         let modifiers = ui.input(|i| i.modifiers);
         if modifiers.ctrl || modifiers.mac_cmd {
@@ -846,8 +940,7 @@ fn render_account_row(
             let anchor = state.last_clicked_index.unwrap_or(0);
             let lo = anchor.min(flat_idx);
             let hi = anchor.max(flat_idx);
-            let range_ids: Vec<u64> =
-                flat_list[lo..=hi].iter().map(|(_, a)| a.user_id).collect();
+            let range_ids: Vec<u64> = flat_list[lo..=hi].iter().map(|(_, a)| a.user_id).collect();
             actions.push(SidebarAction::RangeSelect(range_ids));
         } else {
             actions.push(SidebarAction::Select(account.user_id));
@@ -882,7 +975,10 @@ fn render_account_row(
                 } else {
                     String::new()
                 };
-                if ui.button(format!("\u{1f5b5}  Focus client{suffix}")).clicked() {
+                if ui
+                    .button(format!("\u{1f5b5}  Focus client{suffix}"))
+                    .clicked()
+                {
                     actions.push(SidebarAction::FocusInstance(instance.pid));
                     ui.close_menu();
                 }
@@ -1045,10 +1141,8 @@ fn show_group_editor(
                         );
                         let is_sel = editor.color == preset_color;
                         let size = if is_sel { 22.0 } else { 18.0 };
-                        let (rect, resp) = ui.allocate_exact_size(
-                            egui::vec2(size, size),
-                            egui::Sense::click(),
-                        );
+                        let (rect, resp) =
+                            ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::click());
                         ui.painter().rect_filled(rect, 4.0, c);
                         if is_sel {
                             ui.painter().rect_stroke(
@@ -1104,6 +1198,42 @@ fn show_group_editor(
     }
 }
 
+fn show_path_editor(ui: &mut egui::Ui, state: &mut SidebarState, actions: &mut Vec<SidebarAction>) {
+    let Some(editor) = state.path_editor.as_mut() else {
+        return;
+    };
+
+    let mut open = true;
+    let mut should_close = false;
+    egui::Window::new("Change Roblox path")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ui.ctx(), |ui| {
+            ui.label("Player executable path:");
+            ui.text_edit_singleline(&mut editor.input);
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button("Set").clicked() {
+                    let path = editor.input.trim();
+                    actions.push(SidebarAction::SetCustomPath {
+                        user_ids: editor.user_ids.clone(),
+                        path: (!path.is_empty()).then(|| PathBuf::from(path)),
+                    });
+                    should_close = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    should_close = true;
+                }
+            });
+        });
+
+    if should_close || !open {
+        state.path_editor = None;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Sort-change warning dialog
 // ---------------------------------------------------------------------------
@@ -1145,5 +1275,3 @@ fn show_sort_warning(
 }
 
 // ---------------------------------------------------------------------------
-
-

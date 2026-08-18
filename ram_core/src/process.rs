@@ -178,6 +178,7 @@ pub fn launch_game(
     link_code: Option<&str>,
     access_code: Option<&str>,
     launchtime: i64,
+    player_path: Option<&std::path::Path>,
 ) -> Result<(), CoreError> {
     let query = place_launcher_query(place_id, job_id, link_code, access_code);
     let uri = format!(
@@ -194,16 +195,23 @@ pub fn launch_game(
     // URI was assembled, which is the only reason to log it.
     debug!("URI: {}", crate::redact::scrub(&uri));
 
-    open_uri(&uri)?;
+    open_uri(&uri, player_path)?;
     Ok(())
 }
 
 /// Shell-execute a URI (delegates to `cmd /C start`).
-fn open_uri(uri: &str) -> Result<(), CoreError> {
-    std::process::Command::new("cmd")
-        .args(["/C", "start", "", uri])
-        .spawn()
-        .map_err(|e| CoreError::Process(format!("failed to open URI: {e}")))?;
+fn open_uri(uri: &str, player_path: Option<&std::path::Path>) -> Result<(), CoreError> {
+    if let Some(player_path) = player_path {
+        std::process::Command::new(player_path)
+            .arg(uri)
+            .spawn()
+            .map_err(|e| CoreError::Process(format!("failed to launch Roblox player: {e}")))?;
+    } else {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", uri])
+            .spawn()
+            .map_err(|e| CoreError::Process(format!("failed to open URI: {e}")))?;
+    }
     Ok(())
 }
 

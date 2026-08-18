@@ -1,5 +1,6 @@
 //! Roblox REST API wrappers — avatar thumbnails, presence, place resolution.
 
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
 use crate::auth::RobloxClient;
@@ -372,6 +373,8 @@ pub async fn check_for_updates(current_version: &str) -> Result<Option<(String, 
 struct PublicUserResponse {
     #[serde(default)]
     is_banned: bool,
+    #[serde(default)]
+    created: Option<DateTime<Utc>>,
 }
 
 /// Check whether a Roblox user is **permanently terminated** via the public
@@ -384,6 +387,16 @@ pub async fn fetch_public_ban_status(
     let url = format!("https://users.roblox.com/v1/users/{user_id}");
     let resp: PublicUserResponse = client.get_json(&url, "").await?;
     Ok(resp.is_banned)
+}
+
+/// Fetch the public Roblox account creation timestamp.
+pub async fn fetch_public_created_at(
+    client: &RobloxClient,
+    user_id: u64,
+) -> Result<Option<DateTime<Utc>>, CoreError> {
+    let url = format!("https://users.roblox.com/v1/users/{user_id}");
+    let resp: PublicUserResponse = client.get_json(&url, "").await?;
+    Ok(resp.created)
 }
 
 #[derive(Deserialize)]
