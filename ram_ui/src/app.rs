@@ -1383,7 +1383,8 @@ impl AppState {
                     join,
                     result,
                 } => {
-                    self.groups_state.pending_actions = self.groups_state.pending_actions.saturating_sub(1);
+                    self.groups_state.pending_actions =
+                        self.groups_state.pending_actions.saturating_sub(1);
                     self.groups_state.action_in_flight = self.groups_state.pending_actions > 0;
                     match result {
                         Ok(()) => {
@@ -2147,7 +2148,10 @@ impl AppState {
                         self.groups_state.error = None;
                         self.bridge.send(BackendCommand::FetchGroup {
                             group_id,
-                            user_ids: selected_accounts.iter().map(|account| account.user_id).collect(),
+                            user_ids: selected_accounts
+                                .iter()
+                                .map(|account| account.user_id)
+                                .collect(),
                         });
                     }
                     groups_panel::GroupsPanelAction::Join

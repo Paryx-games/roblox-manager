@@ -11,6 +11,10 @@
 ### Changed
 - Sort mode and sort direction are persisted in settings and restored when RM starts.
 - Pinned accounts remain above all other accounts regardless of the selected sort mode or direction.
+- Group responses are parsed defensively because Roblox can return different payload shapes for announcements, posters, roles, and icons.
+
+### Fixed
+- **Groups tab response errors.** Group details, announcements, icons, membership checks, and join/leave actions no longer fail on common Roblox response-shape variations with a generic "error decoding response body" message.
 
 ## v1.9.0
 

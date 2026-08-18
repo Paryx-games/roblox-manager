@@ -249,10 +249,7 @@ pub enum BackendCommand {
         use_credential_manager: bool,
     },
     /// Load public group details and membership roles for selected accounts.
-    FetchGroup {
-        group_id: u64,
-        user_ids: Vec<u64>,
-    },
+    FetchGroup { group_id: u64, user_ids: Vec<u64> },
     /// Join or leave a group for selected accounts.
     ChangeGroupMembership {
         group_id: u64,
@@ -1347,14 +1344,21 @@ async fn handle_command(
         }
         BackendCommand::FetchGroup { group_id, user_ids } => {
             let group = group_api::fetch_group(client, group_id).await?;
-            let icon_bytes = group_api::fetch_group_icon(client, group_id).await.ok().flatten();
-            let shout = group_api::fetch_group_shout(client, group_id).await.ok().flatten();
+            let icon_bytes = group_api::fetch_group_icon(client, group_id)
+                .await
+                .ok()
+                .flatten();
+            let shout = group_api::fetch_group_shout(client, group_id)
+                .await
+                .ok()
+                .flatten();
             let announcements = group_api::fetch_group_announcements(client, group_id)
                 .await
                 .unwrap_or_default();
             let mut memberships = Vec::with_capacity(user_ids.len());
             for user_id in user_ids {
-                if let Ok(membership) = group_api::fetch_membership(client, group_id, user_id).await {
+                if let Ok(membership) = group_api::fetch_membership(client, group_id, user_id).await
+                {
                     memberships.push(membership);
                 }
             }
@@ -1380,9 +1384,11 @@ async fn handle_command(
                     &session,
                     use_credential_manager,
                 ) {
-                    Ok(cookie) => group_api::change_membership(client, &cookie, group_id, user_id, join)
-                        .await
-                        .map_err(|e| e.to_string()),
+                    Ok(cookie) => {
+                        group_api::change_membership(client, &cookie, group_id, user_id, join)
+                            .await
+                            .map_err(|e| e.to_string())
+                    }
                     Err(error) => Err(error.to_string()),
                 };
                 let _ = tx.send(BackendEvent::GroupMembershipChanged {

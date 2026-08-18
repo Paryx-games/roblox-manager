@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use reqwest::Method;
 use serde::Deserialize;
+use serde_json::Value;
 
 use crate::auth::RobloxClient;
 use crate::error::CoreError;
@@ -67,50 +68,19 @@ pub struct GroupMembership {
     pub role_rank: u16,
 }
 
-#[derive(Deserialize)]
-struct GroupIconResponse {
-    data: Vec<GroupIconEntry>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GroupIconEntry {
-    target_id: u64,
-    image_url: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct AnnouncementResponse {
-    #[serde(default)]
-    data: Vec<GroupAnnouncement>,
-}
-
-#[derive(Deserialize)]
-struct UserGroupsResponse {
-    #[serde(default)]
-    data: Vec<UserGroupRole>,
-}
-
-#[derive(Deserialize)]
-struct UserGroupRole {
-    group: UserGroup,
-    role: UserRole,
-}
-
-#[derive(Deserialize)]
-struct UserGroup {
-    id: u64,
-}
-
-#[derive(Deserialize)]
-struct UserRole {
-    name: String,
-    rank: u16,
-}
-
 pub async fn fetch_group(client: &RobloxClient, group_id: u64) -> Result<GroupInfo, CoreError> {
     let url = format!("https://groups.roblox.com/v1/groups/{group_id}");
-    client.get_json(&url, "").await
+    let value = get_value(client, &url).await?;
+    let owner = value.get("owner").and_then(parse_owner);
+    Ok(GroupInfo {
+        id: value_u64(&value, "id").unwrap_or(group_id),
+        name: value_string(&value, "name").unwrap_or_else(|| format!("Group {group_id}")),
+        description: value_string(&value, "description").unwrap_or_default(),
+        member_count: value_u64(&value, "memberCount").unwrap_or_default(),
+        public_entry_allowed: value_bool(&value, "publicEntryAllowed").unwrap_or(false),
+        has_verified_badge: value_bool(&value, "hasVerifiedBadge").unwrap_or(false),
+        owner,
+    })
 }
 
 pub async fn fetch_group_icon(
@@ -120,12 +90,17 @@ pub async fn fetch_group_icon(
     let url = format!(
         "https://thumbnails.roblox.com/v1/groups/icons?groupIds={group_id}&size=150x150&format=Png&isCircular=false"
     );
-    let response: GroupIconResponse = client.get_json(&url, "").await?;
-    let Some(url) = response
-        .data
-        .into_iter()
-        .find(|entry| entry.target_id == group_id)
-        .and_then(|entry| entry.image_url)
+    let value = get_value(client, &url).await?;
+    let Some(url) = value
+        .get("data")
+        .and_then(Value::as_array)
+        .and_then(|items| {
+            items.iter().find_map(|entry| {
+                (value_u64(entry, "targetId") == Some(group_id))
+                    .then(|| value_string(entry, "imageUrl"))
+                    .flatten()
+            })
+        })
     else {
         return Ok(None);
     };
@@ -137,8 +112,9 @@ pub async fn fetch_group_shout(
     group_id: u64,
 ) -> Result<Option<GroupShout>, CoreError> {
     let url = format!("https://groups.roblox.com/v1/groups/{group_id}/status");
-    let response: Option<GroupShout> = client.get_json(&url, "").await.ok();
-    Ok(response.filter(|shout| !shout.body.trim().is_empty()))
+    let value = get_value(client, &url).await?;
+    let shout = parse_shout(&value);
+    Ok(shout.filter(|shout| !shout.body.trim().is_empty()))
 }
 
 pub async fn fetch_group_announcements(
@@ -148,8 +124,12 @@ pub async fn fetch_group_announcements(
     let url = format!(
         "https://groups.roblox.com/v2/groups/{group_id}/wall/posts?sortOrder=Desc&limit=10"
     );
-    let response: AnnouncementResponse = client.get_json(&url, "").await?;
-    Ok(response.data)
+    let value = get_value(client, &url).await?;
+    Ok(value
+        .get("data")
+        .and_then(Value::as_array)
+        .map(|items| items.iter().filter_map(parse_announcement).collect())
+        .unwrap_or_default())
 }
 
 pub async fn fetch_membership(
@@ -158,17 +138,22 @@ pub async fn fetch_membership(
     user_id: u64,
 ) -> Result<GroupMembership, CoreError> {
     let url = format!("https://groups.roblox.com/v2/users/{user_id}/groups/roles");
-    let response: UserGroupsResponse = client.get_json(&url, "").await?;
-    let role = response
-        .data
-        .into_iter()
-        .find(|entry| entry.group.id == group_id)
-        .map(|entry| entry.role);
+    let value = get_value(client, &url).await?;
+    let role = value
+        .get("data")
+        .and_then(Value::as_array)
+        .and_then(|items| {
+            items.iter().find_map(|entry| {
+                let group = entry.get("group")?;
+                (value_u64(group, "id")? == group_id).then(|| entry.get("role"))
+            })
+        })
+        .flatten();
     Ok(GroupMembership {
         user_id,
         joined: role.is_some(),
-        role_name: role.as_ref().map(|value| value.name.clone()),
-        role_rank: role.map(|value| value.rank).unwrap_or(0),
+        role_name: role.and_then(|value| value_string(value, "name")),
+        role_rank: role.and_then(|value| value_u64(value, "rank")).unwrap_or(0) as u16,
     })
 }
 
@@ -180,7 +165,11 @@ pub async fn change_membership(
     join: bool,
 ) -> Result<(), CoreError> {
     let method = if join { Method::POST } else { Method::DELETE };
-    let url = format!("https://groups.roblox.com/v1/groups/{group_id}/users/{user_id}");
+    let url = if join {
+        format!("https://groups.roblox.com/v1/groups/{group_id}/users")
+    } else {
+        format!("https://groups.roblox.com/v1/groups/{group_id}/users/{user_id}")
+    };
     let response = client.request(method, &url, cookie, None).await?;
     if response.status().is_success() {
         Ok(())
@@ -192,4 +181,64 @@ pub async fn change_membership(
             message,
         })
     }
+}
+
+async fn get_value(client: &RobloxClient, url: &str) -> Result<Value, CoreError> {
+    let text = client.get_text(url, "").await?;
+    serde_json::from_str(&text).map_err(|error| CoreError::RobloxApi {
+        status: 200,
+        message: format!("invalid group response: {error}"),
+    })
+}
+
+fn value_string(value: &Value, key: &str) -> Option<String> {
+    value.get(key).and_then(Value::as_str).map(ToOwned::to_owned)
+}
+
+fn value_u64(value: &Value, key: &str) -> Option<u64> {
+    value.get(key).and_then(|value| {
+        value.as_u64().or_else(|| value.as_str()?.parse().ok())
+    })
+}
+
+fn value_bool(value: &Value, key: &str) -> Option<bool> {
+    value.get(key).and_then(Value::as_bool)
+}
+
+fn parse_owner(value: &Value) -> Option<GroupOwner> {
+    Some(GroupOwner {
+        id: value_u64(value, "id")?,
+        username: value_string(value, "username").unwrap_or_default(),
+        display_name: value_string(value, "displayName").unwrap_or_default(),
+    })
+}
+
+fn parse_poster(value: Option<&Value>) -> Option<GroupPoster> {
+    let value = value?;
+    let user = value.get("user").unwrap_or(value);
+    Some(GroupPoster {
+        username: value_string(user, "username").unwrap_or_default(),
+        display_name: value_string(user, "displayName").unwrap_or_default(),
+    })
+}
+
+fn parse_date(value: Option<&Value>) -> Option<DateTime<Utc>> {
+    value?.as_str()?.parse().ok()
+}
+
+fn parse_shout(value: &Value) -> Option<GroupShout> {
+    Some(GroupShout {
+        body: value_string(value, "body").unwrap_or_default(),
+        created: parse_date(value.get("created")),
+        poster: parse_poster(value.get("poster")),
+    })
+}
+
+fn parse_announcement(value: &Value) -> Option<GroupAnnouncement> {
+    Some(GroupAnnouncement {
+        id: value_u64(value, "id")?,
+        body: value_string(value, "body").unwrap_or_default(),
+        created: parse_date(value.get("created")),
+        poster: parse_poster(value.get("poster")),
+    })
 }
