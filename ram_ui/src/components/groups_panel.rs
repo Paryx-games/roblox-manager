@@ -11,6 +11,7 @@ pub enum GroupsPanelAction {
     Load { group_id: u64 },
     Join,
     Leave,
+    OpenGroupPage,
 }
 
 #[derive(Default)]
@@ -76,6 +77,12 @@ pub fn show(
             if let Some(error) = &state.error {
                 ui.add_space(4.0);
                 ui.colored_label(theme.danger_text, error);
+                if state.loaded_group_id.is_some()
+                    && error.to_lowercase().contains("challenge")
+                    && ui.button("Open group page in browser").clicked()
+                {
+                    action = Some(GroupsPanelAction::OpenGroupPage);
+                }
             }
         });
 

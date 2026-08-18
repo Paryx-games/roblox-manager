@@ -1383,6 +1383,10 @@ impl AppState {
                     join,
                     result,
                 } => {
+                    let challenge_required = result
+                        .as_ref()
+                        .err()
+                        .is_some_and(|error| error.to_lowercase().contains("challenge"));
                     self.groups_state.pending_actions =
                         self.groups_state.pending_actions.saturating_sub(1);
                     self.groups_state.action_in_flight = self.groups_state.pending_actions > 0;
@@ -1411,6 +1415,12 @@ impl AppState {
                             if join { "join" } else { "remove" },
                             user_id
                         ))),
+                    }
+                    if challenge_required {
+                        self.groups_state.error = Some(
+                            "Roblox requires an interactive security challenge for this action. Complete it on the group page, then retry membership changes."
+                                .to_string(),
+                        );
                     }
                 }
                 BackendEvent::CreationsFetched {
@@ -2195,6 +2205,13 @@ impl AppState {
                             session,
                             use_credential_manager: self.config.use_credential_manager,
                         });
+                    }
+                    groups_panel::GroupsPanelAction::OpenGroupPage => {
+                        if let Some(group_id) = self.groups_state.loaded_group_id {
+                            ui.ctx().open_url(egui::OpenUrl::new_tab(format!(
+                                "https://www.roblox.com/communities/{group_id}"
+                            )));
+                        }
                     }
                 }
             }

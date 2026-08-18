@@ -16,6 +16,7 @@
 ### Fixed
 - **Groups tab response errors.** Group details, announcements, icons, membership checks, and join/leave actions no longer fail on common Roblox response-shape variations with a generic "error decoding response body" message.
 - **Group membership 403s.** Membership requests now send the expected JSON body, skip accounts already in the requested state, and preserve Roblox's actual rejection reason instead of reporting every 403 as a rejected cookie.
+- **Interactive group challenges.** When Roblox requires a security challenge that the API cannot complete automatically, the Groups page now explains the blocker and opens the community page for manual verification.
 
 ## v1.9.0
 
