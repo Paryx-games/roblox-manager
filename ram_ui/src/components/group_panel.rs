@@ -17,6 +17,8 @@ pub enum GroupPanelAction {
     OpenPathEditor,
     /// Deselect all.
     ClearSelection,
+    /// Tile all running Roblox instances according to configured settings.
+    TileWindows,
     /// Kill all Roblox instances.
     KillAll,
 }
@@ -126,10 +128,19 @@ pub fn show(
                 }
             }
 
-            if roblox_running
-                && ui.button("\u{2620}  Kill All Instances").clicked()
-            {
-                action = Some(GroupPanelAction::KillAll);
+            if roblox_running {
+                if ui
+                    .button("🗔  Tile Windows")
+                    .on_hover_text(
+                        "Tile and arrange running Roblox windows according to your configured layout.",
+                    )
+                    .clicked()
+                {
+                    action = Some(GroupPanelAction::TileWindows);
+                }
+                if ui.button("\u{2620}  Kill All Instances").clicked() {
+                    action = Some(GroupPanelAction::KillAll);
+                }
             }
         });
     });

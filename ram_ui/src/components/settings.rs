@@ -13,6 +13,7 @@ pub enum SettingsAction {
     ClearPassword,
     EnableMultiInstance,
     DisableMultiInstance,
+    TileWindowsNow,
 }
 
 /// Persistent state for the settings panel password change UI.
@@ -59,7 +60,7 @@ pub fn show(
     // ---- Launch Behavior ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
         ui.set_min_width(ui.available_width());
-        ui.strong("Launch Behavior");
+        ui.strong("Launch Behavior & Window Tiling");
         ui.add_space(4.0);
 
         let mut wants_multi = config.multi_instance_enabled;
@@ -103,7 +104,241 @@ pub fn show(
         ui.checkbox(
             &mut config.auto_arrange_windows,
             "Auto-arrange Roblox windows after launch",
-        ).on_hover_text("Tiles Roblox windows in a grid (2 = side-by-side, 4 = 2×2, etc.).");
+        ).on_hover_text("Tiles Roblox windows in a grid across selected monitor(s).");
+
+        // Multi-monitor and custom layout configuration
+        let monitors = ram_core::process::enumerate_monitors();
+
+        ui.indent("tiling_options_indent", |ui| {
+            ui.add_space(2.0);
+
+            // 1. Target monitor selection
+            ui.horizontal(|ui| {
+                ui.label("Target Display:");
+                let current_label = match &config.tiling_target_monitor {
+                    ram_core::models::MonitorTarget::Primary => "Primary Monitor".to_string(),
+                    ram_core::models::MonitorTarget::All => "All Monitors (Distribute / Span)".to_string(),
+                    ram_core::models::MonitorTarget::Index(i) => {
+                        monitors
+                            .get(*i)
+                            .map(|m| m.name.clone())
+                            .unwrap_or_else(|| format!("Monitor {}", i + 1))
+                    }
+                };
+
+                egui::ComboBox::from_id_salt("tiling_target_monitor_combo")
+                    .selected_text(current_label)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut config.tiling_target_monitor,
+                            ram_core::models::MonitorTarget::Primary,
+                            "Primary Monitor",
+                        );
+                        if monitors.len() > 1 {
+                            ui.selectable_value(
+                                &mut config.tiling_target_monitor,
+                                ram_core::models::MonitorTarget::All,
+                                "All Monitors (Distribute / Span)",
+                            );
+                        }
+                        for (idx, mon) in monitors.iter().enumerate() {
+                            ui.selectable_value(
+                                &mut config.tiling_target_monitor,
+                                ram_core::models::MonitorTarget::Index(idx),
+                                &mon.name,
+                            );
+                        }
+                    });
+            });
+
+            ui.add_space(2.0);
+
+            // 2. Layout mode selection
+            ui.horizontal(|ui| {
+                ui.label("Grid Layout:");
+                let current_layout_label = match &config.tiling_layout_mode {
+                    ram_core::models::TilingLayoutMode::Auto => "Auto Grid (Square-like)",
+                    ram_core::models::TilingLayoutMode::FixedColumns(_) => "Fixed Columns",
+                    ram_core::models::TilingLayoutMode::FixedRows(_) => "Fixed Rows",
+                    ram_core::models::TilingLayoutMode::CustomGrid { .. } => {
+                        "Custom Grid (Cols × Rows)"
+                    }
+                    ram_core::models::TilingLayoutMode::SideBySide => "Side-by-Side (1 Row)",
+                    ram_core::models::TilingLayoutMode::Stacked => "Stacked (1 Column)",
+                };
+
+                egui::ComboBox::from_id_salt("tiling_layout_mode_combo")
+                    .selected_text(current_layout_label)
+                    .show_ui(ui, |ui| {
+                        if ui
+                            .selectable_label(
+                                matches!(
+                                    config.tiling_layout_mode,
+                                    ram_core::models::TilingLayoutMode::Auto
+                                ),
+                                "Auto Grid (Square-like)",
+                            )
+                            .clicked()
+                        {
+                            config.tiling_layout_mode = ram_core::models::TilingLayoutMode::Auto;
+                        }
+                        if ui
+                            .selectable_label(
+                                matches!(
+                                    config.tiling_layout_mode,
+                                    ram_core::models::TilingLayoutMode::FixedColumns(_)
+                                ),
+                                "Fixed Columns",
+                            )
+                            .clicked()
+                        {
+                            config.tiling_layout_mode =
+                                ram_core::models::TilingLayoutMode::FixedColumns(
+                                    config.tiling_custom_cols,
+                                );
+                        }
+                        if ui
+                            .selectable_label(
+                                matches!(
+                                    config.tiling_layout_mode,
+                                    ram_core::models::TilingLayoutMode::FixedRows(_)
+                                ),
+                                "Fixed Rows",
+                            )
+                            .clicked()
+                        {
+                            config.tiling_layout_mode =
+                                ram_core::models::TilingLayoutMode::FixedRows(
+                                    config.tiling_custom_rows,
+                                );
+                        }
+                        if ui
+                            .selectable_label(
+                                matches!(
+                                    config.tiling_layout_mode,
+                                    ram_core::models::TilingLayoutMode::CustomGrid { .. }
+                                ),
+                                "Custom Grid (Cols × Rows)",
+                            )
+                            .clicked()
+                        {
+                            config.tiling_layout_mode =
+                                ram_core::models::TilingLayoutMode::CustomGrid {
+                                    cols: config.tiling_custom_cols,
+                                    rows: config.tiling_custom_rows,
+                                };
+                        }
+                        if ui
+                            .selectable_label(
+                                matches!(
+                                    config.tiling_layout_mode,
+                                    ram_core::models::TilingLayoutMode::SideBySide
+                                ),
+                                "Side-by-Side (1 Row)",
+                            )
+                            .clicked()
+                        {
+                            config.tiling_layout_mode =
+                                ram_core::models::TilingLayoutMode::SideBySide;
+                        }
+                        if ui
+                            .selectable_label(
+                                matches!(
+                                    config.tiling_layout_mode,
+                                    ram_core::models::TilingLayoutMode::Stacked
+                                ),
+                                "Stacked (1 Column)",
+                            )
+                            .clicked()
+                        {
+                            config.tiling_layout_mode = ram_core::models::TilingLayoutMode::Stacked;
+                        }
+                    });
+            });
+
+            // Dynamic layout parameters
+            match &mut config.tiling_layout_mode {
+                ram_core::models::TilingLayoutMode::FixedColumns(cols) => {
+                    ui.horizontal(|ui| {
+                        ui.label("Columns:");
+                        let mut c = *cols as i32;
+                        if ui
+                            .add(egui::DragValue::new(&mut c).range(1..=12).speed(0.1))
+                            .changed()
+                        {
+                            let val = c.clamp(1, 12) as u32;
+                            *cols = val;
+                            config.tiling_custom_cols = val;
+                        }
+                    });
+                }
+                ram_core::models::TilingLayoutMode::FixedRows(rows) => {
+                    ui.horizontal(|ui| {
+                        ui.label("Rows:");
+                        let mut r = *rows as i32;
+                        if ui
+                            .add(egui::DragValue::new(&mut r).range(1..=12).speed(0.1))
+                            .changed()
+                        {
+                            let val = r.clamp(1, 12) as u32;
+                            *rows = val;
+                            config.tiling_custom_rows = val;
+                        }
+                    });
+                }
+                ram_core::models::TilingLayoutMode::CustomGrid { cols, rows } => {
+                    ui.horizontal(|ui| {
+                        ui.label("Columns:");
+                        let mut c = *cols as i32;
+                        if ui
+                            .add(egui::DragValue::new(&mut c).range(1..=12).speed(0.1))
+                            .changed()
+                        {
+                            let val = c.clamp(1, 12) as u32;
+                            *cols = val;
+                            config.tiling_custom_cols = val;
+                        }
+                        ui.label("Rows:");
+                        let mut r = *rows as i32;
+                        if ui
+                            .add(egui::DragValue::new(&mut r).range(1..=12).speed(0.1))
+                            .changed()
+                        {
+                            let val = r.clamp(1, 12) as u32;
+                            *rows = val;
+                            config.tiling_custom_rows = val;
+                        }
+                    });
+                }
+                _ => {}
+            }
+
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.label("Window Padding:");
+                let mut pad = config.tiling_padding as i32;
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut pad)
+                            .range(0..=50)
+                            .suffix(" px")
+                            .speed(0.2),
+                    )
+                    .changed()
+                {
+                    config.tiling_padding = pad.clamp(0, 50) as u32;
+                }
+            });
+
+            ui.add_space(6.0);
+            if ui
+                .button("🗔 Tile Windows Now")
+                .on_hover_text("Immediately arrange all open Roblox windows using these settings.")
+                .clicked()
+            {
+                action = Some(SettingsAction::TileWindowsNow);
+            }
+        });
 
         ui.add_space(4.0);
         ui.checkbox(

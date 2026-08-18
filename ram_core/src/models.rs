@@ -198,6 +198,21 @@ pub struct AppConfig {
     /// Automatically arrange Roblox windows in a grid after launching.
     #[serde(default)]
     pub auto_arrange_windows: bool,
+    /// Target monitor for window tiling.
+    #[serde(default)]
+    pub tiling_target_monitor: MonitorTarget,
+    /// Layout mode for window tiling.
+    #[serde(default)]
+    pub tiling_layout_mode: TilingLayoutMode,
+    /// Custom column count when using fixed columns or custom grid.
+    #[serde(default = "default_custom_cols")]
+    pub tiling_custom_cols: u32,
+    /// Custom row count when using fixed rows or custom grid.
+    #[serde(default = "default_custom_rows")]
+    pub tiling_custom_rows: u32,
+    /// Padding/margin in pixels between tiled windows.
+    #[serde(default)]
+    pub tiling_padding: u32,
     /// Rename each attributed Roblox window after its account, so tiled clients
     /// are tellable apart. Off by default: it is the only feature that writes to
     /// a Roblox window rather than only reading or moving it, and Hyperion's
@@ -231,6 +246,93 @@ pub struct AppConfig {
     /// correct for users upgrading from a release that predates it.
     #[serde(default)]
     pub offered_passwordless: bool,
+}
+
+/// Target monitor(s) for window arrangement / tiling.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
+pub enum MonitorTarget {
+    /// Tile on the primary monitor only (default).
+    #[default]
+    Primary,
+    /// Distribute and tile windows across all detected monitors.
+    All,
+    /// Tile on a specific monitor index (0-indexed).
+    Index(usize),
+}
+
+/// Layout mode for tiling Roblox client windows.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
+pub enum TilingLayoutMode {
+    /// Auto grid (1 -> 1x1, 2 -> 1x2, 3 -> 2 top + 1 bottom centered, 4 -> 2x2, etc.).
+    #[default]
+    Auto,
+    /// Fixed number of columns (rows computed automatically to fit count).
+    FixedColumns(u32),
+    /// Fixed number of rows (columns computed automatically to fit count).
+    FixedRows(u32),
+    /// Explicit grid dimensions (Columns x Rows).
+    CustomGrid { cols: u32, rows: u32 },
+    /// Side-by-side single row (1xN).
+    SideBySide,
+    /// Stacked single column (Nx1).
+    Stacked,
+}
+
+/// Information about a connected display monitor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MonitorGeometry {
+    pub index: usize,
+    pub name: String,
+    pub is_primary: bool,
+    pub total_x: i32,
+    pub total_y: i32,
+    pub total_w: i32,
+    pub total_h: i32,
+    pub work_x: i32,
+    pub work_y: i32,
+    pub work_w: i32,
+    pub work_h: i32,
+}
+
+/// A target rectangle for a window placement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WindowRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+/// User options for window arrangement.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TilingOptions {
+    pub target_monitor: MonitorTarget,
+    pub layout_mode: TilingLayoutMode,
+    pub custom_cols: u32,
+    pub custom_rows: u32,
+    pub padding: u32,
+}
+
+impl Default for TilingOptions {
+    fn default() -> Self {
+        Self {
+            target_monitor: MonitorTarget::Primary,
+            layout_mode: TilingLayoutMode::Auto,
+            custom_cols: 2,
+            custom_rows: 2,
+            padding: 0,
+        }
+    }
+}
+
+fn default_custom_cols() -> u32 {
+    2
+}
+
+fn default_custom_rows() -> u32 {
+    2
 }
 
 fn default_sort_mode() -> String {
@@ -268,6 +370,11 @@ impl Default for AppConfig {
             favorite_places: Vec::new(),
             privacy_mode: true,
             auto_arrange_windows: false,
+            tiling_target_monitor: MonitorTarget::Primary,
+            tiling_layout_mode: TilingLayoutMode::Auto,
+            tiling_custom_cols: 2,
+            tiling_custom_rows: 2,
+            tiling_padding: 0,
             rename_roblox_windows: false,
             anonymize_names: false,
             last_seen_version: None,
@@ -283,6 +390,17 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    /// Retrieve the current tiling options configuration.
+    pub fn tiling_options(&self) -> TilingOptions {
+        TilingOptions {
+            target_monitor: self.tiling_target_monitor.clone(),
+            layout_mode: self.tiling_layout_mode.clone(),
+            custom_cols: self.tiling_custom_cols,
+            custom_rows: self.tiling_custom_rows,
+            padding: self.tiling_padding,
+        }
+    }
+
     /// Load from a JSON file, falling back to defaults.
     pub fn load(path: &std::path::Path) -> Self {
         std::fs::read_to_string(path)

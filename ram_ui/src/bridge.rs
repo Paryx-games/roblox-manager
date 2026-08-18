@@ -161,9 +161,11 @@ pub enum BackendCommand {
     /// running: attribute clients that have appeared since the last sweep,
     /// and drop mappings whose process is gone. Sent on a timer.
     SweepInstances,
-    /// Arrange all Roblox windows in a tiled grid.
-    ArrangeWindows,
-    /// Check GitLab for a newer release.
+    /// Arrange all Roblox windows in a tiled grid according to tiling options.
+    ArrangeWindows {
+        options: ram_core::models::TilingOptions,
+        delay_secs: u64,
+    },
     CheckForUpdates { current_version: String },
     /// Resolve a place ID to its name (for private server auto-check).
     ResolvePlace {
@@ -1130,10 +1132,14 @@ async fn handle_command(
             Ok(BackendEvent::StoreSaved)
         }
         BackendCommand::SweepInstances => Ok(sweep_instances(registry)),
-        BackendCommand::ArrangeWindows => {
-            // Small delay to let Roblox windows finish appearing
-            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            process::arrange_roblox_windows();
+        BackendCommand::ArrangeWindows {
+            options,
+            delay_secs,
+        } => {
+            if delay_secs > 0 {
+                tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
+            }
+            process::arrange_roblox_windows(&options);
             Ok(BackendEvent::WindowsArranged)
         }
         BackendCommand::CheckForUpdates { current_version } => {
@@ -1873,7 +1879,7 @@ mod tests {
             | C::BulkLaunchEncrypted { .. }
             | C::RevalidateAll { .. }
             | C::SweepInstances
-            | C::ArrangeWindows
+            | C::ArrangeWindows { .. }
             | C::CheckForUpdates { .. }
             | C::ResolvePlace { .. }
             | C::ResolveShareLink { .. }
@@ -1931,7 +1937,10 @@ mod tests {
             },
             BackendCommand::SweepInstances,
             BackendCommand::KillAll,
-            BackendCommand::ArrangeWindows,
+            BackendCommand::ArrangeWindows {
+                options: ram_core::models::TilingOptions::default(),
+                delay_secs: 0,
+            },
             BackendCommand::RemoveAccount { user_id: 7 },
             BackendCommand::UnlockWithDevice { path: path() },
             BackendCommand::UnlockWithPassword {

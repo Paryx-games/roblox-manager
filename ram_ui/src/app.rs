@@ -908,7 +908,10 @@ impl AppState {
                     self.last_launch_request = Some(std::time::Instant::now());
                     self.toasts.push(Toast::success("Game launched"));
                     if self.config.auto_arrange_windows {
-                        self.bridge.send(BackendCommand::ArrangeWindows);
+                        self.bridge.send(BackendCommand::ArrangeWindows {
+                            options: self.config.tiling_options(),
+                            delay_secs: 5,
+                        });
                     }
                 }
                 BackendEvent::BulkLaunchProgress { launched, total } => {
@@ -930,7 +933,10 @@ impl AppState {
                         )));
                     }
                     if self.config.auto_arrange_windows {
-                        self.bridge.send(BackendCommand::ArrangeWindows);
+                        self.bridge.send(BackendCommand::ArrangeWindows {
+                            options: self.config.tiling_options(),
+                            delay_secs: 5,
+                        });
                     }
                 }
                 BackendEvent::StoreSaved => {
@@ -2649,6 +2655,13 @@ impl AppState {
                                 input: String::new(),
                             });
                         }
+                        group_panel::GroupPanelAction::TileWindows => {
+                            self.bridge.send(BackendCommand::ArrangeWindows {
+                                options: self.config.tiling_options(),
+                                delay_secs: 0,
+                            });
+                            self.toasts.push(Toast::info("Tiling windows..."));
+                        }
                         group_panel::GroupPanelAction::KillAll => {
                             self.bridge.send(BackendCommand::KillAll);
                         }
@@ -4138,6 +4151,13 @@ impl AppState {
                     // and silently stopped saving, because `auto_save` was
                     // gated on that string being non-empty.
                     self.rekey_store(None);
+                }
+                Some(settings::SettingsAction::TileWindowsNow) => {
+                    self.bridge.send(BackendCommand::ArrangeWindows {
+                        options: self.config.tiling_options(),
+                        delay_secs: 0,
+                    });
+                    self.toasts.push(Toast::info("Tiling windows..."));
                 }
                 None => {}
             }

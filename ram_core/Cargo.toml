@@ -38,5 +38,6 @@ windows-sys = { version = "0.59", features = [
     # `process::focus_instance`.
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
 ] }
 sysinfo = "0.32"

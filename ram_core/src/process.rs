@@ -1039,22 +1039,286 @@ pub fn enable_multi_instance() -> Result<(), CoreError> {
 }
 
 // ---------------------------------------------------------------------------
-// Window arrangement — tile Roblox windows in a grid
+// Window arrangement — multi-monitor tiling and custom grid layouts
 // ---------------------------------------------------------------------------
 
-/// Find all visible Roblox player windows and arrange them in a grid that
-/// fills the primary monitor.  Layout: 1 → full, 2 → side-by-side,
-/// 3 → top-two + bottom-center, 4 → 2×2, etc.
-#[cfg(windows)]
-pub fn arrange_roblox_windows() {
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, TRUE};
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetSystemMetrics, GetWindowTextW, GetWindowThreadProcessId,
-        IsWindowVisible, SetWindowPos, ShowWindow, SM_CXSCREEN, SM_CYSCREEN,
-        SWP_NOZORDER, SW_RESTORE,
+use crate::models::{MonitorGeometry, MonitorTarget, TilingLayoutMode, TilingOptions, WindowRect};
+
+/// Pure calculation for tiling `window_count` windows across given monitors according to `TilingOptions`.
+pub fn calculate_tiling_rects(
+    monitors: &[MonitorGeometry],
+    window_count: usize,
+    options: &TilingOptions,
+) -> Vec<WindowRect> {
+    if window_count == 0 || monitors.is_empty() {
+        return Vec::new();
+    }
+
+    let padding = options.padding as i32;
+
+    match &options.target_monitor {
+        MonitorTarget::All => {
+            let mon_count = monitors.len();
+            let mut results = Vec::with_capacity(window_count);
+
+            let base_per_mon = window_count / mon_count;
+            let remainder = window_count % mon_count;
+
+            for (i, mon) in monitors.iter().enumerate() {
+                let count_for_mon = base_per_mon + if i < remainder { 1 } else { 0 };
+                if count_for_mon == 0 {
+                    continue;
+                }
+                let mon_rects = calculate_monitor_grid(
+                    mon,
+                    count_for_mon,
+                    &options.layout_mode,
+                    options.custom_cols,
+                    options.custom_rows,
+                    padding,
+                );
+                results.extend(mon_rects);
+            }
+            results
+        }
+        MonitorTarget::Index(idx) => {
+            let mon = monitors.get(*idx).unwrap_or_else(|| {
+                monitors.iter().find(|m| m.is_primary).unwrap_or(&monitors[0])
+            });
+            calculate_monitor_grid(
+                mon,
+                window_count,
+                &options.layout_mode,
+                options.custom_cols,
+                options.custom_rows,
+                padding,
+            )
+        }
+        MonitorTarget::Primary => {
+            let mon = monitors.iter().find(|m| m.is_primary).unwrap_or(&monitors[0]);
+            calculate_monitor_grid(
+                mon,
+                window_count,
+                &options.layout_mode,
+                options.custom_cols,
+                options.custom_rows,
+                padding,
+            )
+        }
+    }
+}
+
+/// Calculate the grid of window rectangles within a single monitor's work area.
+fn calculate_monitor_grid(
+    mon: &MonitorGeometry,
+    count: usize,
+    mode: &TilingLayoutMode,
+    _custom_cols: u32,
+    _custom_rows: u32,
+    padding: i32,
+) -> Vec<WindowRect> {
+    if count == 0 {
+        return Vec::new();
+    }
+
+    let (cols, rows, center_last_row) = match mode {
+        TilingLayoutMode::Auto => {
+            let c = (count as f64).sqrt().ceil() as i32;
+            let r = ((count as f64) / c as f64).ceil() as i32;
+            (c.max(1), r.max(1), true)
+        }
+        TilingLayoutMode::FixedColumns(c) => {
+            let cols = (*c as i32).max(1);
+            let rows = ((count as f64) / cols as f64).ceil() as i32;
+            (cols, rows.max(1), true)
+        }
+        TilingLayoutMode::FixedRows(r) => {
+            let rows = (*r as i32).max(1);
+            let cols = ((count as f64) / rows as f64).ceil() as i32;
+            (cols.max(1), rows, false)
+        }
+        TilingLayoutMode::CustomGrid { cols, rows } => {
+            let c = (*cols as i32).max(1);
+            let r = (*rows as i32).max(1);
+            (c, r, false)
+        }
+        TilingLayoutMode::SideBySide => (count as i32, 1, false),
+        TilingLayoutMode::Stacked => (1, count as i32, false),
     };
 
-    // Collect HWNDs belonging to RobloxPlayerBeta.exe
+    let screen_x = mon.work_x;
+    let screen_y = mon.work_y;
+    let screen_w = mon.work_w.max(100);
+    let screen_h = mon.work_h.max(100);
+
+    let cell_w = screen_w / cols;
+    let cell_h = screen_h / rows;
+
+    let mut rects = Vec::with_capacity(count);
+
+    for i in 0..count {
+        let raw_col = (i as i32) % cols;
+        let raw_row = (i as i32) / cols;
+
+        let (row, col) = if raw_row >= rows {
+            (raw_row % rows, raw_col)
+        } else {
+            (raw_row, raw_col)
+        };
+
+        let raw_x = screen_x + col * cell_w;
+        let raw_y = screen_y + row * cell_h;
+
+        let (x, w) = if center_last_row && row == rows - 1 {
+            let windows_in_last_row = count as i32 - (rows - 1) * cols;
+            if windows_in_last_row < cols && windows_in_last_row > 0 {
+                let last_col = i as i32 - (rows - 1) * cols;
+                let total_width = windows_in_last_row * cell_w;
+                let offset = (screen_w - total_width) / 2;
+                (screen_x + offset + last_col * cell_w, cell_w)
+            } else {
+                (raw_x, cell_w)
+            }
+        } else {
+            (raw_x, cell_w)
+        };
+
+        let padded_x = x + padding;
+        let padded_y = raw_y + padding;
+        let padded_w = (w - 2 * padding).max(50);
+        let padded_h = (cell_h - 2 * padding).max(50);
+
+        rects.push(WindowRect {
+            x: padded_x,
+            y: padded_y,
+            width: padded_w,
+            height: padded_h,
+        });
+    }
+
+    rects
+}
+
+/// Enumerate all connected display monitors and their work areas.
+#[cfg(windows)]
+pub fn enumerate_monitors() -> Vec<MonitorGeometry> {
+    use windows_sys::Win32::Foundation::{BOOL, LPARAM, RECT, TRUE};
+    use windows_sys::Win32::Graphics::Gdi::{
+        EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFOEXW,
+    };
+    // MONITORINFOF_PRIMARY = 1 (not re-exported by windows-sys 0.59 as a named constant)
+    const MONITORINFOF_PRIMARY: u32 = 1;
+
+    struct EnumMonState {
+        monitors: Vec<MonitorGeometry>,
+    }
+
+    unsafe extern "system" fn enum_mon_proc(
+        hmon: HMONITOR,
+        _hdc: HDC,
+        _rect: *mut RECT,
+        lparam: LPARAM,
+    ) -> BOOL {
+        let state = &mut *(lparam as *mut EnumMonState);
+        let mut info: MONITORINFOEXW = std::mem::zeroed();
+        info.monitorInfo.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
+
+        if GetMonitorInfoW(hmon, &mut info.monitorInfo) != 0 {
+            let is_primary = (info.monitorInfo.dwFlags & MONITORINFOF_PRIMARY) != 0;
+            let total_x = info.monitorInfo.rcMonitor.left;
+            let total_y = info.monitorInfo.rcMonitor.top;
+            let total_w = info.monitorInfo.rcMonitor.right - info.monitorInfo.rcMonitor.left;
+            let total_h = info.monitorInfo.rcMonitor.bottom - info.monitorInfo.rcMonitor.top;
+
+            let work_x = info.monitorInfo.rcWork.left;
+            let work_y = info.monitorInfo.rcWork.top;
+            let work_w = info.monitorInfo.rcWork.right - info.monitorInfo.rcWork.left;
+            let work_h = info.monitorInfo.rcWork.bottom - info.monitorInfo.rcWork.top;
+
+            let index = state.monitors.len();
+            let name = if is_primary {
+                format!("Monitor {} (Primary - {}×{})", index + 1, total_w, total_h)
+            } else {
+                format!("Monitor {} ({}×{})", index + 1, total_w, total_h)
+            };
+
+            state.monitors.push(MonitorGeometry {
+                index,
+                name,
+                is_primary,
+                total_x,
+                total_y,
+                total_w,
+                total_h,
+                work_x,
+                work_y,
+                work_w,
+                work_h,
+            });
+        }
+        TRUE
+    }
+
+    let mut state = EnumMonState {
+        monitors: Vec::new(),
+    };
+    unsafe {
+        EnumDisplayMonitors(
+            std::ptr::null_mut(),
+            std::ptr::null(),
+            Some(enum_mon_proc),
+            &mut state as *mut EnumMonState as LPARAM,
+        );
+    }
+
+    if state.monitors.is_empty() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN,
+        };
+        let w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
+        let h = unsafe { GetSystemMetrics(SM_CYSCREEN) };
+        state.monitors.push(MonitorGeometry {
+            index: 0,
+            name: format!("Primary Monitor ({}×{})", w, h),
+            is_primary: true,
+            total_x: 0,
+            total_y: 0,
+            total_w: w,
+            total_h: h,
+            work_x: 0,
+            work_y: 0,
+            work_w: w,
+            work_h: h,
+        });
+    }
+
+    state.monitors
+}
+
+#[cfg(not(windows))]
+pub fn enumerate_monitors() -> Vec<MonitorGeometry> {
+    vec![MonitorGeometry {
+        index: 0,
+        name: "Primary Monitor (1920×1080)".to_string(),
+        is_primary: true,
+        total_x: 0,
+        total_y: 0,
+        total_w: 1920,
+        total_h: 1080,
+        work_x: 0,
+        work_y: 0,
+        work_w: 1920,
+        work_h: 1080,
+    }]
+}
+
+#[cfg(windows)]
+fn find_roblox_hwnds() -> Vec<windows_sys::Win32::Foundation::HWND> {
+    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, TRUE};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible,
+    };
+
     let roblox_pids: std::collections::HashSet<u32> = {
         use sysinfo::System;
         let mut sys = System::new();
@@ -1067,11 +1331,9 @@ pub fn arrange_roblox_windows() {
     };
 
     if roblox_pids.is_empty() {
-        info!("arrange_roblox_windows: no Roblox processes found");
-        return;
+        return Vec::new();
     }
 
-    // EnumWindows callback state — passed through LPARAM as a raw pointer
     struct EnumState {
         pids: std::collections::HashSet<u32>,
         hwnds: Vec<HWND>,
@@ -1087,7 +1349,6 @@ pub fn arrange_roblox_windows() {
         if !state.pids.contains(&pid) {
             return TRUE;
         }
-        // Only match windows with a title (skip child/helper windows)
         let mut title = [0u16; 256];
         let len = GetWindowTextW(hwnd, title.as_mut_ptr(), 256);
         if len > 0 {
@@ -1103,95 +1364,93 @@ pub fn arrange_roblox_windows() {
     unsafe {
         EnumWindows(Some(enum_callback), &mut state as *mut EnumState as LPARAM);
     }
+    state.hwnds
+}
 
-    let count = state.hwnds.len();
-    if count == 0 {
+#[cfg(windows)]
+fn measure_dwm_borders(hwnd0: windows_sys::Win32::Foundation::HWND) -> (i32, i32, i32, i32) {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::Graphics::Dwm::{
+        DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetWindowRect, SetWindowPos, ShowWindow, SWP_NOZORDER, SW_RESTORE,
+    };
+
+    unsafe {
+        ShowWindow(hwnd0, SW_RESTORE);
+        SetWindowPos(hwnd0, std::ptr::null_mut(), 0, 0, 800, 600, SWP_NOZORDER);
+    }
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    let mut window_rect: RECT = unsafe { std::mem::zeroed() };
+    let mut frame_rect: RECT = unsafe { std::mem::zeroed() };
+    let got_rects = unsafe {
+        let wr = GetWindowRect(hwnd0, &mut window_rect);
+        let fr = DwmGetWindowAttribute(
+            hwnd0,
+            DWMWA_EXTENDED_FRAME_BOUNDS as u32,
+            &mut frame_rect as *mut _ as *mut std::ffi::c_void,
+            std::mem::size_of::<RECT>() as u32,
+        );
+        wr != 0 && fr == 0
+    };
+    if got_rects {
+        let bl = frame_rect.left - window_rect.left;
+        let br = window_rect.right - frame_rect.right;
+        let bt = frame_rect.top - window_rect.top;
+        let bb = window_rect.bottom - frame_rect.bottom;
+        info!("arrange: invisible borders: left={bl} right={br} top={bt} bottom={bb}");
+        (bl, br, bt, bb)
+    } else {
+        info!("arrange: could not query DWM frame bounds, using zero borders");
+        (0, 0, 0, 0)
+    }
+}
+
+/// Find all visible Roblox player windows and arrange them in a grid across the
+/// configured monitor(s) and layout.
+#[cfg(windows)]
+pub fn arrange_roblox_windows(options: &TilingOptions) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, ShowWindow, SWP_NOZORDER, SW_RESTORE,
+    };
+
+    let hwnds = find_roblox_hwnds();
+    if hwnds.is_empty() {
         info!("arrange_roblox_windows: no visible Roblox windows found");
         return;
     }
 
-    let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
-    let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) };
+    let monitors = enumerate_monitors();
+    let rects = calculate_tiling_rects(&monitors, hwnds.len(), options);
 
-    // Query the invisible border size from the first window.  On Windows 10/11,
-    // windows have ~7 px invisible borders on left/right/bottom that are part
-    // of the window rect but transparent.  We compensate by extending each
-    // SetWindowPos call past those invisible edges so windows snap flush.
-    use windows_sys::Win32::Foundation::RECT;
-    use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
-    use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect;
+    let (border_left, border_right, border_top, border_bottom) = measure_dwm_borders(hwnds[0]);
 
-    let (border_left, border_right, border_top, border_bottom) = {
-        let hwnd0 = state.hwnds[0];
-        // Temporarily position the window so we can measure it
-        unsafe {
-            ShowWindow(hwnd0, SW_RESTORE);
-            SetWindowPos(hwnd0, std::ptr::null_mut(), 0, 0, 800, 600, SWP_NOZORDER);
-        }
-        std::thread::sleep(std::time::Duration::from_millis(50));
+    info!(
+        "arrange_roblox_windows: tiling {} window(s) across {:?} with layout {:?}",
+        hwnds.len(),
+        options.target_monitor,
+        options.layout_mode
+    );
 
-        let mut window_rect: RECT = unsafe { std::mem::zeroed() };
-        let mut frame_rect: RECT = unsafe { std::mem::zeroed() };
-        let got_rects = unsafe {
-            let wr = GetWindowRect(hwnd0, &mut window_rect);
-            let fr = DwmGetWindowAttribute(
-                hwnd0,
-                DWMWA_EXTENDED_FRAME_BOUNDS as u32,
-                &mut frame_rect as *mut _ as *mut std::ffi::c_void,
-                std::mem::size_of::<RECT>() as u32,
-            );
-            wr != 0 && fr == 0
-        };
-        if got_rects {
-            let bl = frame_rect.left - window_rect.left;
-            let br = window_rect.right - frame_rect.right;
-            let bt = frame_rect.top - window_rect.top;
-            let bb = window_rect.bottom - frame_rect.bottom;
-            info!("arrange: invisible borders: left={bl} right={br} top={bt} bottom={bb}");
-            (bl, br, bt, bb)
-        } else {
-            info!("arrange: could not query DWM frame bounds, using zero borders");
-            (0, 0, 0, 0)
-        }
-    };
-
-    // Calculate grid dimensions
-    let cols = (count as f64).sqrt().ceil() as i32;
-    let rows = ((count as f64) / cols as f64).ceil() as i32;
-    let cell_w = screen_w / cols;
-    let cell_h = screen_h / rows;
-
-    info!("arrange_roblox_windows: tiling {count} window(s) in {cols}×{rows} grid ({cell_w}×{cell_h} each)");
-
-    for (i, &hwnd) in state.hwnds.iter().enumerate() {
-        let col = i as i32 % cols;
-        let row = i as i32 / cols;
-        let x = col * cell_w;
-        let y = row * cell_h;
-
-        // For the last row, if there are fewer windows than columns, center them
-        let windows_in_last_row = count as i32 - (rows - 1) * cols;
-        let (x, w) = if row == rows - 1 && windows_in_last_row < cols {
-            let last_col = i as i32 - (rows - 1) * cols;
-            let total_width = windows_in_last_row * cell_w;
-            let offset = (screen_w - total_width) / 2;
-            (offset + last_col * cell_w, cell_w)
-        } else {
-            (x, cell_w)
-        };
-
-        // Expand placement to compensate for invisible borders so windows snap flush.
-        // Left edge: move left by border_left  (except if at screen left edge)
-        // Right edge: expand width by border_left + border_right
-        // Top/bottom: same logic vertically.
-        let adj_x = x - border_left;
-        let adj_y = y - border_top;
-        let adj_w = w + border_left + border_right;
-        let adj_h = cell_h + border_top + border_bottom;
+    for (&hwnd, rect) in hwnds.iter().zip(rects.iter()) {
+        let adj_x = rect.x - border_left;
+        let adj_y = rect.y - border_top;
+        let adj_w = rect.width + border_left + border_right;
+        let adj_h = rect.height + border_top + border_bottom;
 
         unsafe {
             ShowWindow(hwnd, SW_RESTORE);
-            SetWindowPos(hwnd, std::ptr::null_mut(), adj_x, adj_y, adj_w, adj_h, SWP_NOZORDER);
+            SetWindowPos(
+                hwnd,
+                std::ptr::null_mut(),
+                adj_x,
+                adj_y,
+                adj_w,
+                adj_h,
+                SWP_NOZORDER,
+            );
         }
     }
 
@@ -1199,7 +1458,7 @@ pub fn arrange_roblox_windows() {
 }
 
 #[cfg(not(windows))]
-pub fn arrange_roblox_windows() {
+pub fn arrange_roblox_windows(_options: &TilingOptions) {
     info!("Window arrangement is only supported on Windows");
 }
 
@@ -1362,5 +1621,182 @@ mod tests {
         // The rest still has to be readable or there is no point logging it.
         assert!(scrubbed.contains("launchtime:1700000000000"), "{scrubbed}");
         assert!(scrubbed.contains("placeId%3D606"), "{scrubbed}");
+    }
+
+    // -----------------------------------------------------------------------
+    // Tiling calculations
+    // -----------------------------------------------------------------------
+
+    fn test_monitor(index: usize, is_primary: bool, x: i32, y: i32, w: i32, h: i32) -> MonitorGeometry {
+        MonitorGeometry {
+            index,
+            name: format!("Monitor {index}"),
+            is_primary,
+            total_x: x,
+            total_y: y,
+            total_w: w,
+            total_h: h,
+            work_x: x,
+            work_y: y,
+            work_w: w,
+            work_h: h - 40, // simulate 40px taskbar
+        }
+    }
+
+    #[test]
+    fn single_window_occupies_full_work_area() {
+        let monitors = vec![test_monitor(0, true, 0, 0, 1920, 1080)];
+        let opts = TilingOptions::default();
+        let rects = calculate_tiling_rects(&monitors, 1, &opts);
+
+        assert_eq!(rects.len(), 1);
+        assert_eq!(rects[0].x, 0);
+        assert_eq!(rects[0].y, 0);
+        assert_eq!(rects[0].width, 1920);
+        assert_eq!(rects[0].height, 1040);
+    }
+
+    #[test]
+    fn two_windows_auto_split_side_by_side() {
+        let monitors = vec![test_monitor(0, true, 0, 0, 1920, 1080)];
+        let opts = TilingOptions::default();
+        let rects = calculate_tiling_rects(&monitors, 2, &opts);
+
+        assert_eq!(rects.len(), 2);
+        assert_eq!(rects[0].width, 960);
+        assert_eq!(rects[0].height, 1040);
+        assert_eq!(rects[1].x, 960);
+        assert_eq!(rects[1].width, 960);
+    }
+
+    #[test]
+    fn three_windows_auto_centers_last_row() {
+        let monitors = vec![test_monitor(0, true, 0, 0, 1920, 1080)];
+        let opts = TilingOptions::default();
+        let rects = calculate_tiling_rects(&monitors, 3, &opts);
+
+        assert_eq!(rects.len(), 3);
+        // Row 0: 2 windows of width 960
+        assert_eq!(rects[0], WindowRect { x: 0, y: 0, width: 960, height: 520 });
+        assert_eq!(rects[1], WindowRect { x: 960, y: 0, width: 960, height: 520 });
+        // Row 1: 1 window centered (offset = (1920 - 960)/2 = 480)
+        assert_eq!(rects[2], WindowRect { x: 480, y: 520, width: 960, height: 520 });
+    }
+
+    #[test]
+    fn fixed_columns_layout() {
+        let monitors = vec![test_monitor(0, true, 0, 0, 1920, 1080)];
+        let opts = TilingOptions {
+            target_monitor: MonitorTarget::Primary,
+            layout_mode: TilingLayoutMode::FixedColumns(3),
+            custom_cols: 3,
+            custom_rows: 2,
+            padding: 0,
+        };
+        let rects = calculate_tiling_rects(&monitors, 4, &opts);
+
+        assert_eq!(rects.len(), 4);
+        assert_eq!(rects[0].width, 640);
+        assert_eq!(rects[0].height, 520);
+        // 4th window on second row centered
+        assert_eq!(rects[3].x, (1920 - 640) / 2);
+        assert_eq!(rects[3].y, 520);
+    }
+
+    #[test]
+    fn side_by_side_and_stacked_modes() {
+        let monitors = vec![test_monitor(0, true, 0, 0, 1920, 1080)];
+        let sbs_opts = TilingOptions {
+            target_monitor: MonitorTarget::Primary,
+            layout_mode: TilingLayoutMode::SideBySide,
+            custom_cols: 2,
+            custom_rows: 2,
+            padding: 0,
+        };
+        let rects_sbs = calculate_tiling_rects(&monitors, 4, &sbs_opts);
+        assert_eq!(rects_sbs.len(), 4);
+        assert_eq!(rects_sbs[0].width, 480);
+        assert_eq!(rects_sbs[0].height, 1040);
+
+        let stack_opts = TilingOptions {
+            target_monitor: MonitorTarget::Primary,
+            layout_mode: TilingLayoutMode::Stacked,
+            custom_cols: 2,
+            custom_rows: 2,
+            padding: 0,
+        };
+        let rects_stack = calculate_tiling_rects(&monitors, 4, &stack_opts);
+        assert_eq!(rects_stack.len(), 4);
+        assert_eq!(rects_stack[0].width, 1920);
+        assert_eq!(rects_stack[0].height, 260);
+    }
+
+    #[test]
+    fn multi_monitor_distribution_across_all() {
+        let monitors = vec![
+            test_monitor(0, true, 0, 0, 1920, 1080),
+            test_monitor(1, false, 1920, 0, 2560, 1440),
+        ];
+        let opts = TilingOptions {
+            target_monitor: MonitorTarget::All,
+            layout_mode: TilingLayoutMode::Auto,
+            custom_cols: 2,
+            custom_rows: 2,
+            padding: 0,
+        };
+        // 4 windows -> 2 on Mon 0, 2 on Mon 1
+        let rects = calculate_tiling_rects(&monitors, 4, &opts);
+        assert_eq!(rects.len(), 4);
+
+        // First 2 on Monitor 0 (1920x1040 work area, side-by-side)
+        assert_eq!(rects[0].x, 0);
+        assert_eq!(rects[0].width, 960);
+        assert_eq!(rects[1].x, 960);
+        assert_eq!(rects[1].width, 960);
+
+        // Next 2 on Monitor 1 (starts at x=1920, 2560x1400 work area, side-by-side)
+        assert_eq!(rects[2].x, 1920);
+        assert_eq!(rects[2].width, 1280);
+        assert_eq!(rects[3].x, 1920 + 1280);
+        assert_eq!(rects[3].width, 1280);
+    }
+
+    #[test]
+    fn specific_secondary_monitor_selection() {
+        let monitors = vec![
+            test_monitor(0, true, 0, 0, 1920, 1080),
+            test_monitor(1, false, 1920, 0, 1920, 1080),
+        ];
+        let opts = TilingOptions {
+            target_monitor: MonitorTarget::Index(1),
+            layout_mode: TilingLayoutMode::Auto,
+            custom_cols: 2,
+            custom_rows: 2,
+            padding: 0,
+        };
+        let rects = calculate_tiling_rects(&monitors, 1, &opts);
+        assert_eq!(rects.len(), 1);
+        assert_eq!(rects[0].x, 1920);
+        assert_eq!(rects[0].y, 0);
+        assert_eq!(rects[0].width, 1920);
+        assert_eq!(rects[0].height, 1040);
+    }
+
+    #[test]
+    fn padding_applies_correctly() {
+        let monitors = vec![test_monitor(0, true, 0, 0, 1000, 1000)];
+        let opts = TilingOptions {
+            target_monitor: MonitorTarget::Primary,
+            layout_mode: TilingLayoutMode::Auto,
+            custom_cols: 2,
+            custom_rows: 2,
+            padding: 10,
+        };
+        let rects = calculate_tiling_rects(&monitors, 1, &opts);
+        assert_eq!(rects.len(), 1);
+        assert_eq!(rects[0].x, 10);
+        assert_eq!(rects[0].y, 10);
+        assert_eq!(rects[0].width, 980);
+        assert_eq!(rects[0].height, 940);
     }
 }
