@@ -260,10 +260,9 @@ fn main() {
 
     // Log to a file so crashes are visible even without a console
     // (the #[windows_subsystem = "windows"] attribute suppresses stderr).
-    let subscriber = tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-        );
+    let subscriber = tracing_subscriber::fmt().with_env_filter(
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+    );
 
     match log_appender(&data_dir) {
         Some(appender) => subscriber.with_writer(Scrubbed(appender)).init(),
@@ -330,22 +329,21 @@ fn main() {
     // Resolve config and account paths.
     // If a legacy config.json still exists next to the exe (user declined migration),
     // keep using local paths for backwards compatibility.
-    let (config_path, config) = if PathBuf::from("config.json").is_file()
-        && !data_dir.join("config.json").is_file()
-    {
-        // User declined migration — use local files
-        let p = PathBuf::from("config.json");
-        let c = ram_core::AppConfig::load(&p);
-        (p, c)
-    } else {
-        let p = data_dir.join("config.json");
-        let mut c = ram_core::AppConfig::load(&p);
-        // Ensure accounts_path is absolute under the data dir
-        if c.accounts_path == std::path::Path::new("accounts.dat") {
-            c.accounts_path = data_dir.join("accounts.dat");
-        }
-        (p, c)
-    };
+    let (config_path, config) =
+        if PathBuf::from("config.json").is_file() && !data_dir.join("config.json").is_file() {
+            // User declined migration — use local files
+            let p = PathBuf::from("config.json");
+            let c = ram_core::AppConfig::load(&p);
+            (p, c)
+        } else {
+            let p = data_dir.join("config.json");
+            let mut c = ram_core::AppConfig::load(&p);
+            // Ensure accounts_path is absolute under the data dir
+            if c.accounts_path == std::path::Path::new("accounts.dat") {
+                c.accounts_path = data_dir.join("accounts.dat");
+            }
+            (p, c)
+        };
 
     // Decode the embedded logo for the window icon.
     let icon = {
@@ -364,7 +362,10 @@ fn main() {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([config.window_width, config.window_height])
             .with_min_inner_size([640.0, 400.0])
-            .with_title(format!("RM | Roblox Manager v{}", env!("CARGO_PKG_VERSION")))
+            .with_title(format!(
+                "RM | Roblox Manager v{}",
+                env!("CARGO_PKG_VERSION")
+            ))
             .with_icon(icon),
         ..Default::default()
     };
@@ -460,7 +461,10 @@ mod tests {
 
         let contents = std::fs::read_to_string(&files[0]).unwrap();
         assert!(contents.contains("session cookie"), "{contents}");
-        assert!(!contents.contains("ABCDEF"), "cookie hit the file: {contents}");
+        assert!(
+            !contents.contains("ABCDEF"),
+            "cookie hit the file: {contents}"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

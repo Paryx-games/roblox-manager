@@ -156,7 +156,10 @@ mod tests {
         let out = scrub(&line);
         assert!(out.contains(".ROBLOSECURITY="), "{out}");
         assert!(!out.contains("ABCDEF"), "{out}");
-        assert!(out.contains("path=/"), "the `;` must terminate the value: {out}");
+        assert!(
+            out.contains("path=/"),
+            "the `;` must terminate the value: {out}"
+        );
     }
 
     #[test]
@@ -177,8 +180,7 @@ mod tests {
 
     #[test]
     fn removes_the_ticket_and_csrf_headers() {
-        let line =
-            format!("headers: rbx-authentication-ticket: {TICKET}, x-csrf-token: aBcD1234");
+        let line = format!("headers: rbx-authentication-ticket: {TICKET}, x-csrf-token: aBcD1234");
         let out = scrub(&line);
         assert!(!out.contains("T1cKeT"), "{out}");
         assert!(!out.contains("aBcD1234"), "{out}");

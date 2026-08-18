@@ -12,7 +12,6 @@ pub enum MainPanelAction {
         job_id: Option<String>,
     },
     OpenPathEditor,
-    ToggleLaunchEnabled(u64),
     RemoveAccount(u64),
     UpdateAlias {
         user_id: u64,
@@ -108,16 +107,6 @@ pub fn show(
                         |ui| {
                             egui::menu::menu_button(ui, "...", |ui| {
                                 ui.set_min_width(160.0);
-                                let label = if account.is_launch_enabled {
-                                    "✕  Disable launching"
-                                } else {
-                                    "✓  Enable launching"
-                                };
-                                if ui.button(label).clicked() {
-                                    action = Some(MainPanelAction::ToggleLaunchEnabled(account.user_id));
-                                    ui.close_menu();
-                                }
-                                ui.separator();
                                 if ui
                                     .button(
                                         egui::RichText::new("\u{1f5d1}  Remove account")
@@ -296,9 +285,7 @@ pub fn show(
                             ui.visuals().widgets.inactive.bg_fill
                         }),
                     )
-                    .on_hover_text(if !account.is_launch_enabled {
-                        "Launching is disabled for this account. Enable it from the account menu."
-                    } else if account.moderation.as_ref().is_some_and(|info| info.is_active()) {
+                    .on_hover_text(if account.moderation.as_ref().is_some_and(|info| info.is_active()) {
                         "Launching is blocked while this account is restricted by Roblox."
                     } else if place_valid {
                         "Launch this account into the chosen place"

@@ -219,9 +219,8 @@ pub async fn fetch_servers(
     place_id: u64,
     cursor: Option<&str>,
 ) -> Result<(Vec<GameServer>, Option<String>), CoreError> {
-    let mut url = format!(
-        "https://games.roblox.com/v1/games/{place_id}/servers/0?sortOrder=Asc&limit=25"
-    );
+    let mut url =
+        format!("https://games.roblox.com/v1/games/{place_id}/servers/0?sortOrder=Asc&limit=25");
     if let Some(c) = cursor {
         url.push_str(&format!("&cursor={c}"));
     }
@@ -300,9 +299,8 @@ pub async fn resolve_share_link(
     tracing::info!("Share link resolved → placeId={place_id}, linkCode={link_code}");
 
     // --- Step 2: Scrape accessCode (UUID) from the game page ---
-    let game_url = format!(
-        "https://www.roblox.com/games/{place_id}/game?privateServerLinkCode={link_code}"
-    );
+    let game_url =
+        format!("https://www.roblox.com/games/{place_id}/game?privateServerLinkCode={link_code}");
     let html = client.get_text(&game_url, cookie).await?;
 
     let access_re = Regex::new(
@@ -342,7 +340,9 @@ struct GitLabRelease {
 
 /// Check for a newer release on GitLab. Returns `Some((version, url))` if an
 /// update is available, `None` if already on the latest.
-pub async fn check_for_updates(current_version: &str) -> Result<Option<(String, String)>, CoreError> {
+pub async fn check_for_updates(
+    current_version: &str,
+) -> Result<Option<(String, String)>, CoreError> {
     let client = reqwest::Client::builder()
         .user_agent("RM-update-check")
         .build()?;

@@ -55,10 +55,16 @@ fn parse_private_server_url(input: &str) -> Option<ParsedUrl> {
     // Try: roblox.com/games/PLACE_ID?...privateServerLinkCode=CODE
     if let Some(idx) = input.find("/games/") {
         let after_games = &input[idx + 7..];
-        let place_str: String = after_games.chars().take_while(|c| c.is_ascii_digit()).collect();
+        let place_str: String = after_games
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
         let place_id: u64 = place_str.parse().ok()?;
         if let Some(code) = extract_param(input, "privateServerLinkCode") {
-            return Some(ParsedUrl::Full { place_id, link_code: code });
+            return Some(ParsedUrl::Full {
+                place_id,
+                link_code: code,
+            });
         }
     }
 
@@ -82,7 +88,10 @@ fn extract_param(url: &str, param: &str) -> Option<String> {
         if let Some(idx) = url_lower.find(&search) {
             let start = idx + search.len();
             let rest = &url[start..];
-            let value: String = rest.chars().take_while(|c| *c != '&' && *c != '#').collect();
+            let value: String = rest
+                .chars()
+                .take_while(|c| *c != '&' && *c != '#')
+                .collect();
             if !value.is_empty() {
                 return Some(value);
             }
@@ -143,7 +152,10 @@ pub fn show(
                 .clicked()
             {
                 match parse_private_server_url(&state.url_input) {
-                    Some(ParsedUrl::Full { place_id, link_code }) => {
+                    Some(ParsedUrl::Full {
+                        place_id,
+                        link_code,
+                    }) => {
                         let server = PrivateServer {
                             name: state.name_input.trim().to_string(),
                             place_id,
@@ -249,10 +261,8 @@ pub fn show(
                                         );
                                     } else {
                                         // Placeholder
-                                        let (rect, _) = ui.allocate_exact_size(
-                                            icon_size,
-                                            egui::Sense::hover(),
-                                        );
+                                        let (rect, _) =
+                                            ui.allocate_exact_size(icon_size, egui::Sense::hover());
                                         ui.painter().rect_filled(
                                             rect,
                                             6.0,
@@ -333,8 +343,8 @@ pub fn show(
                                                                 })
                                                                 .clicked()
                                                             {
-                                                                action =
-                                                                    Some(PrivateServerAction::Launch {
+                                                                action = Some(
+                                                                    PrivateServerAction::Launch {
                                                                         place_id: server.place_id,
                                                                         link_code: server
                                                                             .link_code
@@ -342,7 +352,8 @@ pub fn show(
                                                                         access_code: server
                                                                             .access_code
                                                                             .clone(),
-                                                                    });
+                                                                    },
+                                                                );
                                                             }
                                                         },
                                                     );

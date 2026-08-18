@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.11.1
+
+### Changed
+- **Account launch toggle disabled.** The account enable/disable launching feature was not working reliably and was causing confusion, so it has been disabled for now while the underlying issue is addressed.
+- **Sidebar account categories removed.** The collapsible Enabled / Restricted / Disabled account sections were removed from the accounts list to keep the sidebar simpler and avoid the broken launch-state behavior.
+
 ## v1.11.0
 
 ### Added

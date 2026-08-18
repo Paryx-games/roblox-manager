@@ -28,10 +28,7 @@ fn slugify(name: &str) -> String {
         if c.is_ascii_alphanumeric() {
             out.push(c.to_ascii_lowercase());
             last_hyphen = false;
-        } else if (c.is_whitespace() || c == '-' || c == '_')
-            && !last_hyphen
-            && !out.is_empty()
-        {
+        } else if (c.is_whitespace() || c == '-' || c == '_') && !last_hyphen && !out.is_empty() {
             out.push('-');
             last_hyphen = true;
         }

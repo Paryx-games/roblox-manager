@@ -195,9 +195,6 @@ struct AddAccountDialog {
     force_add_form_open: bool,
     /// Username buffer for the "add anyway" form.
     force_add_username: String,
-    /// Applied to every account created during the current add/import flow.
-    is_launch_enabled: bool,
-
     // --- Bulk-import state ---
     /// Multiline paste buffer for the bulk step.
     bulk_input: String,
@@ -1646,7 +1643,6 @@ impl AppState {
                     cookie,
                     session: session.clone(),
                     use_credential_manager: self.config.use_credential_manager,
-                    is_launch_enabled: self.add_dialog.is_launch_enabled,
                 });
             }
             None => {
@@ -2318,7 +2314,6 @@ impl AppState {
                             self.add_dialog.browser_login_rx = None;
                             self.add_dialog.rejected_cookie = None;
                             self.add_dialog.pending_moderated = None;
-                            self.add_dialog.is_launch_enabled = true;
                             self.tutorial
                                 .advance_from(tutorial::TutorialStep::AddAccount);
                         }
@@ -2574,17 +2569,6 @@ impl AppState {
                             }
                             self.auto_save();
                         }
-                        sidebar::SidebarAction::ToggleLaunchEnabled(user_id) => {
-                            if let Some(account) = self.store.find_by_id_mut(user_id) {
-                                account.is_launch_enabled = !account.is_launch_enabled;
-                                self.toasts.push(Toast::info(if account.is_launch_enabled {
-                                    "Launching enabled"
-                                } else {
-                                    "Launching disabled"
-                                }));
-                            }
-                            self.auto_save();
-                        }
                         sidebar::SidebarAction::SetCustomPath { user_ids, path } => {
                             let has_path = path.is_some();
                             for user_id in user_ids {
@@ -2737,17 +2721,6 @@ impl AppState {
                                         .map(|path| path.display().to_string())
                                         .unwrap_or_default(),
                                 });
-                            }
-                            main_panel::MainPanelAction::ToggleLaunchEnabled(user_id) => {
-                                if let Some(account) = self.store.find_by_id_mut(user_id) {
-                                    account.is_launch_enabled = !account.is_launch_enabled;
-                                    self.toasts.push(Toast::info(if account.is_launch_enabled {
-                                        "Launching enabled"
-                                    } else {
-                                        "Launching disabled"
-                                    }));
-                                }
-                                self.auto_save();
                             }
                             main_panel::MainPanelAction::LaunchGame { place_id, job_id } => {
                                 // Session first, so a locked store does not
@@ -4239,7 +4212,6 @@ impl AppState {
                             cookie,
                             session,
                             use_credential_manager: self.config.use_credential_manager,
-                            is_launch_enabled: self.add_dialog.is_launch_enabled,
                         });
                     }
                 }
@@ -4427,7 +4399,6 @@ impl AppState {
                                 cookie,
                                 session,
                                 use_credential_manager: self.config.use_credential_manager,
-                                is_launch_enabled: self.add_dialog.is_launch_enabled,
                             });
                         }
                         None => {
@@ -4488,13 +4459,6 @@ impl AppState {
                 match self.add_dialog.step {
                     AddAccountStep::Choose => {
                         ui.label("How would you like to add this account?");
-                        ui.checkbox(
-                            &mut self.add_dialog.is_launch_enabled,
-                            "Enable launching after import",
-                        )
-                        .on_hover_text(
-                            "Disabled accounts are saved normally but cannot be launched until you enable them from the account menu.",
-                        );
                         ui.add_space(10.0);
 
                         let full_w = ui.available_width();
@@ -4817,7 +4781,6 @@ impl AppState {
                                     cookie,
                                     session,
                                     use_credential_manager: self.config.use_credential_manager,
-                                    is_launch_enabled: self.add_dialog.is_launch_enabled,
                                 });
                             }
                         }
@@ -4950,9 +4913,6 @@ impl AppState {
                                                     use_credential_manager: self
                                                         .config
                                                         .use_credential_manager,
-                                                    is_launch_enabled: self
-                                                        .add_dialog
-                                                        .is_launch_enabled,
                                                 },
                                             );
                                         }

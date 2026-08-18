@@ -45,10 +45,6 @@ pub struct Account {
     /// Whether this account is pinned (always shows at the top).
     #[serde(default)]
     pub is_pinned: bool,
-    /// Whether RM may launch Roblox with this account. Disabled accounts remain
-    /// available for browsing and management but are excluded from every launch path.
-    #[serde(default = "default_true")]
-    pub is_launch_enabled: bool,
 }
 
 impl Account {
@@ -68,16 +64,14 @@ impl Account {
             moderation: None,
             sort_order: u32::MAX,
             is_pinned: false,
-            is_launch_enabled: true,
         }
     }
 
     pub fn can_launch(&self) -> bool {
-        self.is_launch_enabled
-            && !self
-                .moderation
-                .as_ref()
-                .is_some_and(ModerationInfo::is_active)
+        !self
+            .moderation
+            .as_ref()
+            .is_some_and(ModerationInfo::is_active)
     }
 
     /// Returns the label shown in the sidebar (alias if set, otherwise username).
@@ -97,20 +91,7 @@ mod tests {
     #[test]
     fn new_accounts_allow_launching() {
         let account = Account::new(1, "username".to_string(), "Display name".to_string());
-        assert!(account.is_launch_enabled);
         assert!(account.can_launch());
-    }
-
-    #[test]
-    fn existing_accounts_default_to_launch_enabled() {
-        let account = Account::new(1, "username".to_string(), "Display name".to_string());
-        let mut serialized = serde_json::to_value(account).unwrap();
-        serialized
-            .as_object_mut()
-            .unwrap()
-            .remove("is_launch_enabled");
-        let restored: Account = serde_json::from_value(serialized).unwrap();
-        assert!(restored.is_launch_enabled);
     }
 
     #[test]

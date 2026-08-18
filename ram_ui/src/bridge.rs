@@ -50,7 +50,6 @@ pub enum BackendCommand {
         cookie: String,
         session: crypto::StoreSession,
         use_credential_manager: bool,
-        is_launch_enabled: bool,
     },
     /// Add an account WITHOUT requiring `validate_cookie` to succeed. Looks
     /// up the canonical user identity by username (works for terminated
@@ -62,7 +61,6 @@ pub enum BackendCommand {
         username: String,
         session: crypto::StoreSession,
         use_credential_manager: bool,
-        is_launch_enabled: bool,
     },
     /// Remove an account by user ID.
     RemoveAccount {
@@ -650,7 +648,6 @@ async fn handle_command(
             cookie,
             session,
             use_credential_manager,
-            is_launch_enabled,
         } => {
             let (user_id, username, display_name) = match client.validate_cookie(&cookie).await {
                 Ok(t) => t,
@@ -671,7 +668,6 @@ async fn handle_command(
                 }
             };
             let mut account = Account::new(user_id, username, display_name);
-            account.is_launch_enabled = is_launch_enabled;
 
             let encrypted = if use_credential_manager {
                 crypto::credential_store(user_id, &cookie)?;
@@ -715,7 +711,6 @@ async fn handle_command(
             username,
             session,
             use_credential_manager,
-            is_launch_enabled,
         } => {
             // Cookie didn't validate but the user wants to add the account
             // anyway. Resolve the canonical identity by username so the entry
@@ -726,7 +721,6 @@ async fn handle_command(
                     .ok_or_else(|| CoreError::AccountNotFound(username.clone()))?;
 
             let mut account = Account::new(user_id, canonical_username, display_name);
-            account.is_launch_enabled = is_launch_enabled;
 
             let encrypted = if use_credential_manager {
                 crypto::credential_store(user_id, &cookie)?;
@@ -1973,7 +1967,6 @@ mod tests {
                 cookie: "COOKIE".to_string(),
                 session: s.clone(),
                 use_credential_manager: false,
-                is_launch_enabled: true,
             },
             BackendCommand::LaunchGame {
                 user_id: 7,

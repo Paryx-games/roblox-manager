@@ -320,14 +320,16 @@ fn build_header(
 
     // AAD is everything decided before the wrap: magic, version, mode, salt.
     let aad = header[..WRAP_AAD_LEN].to_vec();
-    let wrapped = wrapping_key.cipher()?.encrypt(
-        Nonce::from_slice(&wrap_nonce),
-        Payload {
-            msg: &data_key.0,
-            aad: &aad,
-        },
-    )
-    .map_err(|e| CoreError::Crypto(format!("wrapping the data key failed: {e}")))?;
+    let wrapped = wrapping_key
+        .cipher()?
+        .encrypt(
+            Nonce::from_slice(&wrap_nonce),
+            Payload {
+                msg: &data_key.0,
+                aad: &aad,
+            },
+        )
+        .map_err(|e| CoreError::Crypto(format!("wrapping the data key failed: {e}")))?;
 
     if wrapped.len() != WRAPPED_KEY_LEN {
         return Err(CoreError::Crypto("unexpected wrapped key length".into()));
@@ -344,17 +346,13 @@ fn unwrap_data_key(header: &[u8], wrapping_key: &StoreKey) -> Result<StoreKey, C
 
     let plain = wrapping_key
         .cipher()?
-        .decrypt(
-            Nonce::from_slice(nonce),
-            Payload {
-                msg: wrapped,
-                aad,
-            },
-        )
+        .decrypt(Nonce::from_slice(nonce), Payload { msg: wrapped, aad })
         .map_err(|_| CoreError::Crypto("could not unwrap the store's data key".into()))?;
 
     if plain.len() != KEY_LEN {
-        return Err(CoreError::Crypto("unwrapped data key has the wrong length".into()));
+        return Err(CoreError::Crypto(
+            "unwrapped data key has the wrong length".into(),
+        ));
     }
     let mut k = [0u8; KEY_LEN];
     k.copy_from_slice(&plain);
@@ -576,10 +574,7 @@ fn open_device(
 
 /// Open one candidate file with a password, dispatching on that candidate's own
 /// format so v1 and v2 copies can coexist during an interrupted upgrade.
-fn open_password(
-    data: &[u8],
-    password: &str,
-) -> Result<(AccountStore, StoreSession), CoreError> {
+fn open_password(data: &[u8], password: &str) -> Result<(AccountStore, StoreSession), CoreError> {
     if !is_v2(data) {
         // Pre-envelope file: the data key *is* the v1 password-derived key,
         // which is what keeps the `encrypted_cookie` blobs inside readable.
@@ -599,7 +594,10 @@ fn open_password(
     try_open_v2(data, &wrapping)
 }
 
-fn try_open_v2(data: &[u8], wrapping: &StoreKey) -> Result<(AccountStore, StoreSession), CoreError> {
+fn try_open_v2(
+    data: &[u8],
+    wrapping: &StoreKey,
+) -> Result<(AccountStore, StoreSession), CoreError> {
     if !is_v2(data) {
         return Err(CoreError::Crypto("not an envelope-format store".into()));
     }
@@ -885,8 +883,7 @@ mod tests {
             header: Vec::new(),
         };
         let mut store = store_with(2);
-        store.accounts[0].encrypted_cookie =
-            Some(encrypt_cookie("COOKIE_ZERO", &legacy).unwrap());
+        store.accounts[0].encrypted_cookie = Some(encrypt_cookie("COOKIE_ZERO", &legacy).unwrap());
         store.accounts[1].encrypted_cookie = Some(encrypt_cookie("COOKIE_ONE", &legacy).unwrap());
         write_v1(&p, &store, "pw");
 
@@ -895,13 +892,19 @@ mod tests {
 
         // Same plaintext, different ciphertext, readable under the new session.
         assert_eq!(
-            decrypt_cookie(upgraded.accounts[0].encrypted_cookie.as_ref().unwrap(), &session)
-                .unwrap(),
+            decrypt_cookie(
+                upgraded.accounts[0].encrypted_cookie.as_ref().unwrap(),
+                &session
+            )
+            .unwrap(),
             "COOKIE_ZERO"
         );
         assert_eq!(
-            decrypt_cookie(upgraded.accounts[1].encrypted_cookie.as_ref().unwrap(), &session)
-                .unwrap(),
+            decrypt_cookie(
+                upgraded.accounts[1].encrypted_cookie.as_ref().unwrap(),
+                &session
+            )
+            .unwrap(),
             "COOKIE_ONE"
         );
 
@@ -967,7 +970,9 @@ mod tests {
         // Goes through `open_device` with a dummy wrapping key rather than
         // `unlock_with_device`, so the assertion is about the mode check and not
         // about whether this machine happens to have a credential store.
-        let err = open_device(&bytes, &StoreKey::random()).unwrap_err().to_string();
+        let err = open_device(&bytes, &StoreKey::random())
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("master password"), "unhelpful error: {err}");
         cleanup(&p);
     }
@@ -977,7 +982,9 @@ mod tests {
         let p = scratch("v1asdevice");
         write_v1(&p, &store_with(1), "pw");
         let bytes = std::fs::read(&p).unwrap();
-        let err = open_device(&bytes, &StoreKey::random()).unwrap_err().to_string();
+        let err = open_device(&bytes, &StoreKey::random())
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("master password"), "unhelpful error: {err}");
         cleanup(&p);
     }
@@ -1146,7 +1153,11 @@ mod tests {
         std::fs::write(&p, b"this is not a valid envelope at all").unwrap();
 
         let (recovered, _) = unlock_with_password(&p, "pw").unwrap();
-        assert_eq!(recovered.accounts.len(), 1, "should be the backup's contents");
+        assert_eq!(
+            recovered.accounts.len(),
+            1,
+            "should be the backup's contents"
+        );
 
         let (healed, _) = unlock_with_password(&p, "pw").unwrap();
         assert_eq!(healed.accounts.len(), 1, "primary should have been healed");
@@ -1168,8 +1179,14 @@ mod tests {
         std::fs::write(&p, &bytes).unwrap();
 
         let err = unlock_with_password(&p, "pw").unwrap_err().to_string();
-        assert!(err.contains("damaged"), "should not blame the password: {err}");
-        assert!(!err.contains("password"), "should not blame the password: {err}");
+        assert!(
+            err.contains("damaged"),
+            "should not blame the password: {err}"
+        );
+        assert!(
+            !err.contains("password"),
+            "should not blame the password: {err}"
+        );
         cleanup(&p);
     }
 
@@ -1225,7 +1242,10 @@ mod tests {
         let a = pw_session("a");
         let b = pw_session("b");
         let blob = encrypt_cookie("_|WARNING:-DO-NOT-SHARE-THIS", &a).unwrap();
-        assert_eq!(decrypt_cookie(&blob, &a).unwrap(), "_|WARNING:-DO-NOT-SHARE-THIS");
+        assert_eq!(
+            decrypt_cookie(&blob, &a).unwrap(),
+            "_|WARNING:-DO-NOT-SHARE-THIS"
+        );
         assert!(decrypt_cookie(&blob, &b).is_err());
     }
 
