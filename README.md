@@ -1,10 +1,12 @@
 # RM - Roblox Manager
 
-> **Note:** This repository is a fork of [gitlab.com/centerepic/robloxmanager](https://gitlab.com/centerepic/robloxmanager).
+> [!NOTE]
+> This repository is a fork of [gitlab.com/centerepic/robloxmanager](https://gitlab.com/centerepic/robloxmanager).
 
 A fast, lightweight Roblox account manager built with Rust and [egui](https://github.com/emilk/egui). Manage multiple Roblox accounts, launch games, and switch between sessions with ease.
 
-> **⚠️ Disclaimer:** This tool interacts with Roblox authentication cookies and game-launching internals. Use at your own risk. The multi-instance feature bypasses Roblox's singleton mutex, which may conflict with Hyperion anti-cheat and could carry ban risk. This project is not affiliated with or endorsed by Roblox Corporation.
+> [!WARNING]
+> This tool interacts with Roblox authentication cookies and game-launching internals. Use it at your own risk. The multi-instance feature bypasses Roblox's singleton mutex, which may conflict with Hyperion anti-cheat and could carry ban risk. This project is not affiliated with or endorsed by Roblox Corporation.
 
 ## Features
 
@@ -15,6 +17,9 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 - **Privacy Mode** - Clears tracking cookies before each launch
 - **Auto Window Tiling** - Arranges Roblox windows in a grid after launch
 - **Live Presence** - Real-time Online / In Game / In Studio / Offline indicators
+
+> [!IMPORTANT]
+> RM stores Roblox authentication cookies in encrypted form. Never share your `.ROBLOSECURITY` cookie with anyone, and treat it like a password.
 
 ## Building from Source
 
@@ -35,7 +40,7 @@ cargo build --release
 
 # Run
 cargo run --release
-```
+````
 
 The compiled binary will be at `target/release/ram_ui.exe`.
 
@@ -49,6 +54,9 @@ cargo check
 RUST_LOG=debug cargo run
 ```
 
+> [!TIP]
+> If you are developing RM, `cargo check` is the quickest way to catch compilation errors without producing a release build.
+
 ## Usage
 
 1. **First launch** - Nothing to set up. Encryption configures itself on this PC
@@ -57,9 +65,12 @@ RUST_LOG=debug cargo run
 4. **Bulk launch** - Ctrl+click or Shift+click to select multiple accounts, then use the group panel
 5. **Settings** - Configure multi-instance, privacy mode, auto-arrange, and more
 
+> [!CAUTION]
+> Multi-instance and privacy features interact with Roblox's local processes and files. Roblox updates may change or break these behaviours, so do not assume that a feature will continue working indefinitely.
+
 ## Credits
 
-- [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by ic3w0lf22 - The original Roblox Account Manager that served as the primary reference for this project
+* [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by ic3w0lf22 - The original Roblox Account Manager that served as the primary reference for this project
 
 ## Background
 
