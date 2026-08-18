@@ -114,9 +114,12 @@ pub fn run_child(profile_dir: PathBuf, outfile: PathBuf) -> i32 {
 }
 
 fn run_child_inner(profile_dir: PathBuf, outfile: PathBuf) -> Result<(), String> {
-    info!("browser_login child: start, profile={}, out={}", profile_dir.display(), outfile.display());
-    std::fs::create_dir_all(&profile_dir)
-        .map_err(|e| format!("create profile dir: {e}"))?;
+    info!(
+        "browser_login child: start, profile={}, out={}",
+        profile_dir.display(),
+        outfile.display()
+    );
+    std::fs::create_dir_all(&profile_dir).map_err(|e| format!("create profile dir: {e}"))?;
 
     let event_loop = EventLoopBuilder::<()>::new().build();
 
@@ -201,13 +204,11 @@ pub fn spawn_browse_as_to(
     label: String,
     destination_url: Option<String>,
 ) -> Result<(), String> {
-    std::fs::create_dir_all(&profile_dir)
-        .map_err(|e| format!("create profile dir: {e}"))?;
+    std::fs::create_dir_all(&profile_dir).map_err(|e| format!("create profile dir: {e}"))?;
     let cookie_in = profile_dir.join("cookie.in");
     // Clear any leftover from a previous failed spawn before writing fresh.
     let _ = std::fs::remove_file(&cookie_in);
-    std::fs::write(&cookie_in, cookie.as_bytes())
-        .map_err(|e| format!("write cookie file: {e}"))?;
+    std::fs::write(&cookie_in, cookie.as_bytes()).map_err(|e| format!("write cookie file: {e}"))?;
 
     let exe = std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?;
     info!("browse_as parent: spawning child {}", exe.display());
@@ -264,16 +265,15 @@ fn run_browse_as_inner(
     info!("browse_as child: start, profile={}", profile_dir.display());
 
     // Read and immediately delete the cookie hand-off file.
-    let cookie_value = std::fs::read_to_string(&cookie_in)
-        .map_err(|e| format!("read cookie file: {e}"))?;
+    let cookie_value =
+        std::fs::read_to_string(&cookie_in).map_err(|e| format!("read cookie file: {e}"))?;
     let _ = std::fs::remove_file(&cookie_in);
     let cookie_value = cookie_value.trim().to_string();
     if cookie_value.is_empty() {
         return Err("empty cookie hand-off".into());
     }
 
-    std::fs::create_dir_all(&profile_dir)
-        .map_err(|e| format!("create profile dir: {e}"))?;
+    std::fs::create_dir_all(&profile_dir).map_err(|e| format!("create profile dir: {e}"))?;
 
     let event_loop = EventLoopBuilder::<()>::new().build();
 

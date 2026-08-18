@@ -224,10 +224,7 @@ impl RobloxClient {
             // periodic revalidation overwrite specific ban reasons with the
             // generic fallback.
             headers.insert(REFERER, HeaderValue::from_static("https://www.roblox.com/"));
-            headers.insert(
-                "x-bound-auth-token",
-                HeaderValue::from_static(""),
-            );
+            headers.insert("x-bound-auth-token", HeaderValue::from_static(""));
 
             let mut req = self.inner.request(method.clone(), url).headers(headers);
             req = match body {
@@ -291,8 +288,8 @@ impl RobloxClient {
                     if attempt >= MAX_RETRIES {
                         return Err(CoreError::RateLimited);
                     }
-                    let wait = retry_after(resp.headers())
-                        .unwrap_or_else(|| backoff_for_attempt(attempt));
+                    let wait =
+                        retry_after(resp.headers()).unwrap_or_else(|| backoff_for_attempt(attempt));
                     warn!("Rate limited, backing off {wait:?} (attempt {attempt})");
                     tokio::time::sleep(wait).await;
                     attempt += 1;
@@ -304,11 +301,7 @@ impl RobloxClient {
     }
 
     /// Perform a GET and return raw response bytes.
-    pub async fn get_bytes(
-        &self,
-        url: &str,
-        cookie: &str,
-    ) -> Result<Vec<u8>, CoreError> {
+    pub async fn get_bytes(&self, url: &str, cookie: &str) -> Result<Vec<u8>, CoreError> {
         let resp = self.request(Method::GET, url, cookie, None).await?;
         let status = resp.status();
         if !status.is_success() {
@@ -323,11 +316,7 @@ impl RobloxClient {
     }
 
     /// Convenience: perform a GET and return the response body as a string.
-    pub async fn get_text(
-        &self,
-        url: &str,
-        cookie: &str,
-    ) -> Result<String, CoreError> {
+    pub async fn get_text(&self, url: &str, cookie: &str) -> Result<String, CoreError> {
         let resp = self.request(Method::GET, url, cookie, None).await?;
         let status = resp.status();
         if !status.is_success() {
@@ -419,10 +408,7 @@ impl RobloxClient {
 
     /// Validate a cookie by fetching the authenticated user info.
     /// Returns `(user_id, username, display_name)` on success.
-    pub async fn validate_cookie(
-        &self,
-        cookie: &str,
-    ) -> Result<(u64, String, String), CoreError> {
+    pub async fn validate_cookie(&self, cookie: &str) -> Result<(u64, String, String), CoreError> {
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct AuthUser {
@@ -513,7 +499,10 @@ mod tests {
         // at clock skew would be worse than the local backoff.
         assert_eq!(retry_after(&HeaderMap::new()), None);
         assert_eq!(
-            retry_after(&headers_with("retry-after", "Wed, 21 Oct 2026 07:28:00 GMT")),
+            retry_after(&headers_with(
+                "retry-after",
+                "Wed, 21 Oct 2026 07:28:00 GMT"
+            )),
             None
         );
         assert_eq!(retry_after(&headers_with("retry-after", "")), None);

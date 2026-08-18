@@ -107,10 +107,12 @@ pub async fn search_groups(
     client: &RobloxClient,
     keyword: &str,
 ) -> Result<Vec<GroupSearchResult>, CoreError> {
-    let mut url = reqwest::Url::parse("https://groups.roblox.com/v1/groups/search")
-        .map_err(|error| CoreError::RobloxApi {
-            status: 0,
-            message: error.to_string(),
+    let mut url =
+        reqwest::Url::parse("https://groups.roblox.com/v1/groups/search").map_err(|error| {
+            CoreError::RobloxApi {
+                status: 0,
+                message: error.to_string(),
+            }
         })?;
     url.query_pairs_mut()
         .append_pair("keyword", keyword.trim())
