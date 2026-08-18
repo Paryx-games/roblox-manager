@@ -1,8 +1,6 @@
 # RM - Roblox Manager
 
-> **This repository has moved.**
-> Development continues at gitlab.com/centerepic/robloxmanager.
-> The GitHub repo is archived and will no longer receive updates.
+> **Note:** This repository is a fork of [gitlab.com/centerepic/robloxmanager](https://gitlab.com/centerepic/robloxmanager).
 
 A fast, lightweight Roblox account manager built with Rust and [egui](https://github.com/emilk/egui). Manage multiple Roblox accounts, launch games, and switch between sessions with ease.
 
@@ -29,8 +27,8 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 
 ```bash
 # Clone the repository
-git clone https://gitlab.com/centerepic/robloxmanager.git
-cd ram2
+git clone https://github.com/Paryx-games/roblox-manager.git
+cd roblox-manager
 
 # Build in release mode
 cargo build --release
