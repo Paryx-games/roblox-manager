@@ -44,13 +44,6 @@ pub fn show(
     let theme = ui.theme();
 
     egui::ScrollArea::vertical().show(ui, |ui| {
-        ui.heading("Groups");
-        ui.label(
-            egui::RichText::new("Inspect a Roblox group and manage membership for the selected accounts.")
-                .color(ui.visuals().weak_text_color()),
-        );
-        ui.add_space(8.0);
-
         let section_frame = egui::Frame::default()
             .inner_margin(egui::Margin::same(10.0))
             .rounding(egui::Rounding::same(6.0))
@@ -58,6 +51,86 @@ pub fn show(
 
         section_frame.show(ui, |ui| {
             ui.set_min_width(ui.available_width());
+            ui.heading("Find a group");
+            ui.label(
+                egui::RichText::new("Search Roblox groups, then manage membership for the selected accounts.")
+                    .color(ui.visuals().weak_text_color()),
+            );
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.label("Search");
+                let search = ui.add(
+                    egui::TextEdit::singleline(&mut state.search_input)
+                        .hint_text("Search by group name")
+                        .desired_width(220.0),
+                );
+                let search_groups = ui.add_enabled(
+                    !state.loading,
+                    egui::Button::new("Search groups"),
+                );
+                if (search_groups.clicked()
+                    || search.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)))
+                    && !state.loading
+                {
+                    if state.search_input.trim().is_empty() {
+                        state.error = Some("Enter a group name to search.".to_string());
+                    } else {
+                        state.error = None;
+                        action = Some(GroupsPanelAction::Search {
+                            keyword: state.search_input.trim().to_string(),
+                        });
+                    }
+                }
+            });
+
+            if !state.search_results.is_empty() {
+                ui.add_space(6.0);
+                for result in &state.search_results {
+                    egui::Frame::default()
+                        .inner_margin(egui::Margin::same(6.0))
+                        .rounding(egui::Rounding::same(4.0))
+                        .fill(ui.visuals().faint_bg_color)
+                        .stroke(egui::Stroke::new(
+                            0.5_f32,
+                            ui.visuals().widgets.noninteractive.bg_stroke.color,
+                        ))
+                        .show(ui, |ui| {
+                            ui.set_min_width(ui.available_width());
+                            if ui
+                                .selectable_label(
+                                    false,
+                                    format!(
+                                        "{}  ·  {} members{}",
+                                        result.name,
+                                        result.member_count,
+                                        if result.has_verified_badge { "  · Verified" } else { "" }
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                state.group_id_input = result.id.to_string();
+                                action = Some(GroupsPanelAction::Load { group_id: result.id });
+                            }
+                            if !result.description.is_empty() {
+                                ui.label(
+                                    egui::RichText::new(&result.description)
+                                        .small()
+                                        .color(ui.visuals().weak_text_color()),
+                                );
+                            }
+                        });
+                    ui.add_space(3.0);
+                }
+            }
+
+            ui.add_space(4.0);
+            ui.separator();
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new("Know the group ID?")
+                    .small()
+                    .color(theme.text_muted),
+            );
             ui.horizontal(|ui| {
                 ui.label("Group ID");
                 let input = ui.add(
@@ -92,53 +165,7 @@ pub fn show(
             }
         });
 
-        section_frame.show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.label("Search groups");
-                ui.add(
-                    egui::TextEdit::singleline(&mut state.search_input)
-                        .hint_text("Search by group name")
-                        .desired_width(220.0),
-                );
-                if ui
-                    .add_enabled(!state.loading, egui::Button::new("Search"))
-                    .clicked()
-                {
-                    if state.search_input.trim().is_empty() {
-                        state.error = Some("Enter a group name to search.".to_string());
-                    } else {
-                        action = Some(GroupsPanelAction::Search {
-                            keyword: state.search_input.trim().to_string(),
-                        });
-                    }
-                }
-            });
-            for result in &state.search_results {
-                if ui
-                    .selectable_label(
-                        false,
-                        format!(
-                            "{}  ·  {} members{}",
-                            result.name,
-                            result.member_count,
-                            if result.has_verified_badge { "  · Verified" } else { "" }
-                        ),
-                    )
-                    .clicked()
-                {
-                    state.group_id_input = result.id.to_string();
-                    action = Some(GroupsPanelAction::Load { group_id: result.id });
-                }
-                if !result.description.is_empty() {
-                    ui.label(
-                        egui::RichText::new(&result.description)
-                            .small()
-                            .color(ui.visuals().weak_text_color()),
-                    );
-                }
-            }
-        });
+        ui.add_space(8.0);
 
         let Some(group) = state.group.as_ref() else {
             ui.add_space(10.0);
@@ -147,12 +174,12 @@ pub fn show(
                 ui.vertical_centered(|ui| {
                     ui.add_space(24.0);
                     ui.label(
-                        egui::RichText::new("Enter a group ID to get started")
+                        egui::RichText::new("Find a group to get started")
                             .size(18.0)
                             .strong(),
                     );
                     ui.add_space(4.0);
-                    ui.label("Group details, announcements, and selected-account membership will appear here.");
+                    ui.label("Search by name or enter a group ID. Details and selected-account membership will appear here.");
                     ui.add_space(24.0);
                 });
             });
@@ -218,7 +245,7 @@ pub fn show(
                     action = Some(GroupsPanelAction::Leave);
                 }
                 if selected_accounts.is_empty() {
-                    ui.label("Select one or more accounts on the Accounts tab to manage membership.");
+                    ui.label("Select accounts on the Accounts tab to manage membership.");
                 }
             });
         });
@@ -226,27 +253,41 @@ pub fn show(
         ui.add_space(10.0);
         section_frame.show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.heading("Selected accounts");
+            ui.horizontal(|ui| {
+                ui.heading("Selected accounts");
+                ui.colored_label(
+                    theme.text_muted,
+                    format!("{} selected", selected_accounts.len()),
+                );
+            });
             ui.add_space(4.0);
             for account in selected_accounts {
                 let membership = state.memberships.iter().find(|item| item.user_id == account.user_id);
-                ui.horizontal(|ui| {
-                    ui.label(account.label());
-                    if let Some(membership) = membership {
-                        if membership.joined {
-                            ui.colored_label(theme.success_text, "Member");
-                            if let Some(role) = &membership.role_name {
-                                ui.label(format!("{role} (rank {})", membership.role_rank));
+                egui::Frame::default()
+                    .inner_margin(egui::Margin::same(6.0))
+                    .rounding(egui::Rounding::same(4.0))
+                    .fill(ui.visuals().faint_bg_color)
+                    .show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.horizontal(|ui| {
+                            ui.label(account.label());
+                            if let Some(membership) = membership {
+                                if membership.joined {
+                                    ui.colored_label(theme.success_text, "Member");
+                                    if let Some(role) = &membership.role_name {
+                                        ui.label(format!("{role} (rank {})", membership.role_rank));
+                                    }
+                                } else {
+                                    ui.colored_label(theme.text_muted, "Not a member");
+                                }
+                            } else if state.loading {
+                                ui.colored_label(theme.text_muted, "Checking...");
+                            } else {
+                                ui.colored_label(theme.text_muted, "No membership data");
                             }
-                        } else {
-                            ui.colored_label(theme.text_muted, "Not a member");
-                        }
-                    } else if state.loading {
-                        ui.colored_label(theme.text_muted, "Checking...");
-                    } else {
-                        ui.colored_label(theme.text_muted, "No membership data");
-                    }
-                });
+                        });
+                    });
+                ui.add_space(3.0);
             }
             if selected_accounts.is_empty() {
                 ui.label("No accounts selected.");
