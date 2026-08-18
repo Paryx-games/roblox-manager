@@ -4,6 +4,7 @@ pub mod assets_api;
 pub mod auth;
 pub mod crypto;
 pub mod error;
+pub mod group_api;
 pub mod instances;
 pub mod models;
 pub mod multipart;

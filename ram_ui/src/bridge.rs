@@ -9,7 +9,7 @@ use ram_core::assets::{AssetKind, Creator, ModerationStatus, OperationOutcome};
 use ram_core::auth::RobloxClient;
 use ram_core::instances::{Attribution, InstanceRegistry, TrackedInstance};
 use ram_core::models::{Account, AccountStore, Presence};
-use ram_core::{api, assets, assets_api, crypto, process, CoreError};
+use ram_core::{api, assets, assets_api, crypto, group_api, process, CoreError};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -248,6 +248,19 @@ pub enum BackendCommand {
         session: crypto::StoreSession,
         use_credential_manager: bool,
     },
+    /// Load public group details and membership roles for selected accounts.
+    FetchGroup {
+        group_id: u64,
+        user_ids: Vec<u64>,
+    },
+    /// Join or leave a group for selected accounts.
+    ChangeGroupMembership {
+        group_id: u64,
+        join: bool,
+        accounts: Vec<(u64, Option<String>)>,
+        session: crypto::StoreSession,
+        use_credential_manager: bool,
+    },
     /// One page of a creator's inventory for the browse pane.
     FetchCreations {
         user_id: u64,
@@ -453,6 +466,20 @@ pub enum BackendEvent {
     PublishGroupsFetched {
         user_id: u64,
         groups: Vec<assets_api::GroupTarget>,
+    },
+    /// Group details, announcement feeds, icon, and selected-account roles.
+    GroupFetched {
+        group: Box<ram_core::group_api::GroupInfo>,
+        icon_bytes: Option<Vec<u8>>,
+        shout: Option<ram_core::group_api::GroupShout>,
+        announcements: Vec<ram_core::group_api::GroupAnnouncement>,
+        memberships: Vec<ram_core::group_api::GroupMembership>,
+    },
+    /// Result of one selected account's group membership change.
+    GroupMembershipChanged {
+        user_id: u64,
+        join: bool,
+        result: Result<(), String>,
     },
     /// One page of an inventory. `error` is set when the provisional endpoint
     /// did not cooperate, so the pane can say so without failing the tab.
@@ -1318,6 +1345,54 @@ async fn handle_command(
             };
             Ok(BackendEvent::PublishGroupsFetched { user_id, groups })
         }
+        BackendCommand::FetchGroup { group_id, user_ids } => {
+            let group = group_api::fetch_group(client, group_id).await?;
+            let icon_bytes = group_api::fetch_group_icon(client, group_id).await.ok().flatten();
+            let shout = group_api::fetch_group_shout(client, group_id).await.ok().flatten();
+            let announcements = group_api::fetch_group_announcements(client, group_id)
+                .await
+                .unwrap_or_default();
+            let mut memberships = Vec::with_capacity(user_ids.len());
+            for user_id in user_ids {
+                if let Ok(membership) = group_api::fetch_membership(client, group_id, user_id).await {
+                    memberships.push(membership);
+                }
+            }
+            Ok(BackendEvent::GroupFetched {
+                group: Box::new(group),
+                icon_bytes,
+                shout,
+                announcements,
+                memberships,
+            })
+        }
+        BackendCommand::ChangeGroupMembership {
+            group_id,
+            join,
+            accounts,
+            session,
+            use_credential_manager,
+        } => {
+            for (user_id, encrypted_cookie) in accounts {
+                let result = match decrypt_for(
+                    user_id,
+                    encrypted_cookie,
+                    &session,
+                    use_credential_manager,
+                ) {
+                    Ok(cookie) => group_api::change_membership(client, &cookie, group_id, user_id, join)
+                        .await
+                        .map_err(|e| e.to_string()),
+                    Err(error) => Err(error.to_string()),
+                };
+                let _ = tx.send(BackendEvent::GroupMembershipChanged {
+                    user_id,
+                    join,
+                    result,
+                });
+            }
+            Ok(BackendEvent::StoreSaved)
+        }
         BackendCommand::FetchCreations {
             user_id,
             encrypted_cookie,
@@ -1795,6 +1870,8 @@ mod tests {
             | C::GrantAssetPermissions { .. }
             | C::FetchUniverseTargets { .. }
             | C::FetchPublishGroups { .. }
+            | C::FetchGroup { .. }
+            | C::ChangeGroupMembership { .. }
             | C::FetchCreations { .. }
             | C::FetchAssetThumbnails { .. } => false,
         }

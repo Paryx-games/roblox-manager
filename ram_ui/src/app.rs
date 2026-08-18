@@ -11,8 +11,8 @@ use ram_core::assets::{AssetKind, AssetState, ModerationStatus, OperationOutcome
 
 use crate::bridge::{BackendBridge, BackendCommand, BackendEvent, UploadJob};
 use crate::components::{
-    asset_manager, group_panel, main_panel, presets_panel, private_servers, settings, sidebar,
-    tutorial,
+    asset_manager, group_panel, groups_panel, main_panel, presets_panel, private_servers, settings,
+    sidebar, tutorial,
 };
 use crate::theme::ThemeUi;
 use crate::toast::{Toast, Toasts};
@@ -259,6 +259,7 @@ pub struct AppState {
     private_servers_state: private_servers::PrivateServerState,
     presets_state: presets_panel::PresetsState,
     asset_manager_state: asset_manager::AssetManagerState,
+    groups_state: groups_panel::GroupsPanelState,
     settings_state: settings::SettingsState,
     add_dialog: AddAccountDialog,
 
@@ -460,7 +461,12 @@ impl AppState {
         sidebar_state.sort_order = match config.sort_mode.as_str() {
             "Name" => sidebar::SortOrder::Name,
             "Status" => sidebar::SortOrder::Status,
+            "Account Age" => sidebar::SortOrder::AccountAge,
             _ => sidebar::SortOrder::Custom,
+        };
+        sidebar_state.sort_direction = match config.sort_direction.as_str() {
+            "Descending" => sidebar::SortDirection::Descending,
+            _ => sidebar::SortDirection::Ascending,
         };
 
         let renaming_enabled_at_start = config.rename_roblox_windows;
@@ -479,6 +485,7 @@ impl AppState {
             private_servers_state: private_servers::PrivateServerState::default(),
             presets_state: presets_panel::PresetsState::default(),
             asset_manager_state: asset_manager::AssetManagerState::default(),
+            groups_state: groups_panel::GroupsPanelState::default(),
             settings_state: settings::SettingsState::default(),
             add_dialog: AddAccountDialog::default(),
             presets: Vec::new(),
@@ -1124,6 +1131,10 @@ impl AppState {
                     // or the unlock screen sits on a spinner with no way back.
                     self.unlocking = false;
                     self.pending_legacy_upgrade = false;
+                    if self.groups_state.loading {
+                        self.groups_state.loading = false;
+                        self.groups_state.error = Some(msg.clone());
+                    }
 
                     if self.add_dialog.bulk_running {
                         // Don't toast or block the dialog mid-batch — count
@@ -1349,6 +1360,56 @@ impl AppState {
                     // switched away from.
                     if self.asset_manager_state.acting_user_id == Some(user_id) {
                         self.publish_groups = groups;
+                    }
+                }
+                BackendEvent::GroupFetched {
+                    group,
+                    icon_bytes,
+                    shout,
+                    announcements,
+                    memberships,
+                } => {
+                    self.groups_state.loaded_group_id = Some(group.id);
+                    self.groups_state.group = Some(*group);
+                    self.groups_state.icon_bytes = icon_bytes;
+                    self.groups_state.shout = shout;
+                    self.groups_state.announcements = announcements;
+                    self.groups_state.memberships = memberships;
+                    self.groups_state.loading = false;
+                    self.groups_state.error = None;
+                }
+                BackendEvent::GroupMembershipChanged {
+                    user_id,
+                    join,
+                    result,
+                } => {
+                    self.groups_state.pending_actions = self.groups_state.pending_actions.saturating_sub(1);
+                    self.groups_state.action_in_flight = self.groups_state.pending_actions > 0;
+                    match result {
+                        Ok(()) => {
+                            self.toasts.push(Toast::success(format!(
+                                "Account {} {} the group",
+                                user_id,
+                                if join { "joined" } else { "left" }
+                            )));
+                            if let Some(membership) = self
+                                .groups_state
+                                .memberships
+                                .iter_mut()
+                                .find(|membership| membership.user_id == user_id)
+                            {
+                                membership.joined = join;
+                                if !join {
+                                    membership.role_name = None;
+                                    membership.role_rank = 0;
+                                }
+                            }
+                        }
+                        Err(error) => self.toasts.push(Toast::error(format!(
+                            "Could not {} account {}: {error}",
+                            if join { "join" } else { "remove" },
+                            user_id
+                        ))),
                     }
                 }
                 BackendEvent::CreationsFetched {
@@ -2071,7 +2132,52 @@ impl eframe::App for AppState {
 
 impl AppState {
     fn show_groups_tab(&mut self, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |_ui| {});
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let selected_accounts: Vec<&ram_core::models::Account> = self
+                .store
+                .accounts
+                .iter()
+                .filter(|account| self.selected_ids.contains(&account.user_id))
+                .collect();
+            if let Some(action) = groups_panel::show(ui, &mut self.groups_state, &selected_accounts)
+            {
+                match action {
+                    groups_panel::GroupsPanelAction::Load { group_id } => {
+                        self.groups_state.loading = true;
+                        self.groups_state.error = None;
+                        self.bridge.send(BackendCommand::FetchGroup {
+                            group_id,
+                            user_ids: selected_accounts.iter().map(|account| account.user_id).collect(),
+                        });
+                    }
+                    groups_panel::GroupsPanelAction::Join
+                    | groups_panel::GroupsPanelAction::Leave => {
+                        let Some(group_id) = self.groups_state.loaded_group_id else {
+                            return;
+                        };
+                        let join = matches!(action, groups_panel::GroupsPanelAction::Join);
+                        let Some(session) = self.session() else {
+                            self.toasts
+                                .push(Toast::error("Unlock the store before managing groups."));
+                            return;
+                        };
+                        let accounts = selected_accounts
+                            .iter()
+                            .map(|account| (account.user_id, account.encrypted_cookie.clone()))
+                            .collect();
+                        self.groups_state.action_in_flight = true;
+                        self.groups_state.pending_actions = selected_accounts.len();
+                        self.bridge.send(BackendCommand::ChangeGroupMembership {
+                            group_id,
+                            join,
+                            accounts,
+                            session,
+                            use_credential_manager: self.config.use_credential_manager,
+                        });
+                    }
+                }
+            }
+        });
     }
 
     fn show_accounts_tab(&mut self, ctx: &egui::Context) {
@@ -2408,6 +2514,11 @@ impl AppState {
                 let current_mode = self.sidebar_state.sort_order.to_string();
                 if self.config.sort_mode != current_mode {
                     self.config.sort_mode = current_mode;
+                    let _ = self.config.save(&self.config_path);
+                }
+                let current_direction = self.sidebar_state.sort_direction.to_string();
+                if self.config.sort_direction != current_direction {
+                    self.config.sort_direction = current_direction;
                     let _ = self.config.save(&self.config_path);
                 }
             });

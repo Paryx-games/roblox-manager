@@ -214,6 +214,9 @@ pub struct AppConfig {
     /// Persisted sidebar sort mode: "Custom", "Name", or "Status".
     #[serde(default = "default_sort_mode")]
     pub sort_mode: String,
+    /// Persisted direction for sortable sidebar modes: "Ascending" or "Descending".
+    #[serde(default = "default_sort_direction")]
+    pub sort_direction: String,
     /// Saved private servers for quick launching.
     #[serde(default)]
     pub private_servers: Vec<PrivateServer>,
@@ -232,6 +235,10 @@ pub struct AppConfig {
 
 fn default_sort_mode() -> String {
     "Custom".to_string()
+}
+
+fn default_sort_direction() -> String {
+    "Ascending".to_string()
 }
 
 fn default_true() -> bool {
@@ -265,6 +272,7 @@ impl Default for AppConfig {
             anonymize_names: false,
             last_seen_version: None,
             sort_mode: "Custom".to_string(),
+            sort_direction: "Ascending".to_string(),
             private_servers: Vec::new(),
             developer_options: false,
             // A fresh install is passwordless from the start, so there is

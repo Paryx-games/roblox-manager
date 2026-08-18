@@ -62,6 +62,7 @@ pub enum SortOrder {
     Custom,
     Name,
     Status,
+    AccountAge,
 }
 
 impl std::fmt::Display for SortOrder {
@@ -70,6 +71,22 @@ impl std::fmt::Display for SortOrder {
             SortOrder::Custom => write!(f, "Custom"),
             SortOrder::Name => write!(f, "Name"),
             SortOrder::Status => write!(f, "Status"),
+            SortOrder::AccountAge => write!(f, "Account Age"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortDirection {
+    Ascending,
+    Descending,
+}
+
+impl std::fmt::Display for SortDirection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SortDirection::Ascending => write!(f, "Ascending"),
+            SortDirection::Descending => write!(f, "Descending"),
         }
     }
 }
@@ -95,6 +112,7 @@ pub struct SidebarState {
     /// Index of the last clicked account in the flat display list (for Shift-range).
     last_clicked_index: Option<usize>,
     pub sort_order: SortOrder,
+    pub sort_direction: SortDirection,
     /// Which groups are currently collapsed in the sidebar.
     pub collapsed_groups: HashSet<String>,
     /// Group editor popup state.
@@ -110,6 +128,7 @@ impl Default for SidebarState {
             search_query: String::new(),
             last_clicked_index: None,
             sort_order: SortOrder::Custom,
+            sort_direction: SortDirection::Ascending,
             collapsed_groups: HashSet::new(),
             editing_group: None,
             pending_sort_change: None,
@@ -240,7 +259,30 @@ pub fn show(
                     ui.selectable_value(&mut state.sort_order, SortOrder::Custom, "Custom");
                     ui.selectable_value(&mut state.sort_order, SortOrder::Name, "Name");
                     ui.selectable_value(&mut state.sort_order, SortOrder::Status, "Status");
+                    ui.selectable_value(
+                        &mut state.sort_order,
+                        SortOrder::AccountAge,
+                        "Account Age",
+                    );
                 });
+            let direction_enabled =
+                matches!(state.sort_order, SortOrder::Name | SortOrder::AccountAge);
+            ui.add_enabled_ui(direction_enabled, |ui| {
+                egui::ComboBox::from_id_salt("sort_direction")
+                    .selected_text(state.sort_direction.to_string())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut state.sort_direction,
+                            SortDirection::Ascending,
+                            "Ascending",
+                        );
+                        ui.selectable_value(
+                            &mut state.sort_direction,
+                            SortDirection::Descending,
+                            "Descending",
+                        );
+                    });
+            });
             // If switching away from Custom that has real positions, show warning
             if prev_sort == SortOrder::Custom && state.sort_order != SortOrder::Custom {
                 let has_custom_positions = accounts.iter().any(|a| a.sort_order != u32::MAX)
@@ -312,9 +354,16 @@ pub fn show(
                 });
             }
             SortOrder::Name => {
-                // Primary: pinned (descending), then name
+                let direction = state.sort_direction;
                 filtered.sort_by(|(_, a), (_, b)| {
-                    b.is_pinned.cmp(&a.is_pinned).then_with(|| name_cmp(a, b))
+                    b.is_pinned.cmp(&a.is_pinned).then_with(|| {
+                        let cmp = name_cmp(a, b);
+                        if direction == SortDirection::Descending {
+                            cmp.reverse()
+                        } else {
+                            cmp
+                        }
+                    })
                 });
             }
             SortOrder::Status => {
@@ -328,6 +377,27 @@ pub fn show(
                                 .cmp(&a.last_presence.user_presence_type)
                         })
                         .then_with(|| name_cmp(a, b))
+                });
+            }
+            SortOrder::AccountAge => {
+                let direction = state.sort_direction;
+                filtered.sort_by(|(_, a), (_, b)| {
+                    b.is_pinned.cmp(&a.is_pinned).then_with(|| {
+                        match (a.created_at, b.created_at) {
+                            (None, None) => name_cmp(a, b),
+                            (None, Some(_)) => std::cmp::Ordering::Greater,
+                            (Some(_), None) => std::cmp::Ordering::Less,
+                            (Some(a_date), Some(b_date)) => {
+                                // Ascending age means youngest to oldest.
+                                let cmp = b_date.cmp(&a_date);
+                                if direction == SortDirection::Descending {
+                                    cmp.reverse()
+                                } else {
+                                    cmp
+                                }
+                            }
+                        }
+                    })
                 });
             }
         }
