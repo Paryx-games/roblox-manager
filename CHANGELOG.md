@@ -3,6 +3,11 @@
 ## v1.10.0
 
 ### Added
+- **Multi-monitor window tiling.** Roblox windows can now be tiled across any connected display. Pick a target — Primary Monitor, All Monitors (distributes evenly), or a specific monitor by name — from the new settings in the Launch Behavior section.
+- **Custom grid layouts.** Six layout modes are available: Auto Grid (square-ish), Fixed Columns, Fixed Rows, Custom Grid (explicit Cols × Rows), Side-by-Side (one row), and Stacked (one column). Columns and rows are adjustable via drag inputs when applicable.
+- **Window padding control.** A padding slider (0–50 px) adds a gap between tiled windows.
+- **Tile Windows Now button.** Instantly rearrange all open Roblox windows at any time from Settings without needing to relaunch accounts.
+- **Tile Windows from the group panel.** When multiple accounts are selected and Roblox is running, a Tile Windows button appears alongside Kill All Instances for quick access.
 - **Account Age sorting.** Sort accounts by Roblox account age from youngest to oldest or oldest to youngest.
 - **Sortable direction control.** Name and Account Age sorting now support ascending and descending directions. The direction control is disabled for Custom and Status sorting, where it does not apply.
 - **Groups workspace.** Enter a Roblox group ID to view its icon, title, description, owner, verification state, member count, current announcement, and recent wall posts.
