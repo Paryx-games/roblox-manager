@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.11.2
+
+### Fixed
+- **Auto-arrange timing.** Window tiling now waits for the full launch burst to settle before arranging Roblox clients, instead of firing on the first window to appear and re-laying out too early.
+- **Settings persistence.** Settings changes now save to `config.json` immediately when the Settings tab is edited, so toggles and tiling values are no longer lost unless the user explicitly clicks Save after the fact.
+
 ## v1.11.1
 
 ### Changed

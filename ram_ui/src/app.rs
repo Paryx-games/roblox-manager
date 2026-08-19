@@ -338,6 +338,10 @@ pub struct AppState {
     /// afterwards, because that is the only window in which the delay between a
     /// client appearing and being named is something the user is watching for.
     last_launch_request: Option<std::time::Instant>,
+    /// Debounced auto-arrange timer. Each new launch pushes the deadline back so
+    /// tiling runs only after the launch burst settles instead of on the first
+    /// Roblox window to appear.
+    pending_auto_arrange: Option<std::time::Instant>,
     /// Frame counter to throttle background refreshes.
     frame_count: u64,
     /// Wall-clock timestamp of the last tray-kill sweep. Frame-counter timers
@@ -512,6 +516,7 @@ impl AppState {
             // Read before `config` is moved into the struct below.
             renaming_was_enabled: renaming_enabled_at_start,
             last_launch_request: None,
+            pending_auto_arrange: None,
             frame_count: 0,
             last_tray_kill: None,
             // Seeded to "now" so the first tick lands one full interval in,
@@ -907,12 +912,7 @@ impl AppState {
                     // anything there is to attribute.
                     self.last_launch_request = Some(std::time::Instant::now());
                     self.toasts.push(Toast::success("Game launched"));
-                    if self.config.auto_arrange_windows {
-                        self.bridge.send(BackendCommand::ArrangeWindows {
-                            options: self.config.tiling_options(),
-                            delay_secs: 5,
-                        });
-                    }
+                    self.schedule_auto_arrange_after_launch();
                 }
                 BackendEvent::BulkLaunchProgress { launched, total } => {
                     // Each iteration re-arms the window, so a long bulk launch
@@ -932,12 +932,7 @@ impl AppState {
                             "Bulk launch done: {launched} launched, {failed} failed"
                         )));
                     }
-                    if self.config.auto_arrange_windows {
-                        self.bridge.send(BackendCommand::ArrangeWindows {
-                            options: self.config.tiling_options(),
-                            delay_secs: 5,
-                        });
-                    }
+                    self.schedule_auto_arrange_after_launch();
                 }
                 BackendEvent::StoreSaved => {
                     // silent
@@ -1823,6 +1818,17 @@ impl AppState {
             use_credential_manager: self.config.use_credential_manager,
         });
     }
+
+    /// Wait a bit after a launch burst to tile windows only once the final
+    /// group of client windows has actually appeared.
+    fn schedule_auto_arrange_after_launch(&mut self) {
+        if !self.config.auto_arrange_windows {
+            return;
+        }
+        let delay = std::cmp::max(5u64, self.config.launch_delay_secs as u64 + 2);
+        self.pending_auto_arrange =
+            Some(std::time::Instant::now() + std::time::Duration::from_secs(delay));
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1894,6 +1900,16 @@ impl eframe::App for AppState {
         };
         if interval_due(&mut self.last_instance_sweep, sweep_every) {
             self.bridge.send(BackendCommand::SweepInstances);
+        }
+
+        if let Some(deadline) = self.pending_auto_arrange {
+            if std::time::Instant::now() >= deadline {
+                self.pending_auto_arrange = None;
+                self.bridge.send(BackendCommand::ArrangeWindows {
+                    options: self.config.tiling_options(),
+                    delay_secs: 0,
+                });
+            }
         }
 
         // Periodically kill background tray Roblox processes when enabled.
@@ -4161,6 +4177,7 @@ impl AppState {
                 .store_session
                 .as_ref()
                 .is_some_and(|s| s.needs_password());
+            let before = self.config.clone();
             let action = settings::show(
                 ui,
                 &mut self.config,
@@ -4168,6 +4185,7 @@ impl AppState {
                 &mut self.settings_state,
                 self.roblox_running,
             );
+            let changed = self.config != before;
             match action {
                 Some(settings::SettingsAction::SaveConfig) => {
                     if let Err(e) = self.config.save(&self.config_path) {
@@ -4243,6 +4261,12 @@ impl AppState {
                     self.toasts.push(Toast::info("Tiling windows..."));
                 }
                 None => {}
+            }
+            if action.is_some() || changed {
+                if let Err(e) = self.config.save(&self.config_path) {
+                    self.toasts
+                        .push(Toast::error(format!("Save failed: {e}")));
+                }
             }
         });
     }

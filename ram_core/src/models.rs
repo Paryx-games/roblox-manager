@@ -188,7 +188,7 @@ impl AccountStore {
 }
 
 /// Global application configuration persisted to `config.json`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppConfig {
     /// Path to the encrypted accounts file.
     pub accounts_path: PathBuf,
@@ -447,7 +447,7 @@ impl AppConfig {
 }
 
 /// Optional metadata for account groupings.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GroupMeta {
     pub color: [u8; 3],
     pub description: String,
@@ -461,7 +461,7 @@ pub struct GroupMeta {
 /// Superseded by [`LaunchPreset`] (stored as standalone JSON files under
 /// `presets/`). Kept on `AppConfig` only for backwards-compat migration on
 /// first launch after upgrade; new code should use `LaunchPreset`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FavoritePlace {
     pub name: String,
     pub place_id: u64,
@@ -470,7 +470,7 @@ pub struct FavoritePlace {
 /// A user-defined launch preset — name + Place ID + optional Job ID.
 /// Persisted as individual JSON files under `<data_dir>/presets/<slug>.json`
 /// so users can hand-edit, share, or back them up directly.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LaunchPreset {
     pub name: String,
     pub place_id: u64,
@@ -479,7 +479,7 @@ pub struct LaunchPreset {
 }
 
 /// A saved private server for quick launching.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PrivateServer {
     /// User-assigned name for this private server.
     pub name: String,
