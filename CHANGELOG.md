@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.11.3
+
+### Changed
+- **Update checker moved to GitHub.** The app now checks the GitHub release feed for the current repo instead of the old GitLab project URL.
+- **Top bar compacted for smaller UI widths.** Tab labels and status text shrink or truncate more gracefully when the window is narrow, keeping key controls usable without crowding the toolbar.
+
 ## v1.11.2
 
 ### Fixed

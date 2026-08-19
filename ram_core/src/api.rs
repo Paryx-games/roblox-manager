@@ -323,22 +323,16 @@ pub async fn resolve_share_link(
 }
 
 // ---------------------------------------------------------------------------
-// GitLab update check
+// GitHub update check
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
-struct ReleaseLinks {
-    #[serde(rename = "self")]
-    self_url: String,
-}
-
-#[derive(Deserialize)]
-struct GitLabRelease {
+struct GitHubRelease {
     tag_name: String,
-    _links: ReleaseLinks,
+    html_url: String,
 }
 
-/// Check for a newer release on GitLab. Returns `Some((version, url))` if an
+/// Check for a newer release on GitHub. Returns `Some((version, url))` if an
 /// update is available, `None` if already on the latest.
 pub async fn check_for_updates(
     current_version: &str,
@@ -347,10 +341,11 @@ pub async fn check_for_updates(
         .user_agent("RM-update-check")
         .build()?;
 
-    let release: GitLabRelease = client
-        .get("https://gitlab.com/api/v4/projects/centerepic%2Frobloxmanager/releases/permalink/latest")
+    let release: GitHubRelease = client
+        .get("https://api.github.com/repos/Paryx-games/roblox-manager/releases/latest")
         .send()
         .await?
+        .error_for_status()?
         .json()
         .await?;
 
@@ -358,7 +353,7 @@ pub async fn check_for_updates(
     let local = current_version.trim_start_matches('v');
 
     if remote != local {
-        Ok(Some((remote.to_string(), release._links.self_url)))
+        Ok(Some((remote.to_string(), release.html_url)))
     } else {
         Ok(None)
     }

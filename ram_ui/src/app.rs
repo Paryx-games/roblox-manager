@@ -2076,23 +2076,32 @@ impl eframe::App for AppState {
 
         // ---- Top bar ----
         egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
+            ui.spacing_mut().button_padding = egui::vec2(6.0, 3.0);
+            ui.spacing_mut().item_spacing = egui::vec2(6.0, 4.0);
+            ui.set_min_height(30.0);
+
+            ui.horizontal_wrapped(|ui| {
                 ui.selectable_value(&mut self.active_tab, Tab::Accounts, "📋 Accounts");
                 ui.selectable_value(&mut self.active_tab, Tab::Groups, "👥 Groups");
-                ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "🔒 Private Servers");
+                ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "🔒 Servers");
                 ui.selectable_value(&mut self.active_tab, Tab::Presets, "⭐ Presets");
                 if self.config.developer_options {
                     ui.selectable_value(
                         &mut self.active_tab,
                         Tab::AssetManager,
-                        "\u{1f4e6} Asset Manager",
+                        "\u{1f4e6} Asset",
                     );
                 }
                 ui.selectable_value(&mut self.active_tab, Tab::Settings, "⚙ Settings");
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if let Some((ref version, ref url)) = self.update_available {
-                        let text = format!("⬆ Update v{version} available");
-                        if ui.link(text).on_hover_text("Click to open the download page").clicked() {
+                        let text = if ui.available_width() < 520.0 {
+                            format!("Update v{version}")
+                        } else {
+                            format!("⬆ Update v{version} available")
+                        };
+                        if ui.link(text).on_hover_text("Click to open the GitHub release page").clicked() {
                             ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
                         }
                         ui.separator();
@@ -2113,7 +2122,11 @@ impl eframe::App for AppState {
                         let count = self.roblox_instance_count;
                         ui.colored_label(
                             ui.theme().info,
-                            format!("● {count} Roblox instance{}", if count == 1 { "" } else { "s" }),
+                            if count == 1 {
+                                "● 1 Roblox".to_string()
+                            } else {
+                                format!("● {count} Roblox")
+                            },
                         )
                         .on_hover_text(self.instance_attribution_summary());
                         ui.separator();
@@ -2125,7 +2138,7 @@ impl eframe::App for AppState {
                         );
                         ui.separator();
                     }
-                    ui.label(format!("{} account(s)", self.store.accounts.len()));
+                    ui.label(format!("{} acct{}", self.store.accounts.len(), if self.store.accounts.len() == 1 { "" } else { "s" }));
                 });
             });
         });
@@ -4237,13 +4250,13 @@ impl AppState {
                     self.config.multi_instance_enabled = false;
                     self.toasts.push(Toast::info("Multi-instance disabled (takes effect after restart)"));
                 }
-                Some(settings::SettingsAction::ChangePassword { new_password }) => {
+                Some(settings::SettingsAction::ChangePassword { ref new_password }) => {
                     // Rewraps the data key under the new password. The old
                     // version walked every account re-encrypting cookies one by
                     // one and swallowed failures, which left any cookie that
                     // failed to decrypt stranded on the previous password with
                     // no way back. Nothing per-account happens here at all now.
-                    self.rekey_store(Some(new_password));
+                    self.rekey_store(Some(new_password.clone()));
                 }
                 Some(settings::SettingsAction::ClearPassword) => {
                     // Rewraps under the device key. The old version merely
