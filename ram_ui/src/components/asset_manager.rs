@@ -150,7 +150,13 @@ pub enum SortKey {
 ///
 /// The caret shows which way the data is actually ordered, so it must be
 /// rendered from live state rather than assumed.
-fn sort_header(ui: &mut egui::Ui, label: &str, key: SortKey, active: SortKey, ascending: bool) -> bool {
+fn sort_header(
+    ui: &mut egui::Ui,
+    label: &str,
+    key: SortKey,
+    active: SortKey,
+    ascending: bool,
+) -> bool {
     let caret = if active == key {
         if ascending {
             " \u{2b06}"
@@ -160,8 +166,8 @@ fn sort_header(ui: &mut egui::Ui, label: &str, key: SortKey, active: SortKey, as
     } else {
         ""
     };
-    let button = egui::Button::new(egui::RichText::new(format!("{label}{caret}")).strong())
-        .frame(false);
+    let button =
+        egui::Button::new(egui::RichText::new(format!("{label}{caret}")).strong()).frame(false);
     ui.add(button)
         .on_hover_text(if active == key && ascending {
             "Click to sort descending"
@@ -406,10 +412,7 @@ pub fn show_tree(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>) -> Option<AssetManag
         }
 
         for (node, label) in nodes {
-            if ui
-                .selectable_label(cx.state.node == node, label)
-                .clicked()
-            {
+            if ui.selectable_label(cx.state.node == node, label).clicked() {
                 cx.state.node = node;
                 cx.state.selected.clear();
                 action = Some(AssetManagerAction::LoadInventory { node, filter });
@@ -680,15 +683,13 @@ fn draw_cell(
             .rect_filled(rect, 4.0, ui.visuals().widgets.hovered.bg_fill);
     }
 
-    let mut content = ui.new_child(
-        egui::UiBuilder::new()
-            .max_rect(rect.shrink(4.0))
-            .layout(if grid {
-                egui::Layout::top_down(egui::Align::Center)
-            } else {
-                egui::Layout::left_to_right(egui::Align::Center)
-            }),
-    );
+    let mut content = ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink(4.0)).layout(
+        if grid {
+            egui::Layout::top_down(egui::Align::Center)
+        } else {
+            egui::Layout::left_to_right(egui::Align::Center)
+        },
+    ));
 
     let image_rect = egui::vec2(icon, icon);
     match entry.asset_id.and_then(|id| thumbnails.get(&id)) {
@@ -1075,11 +1076,7 @@ fn toolbar(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetManagerR
             .show_ui(ui, |ui| {
                 for account in cx.accounts {
                     let label = account_label(account, cx.accounts, cx.anonymize);
-                    ui.selectable_value(
-                        &mut cx.state.acting_user_id,
-                        Some(account.user_id),
-                        label,
-                    );
+                    ui.selectable_value(&mut cx.state.acting_user_id, Some(account.user_id), label);
                 }
             });
 
@@ -1129,10 +1126,9 @@ fn toolbar(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetManagerR
             });
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let import = egui::Button::new(
-                egui::RichText::new("Import").color(ui.theme().on_accent),
-            )
-            .fill(ui.visuals().selection.bg_fill);
+            let import =
+                egui::Button::new(egui::RichText::new("Import").color(ui.theme().on_accent))
+                    .fill(ui.visuals().selection.bg_fill);
             if ui
                 .add(import)
                 .on_hover_text("Add files to the import queue")
@@ -1403,8 +1399,7 @@ fn queue_view(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetManag
                 });
                 row.col(|ui| {
                     ui.add(
-                        egui::Label::new(egui::RichText::new(&record.path).monospace())
-                            .truncate(),
+                        egui::Label::new(egui::RichText::new(&record.path).monospace()).truncate(),
                     )
                     .on_hover_text(&record.path);
                 });
@@ -1435,9 +1430,7 @@ fn queue_view(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetManag
                 .get_mut(&row_id)
                 .map(|r| r.display_name = name)
                 .is_some(),
-            Edit::Kind(row_id, kind) => {
-                cx.index.get_mut(&row_id).map(|r| r.kind = kind).is_some()
-            }
+            Edit::Kind(row_id, kind) => cx.index.get_mut(&row_id).map(|r| r.kind = kind).is_some(),
             Edit::Creator(row_id, creator) => cx
                 .index
                 .get_mut(&row_id)
@@ -1492,7 +1485,10 @@ fn queue_actions(
         ui.separator();
         ui.label("New files upload as:");
         let options = creator_options(cx);
-        let mut batch = cx.state.batch_creator.or_else(|| options.first().map(|o| o.0));
+        let mut batch = cx
+            .state
+            .batch_creator
+            .or_else(|| options.first().map(|o| o.0));
         egui::ComboBox::from_id_salt("asset_batch_creator")
             .selected_text(
                 batch
@@ -1508,8 +1504,9 @@ fn queue_actions(
         cx.state.batch_creator = batch;
 
         ui.separator();
-        ui.label("Grant access to:")
-            .on_hover_text("Assets in this batch are granted Use on this experience once they clear moderation.");
+        ui.label("Grant access to:").on_hover_text(
+            "Assets in this batch are granted Use on this experience once they clear moderation.",
+        );
         universe_picker(
             ui,
             "asset_auto_grant",
@@ -1524,9 +1521,8 @@ fn queue_actions(
             } else {
                 format!("Upload {}", uploadable.len())
             };
-            let button =
-                egui::Button::new(egui::RichText::new(label).color(ui.theme().on_accent))
-                    .fill(ui.visuals().selection.bg_fill);
+            let button = egui::Button::new(egui::RichText::new(label).color(ui.theme().on_accent))
+                .fill(ui.visuals().selection.bg_fill);
             let response = ui.add_enabled(enabled, button);
             let response = if !cx.unlocked {
                 response.on_disabled_hover_text(

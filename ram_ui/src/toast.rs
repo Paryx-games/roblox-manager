@@ -76,8 +76,7 @@ impl Toasts {
     /// their first showing; info and success only collapse against a copy
     /// that's still on screen, so repeated user actions still get feedback.
     pub fn push(&mut self, toast: Toast) {
-        let suppress_repeats =
-            matches!(toast.level, ToastLevel::Error | ToastLevel::Warning);
+        let suppress_repeats = matches!(toast.level, ToastLevel::Error | ToastLevel::Warning);
 
         if suppress_repeats {
             self.last_shown

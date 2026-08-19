@@ -325,7 +325,6 @@ pub const TOOLBOX_BASE: &str = "https://apis.roblox.com/toolbox-service/v1";
 /// 100`. Verified live. Do not make this a free integer.
 pub const CREATIONS_PAGE_SIZE: u32 = 50;
 
-
 /// A group the acting account might be able to publish under.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupTarget {
@@ -480,9 +479,7 @@ fn reword_listing_error(creator: Creator, error: CoreError) -> CoreError {
     match (creator, &error) {
         (Creator::Group(id), CoreError::CookieRejected) => CoreError::RobloxApi {
             status: 403,
-            message: format!(
-                "This account does not have permission to view group {id}'s assets."
-            ),
+            message: format!("This account does not have permission to view group {id}'s assets."),
         },
         (Creator::User(_), CoreError::CookieRejected) => CoreError::RobloxApi {
             status: 403,
@@ -654,9 +651,7 @@ pub fn describe_status(status: u16) -> String {
     match status {
         400 => "Roblox rejected the request. The file may not match its asset type.".to_string(),
         401 => "Roblox did not accept this account's cookie. Re-add the account.".to_string(),
-        403 => {
-            "This account is not allowed to publish under the selected creator.".to_string()
-        }
+        403 => "This account is not allowed to publish under the selected creator.".to_string(),
         404 => "Roblox could not find that asset or upload.".to_string(),
         413 => "Roblox rejected the file as too large.".to_string(),
         429 => "Roblox is rate limiting uploads. Try again shortly.".to_string(),
@@ -724,7 +719,10 @@ mod tests {
     fn operation_id_is_none_when_absent_or_empty() {
         assert_eq!(operation_id(&serde_json::json!({ "done": true })), None);
         assert_eq!(operation_id(&serde_json::json!({ "path": "" })), None);
-        assert_eq!(operation_id(&serde_json::json!({ "path": "operations/" })), None);
+        assert_eq!(
+            operation_id(&serde_json::json!({ "path": "operations/" })),
+            None
+        );
     }
 
     #[test]
@@ -755,8 +753,14 @@ mod tests {
         assert_eq!(
             parse_universe_list(&body),
             vec![
-                UniverseTarget { universe_id: 1, name: "Alpha".into() },
-                UniverseTarget { universe_id: 2, name: "Beta".into() },
+                UniverseTarget {
+                    universe_id: 1,
+                    name: "Alpha".into()
+                },
+                UniverseTarget {
+                    universe_id: 2,
+                    name: "Beta".into()
+                },
             ]
         );
     }
@@ -817,7 +821,10 @@ mod tests {
         // Roblox: "Allowed values: 10, 25, 50, 100".
         assert!(matches!(CREATIONS_PAGE_SIZE, 10 | 25 | 50 | 100));
         let url = creations_url(Creator::User(1), AssetKind::Model, None);
-        assert!(url.contains(&format!("limit={CREATIONS_PAGE_SIZE}")), "got: {url}");
+        assert!(
+            url.contains(&format!("limit={CREATIONS_PAGE_SIZE}")),
+            "got: {url}"
+        );
     }
 
     #[test]
@@ -825,7 +832,10 @@ mod tests {
         // Real cursors are base64 and end in "==".
         let cursor = "eyJzdGFydEluZGV4IjoxMH0=/+a";
         let url = creations_url(Creator::User(1), AssetKind::Audio, Some(cursor));
-        assert!(url.contains("cursor=eyJzdGFydEluZGV4IjoxMH0%3D%2F%2Ba"), "got: {url}");
+        assert!(
+            url.contains("cursor=eyJzdGFydEluZGV4IjoxMH0%3D%2F%2Ba"),
+            "got: {url}"
+        );
     }
 
     #[test]
@@ -857,7 +867,10 @@ mod tests {
         assert_eq!(stamps.len(), 1);
         assert_eq!(stamps[0].0, 110657841768732);
         // updatedUtc wins over createdUtc.
-        assert_eq!(stamps[0].1.to_rfc3339(), "2026-08-02T21:05:20.782931900+00:00");
+        assert_eq!(
+            stamps[0].1.to_rfc3339(),
+            "2026-08-02T21:05:20.782931900+00:00"
+        );
     }
 
     #[test]
@@ -884,7 +897,8 @@ mod tests {
     #[test]
     fn timestamps_degrade_rather_than_fail() {
         assert!(parse_item_timestamps(&serde_json::json!({})).is_empty());
-        let junk = serde_json::json!({ "data": [{ "asset": { "id": 1, "updatedUtc": "not a date" } }] });
+        let junk =
+            serde_json::json!({ "data": [{ "asset": { "id": 1, "updatedUtc": "not a date" } }] });
         assert!(parse_item_timestamps(&junk).is_empty());
     }
 
@@ -897,13 +911,18 @@ mod tests {
             CreationPage::default()
         );
         let junk = serde_json::json!({ "data": [{ "name": "no id" }] });
-        assert!(parse_creation_page(&junk, AssetKind::Decal).items.is_empty());
+        assert!(parse_creation_page(&junk, AssetKind::Decal)
+            .items
+            .is_empty());
     }
 
     #[test]
     fn an_empty_cursor_is_treated_as_no_more_pages() {
         let body = serde_json::json!({ "data": [], "nextPageCursor": "" });
-        assert_eq!(parse_creation_page(&body, AssetKind::Model).next_cursor, None);
+        assert_eq!(
+            parse_creation_page(&body, AssetKind::Model).next_cursor,
+            None
+        );
     }
 
     #[test]
@@ -917,8 +936,14 @@ mod tests {
         assert_eq!(
             parse_group_list(&body),
             vec![
-                GroupTarget { group_id: 1031223594, name: "Guts & Blackpowder QA Team".into() },
-                GroupTarget { group_id: 9375134, name: "Central Roleplay | Development".into() },
+                GroupTarget {
+                    group_id: 1031223594,
+                    name: "Guts & Blackpowder QA Team".into()
+                },
+                GroupTarget {
+                    group_id: 9375134,
+                    name: "Central Roleplay | Development".into()
+                },
             ]
         );
     }
@@ -933,7 +958,10 @@ mod tests {
         });
         assert_eq!(
             parse_group_list(&body),
-            vec![GroupTarget { group_id: 8497064, name: "Central Roleplay".into() }]
+            vec![GroupTarget {
+                group_id: 8497064,
+                name: "Central Roleplay".into()
+            }]
         );
     }
 
@@ -963,10 +991,7 @@ mod tests {
             ]
         });
         let paired = parse_thumbnail_urls(&body, &[10, 20, 30]);
-        assert_eq!(
-            paired,
-            vec![(30, "c".to_string()), (10, "a".to_string())]
-        );
+        assert_eq!(paired, vec![(30, "c".to_string()), (10, "a".to_string())]);
     }
 
     #[test]

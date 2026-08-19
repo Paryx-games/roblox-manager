@@ -86,8 +86,7 @@ mod tests {
     use super::*;
 
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir()
-            .join(format!("ram_storage_{}_{name}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ram_storage_{}_{name}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         dir.join("state.bin")
     }
@@ -104,7 +103,10 @@ mod tests {
     fn second_write_preserves_previous_as_backup() {
         let p = scratch("bak");
         atomic_write(&p, b"v1").unwrap();
-        assert!(!backup_path(&p).exists(), "no backup should exist after first write");
+        assert!(
+            !backup_path(&p).exists(),
+            "no backup should exist after first write"
+        );
         atomic_write(&p, b"v2").unwrap();
         assert_eq!(std::fs::read(&p).unwrap(), b"v2");
         assert_eq!(std::fs::read(backup_path(&p)).unwrap(), b"v1");

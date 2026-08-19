@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.11.3
+
+### Changed
+- **Update checker moved to GitHub.** The app now checks the GitHub release feed for the current repo instead of the old GitLab project URL.
+- **Top bar compacted for smaller UI widths.** Tab labels and status text shrink or truncate more gracefully when the window is narrow, keeping key controls usable without crowding the toolbar.
+
+## v1.11.2
+
+### Fixed
+- **Auto-arrange timing.** Window tiling now waits for the full launch burst to settle before arranging Roblox clients, instead of firing on the first window to appear and re-laying out too early.
+- **Settings persistence.** Settings changes now save to `config.json` immediately when the Settings tab is edited, so toggles and tiling values are no longer lost unless the user explicitly clicks Save after the fact.
+
+## v1.11.1
+
+### Changed
+- **Account launch toggle disabled.** The account enable/disable launching feature was not working reliably and was causing confusion, so it has been disabled for now while the underlying issue is addressed.
+- **Sidebar account categories removed.** The collapsible Enabled / Restricted / Disabled account sections were removed from the accounts list to keep the sidebar simpler and avoid the broken launch-state behavior.
+
 ## v1.11.0
 
 ### Added

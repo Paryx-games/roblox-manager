@@ -209,7 +209,10 @@ pub fn show_overlay(ctx: &egui::Context, state: &mut TutorialState) {
     let anchor_pos = if has_target {
         let below = egui::pos2(target.center().x, target.max.y + 12.0);
         // Clamp horizontally so the callout doesn't go off screen
-        egui::pos2(below.x.clamp(screen.min.x + 10.0, screen.max.x - 310.0), below.y)
+        egui::pos2(
+            below.x.clamp(screen.min.x + 10.0, screen.max.x - 310.0),
+            below.y,
+        )
     } else {
         egui::pos2(screen.center().x - 150.0, screen.min.y + 60.0)
     };

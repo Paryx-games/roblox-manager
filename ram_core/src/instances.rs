@@ -420,7 +420,10 @@ impl InstanceRegistry {
 
     /// The account believed to be signed into `pid`, if RM launched it.
     pub fn user_for(&self, pid: u32) -> Option<u64> {
-        self.tracked.iter().find(|i| i.pid == pid).map(|i| i.user_id)
+        self.tracked
+            .iter()
+            .find(|i| i.pid == pid)
+            .map(|i| i.user_id)
     }
 
     /// Launches still eligible for the appearance-order fallback.
@@ -525,7 +528,10 @@ mod tests {
 
     #[test]
     fn a_command_line_with_no_uri_at_all_has_no_launchtime() {
-        assert_eq!(parse_launchtime(r#""C:\Roblox\RobloxPlayerBeta.exe""#), None);
+        assert_eq!(
+            parse_launchtime(r#""C:\Roblox\RobloxPlayerBeta.exe""#),
+            None
+        );
     }
 
     /// A truncated or malformed field must read as absent rather than as some

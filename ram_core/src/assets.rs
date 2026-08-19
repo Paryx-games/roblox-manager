@@ -238,9 +238,13 @@ pub enum AssetState {
     /// Staged locally and ready to upload.
     Queued,
     /// Rejected before any network call (bad extension, too large, unreadable).
-    Invalid { reason: String },
+    Invalid {
+        reason: String,
+    },
     /// The same bytes were already uploaded under the same creator.
-    Duplicate { asset_id: u64 },
+    Duplicate {
+        asset_id: u64,
+    },
     /// A command is in flight but no operation id has come back yet.
     Uploading,
     /// Roblox accepted the bytes and the upload operation is still running.
@@ -273,11 +277,18 @@ pub enum AssetState {
     },
     /// Moderation said no. Terminal: re-uploading identical bytes gets the same
     /// verdict, so the row offers no retry.
-    Rejected { reason: String },
-    Failed { message: String, retryable: bool },
+    Rejected {
+        reason: String,
+    },
+    Failed {
+        message: String,
+        retryable: bool,
+    },
     /// Past [`OPERATION_TTL_HOURS`] with no verdict. Not a failure: the asset
     /// may well have been published, we just cannot ask about it any more.
-    Expired { operation: String },
+    Expired {
+        operation: String,
+    },
     Cancelled,
 }
 
@@ -820,9 +831,14 @@ pub enum OperationOutcome {
         revision_id: Option<u64>,
     },
     /// Moderation said no. Terminal.
-    Rejected { reason: String },
+    Rejected {
+        reason: String,
+    },
     /// A transport-level or request-level problem, not a verdict.
-    Failed { message: String, retryable: bool },
+    Failed {
+        message: String,
+        retryable: bool,
+    },
 }
 
 /// How to treat a `done: true` response that carried an `error`.
@@ -891,7 +907,9 @@ pub fn parse_operation_response(body: &serde_json::Value) -> OperationOutcome {
     match asset_id {
         Some(asset_id) => OperationOutcome::Approved {
             asset_id,
-            revision_id: response.and_then(|r| r.get("revisionId")).and_then(json_u64),
+            revision_id: response
+                .and_then(|r| r.get("revisionId"))
+                .and_then(json_u64),
         },
         None => OperationOutcome::Failed {
             message: "Roblox reported the upload as done but returned no asset ID".to_string(),
@@ -971,9 +989,7 @@ pub fn next_poll_batch(
         .into_iter()
         .take(max)
         .filter_map(|(_, r)| match &r.state {
-            AssetState::Pending { operation, .. } => {
-                Some((r.row_id.clone(), operation.clone()))
-            }
+            AssetState::Pending { operation, .. } => Some((r.row_id.clone(), operation.clone())),
             _ => None,
         })
         .collect()
@@ -1180,7 +1196,10 @@ mod tests {
         assert!(validate_file(Path::new("a.png"), 21 * MB)
             .unwrap_err()
             .contains("20 MB"));
-        assert_eq!(validate_file(Path::new("a.png"), 0).unwrap_err(), "File is empty");
+        assert_eq!(
+            validate_file(Path::new("a.png"), 0).unwrap_err(),
+            "File is empty"
+        );
     }
 
     #[test]
@@ -1232,12 +1251,8 @@ mod tests {
 
     #[test]
     fn create_request_uses_string_user_id() {
-        let body = build_create_request_json(
-            AssetKind::Decal,
-            "Oak Bark",
-            "",
-            Creator::User(1916532448),
-        );
+        let body =
+            build_create_request_json(AssetKind::Decal, "Oak Bark", "", Creator::User(1916532448));
         assert_eq!(
             body,
             serde_json::json!({
@@ -1262,13 +1277,19 @@ mod tests {
     #[test]
     fn not_done_is_still_pending() {
         let body = serde_json::json!({ "path": "operations/9f", "done": false });
-        assert_eq!(parse_operation_response(&body), OperationOutcome::StillPending);
+        assert_eq!(
+            parse_operation_response(&body),
+            OperationOutcome::StillPending
+        );
     }
 
     #[test]
     fn missing_done_is_still_pending() {
         let body = serde_json::json!({ "path": "operations/9f" });
-        assert_eq!(parse_operation_response(&body), OperationOutcome::StillPending);
+        assert_eq!(
+            parse_operation_response(&body),
+            OperationOutcome::StillPending
+        );
     }
 
     #[test]
@@ -1332,7 +1353,10 @@ mod tests {
         let body = serde_json::json!({ "done": true });
         assert!(matches!(
             parse_operation_response(&body),
-            OperationOutcome::Failed { retryable: false, .. }
+            OperationOutcome::Failed {
+                retryable: false,
+                ..
+            }
         ));
     }
 
@@ -1440,10 +1464,7 @@ mod tests {
         assert_eq!(outcome.granted, vec![123, 456]);
         assert_eq!(
             outcome.failures,
-            vec![(
-                Some(789),
-                "Requester cannot manage permissions".to_string()
-            )]
+            vec![(Some(789), "Requester cannot manage permissions".to_string())]
         );
     }
 
@@ -1459,7 +1480,10 @@ mod tests {
     fn an_unrecognised_grant_response_claims_nothing() {
         // The caller treats this as "nothing confirmed" and falls back, rather
         // than inventing a result in either direction.
-        assert_eq!(parse_grant_response(&serde_json::json!({})), GrantOutcome::default());
+        assert_eq!(
+            parse_grant_response(&serde_json::json!({})),
+            GrantOutcome::default()
+        );
         assert_eq!(
             parse_grant_response(&serde_json::json!({ "successAssetIds": "nope" })),
             GrantOutcome::default()
@@ -1566,10 +1590,7 @@ mod tests {
 
         let past = at(0) + chrono::Duration::minutes(24 * 60 + 1);
         assert_eq!(expire_stale_operations(&mut index, past), vec!["a"]);
-        assert!(matches!(
-            index.records[0].state,
-            AssetState::Expired { .. }
-        ));
+        assert!(matches!(index.records[0].state, AssetState::Expired { .. }));
     }
 
     // ---- moderation ----
@@ -1791,7 +1812,13 @@ mod tests {
     #[test]
     fn same_hash_different_creator_is_not_a_duplicate() {
         let mut index = AssetIndex::default();
-        let mut rec = record("a", AssetState::Approved { asset_id: 7, revision_id: None });
+        let mut rec = record(
+            "a",
+            AssetState::Approved {
+                asset_id: 7,
+                revision_id: None,
+            },
+        );
         rec.creator = Creator::User(1);
         index.records.push(rec);
 
@@ -1803,7 +1830,13 @@ mod tests {
     #[test]
     fn an_unhashed_row_is_never_a_duplicate() {
         let mut index = AssetIndex::default();
-        let mut rec = record("a", AssetState::Approved { asset_id: 7, revision_id: None });
+        let mut rec = record(
+            "a",
+            AssetState::Approved {
+                asset_id: 7,
+                revision_id: None,
+            },
+        );
         rec.file_sha256 = String::new();
         index.records.push(rec);
         assert!(index.find_uploaded("", Creator::User(1)).is_none());
@@ -1812,9 +1845,12 @@ mod tests {
     #[test]
     fn only_approved_rows_count_as_duplicates() {
         let mut index = AssetIndex::default();
-        index
-            .records
-            .push(record("a", AssetState::Rejected { reason: "no".into() }));
+        index.records.push(record(
+            "a",
+            AssetState::Rejected {
+                reason: "no".into(),
+            },
+        ));
         assert!(index.find_uploaded("abc", Creator::User(1)).is_none());
     }
 

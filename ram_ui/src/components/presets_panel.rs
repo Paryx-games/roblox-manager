@@ -122,7 +122,11 @@ pub fn show(
                 let name_ok = !state.name_input.trim().is_empty();
                 let pid_ok = state.place_id_input.trim().parse::<u64>().is_ok();
                 let can_save = name_ok && pid_ok;
-                let save_label = if is_edit { "Save changes" } else { "+ Add Preset" };
+                let save_label = if is_edit {
+                    "Save changes"
+                } else {
+                    "+ Add Preset"
+                };
                 if ui
                     .add_enabled(can_save, egui::Button::new(save_label))
                     .clicked()
@@ -191,10 +195,9 @@ pub fn show(
                                 ui.vertical(|ui| {
                                     ui.strong(&preset.name);
                                     let detail = match &preset.job_id {
-                                        Some(j) if !j.is_empty() => format!(
-                                            "Place {}, Job {}",
-                                            preset.place_id, j
-                                        ),
+                                        Some(j) if !j.is_empty() => {
+                                            format!("Place {}, Job {}", preset.place_id, j)
+                                        }
                                         _ => format!("Place {}", preset.place_id),
                                     };
                                     ui.colored_label(ui.theme().text_muted, detail);

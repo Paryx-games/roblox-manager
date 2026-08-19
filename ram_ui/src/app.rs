@@ -195,9 +195,6 @@ struct AddAccountDialog {
     force_add_form_open: bool,
     /// Username buffer for the "add anyway" form.
     force_add_username: String,
-    /// Applied to every account created during the current add/import flow.
-    is_launch_enabled: bool,
-
     // --- Bulk-import state ---
     /// Multiline paste buffer for the bulk step.
     bulk_input: String,
@@ -341,6 +338,10 @@ pub struct AppState {
     /// afterwards, because that is the only window in which the delay between a
     /// client appearing and being named is something the user is watching for.
     last_launch_request: Option<std::time::Instant>,
+    /// Debounced auto-arrange timer. Each new launch pushes the deadline back so
+    /// tiling runs only after the launch burst settles instead of on the first
+    /// Roblox window to appear.
+    pending_auto_arrange: Option<std::time::Instant>,
     /// Frame counter to throttle background refreshes.
     frame_count: u64,
     /// Wall-clock timestamp of the last tray-kill sweep. Frame-counter timers
@@ -515,6 +516,7 @@ impl AppState {
             // Read before `config` is moved into the struct below.
             renaming_was_enabled: renaming_enabled_at_start,
             last_launch_request: None,
+            pending_auto_arrange: None,
             frame_count: 0,
             last_tray_kill: None,
             // Seeded to "now" so the first tick lands one full interval in,
@@ -910,12 +912,7 @@ impl AppState {
                     // anything there is to attribute.
                     self.last_launch_request = Some(std::time::Instant::now());
                     self.toasts.push(Toast::success("Game launched"));
-                    if self.config.auto_arrange_windows {
-                        self.bridge.send(BackendCommand::ArrangeWindows {
-                            options: self.config.tiling_options(),
-                            delay_secs: 5,
-                        });
-                    }
+                    self.schedule_auto_arrange_after_launch();
                 }
                 BackendEvent::BulkLaunchProgress { launched, total } => {
                     // Each iteration re-arms the window, so a long bulk launch
@@ -935,12 +932,7 @@ impl AppState {
                             "Bulk launch done: {launched} launched, {failed} failed"
                         )));
                     }
-                    if self.config.auto_arrange_windows {
-                        self.bridge.send(BackendCommand::ArrangeWindows {
-                            options: self.config.tiling_options(),
-                            delay_secs: 5,
-                        });
-                    }
+                    self.schedule_auto_arrange_after_launch();
                 }
                 BackendEvent::StoreSaved => {
                     // silent
@@ -1646,7 +1638,6 @@ impl AppState {
                     cookie,
                     session: session.clone(),
                     use_credential_manager: self.config.use_credential_manager,
-                    is_launch_enabled: self.add_dialog.is_launch_enabled,
                 });
             }
             None => {
@@ -1827,6 +1818,17 @@ impl AppState {
             use_credential_manager: self.config.use_credential_manager,
         });
     }
+
+    /// Wait a bit after a launch burst to tile windows only once the final
+    /// group of client windows has actually appeared.
+    fn schedule_auto_arrange_after_launch(&mut self) {
+        if !self.config.auto_arrange_windows {
+            return;
+        }
+        let delay = std::cmp::max(5u64, self.config.launch_delay_secs as u64 + 2);
+        self.pending_auto_arrange =
+            Some(std::time::Instant::now() + std::time::Duration::from_secs(delay));
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1898,6 +1900,16 @@ impl eframe::App for AppState {
         };
         if interval_due(&mut self.last_instance_sweep, sweep_every) {
             self.bridge.send(BackendCommand::SweepInstances);
+        }
+
+        if let Some(deadline) = self.pending_auto_arrange {
+            if std::time::Instant::now() >= deadline {
+                self.pending_auto_arrange = None;
+                self.bridge.send(BackendCommand::ArrangeWindows {
+                    options: self.config.tiling_options(),
+                    delay_secs: 0,
+                });
+            }
         }
 
         // Periodically kill background tray Roblox processes when enabled.
@@ -2064,23 +2076,32 @@ impl eframe::App for AppState {
 
         // ---- Top bar ----
         egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
+            ui.spacing_mut().button_padding = egui::vec2(6.0, 3.0);
+            ui.spacing_mut().item_spacing = egui::vec2(6.0, 4.0);
+            ui.set_min_height(30.0);
+
+            ui.horizontal_wrapped(|ui| {
                 ui.selectable_value(&mut self.active_tab, Tab::Accounts, "📋 Accounts");
                 ui.selectable_value(&mut self.active_tab, Tab::Groups, "👥 Groups");
-                ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "🔒 Private Servers");
+                ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "🔒 Servers");
                 ui.selectable_value(&mut self.active_tab, Tab::Presets, "⭐ Presets");
                 if self.config.developer_options {
                     ui.selectable_value(
                         &mut self.active_tab,
                         Tab::AssetManager,
-                        "\u{1f4e6} Asset Manager",
+                        "\u{1f4e6} Asset",
                     );
                 }
                 ui.selectable_value(&mut self.active_tab, Tab::Settings, "⚙ Settings");
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if let Some((ref version, ref url)) = self.update_available {
-                        let text = format!("⬆ Update v{version} available");
-                        if ui.link(text).on_hover_text("Click to open the download page").clicked() {
+                        let text = if ui.available_width() < 520.0 {
+                            format!("Update v{version}")
+                        } else {
+                            format!("⬆ Update v{version} available")
+                        };
+                        if ui.link(text).on_hover_text("Click to open the GitHub release page").clicked() {
                             ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
                         }
                         ui.separator();
@@ -2101,7 +2122,11 @@ impl eframe::App for AppState {
                         let count = self.roblox_instance_count;
                         ui.colored_label(
                             ui.theme().info,
-                            format!("● {count} Roblox instance{}", if count == 1 { "" } else { "s" }),
+                            if count == 1 {
+                                "● 1 Roblox".to_string()
+                            } else {
+                                format!("● {count} Roblox")
+                            },
                         )
                         .on_hover_text(self.instance_attribution_summary());
                         ui.separator();
@@ -2113,7 +2138,7 @@ impl eframe::App for AppState {
                         );
                         ui.separator();
                     }
-                    ui.label(format!("{} account(s)", self.store.accounts.len()));
+                    ui.label(format!("{} acct{}", self.store.accounts.len(), if self.store.accounts.len() == 1 { "" } else { "s" }));
                 });
             });
         });
@@ -2318,7 +2343,6 @@ impl AppState {
                             self.add_dialog.browser_login_rx = None;
                             self.add_dialog.rejected_cookie = None;
                             self.add_dialog.pending_moderated = None;
-                            self.add_dialog.is_launch_enabled = true;
                             self.tutorial
                                 .advance_from(tutorial::TutorialStep::AddAccount);
                         }
@@ -2574,17 +2598,6 @@ impl AppState {
                             }
                             self.auto_save();
                         }
-                        sidebar::SidebarAction::ToggleLaunchEnabled(user_id) => {
-                            if let Some(account) = self.store.find_by_id_mut(user_id) {
-                                account.is_launch_enabled = !account.is_launch_enabled;
-                                self.toasts.push(Toast::info(if account.is_launch_enabled {
-                                    "Launching enabled"
-                                } else {
-                                    "Launching disabled"
-                                }));
-                            }
-                            self.auto_save();
-                        }
                         sidebar::SidebarAction::SetCustomPath { user_ids, path } => {
                             let has_path = path.is_some();
                             for user_id in user_ids {
@@ -2668,6 +2681,43 @@ impl AppState {
                                 });
                             }
                         }
+                        group_panel::GroupPanelAction::RevalidateSelected => {
+                            if let Some(session) = self.session() {
+                                let accounts: Vec<(u64, Option<String>)> = self
+                                    .store
+                                    .accounts
+                                    .iter()
+                                    .filter(|a| self.selected_ids.contains(&a.user_id))
+                                    .map(|a| (a.user_id, a.encrypted_cookie.clone()))
+                                    .collect();
+                                if accounts.is_empty() {
+                                    self.toasts
+                                        .push(Toast::warning("Select an account to revalidate."));
+                                } else {
+                                    self.bridge.send(BackendCommand::RevalidateAll {
+                                        accounts,
+                                        session,
+                                        use_credential_manager: self.config.use_credential_manager,
+                                    });
+                                }
+                            }
+                        }
+                        group_panel::GroupPanelAction::OpenBrowsers => {
+                            let ids: Vec<u64> = self.selected_ids.iter().copied().collect();
+                            for user_id in ids {
+                                self.open_browser_as(user_id);
+                            }
+                        }
+                        group_panel::GroupPanelAction::CopyIds => {
+                            let ids: Vec<String> = self
+                                .selected_ids
+                                .iter()
+                                .copied()
+                                .map(|id| id.to_string())
+                                .collect();
+                            ctx.output_mut(|o| o.copied_text = ids.join(", "));
+                            self.toasts.push(Toast::info("Copied selected account IDs"));
+                        }
                         group_panel::GroupPanelAction::ClearSelection => {
                             self.selected_ids.clear();
                         }
@@ -2714,6 +2764,21 @@ impl AppState {
                                 .unwrap_or_else(|| "Auto-detect".to_string());
                             format!("Default ({path})")
                         });
+                    let inventory_node = asset_manager::TreeNode::Inventory(
+                        ram_core::assets::Creator::User(account.user_id),
+                    );
+                    let inventory_items = if self.remote_inventory.node == Some(inventory_node) {
+                        self.remote_inventory.items.clone()
+                    } else {
+                        Vec::new()
+                    };
+                    let inventory_loading = self.remote_inventory.node == Some(inventory_node)
+                        && self.remote_inventory.loading();
+                    let inventory_error = if self.remote_inventory.node == Some(inventory_node) {
+                        self.remote_inventory.error.as_deref()
+                    } else {
+                        None
+                    };
                     let result = main_panel::show(
                         ui,
                         &account,
@@ -2723,6 +2788,9 @@ impl AppState {
                         &preset_view,
                         self.config.anonymize_names,
                         &player_path_label,
+                        &inventory_items,
+                        inventory_loading,
+                        inventory_error,
                     );
                     self.tutorial.launch_btn_rect = result.launch_btn_rect;
                     if let Some(a) = result.action {
@@ -2738,16 +2806,21 @@ impl AppState {
                                         .unwrap_or_default(),
                                 });
                             }
-                            main_panel::MainPanelAction::ToggleLaunchEnabled(user_id) => {
-                                if let Some(account) = self.store.find_by_id_mut(user_id) {
-                                    account.is_launch_enabled = !account.is_launch_enabled;
-                                    self.toasts.push(Toast::info(if account.is_launch_enabled {
-                                        "Launching enabled"
-                                    } else {
-                                        "Launching disabled"
-                                    }));
+                            main_panel::MainPanelAction::LoadInventory(user_id) => {
+                                let node = asset_manager::TreeNode::Inventory(
+                                    ram_core::assets::Creator::User(user_id),
+                                );
+                                let kinds = ram_core::assets::AssetKind::selectable().to_vec();
+                                self.remote_inventory = asset_manager::RemoteInventory {
+                                    node: Some(node),
+                                    filter: None,
+                                    requested: true,
+                                    inflight: kinds.len(),
+                                    ..Default::default()
+                                };
+                                for kind in kinds {
+                                    self.fetch_creations(node, kind, None);
                                 }
-                                self.auto_save();
                             }
                             main_panel::MainPanelAction::LaunchGame { place_id, job_id } => {
                                 // Session first, so a locked store does not
@@ -4117,6 +4190,7 @@ impl AppState {
                 .store_session
                 .as_ref()
                 .is_some_and(|s| s.needs_password());
+            let before = self.config.clone();
             let action = settings::show(
                 ui,
                 &mut self.config,
@@ -4124,6 +4198,7 @@ impl AppState {
                 &mut self.settings_state,
                 self.roblox_running,
             );
+            let changed = self.config != before;
             match action {
                 Some(settings::SettingsAction::SaveConfig) => {
                     if let Err(e) = self.config.save(&self.config_path) {
@@ -4175,13 +4250,13 @@ impl AppState {
                     self.config.multi_instance_enabled = false;
                     self.toasts.push(Toast::info("Multi-instance disabled (takes effect after restart)"));
                 }
-                Some(settings::SettingsAction::ChangePassword { new_password }) => {
+                Some(settings::SettingsAction::ChangePassword { ref new_password }) => {
                     // Rewraps the data key under the new password. The old
                     // version walked every account re-encrypting cookies one by
                     // one and swallowed failures, which left any cookie that
                     // failed to decrypt stranded on the previous password with
                     // no way back. Nothing per-account happens here at all now.
-                    self.rekey_store(Some(new_password));
+                    self.rekey_store(Some(new_password.clone()));
                 }
                 Some(settings::SettingsAction::ClearPassword) => {
                     // Rewraps under the device key. The old version merely
@@ -4199,6 +4274,12 @@ impl AppState {
                     self.toasts.push(Toast::info("Tiling windows..."));
                 }
                 None => {}
+            }
+            if action.is_some() || changed {
+                if let Err(e) = self.config.save(&self.config_path) {
+                    self.toasts
+                        .push(Toast::error(format!("Save failed: {e}")));
+                }
             }
         });
     }
@@ -4239,7 +4320,6 @@ impl AppState {
                             cookie,
                             session,
                             use_credential_manager: self.config.use_credential_manager,
-                            is_launch_enabled: self.add_dialog.is_launch_enabled,
                         });
                     }
                 }
@@ -4427,7 +4507,6 @@ impl AppState {
                                 cookie,
                                 session,
                                 use_credential_manager: self.config.use_credential_manager,
-                                is_launch_enabled: self.add_dialog.is_launch_enabled,
                             });
                         }
                         None => {
@@ -4488,13 +4567,6 @@ impl AppState {
                 match self.add_dialog.step {
                     AddAccountStep::Choose => {
                         ui.label("How would you like to add this account?");
-                        ui.checkbox(
-                            &mut self.add_dialog.is_launch_enabled,
-                            "Enable launching after import",
-                        )
-                        .on_hover_text(
-                            "Disabled accounts are saved normally but cannot be launched until you enable them from the account menu.",
-                        );
                         ui.add_space(10.0);
 
                         let full_w = ui.available_width();
@@ -4817,7 +4889,6 @@ impl AppState {
                                     cookie,
                                     session,
                                     use_credential_manager: self.config.use_credential_manager,
-                                    is_launch_enabled: self.add_dialog.is_launch_enabled,
                                 });
                             }
                         }
@@ -4950,9 +5021,6 @@ impl AppState {
                                                     use_credential_manager: self
                                                         .config
                                                         .use_credential_manager,
-                                                    is_launch_enabled: self
-                                                        .add_dialog
-                                                        .is_launch_enabled,
                                                 },
                                             );
                                         }

@@ -391,7 +391,10 @@ pub fn kill_tray_roblox() -> usize {
         .collect();
     // Every 10 seconds for the whole session when the feature is on, so DEBUG.
     // At INFO this alone was a meaningful share of a 3.7 MB log file.
-    debug!("kill_tray_roblox: found {} Roblox process(es)", roblox.len());
+    debug!(
+        "kill_tray_roblox: found {} Roblox process(es)",
+        roblox.len()
+    );
     let targets: Vec<_> = roblox
         .iter()
         .filter(|(_, p)| {
@@ -440,7 +443,10 @@ pub fn kill_tray_roblox() -> usize {
             } else {
                 // sysinfo kill failed (protected / elevated process) — fall back
                 // to taskkill which may succeed depending on UAC configuration.
-                info!("  sysinfo kill failed for PID {}, trying taskkill /F", sysinfo_pid);
+                info!(
+                    "  sysinfo kill failed for PID {}, trying taskkill /F",
+                    sysinfo_pid
+                );
                 let raw: u32 = sysinfo_pid.as_u32();
                 let res = std::process::Command::new("taskkill")
                     .args(["/F", "/PID", &raw.to_string()])
@@ -484,8 +490,7 @@ fn native_get_cmdline(pid: u32) -> Option<String> {
         OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
     };
 
-    let handle =
-        unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid) };
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid) };
     if handle.is_null() {
         debug!("  native_get_cmdline: OpenProcess failed for PID {pid}");
         return None;
@@ -569,7 +574,11 @@ unsafe fn read_cmdline_from_handle(
         // Step 2: Read the PEB to find ProcessParameters pointer.
         // PEB layout (64-bit): offset 0x20 = ProcessParameters pointer
         // PEB layout (32-bit): offset 0x10 = ProcessParameters pointer
-        let params_ptr_offset = if size_of::<usize>() == 8 { 0x20usize } else { 0x10usize };
+        let params_ptr_offset = if size_of::<usize>() == 8 {
+            0x20usize
+        } else {
+            0x10usize
+        };
         let mut process_params_addr: usize = 0;
         let mut bytes_read: usize = 0;
         let ok = unsafe {
@@ -588,15 +597,19 @@ unsafe fn read_cmdline_from_handle(
 
         // Step 3: Read the CommandLine UNICODE_STRING from RTL_USER_PROCESS_PARAMETERS.
         // Offset to CommandLine: 0x70 on 64-bit, 0x40 on 32-bit
-        let cmdline_offset = if size_of::<usize>() == 8 { 0x70usize } else { 0x40usize };
+        let cmdline_offset = if size_of::<usize>() == 8 {
+            0x70usize
+        } else {
+            0x40usize
+        };
 
         // UNICODE_STRING: { Length: u16, MaximumLength: u16, padding(on 64-bit): u32, Buffer: *mut u16 }
         #[repr(C)]
         struct UnicodeString {
-            length: u16,        // in bytes
+            length: u16, // in bytes
             maximum_length: u16,
-            _padding: u32,      // alignment padding on 64-bit
-            buffer: usize,      // pointer
+            _padding: u32, // alignment padding on 64-bit
+            buffer: usize, // pointer
         }
 
         let mut us: UnicodeString = unsafe { zeroed() };
@@ -987,9 +1000,9 @@ fn window_title(hwnd: windows_sys::Win32::Foundation::HWND) -> String {
 #[cfg(windows)]
 mod multi_instance {
     use std::sync::OnceLock;
+    use tracing::info;
     use windows_sys::Win32::Foundation::HANDLE;
     use windows_sys::Win32::System::Threading::CreateMutexW;
-    use tracing::info;
 
     /// Hold the singleton mutex handle for the lifetime of the program.
     static HELD_MUTEX: OnceLock<MutexHandle> = OnceLock::new();
@@ -1005,9 +1018,7 @@ mod multi_instance {
     /// acquired (or already held).
     pub fn acquire_singleton_mutex() -> bool {
         HELD_MUTEX.get_or_init(|| {
-            let name: Vec<u16> = "ROBLOX_singletonMutex\0"
-                .encode_utf16()
-                .collect();
+            let name: Vec<u16> = "ROBLOX_singletonMutex\0".encode_utf16().collect();
             let handle = unsafe { CreateMutexW(std::ptr::null(), 1, name.as_ptr()) };
             if handle.is_null() {
                 info!("Failed to create ROBLOX_singletonMutex");
@@ -1083,7 +1094,10 @@ pub fn calculate_tiling_rects(
         }
         MonitorTarget::Index(idx) => {
             let mon = monitors.get(*idx).unwrap_or_else(|| {
-                monitors.iter().find(|m| m.is_primary).unwrap_or(&monitors[0])
+                monitors
+                    .iter()
+                    .find(|m| m.is_primary)
+                    .unwrap_or(&monitors[0])
             });
             calculate_monitor_grid(
                 mon,
@@ -1095,7 +1109,10 @@ pub fn calculate_tiling_rects(
             )
         }
         MonitorTarget::Primary => {
-            let mon = monitors.iter().find(|m| m.is_primary).unwrap_or(&monitors[0]);
+            let mon = monitors
+                .iter()
+                .find(|m| m.is_primary)
+                .unwrap_or(&monitors[0]);
             calculate_monitor_grid(
                 mon,
                 window_count,
@@ -1370,9 +1387,7 @@ fn find_roblox_hwnds() -> Vec<windows_sys::Win32::Foundation::HWND> {
 #[cfg(windows)]
 fn measure_dwm_borders(hwnd0: windows_sys::Win32::Foundation::HWND) -> (i32, i32, i32, i32) {
     use windows_sys::Win32::Foundation::RECT;
-    use windows_sys::Win32::Graphics::Dwm::{
-        DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS,
-    };
+    use windows_sys::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GetWindowRect, SetWindowPos, ShowWindow, SWP_NOZORDER, SW_RESTORE,
     };
@@ -1461,7 +1476,6 @@ pub fn arrange_roblox_windows(options: &TilingOptions) {
 pub fn arrange_roblox_windows(_options: &TilingOptions) {
     info!("Window arrangement is only supported on Windows");
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -1553,7 +1567,10 @@ mod tests {
     fn a_private_server_launch_is_unchanged() {
         let query = place_launcher_query(606, None, Some("LINK"), Some("ACCESS"));
         assert!(query.contains("assetgame.roblox.com"), "{query}");
-        assert!(query.contains("%3Frequest%3DRequestPrivateGame%26"), "{query}");
+        assert!(
+            query.contains("%3Frequest%3DRequestPrivateGame%26"),
+            "{query}"
+        );
         assert!(query.contains("%26accessCode%3DACCESS"), "{query}");
         assert!(query.contains("%26linkCode%3DLINK"), "{query}");
         assert!(!query.contains("RequestGameJob"), "{query}");
@@ -1570,7 +1587,10 @@ mod tests {
     #[test]
     fn a_private_server_with_a_job_id_stays_a_private_request() {
         let query = place_launcher_query(606, Some("JOB"), Some("LINK"), None);
-        assert!(query.contains("%3Frequest%3DRequestPrivateGame%26"), "{query}");
+        assert!(
+            query.contains("%3Frequest%3DRequestPrivateGame%26"),
+            "{query}"
+        );
         assert!(query.contains("%26gameId%3DJOB"), "{query}");
     }
 
@@ -1627,7 +1647,14 @@ mod tests {
     // Tiling calculations
     // -----------------------------------------------------------------------
 
-    fn test_monitor(index: usize, is_primary: bool, x: i32, y: i32, w: i32, h: i32) -> MonitorGeometry {
+    fn test_monitor(
+        index: usize,
+        is_primary: bool,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+    ) -> MonitorGeometry {
         MonitorGeometry {
             index,
             name: format!("Monitor {index}"),
@@ -1677,10 +1704,34 @@ mod tests {
 
         assert_eq!(rects.len(), 3);
         // Row 0: 2 windows of width 960
-        assert_eq!(rects[0], WindowRect { x: 0, y: 0, width: 960, height: 520 });
-        assert_eq!(rects[1], WindowRect { x: 960, y: 0, width: 960, height: 520 });
+        assert_eq!(
+            rects[0],
+            WindowRect {
+                x: 0,
+                y: 0,
+                width: 960,
+                height: 520
+            }
+        );
+        assert_eq!(
+            rects[1],
+            WindowRect {
+                x: 960,
+                y: 0,
+                width: 960,
+                height: 520
+            }
+        );
         // Row 1: 1 window centered (offset = (1920 - 960)/2 = 480)
-        assert_eq!(rects[2], WindowRect { x: 480, y: 520, width: 960, height: 520 });
+        assert_eq!(
+            rects[2],
+            WindowRect {
+                x: 480,
+                y: 520,
+                width: 960,
+                height: 520
+            }
+        );
     }
 
     #[test]
