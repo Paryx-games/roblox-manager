@@ -2652,6 +2652,43 @@ impl AppState {
                                 });
                             }
                         }
+                        group_panel::GroupPanelAction::RevalidateSelected => {
+                            if let Some(session) = self.session() {
+                                let accounts: Vec<(u64, Option<String>)> = self
+                                    .store
+                                    .accounts
+                                    .iter()
+                                    .filter(|a| self.selected_ids.contains(&a.user_id))
+                                    .map(|a| (a.user_id, a.encrypted_cookie.clone()))
+                                    .collect();
+                                if accounts.is_empty() {
+                                    self.toasts
+                                        .push(Toast::warning("Select an account to revalidate."));
+                                } else {
+                                    self.bridge.send(BackendCommand::RevalidateAll {
+                                        accounts,
+                                        session,
+                                        use_credential_manager: self.config.use_credential_manager,
+                                    });
+                                }
+                            }
+                        }
+                        group_panel::GroupPanelAction::OpenBrowsers => {
+                            let ids: Vec<u64> = self.selected_ids.iter().copied().collect();
+                            for user_id in ids {
+                                self.open_browser_as(user_id);
+                            }
+                        }
+                        group_panel::GroupPanelAction::CopyIds => {
+                            let ids: Vec<String> = self
+                                .selected_ids
+                                .iter()
+                                .copied()
+                                .map(|id| id.to_string())
+                                .collect();
+                            ctx.output_mut(|o| o.copied_text = ids.join(", "));
+                            self.toasts.push(Toast::info("Copied selected account IDs"));
+                        }
                         group_panel::GroupPanelAction::ClearSelection => {
                             self.selected_ids.clear();
                         }
@@ -2698,6 +2735,21 @@ impl AppState {
                                 .unwrap_or_else(|| "Auto-detect".to_string());
                             format!("Default ({path})")
                         });
+                    let inventory_node = asset_manager::TreeNode::Inventory(
+                        ram_core::assets::Creator::User(account.user_id),
+                    );
+                    let inventory_items = if self.remote_inventory.node == Some(inventory_node) {
+                        self.remote_inventory.items.clone()
+                    } else {
+                        Vec::new()
+                    };
+                    let inventory_loading = self.remote_inventory.node == Some(inventory_node)
+                        && self.remote_inventory.loading();
+                    let inventory_error = if self.remote_inventory.node == Some(inventory_node) {
+                        self.remote_inventory.error.as_deref()
+                    } else {
+                        None
+                    };
                     let result = main_panel::show(
                         ui,
                         &account,
@@ -2707,6 +2759,9 @@ impl AppState {
                         &preset_view,
                         self.config.anonymize_names,
                         &player_path_label,
+                        &inventory_items,
+                        inventory_loading,
+                        inventory_error,
                     );
                     self.tutorial.launch_btn_rect = result.launch_btn_rect;
                     if let Some(a) = result.action {
@@ -2721,6 +2776,22 @@ impl AppState {
                                         .map(|path| path.display().to_string())
                                         .unwrap_or_default(),
                                 });
+                            }
+                            main_panel::MainPanelAction::LoadInventory(user_id) => {
+                                let node = asset_manager::TreeNode::Inventory(
+                                    ram_core::assets::Creator::User(user_id),
+                                );
+                                let kinds = ram_core::assets::AssetKind::selectable().to_vec();
+                                self.remote_inventory = asset_manager::RemoteInventory {
+                                    node: Some(node),
+                                    filter: None,
+                                    requested: true,
+                                    inflight: kinds.len(),
+                                    ..Default::default()
+                                };
+                                for kind in kinds {
+                                    self.fetch_creations(node, kind, None);
+                                }
                             }
                             main_panel::MainPanelAction::LaunchGame { place_id, job_id } => {
                                 // Session first, so a locked store does not

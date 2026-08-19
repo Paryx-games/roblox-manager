@@ -12,6 +12,8 @@ pub enum MainPanelAction {
         job_id: Option<String>,
     },
     OpenPathEditor,
+    /// Reload the selected account's latest inventory from Roblox.
+    LoadInventory(u64),
     RemoveAccount(u64),
     UpdateAlias {
         user_id: u64,
@@ -61,6 +63,9 @@ pub fn show(
     presets: &[LaunchPreset],
     anonymize: bool,
     player_path_label: &str,
+    inventory_items: &[ram_core::assets_api::CreationItem],
+    inventory_loading: bool,
+    inventory_error: Option<&str>,
 ) -> MainPanelResult {
     let theme = ui.theme();
     let mut action: Option<MainPanelAction> = None;
@@ -417,6 +422,55 @@ pub fn show(
                                 }
                             });
                         });
+                }
+            });
+            ui.add_space(8.0);
+
+            section_frame.show(ui, |ui: &mut egui::Ui| {
+                ui.set_min_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    ui.heading("Inventory");
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add_enabled(!inventory_loading, egui::Button::new("Refresh"))
+                            .on_hover_text("Fetch the latest Roblox inventory for this account")
+                            .clicked()
+                        {
+                            action = Some(MainPanelAction::LoadInventory(account.user_id));
+                        }
+                    });
+                });
+                ui.add_space(6.0);
+                if inventory_loading {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label("Loading inventory...");
+                    });
+                } else if let Some(message) = inventory_error {
+                    ui.colored_label(
+                        theme.danger,
+                        egui::RichText::new(format!("\u{26a0} {message}"))
+                            .strong(),
+                    );
+                } else if inventory_items.is_empty() {
+                    ui.label(
+                        egui::RichText::new("No inventory loaded yet. Refresh to fetch recent Roblox items.")
+                            .color(ui.visuals().weak_text_color()),
+                    );
+                } else {
+                    for item in inventory_items.iter().take(6) {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(item.name.clone()).strong());
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.label(item.kind.as_api_str());
+                            });
+                        });
+                    }
+                    if inventory_items.len() > 6 {
+                        ui.add_space(4.0);
+                        ui.label(format!("+ {} more items", inventory_items.len() - 6))
+                            .on_hover_text("More Roblox inventory items are available for this account.");
+                    }
                 }
             });
             ui.add_space(8.0);

@@ -13,6 +13,12 @@ pub enum GroupPanelAction {
         place_id: u64,
         job_id: Option<String>,
     },
+    /// Revalidate the selected cookies in the background.
+    RevalidateSelected,
+    /// Open a browser window for each selected account.
+    OpenBrowsers,
+    /// Copy the selected account IDs to the clipboard.
+    CopyIds,
     /// Open the path editor for all selected accounts.
     OpenPathEditor,
     /// Deselect all.
@@ -80,6 +86,22 @@ pub fn show(
                 }
             });
 
+        ui.add_space(8.0);
+        ui.heading("Bulk Actions");
+        ui.horizontal_wrapped(|ui| {
+            if ui.button("Revalidate").clicked() {
+                action = Some(GroupPanelAction::RevalidateSelected);
+            }
+            if ui.button("Open browsers").clicked() {
+                action = Some(GroupPanelAction::OpenBrowsers);
+            }
+            if ui.button("Copy IDs").clicked() {
+                action = Some(GroupPanelAction::CopyIds);
+            }
+            if ui.button("Change path").clicked() {
+                action = Some(GroupPanelAction::OpenPathEditor);
+            }
+        });
         ui.add_space(8.0);
         ui.separator();
         ui.add_space(8.0);
