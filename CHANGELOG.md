@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.12.2
+
+### Added
+- **Debug startup diagnostics.** Debug builds and `cargo run` now keep a console open, log the app version and build profile, and show the RM data directory in startup logs.
+- **Utility tab.** Utility can be enabled from Settings, with the Assets view independently controlled inside it.
+- **Hyperion warning.** Utility shows a dismissible warning about Hyperion detection; it returns when RM is reopened.
+- **RM data-folder shortcut.** Developer Options now includes a button to open the AppData folder where RM stores its files.
+
+### Changed
+- **Typed info cards.** Info-card entries now declare `info`, `warning`, or `caution` types. Their icons and hover panels use gray, yellow, or red styling respectively.
+- **Info icon spacing.** Settings info icons now use a softer gray appearance with 10px padding.
+
 ## v1.12.1
 
 ### Changed
