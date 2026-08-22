@@ -90,6 +90,7 @@ fn setting_info(ui: &mut egui::Ui, reference_id: &str) {
             .fill(surface)
             .stroke(egui::Stroke::new(1.0_f32, color))
             .rounding(egui::Rounding::same(4.0))
+            .outer_margin(egui::Margin::same(-4.0))
             .inner_margin(egui::Margin::same(8.0))
             .show(ui, |ui| {
                 ui.colored_label(color, &card.text);
@@ -438,7 +439,7 @@ pub fn show(
 
             ui.add_space(6.0);
             if ui
-                .button("🗔 Tile Windows Now")
+                .button("▦ Tile Windows Now")
                 .on_hover_text("Immediately arrange all open Roblox windows using these settings.")
                 .clicked()
             {

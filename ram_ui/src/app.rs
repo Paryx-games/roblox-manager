@@ -2099,7 +2099,7 @@ impl eframe::App for AppState {
                     ui.selectable_value(
                         &mut self.active_tab,
                         Tab::Utility,
-                        "🧰 Utility",
+                        "▦ Utility",
                     );
                 }
                 if self.config.developer_options {

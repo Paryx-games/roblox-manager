@@ -7,6 +7,7 @@
 - **Cleaner settings spacing.** Reduced excess padding around the info icons while keeping their tooltips visually distinct.
 - **Utility layout.** Utility is now an empty landing tab, while the optional Assets tab appears independently when enabled.
 - **Colored warnings.** The Utility Hyperion notice now has a yellow background and border, and warning/caution info cards use matching yellow or red backgrounds and borders.
+- **Reliable utility icons.** Utility and Tile Windows Now now use visible non-emoji icons so they render consistently across Windows font setups.
 
 ## v1.12.2
 
