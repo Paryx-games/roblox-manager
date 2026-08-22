@@ -195,6 +195,7 @@ fn maybe_migrate_favorites(data_dir: &std::path::Path) {
             name: fav.name,
             place_id: fav.place_id,
             job_id: None,
+            data: None,
         };
         if ram_core::presets::save(data_dir, &preset, None).is_ok() {
             migrated += 1;

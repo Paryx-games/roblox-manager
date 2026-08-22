@@ -10,6 +10,7 @@ pub enum MainPanelAction {
     LaunchGame {
         place_id: u64,
         job_id: Option<String>,
+        data: Option<String>,
     },
     OpenPathEditor,
     /// Reload the selected account's latest inventory from Roblox.
@@ -24,6 +25,7 @@ pub enum MainPanelAction {
         name: String,
         place_id: u64,
         job_id: Option<String>,
+        data: Option<String>,
     },
     KillAll,
     /// Open a webview pre-logged in as this account.
@@ -35,6 +37,7 @@ pub enum MainPanelAction {
 pub struct MainPanelState {
     pub place_id_input: String,
     pub job_id_input: String,
+    pub data_input: String,
     pub alias_input: String,
     /// Track which account the alias input belongs to.
     alias_for_user: Option<u64>,
@@ -245,6 +248,7 @@ pub fn show(
                         presets,
                         &mut state.place_id_input,
                         &mut state.job_id_input,
+                        &mut state.data_input,
                     );
                     ui.add_space(8.0);
                 }
@@ -257,6 +261,20 @@ pub fn show(
                     "Job ID (optional)",
                     &mut state.job_id_input,
                     "Specific server GUID",
+                );
+                ui.add_space(6.0);
+                labelled_input(
+                    ui,
+                    "Data (optional)",
+                    &mut state.data_input,
+                    "Extra launch query data",
+                );
+                ui.label(
+                    egui::RichText::new(
+                        "Examples: ?vip=true    ?privateServerLinkCode=CODE    ?gameInstanceId=GUID",
+                    )
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
                 );
                 ui.add_space(10.0);
 
@@ -301,8 +319,12 @@ pub fn show(
                     if launch_btn.clicked() {
                         if let Ok(place_id) = state.place_id_input.parse::<u64>() {
                             let job_id = parse_optional(&state.job_id_input);
-                            action =
-                                Some(MainPanelAction::LaunchGame { place_id, job_id });
+                            let data = parse_optional(&state.data_input);
+                            action = Some(MainPanelAction::LaunchGame {
+                                place_id,
+                                job_id,
+                                data,
+                            });
                         }
                     }
                     // Hover/active tint to make the primary obvious.
@@ -412,6 +434,7 @@ pub fn show(
                                                 .to_string(),
                                             place_id: pid,
                                             job_id: parse_optional(&state.job_id_input),
+                                            data: parse_optional(&state.data_input),
                                         });
                                         state.preset_name_input.clear();
                                         state.show_save_form = false;

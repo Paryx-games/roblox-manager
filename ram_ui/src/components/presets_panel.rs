@@ -31,6 +31,7 @@ pub struct PresetsState {
     pub name_input: String,
     pub place_id_input: String,
     pub job_id_input: String,
+    pub data_input: String,
     /// `Some(path)` when editing an existing preset, `None` when creating.
     pub editing: Option<PathBuf>,
     pub error: Option<String>,
@@ -41,6 +42,7 @@ impl PresetsState {
         self.name_input.clear();
         self.place_id_input.clear();
         self.job_id_input.clear();
+        self.data_input.clear();
         self.editing = None;
         self.error = None;
     }
@@ -49,6 +51,7 @@ impl PresetsState {
         self.name_input = preset.name.clone();
         self.place_id_input = preset.place_id.to_string();
         self.job_id_input = preset.job_id.clone().unwrap_or_default();
+        self.data_input = preset.data.clone().unwrap_or_default();
         self.editing = Some(path);
         self.error = None;
     }
@@ -110,6 +113,13 @@ pub fn show(
                             .hint_text("Specific server GUID"),
                     );
                     ui.end_row();
+
+                    ui.label("Data (optional):");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut state.data_input)
+                            .hint_text("e.g. ?vip=true"),
+                    );
+                    ui.end_row();
                 });
 
             ui.add_space(4.0);
@@ -145,6 +155,14 @@ pub fn show(
                                 name: state.name_input.trim().to_string(),
                                 place_id,
                                 job_id,
+                                data: {
+                                    let t = state.data_input.trim();
+                                    if t.is_empty() {
+                                        None
+                                    } else {
+                                        Some(t.to_string())
+                                    }
+                                },
                             };
                             action = Some(PresetsAction::Save {
                                 path: state.editing.clone(),

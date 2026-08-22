@@ -2,6 +2,9 @@
 
 ## v1.12.3
 
+### Added
+- **Launch data field.** Single and bulk Roblox launches accept optional data such as `?vip=true`, with examples shown below the field and support in saved presets.
+
 ### Changed
 - **Readable info cards.** `infocards.json` now uses one multi-line object per card, making descriptions and card types easier to edit.
 - **Cleaner settings spacing.** Reduced excess padding around the info icons while keeping their tooltips visually distinct.

@@ -16,7 +16,7 @@ use ram_core::models::LaunchPreset;
 const CHIP_NAME_MAX_CHARS: usize = 24;
 
 /// One row of preset quick-select chips, wrapping onto further rows as needed.
-/// Clicking a chip fills `place_id_input` / `job_id_input` from that preset.
+/// Clicking a chip fills the launch inputs from that preset.
 ///
 /// Two details keep the wrapping honest, and both were bugs before:
 ///
@@ -35,8 +35,9 @@ pub fn preset_chips(
     presets: &[LaunchPreset],
     place_id_input: &mut String,
     job_id_input: &mut String,
+    data_input: &mut String,
 ) {
-    chips_ui(ui, label, presets, place_id_input, job_id_input);
+    chips_ui(ui, label, presets, place_id_input, job_id_input, data_input);
 }
 
 /// Body of [`preset_chips`], returning the rect of every chip so the layout
@@ -47,6 +48,7 @@ fn chips_ui(
     presets: &[LaunchPreset],
     place_id_input: &mut String,
     job_id_input: &mut String,
+    data_input: &mut String,
 ) -> Vec<egui::Rect> {
     let mut rects = Vec::with_capacity(presets.len());
     ui.horizontal_wrapped(|ui| {
@@ -81,6 +83,7 @@ fn chips_ui(
             if btn.clicked() {
                 *place_id_input = preset.place_id.to_string();
                 *job_id_input = preset.job_id.clone().unwrap_or_default();
+                *data_input = preset.data.clone().unwrap_or_default();
             }
         }
     });
@@ -96,6 +99,7 @@ mod tests {
             name: name.to_string(),
             place_id: 1,
             job_id: None,
+            data: None,
         }
     }
 
@@ -116,8 +120,9 @@ mod tests {
             rects.clear();
             let _ = ctx.run(input.clone(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    let (mut place, mut job) = (String::new(), String::new());
-                    rects = chips_ui(ui, "Presets", &presets, &mut place, &mut job);
+                    let (mut place, mut job, mut data) =
+                        (String::new(), String::new(), String::new());
+                    rects = chips_ui(ui, "Presets", &presets, &mut place, &mut job, &mut data);
                 });
             });
         }

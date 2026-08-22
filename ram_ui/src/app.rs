@@ -804,6 +804,7 @@ impl AppState {
             use_credential_manager: self.config.use_credential_manager,
             place_id,
             job_id: Some(job_id),
+            data: None,
             link_code: None,
             access_code: None,
             player_path: self
@@ -2419,6 +2420,21 @@ impl AppState {
                                                 .use_credential_manager,
                                             place_id,
                                             job_id,
+                                            data: if self
+                                                .main_panel_state
+                                                .data_input
+                                                .trim()
+                                                .is_empty()
+                                            {
+                                                None
+                                            } else {
+                                                Some(
+                                                    self.main_panel_state
+                                                        .data_input
+                                                        .trim()
+                                                        .to_string(),
+                                                )
+                                            },
                                             link_code: None,
                                             access_code: None,
                                             player_path: self
@@ -2660,13 +2676,18 @@ impl AppState {
                     &selected_accounts,
                     &mut self.main_panel_state.place_id_input,
                     &mut self.main_panel_state.job_id_input,
+                    &mut self.main_panel_state.data_input,
                     &preset_view,
                     self.roblox_running,
                     self.config.anonymize_names,
                 );
                 if let Some(a) = action {
                     match a {
-                        group_panel::GroupPanelAction::BulkLaunch { place_id, job_id } => {
+                        group_panel::GroupPanelAction::BulkLaunch {
+                            place_id,
+                            job_id,
+                            data,
+                        } => {
                             let accounts: Vec<(u64, Option<String>)> = self
                                 .store
                                 .accounts
@@ -2686,6 +2707,7 @@ impl AppState {
                                     use_credential_manager: self.config.use_credential_manager,
                                     place_id,
                                     job_id,
+                                    data,
                                     link_code: None,
                                     access_code: None,
                                     multi_instance: self.config.multi_instance_enabled,
@@ -2837,7 +2859,11 @@ impl AppState {
                                     self.fetch_creations(node, kind, None);
                                 }
                             }
-                            main_panel::MainPanelAction::LaunchGame { place_id, job_id } => {
+                            main_panel::MainPanelAction::LaunchGame {
+                                place_id,
+                                job_id,
+                                data,
+                            } => {
                                 // Session first, so a locked store does not
                                 // spend the launch-delay slot on a launch that
                                 // cannot happen.
@@ -2851,6 +2877,7 @@ impl AppState {
                                         use_credential_manager: self.config.use_credential_manager,
                                         place_id,
                                         job_id,
+                                        data,
                                         link_code: None,
                                         access_code: None,
                                         player_path: self
@@ -2878,11 +2905,13 @@ impl AppState {
                                 name,
                                 place_id,
                                 job_id,
+                                data,
                             } => {
                                 let preset = ram_core::models::LaunchPreset {
                                     name,
                                     place_id,
                                     job_id,
+                                    data,
                                 };
                                 match ram_core::presets::save(&crate::data_dir(), &preset, None) {
                                     Ok(_) => {
@@ -2994,6 +3023,7 @@ impl AppState {
                                     use_credential_manager: self.config.use_credential_manager,
                                     place_id,
                                     job_id: None,
+                                    data: None,
                                     link_code: Some(link_code.clone()),
                                     access_code: ac.clone(),
                                     player_path: self
@@ -3027,6 +3057,7 @@ impl AppState {
                                     use_credential_manager: self.config.use_credential_manager,
                                     place_id,
                                     job_id: None,
+                                    data: None,
                                     link_code: Some(link_code),
                                     access_code: ac,
                                     multi_instance: self.config.multi_instance_enabled,

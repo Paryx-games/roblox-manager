@@ -12,6 +12,7 @@ pub enum GroupPanelAction {
     BulkLaunch {
         place_id: u64,
         job_id: Option<String>,
+        data: Option<String>,
     },
     /// Revalidate the selected cookies in the background.
     RevalidateSelected,
@@ -30,7 +31,7 @@ pub enum GroupPanelAction {
 }
 
 /// Draw the group control panel for multiple selected accounts.
-/// `place_id_input` and `job_id_input` are owned by the parent so single-launch
+/// `place_id_input`, `job_id_input`, and `data_input` are owned by the parent so single-launch
 /// and bulk-launch views share the same fields — typing a Place ID into one
 /// makes it appear in the other immediately.
 pub fn show(
@@ -38,6 +39,7 @@ pub fn show(
     selected_accounts: &[&Account],
     place_id_input: &mut String,
     job_id_input: &mut String,
+    data_input: &mut String,
     presets: &[LaunchPreset],
     roblox_running: bool,
     anonymize: bool,
@@ -114,7 +116,14 @@ pub fn show(
 
         // Preset quick-select chips (same set as the single-launch view).
         if !presets.is_empty() {
-            super::preset_chips(ui, "Presets:", presets, place_id_input, job_id_input);
+            super::preset_chips(
+                ui,
+                "Presets:",
+                presets,
+                place_id_input,
+                job_id_input,
+                data_input,
+            );
             ui.add_space(4.0);
         }
 
@@ -129,7 +138,19 @@ pub fn show(
                 ui.label("Job ID (optional):");
                 ui.text_edit_singleline(job_id_input);
                 ui.end_row();
+
+                ui.label("Data (optional):");
+                ui.text_edit_singleline(data_input);
+                ui.end_row();
             });
+
+        ui.label(
+            egui::RichText::new(
+                "Examples: ?vip=true    ?privateServerLinkCode=CODE    ?gameInstanceId=GUID",
+            )
+            .small()
+            .color(ui.visuals().weak_text_color()),
+        );
 
         ui.add_space(8.0);
 
@@ -146,7 +167,16 @@ pub fn show(
                     } else {
                         Some(job_id_input.trim().to_string())
                     };
-                    action = Some(GroupPanelAction::BulkLaunch { place_id, job_id });
+                    let data = if data_input.trim().is_empty() {
+                        None
+                    } else {
+                        Some(data_input.trim().to_string())
+                    };
+                    action = Some(GroupPanelAction::BulkLaunch {
+                        place_id,
+                        job_id,
+                        data,
+                    });
                 }
             }
 

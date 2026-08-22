@@ -472,7 +472,7 @@ pub struct FavoritePlace {
     pub place_id: u64,
 }
 
-/// A user-defined launch preset — name + Place ID + optional Job ID.
+/// A user-defined launch preset — name + Place ID + optional launch details.
 /// Persisted as individual JSON files under `<data_dir>/presets/<slug>.json`
 /// so users can hand-edit, share, or back them up directly.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -481,6 +481,8 @@ pub struct LaunchPreset {
     pub place_id: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub job_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<String>,
 }
 
 /// A saved private server for quick launching.

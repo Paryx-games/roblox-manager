@@ -111,13 +111,14 @@ fn place_launcher_query(
     job_id: Option<&str>,
     link_code: Option<&str>,
     access_code: Option<&str>,
+    data: Option<&str>,
 ) -> String {
     let browser_tracker_id: u64 = rand::random::<u64>() % 1_000_000_000;
 
     // A specific server, and not a private one: the web client's job-join form.
     if let (Some(jid), None) = (job_id, link_code) {
         let join_attempt = uuid::Uuid::new_v4();
-        return format!(
+        let mut query = format!(
             "https%3A%2F%2Fwww.roblox.com%2Fgame%2FPlaceLauncher.ashx\
              %3Frequest%3DRequestGameJob\
              %26browserTrackerId%3D{browser_tracker_id}\
@@ -125,6 +126,8 @@ fn place_launcher_query(
              %26gameId%3D{jid}\
              %26joinAttemptId%3D{join_attempt}"
         );
+        append_launch_data(&mut query, data);
+        return query;
     }
 
     let request_type = if link_code.is_some() {
@@ -153,7 +156,15 @@ fn place_launcher_query(
     if let Some(lc) = link_code {
         query.push_str(&format!("%26linkCode%3D{lc}"));
     }
+    append_launch_data(&mut query, data);
     query
+}
+
+fn append_launch_data(query: &mut String, data: Option<&str>) {
+    if let Some(value) = data.map(str::trim).filter(|value| !value.is_empty()) {
+        let value = value.strip_prefix('?').unwrap_or(value);
+        query.push_str(&format!("%26data%3D{value}"));
+    }
 }
 
 /// Build the `roblox-player://` URI and pass it directly to the Roblox player.
@@ -163,6 +174,7 @@ fn place_launcher_query(
 /// `job_id` — optional server Job ID for joining a specific server.
 /// `link_code` — optional private server link code.
 /// `access_code` — optional UUID access code for private servers.
+/// `data` — optional launch data query, with an optional leading `?`.
 /// `launchtime` — the attribution token, from [`next_launchtime`].
 ///
 /// `launchtime` is taken rather than minted here on purpose. The caller has to
@@ -177,10 +189,11 @@ pub fn launch_game(
     job_id: Option<&str>,
     link_code: Option<&str>,
     access_code: Option<&str>,
+    data: Option<&str>,
     launchtime: i64,
     player_path: Option<&std::path::Path>,
 ) -> Result<(), CoreError> {
-    let query = place_launcher_query(place_id, job_id, link_code, access_code);
+    let query = place_launcher_query(place_id, job_id, link_code, access_code, data);
     let uri = format!(
         "roblox-player:1+launchmode:play\
          +gameinfo:{ticket}\
@@ -1537,7 +1550,7 @@ mod tests {
     /// cannot quietly change it.
     #[test]
     fn a_plain_launch_still_uses_the_request_game_form() {
-        let query = place_launcher_query(606, None, None, None);
+        let query = place_launcher_query(606, None, None, None, None);
         assert!(query.contains("assetgame.roblox.com"), "{query}");
         assert!(query.contains("%3Frequest%3DRequestGame%26"), "{query}");
         assert!(query.contains("%26placeId%3D606"), "{query}");
@@ -1552,7 +1565,7 @@ mod tests {
     #[test]
     fn a_job_launch_uses_the_request_game_job_form() {
         let job = "f196c5f0-f601-4244-a620-39dc62807f1c";
-        let query = place_launcher_query(4_282_985_734, Some(job), None, None);
+        let query = place_launcher_query(4_282_985_734, Some(job), None, None, None);
 
         assert!(query.contains("www.roblox.com"), "{query}");
         assert!(query.contains("%3Frequest%3DRequestGameJob%26"), "{query}");
@@ -1570,8 +1583,8 @@ mod tests {
     fn each_job_launch_gets_a_fresh_join_attempt_id() {
         let job = Some("f196c5f0-f601-4244-a620-39dc62807f1c");
         assert_ne!(
-            place_launcher_query(1, job, None, None),
-            place_launcher_query(1, job, None, None)
+            place_launcher_query(1, job, None, None, None),
+            place_launcher_query(1, job, None, None, None)
         );
     }
 
@@ -1579,7 +1592,7 @@ mod tests {
     /// along with the link code.
     #[test]
     fn a_private_server_launch_is_unchanged() {
-        let query = place_launcher_query(606, None, Some("LINK"), Some("ACCESS"));
+        let query = place_launcher_query(606, None, Some("LINK"), Some("ACCESS"), None);
         assert!(query.contains("assetgame.roblox.com"), "{query}");
         assert!(
             query.contains("%3Frequest%3DRequestPrivateGame%26"),
@@ -1592,7 +1605,7 @@ mod tests {
 
     #[test]
     fn a_private_server_falls_back_to_the_link_code_as_access_code() {
-        let query = place_launcher_query(606, None, Some("LINK"), None);
+        let query = place_launcher_query(606, None, Some("LINK"), None, None);
         assert!(query.contains("%26accessCode%3DLINK"), "{query}");
     }
 
@@ -1600,12 +1613,19 @@ mod tests {
     /// not get promoted to the job form.
     #[test]
     fn a_private_server_with_a_job_id_stays_a_private_request() {
-        let query = place_launcher_query(606, Some("JOB"), Some("LINK"), None);
+        let query = place_launcher_query(606, Some("JOB"), Some("LINK"), None, None);
         assert!(
             query.contains("%3Frequest%3DRequestPrivateGame%26"),
             "{query}"
         );
         assert!(query.contains("%26gameId%3DJOB"), "{query}");
+    }
+
+    #[test]
+    fn launch_data_is_appended_once_and_accepts_a_leading_question_mark() {
+        let query = place_launcher_query(606, None, None, None, Some("?vip=true"));
+        assert_eq!(query.matches("%26data%3D").count(), 1, "{query}");
+        assert!(query.contains("%26data%3Dvip=true"), "{query}");
     }
 
     // -----------------------------------------------------------------------
@@ -1619,7 +1639,7 @@ mod tests {
     #[test]
     fn the_stamped_token_is_the_one_read_back() {
         let launchtime = next_launchtime();
-        let query = place_launcher_query(606, None, None, None);
+        let query = place_launcher_query(606, None, None, None, None);
         let uri = format!(
             "roblox-player:1+launchmode:play\
              +gameinfo:A-TICKET\
@@ -1644,7 +1664,7 @@ mod tests {
     /// this module builds, not just in the shape its own tests use.
     #[test]
     fn the_ticket_is_scrubbed_out_of_the_uri_this_module_builds() {
-        let query = place_launcher_query(606, None, None, None);
+        let query = place_launcher_query(606, None, None, None, None);
         let uri = format!(
             "roblox-player:1+launchmode:play+gameinfo:LIVE-TICKET-VALUE\
              +launchtime:1700000000000+placelauncherurl:{query}"
