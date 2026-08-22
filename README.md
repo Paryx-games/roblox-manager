@@ -57,6 +57,9 @@ RUST_LOG=debug cargo run
 > [!TIP]
 > If you are developing RM, `cargo check` is the quickest way to catch compilation errors without producing a release build.
 
+> [!IMPORTANT]
+> If you are planning to contribute, please read [the commit guide](CONVENTIONAL_COMMITS.md) and follow that structure. Your merge will be denied otherwise.
+
 ## Usage
 
 1. **First launch** - Nothing to set up. Encryption configures itself on this PC
@@ -70,6 +73,7 @@ RUST_LOG=debug cargo run
 
 ## Credits
 
+* [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of mentioned RobloxAccountManager, forked by me
 * [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by ic3w0lf22 - The original Roblox Account Manager that served as the primary reference for this project
 
 ## Background
