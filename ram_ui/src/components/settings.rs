@@ -71,7 +71,7 @@ fn setting_info(ui: &mut egui::Ui, reference_id: &str) {
         ),
     };
     let response = egui::Frame::default()
-        .inner_margin(egui::Margin::same(10.0))
+        .inner_margin(egui::Margin::same(2.0))
         .show(ui, |ui| {
             ui.add(
                 egui::Image::from_bytes(
@@ -88,6 +88,7 @@ fn setting_info(ui: &mut egui::Ui, reference_id: &str) {
         let surface = color.gamma_multiply(0.22);
         egui::Frame::default()
             .fill(surface)
+            .stroke(egui::Stroke::new(1.0_f32, color))
             .rounding(egui::Rounding::same(4.0))
             .inner_margin(egui::Margin::same(8.0))
             .show(ui, |ui| {

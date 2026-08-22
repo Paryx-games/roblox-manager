@@ -1,22 +1,82 @@
 {
-    "test": { "type": "info", "text": "test" },
-    "credential_manager": { "type": "info", "text": "Stores the encrypted account key in Windows Credential Manager so the app can unlock without asking for a password." },
-    "multi_instance": { "type": "caution", "text": "Allows more than one Roblox client to run at the same time. Roblox anti-cheat behavior can change, so use this at your own risk." },
-    "kill_background_roblox": { "type": "info", "text": "Closes idle Roblox tray processes before launching so they do not block another client." },
-    "auto_arrange_windows": { "type": "info", "text": "Automatically places Roblox windows into the selected monitor layout after launch." },
-    "target_display": { "type": "info", "text": "Chooses which monitor receives automatically arranged Roblox windows." },
-    "grid_layout": { "type": "info", "text": "Chooses how arranged Roblox windows are distributed across the target display." },
-    "layout_columns": { "type": "info", "text": "Sets the number of columns used by the fixed or custom grid layout." },
-    "layout_rows": { "type": "info", "text": "Sets the number of rows used by the fixed or custom grid layout." },
-    "layout_dimensions": { "type": "info", "text": "Sets the columns and rows used by a custom grid layout." },
-    "window_padding": { "type": "info", "text": "Sets the gap, in pixels, between tiled Roblox windows and the display edges." },
-    "rename_windows": { "type": "caution", "text": "Changes Roblox window titles to include the account alias, making tiled clients easier to identify." },
-    "launch_delay": { "type": "warning", "text": "Adds a minimum pause between account launches to reduce Roblox rate limiting." },
-    "privacy_mode": { "type": "info", "text": "Clears RobloxCookies.dat before launching to reduce account association through stored browser cookies." },
-    "anonymize_names": { "type": "info", "text": "Replaces account names with generic labels in the app and window titles." },
-    "utility_enabled": { "type": "info", "text": "Shows the Utility tab, which contains optional tools such as Assets." },
-    "developer_options": { "type": "warning", "text": "Shows the Assets tab inside Utility. Uploading creates permanent, publicly moderated Roblox assets." },
-    "data_folder": { "type": "info", "text": "Opens the Windows AppData folder where RM stores accounts, settings, logs, presets, and asset data." },
-    "roblox_player_path": { "type": "info", "text": "The RobloxPlayerBeta.exe file to launch directly. Leave empty to detect the installed player automatically." },
-    "encryption_password": { "type": "caution", "text": "A master password protects the account store and is required each time RM starts. Without it, the accounts cannot be recovered." }
+    "test": {
+        "type": "info",
+        "text": "test"
+    },
+    "credential_manager": {
+        "type": "info",
+        "text": "Stores the encrypted account key in Windows Credential Manager so the app can unlock without asking for a password."
+    },
+    "multi_instance": {
+        "type": "caution",
+        "text": "Allows more than one Roblox client to run at the same time. Roblox anti-cheat behavior can change, so use this at your own risk."
+    },
+    "kill_background_roblox": {
+        "type": "info",
+        "text": "Closes idle Roblox tray processes before launching so they do not block another client."
+    },
+    "auto_arrange_windows": {
+        "type": "info",
+        "text": "Automatically places Roblox windows into the selected monitor layout after launch."
+    },
+    "target_display": {
+        "type": "info",
+        "text": "Chooses which monitor receives automatically arranged Roblox windows."
+    },
+    "grid_layout": {
+        "type": "info",
+        "text": "Chooses how arranged Roblox windows are distributed across the target display."
+    },
+    "layout_columns": {
+        "type": "info",
+        "text": "Sets the number of columns used by the fixed or custom grid layout."
+    },
+    "layout_rows": {
+        "type": "info",
+        "text": "Sets the number of rows used by the fixed or custom grid layout."
+    },
+    "layout_dimensions": {
+        "type": "info",
+        "text": "Sets the columns and rows used by a custom grid layout."
+    },
+    "window_padding": {
+        "type": "info",
+        "text": "Sets the gap, in pixels, between tiled Roblox windows and the display edges."
+    },
+    "rename_windows": {
+        "type": "caution",
+        "text": "Changes Roblox window titles to include the account alias, making tiled clients easier to identify."
+    },
+    "launch_delay": {
+        "type": "warning",
+        "text": "Adds a minimum pause between account launches to reduce Roblox rate limiting."
+    },
+    "privacy_mode": {
+        "type": "info",
+        "text": "Clears RobloxCookies.dat before launching to reduce account association through stored browser cookies."
+    },
+    "anonymize_names": {
+        "type": "info",
+        "text": "Replaces account names with generic labels in the app and window titles."
+    },
+    "utility_enabled": {
+        "type": "info",
+        "text": "Shows the Utility tab. The Utility tab is reserved for future tools."
+    },
+    "developer_options": {
+        "type": "warning",
+        "text": "Shows the Assets tab. Uploading creates permanent, publicly moderated Roblox assets."
+    },
+    "data_folder": {
+        "type": "info",
+        "text": "Opens the Windows AppData folder where RM stores accounts, settings, logs, presets, and asset data."
+    },
+    "roblox_player_path": {
+        "type": "info",
+        "text": "The RobloxPlayerBeta.exe file to launch directly. Leave empty to detect the installed player automatically."
+    },
+    "encryption_password": {
+        "type": "caution",
+        "text": "A master password protects the account store and is required each time RM starts. Without it, the accounts cannot be recovered."
+    }
 }

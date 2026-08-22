@@ -2102,6 +2102,9 @@ impl eframe::App for AppState {
                         "🧰 Utility",
                     );
                 }
+                if self.config.developer_options {
+                    ui.selectable_value(&mut self.active_tab, Tab::AssetManager, "📦 Assets");
+                }
                 ui.selectable_value(&mut self.active_tab, Tab::Settings, "⚙ Settings");
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -3126,28 +3129,27 @@ impl AppState {
     }
 
     fn show_utility_tab(&mut self, ctx: &egui::Context) {
-        if self.utility_warning_visible {
-            egui::TopBottomPanel::top("utility_hyperion_warning").show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.colored_label(
-                        egui::Color32::from_rgb(245, 200, 65),
-                        "Warning: Hyperion may detect multi-instance and window-management behavior.",
-                    );
-                    if ui.button("Close").clicked() {
-                        self.utility_warning_visible = false;
-                    }
-                });
-            });
-        }
-
-        if self.config.developer_options {
-            self.show_asset_manager_tab(ctx);
-        } else {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                ui.heading("Utility");
-                ui.label("Enable the Assets tab in Settings to use Roblox asset tools.");
-            });
-        }
+        egui::CentralPanel::default().show(ctx, |ui| {
+            if self.utility_warning_visible {
+                let warning = egui::Color32::from_rgb(245, 200, 65);
+                egui::Frame::default()
+                    .fill(warning.gamma_multiply(0.22))
+                    .stroke(egui::Stroke::new(1.0_f32, warning))
+                    .rounding(egui::Rounding::same(4.0))
+                    .inner_margin(egui::Margin::same(10.0))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.colored_label(
+                                warning,
+                                "Warning: Hyperion may detect multi-instance and window-management behavior.",
+                            );
+                            if ui.button("Close").clicked() {
+                                self.utility_warning_visible = false;
+                            }
+                        });
+                    });
+            }
+        });
     }
 
     // ------------------------------------------------------------------
