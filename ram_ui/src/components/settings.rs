@@ -2,8 +2,13 @@
 
 use eframe::egui;
 use ram_core::models::AppConfig;
+use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use crate::theme::ThemeUi;
+
+const INFO_WHITE_PNG: &[u8] = include_bytes!("../../../assets/info_white.png");
+const INFO_BLACK_PNG: &[u8] = include_bytes!("../../../assets/info_black.png");
 
 /// Actions the settings panel can emit.
 #[allow(dead_code)]
@@ -21,6 +26,53 @@ pub enum SettingsAction {
 pub struct SettingsState {
     pub new_password_input: String,
     pub confirm_password_input: String,
+}
+
+fn info_cards() -> &'static HashMap<String, String> {
+    static CARDS: OnceLock<HashMap<String, String>> = OnceLock::new();
+    CARDS.get_or_init(|| {
+        serde_json::from_str(include_str!("../../../infocards.json")).unwrap_or_default()
+    })
+}
+
+fn setting_info(ui: &mut egui::Ui, reference_id: &str) {
+    let Some(text) = info_cards().get(reference_id) else {
+        return;
+    };
+    let icon_bytes = if ui.visuals().dark_mode {
+        INFO_WHITE_PNG
+    } else {
+        INFO_BLACK_PNG
+    };
+    let icon_name = if ui.visuals().dark_mode {
+        "info_white"
+    } else {
+        "info_black"
+    };
+    let response = ui.add(
+        egui::Image::from_bytes(
+            format!("bytes://settings/{icon_name}.png"),
+            icon_bytes.to_vec(),
+        )
+        .fit_to_exact_size(egui::vec2(16.0, 16.0))
+        .sense(egui::Sense::hover()),
+    );
+    response.on_hover_text(text);
+}
+
+fn setting_row<R>(
+    ui: &mut egui::Ui,
+    reference_id: &str,
+    add_setting: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    ui.horizontal(|ui| {
+        let result = add_setting(ui);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            setting_info(ui, reference_id);
+        });
+        result
+    })
+    .inner
 }
 
 /// Draw the settings UI. Returns `Some(SettingsAction)` when an action is triggered.
@@ -50,10 +102,12 @@ pub fn show(
         ui.set_min_width(ui.available_width());
         ui.strong("Storage");
         ui.add_space(4.0);
-        ui.checkbox(
-            &mut config.use_credential_manager,
-            "Use Windows Credential Manager (instead of encrypted file)",
-        );
+        setting_row(ui, "credential_manager", |ui| {
+            ui.checkbox(
+                &mut config.use_credential_manager,
+                "Use Windows Credential Manager (instead of encrypted file)",
+            );
+        });
     });
     ui.add_space(6.0);
 
@@ -64,10 +118,9 @@ pub fn show(
         ui.add_space(4.0);
 
         let mut wants_multi = config.multi_instance_enabled;
-        let toggled = ui.checkbox(
-            &mut wants_multi,
-            "Enable multi-instance",
-        ).changed();
+        let toggled = setting_row(ui, "multi_instance", |ui| {
+            ui.checkbox(&mut wants_multi, "Enable multi-instance").changed()
+        });
         if toggled {
             if wants_multi {
                 action = Some(SettingsAction::EnableMultiInstance);
@@ -89,10 +142,12 @@ pub fn show(
         }
 
         ui.add_space(4.0);
-        ui.checkbox(
-            &mut config.kill_background_roblox,
-            "Kill Roblox tray/background processes automatically",
-        ).on_hover_text("Kills idle \"always running\" Roblox processes (--launch-to-tray).");
+        setting_row(ui, "kill_background_roblox", |ui| {
+            ui.checkbox(
+                &mut config.kill_background_roblox,
+                "Kill Roblox tray/background processes automatically",
+            );
+        });
         if config.multi_instance_enabled && !config.kill_background_roblox {
             ui.colored_label(
                 theme.warning,
@@ -101,10 +156,12 @@ pub fn show(
         }
 
         ui.add_space(4.0);
-        ui.checkbox(
-            &mut config.auto_arrange_windows,
-            "Auto-arrange Roblox windows after launch",
-        ).on_hover_text("Tiles Roblox windows in a grid across selected monitor(s).");
+        setting_row(ui, "auto_arrange_windows", |ui| {
+            ui.checkbox(
+                &mut config.auto_arrange_windows,
+                "Auto-arrange Roblox windows after launch",
+            );
+        });
 
         // Multi-monitor and custom layout configuration
         let monitors = ram_core::process::enumerate_monitors();
@@ -113,9 +170,10 @@ pub fn show(
             ui.add_space(2.0);
 
             // 1. Target monitor selection
-            ui.horizontal(|ui| {
-                ui.label("Target Display:");
-                let current_label = match &config.tiling_target_monitor {
+            setting_row(ui, "target_display", |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Target Display:");
+                    let current_label = match &config.tiling_target_monitor {
                     ram_core::models::MonitorTarget::Primary => "Primary Monitor".to_string(),
                     ram_core::models::MonitorTarget::All => "All Monitors (Distribute / Span)".to_string(),
                     ram_core::models::MonitorTarget::Index(i) => {
@@ -124,11 +182,11 @@ pub fn show(
                             .map(|m| m.name.clone())
                             .unwrap_or_else(|| format!("Monitor {}", i + 1))
                     }
-                };
+                    };
 
-                egui::ComboBox::from_id_salt("tiling_target_monitor_combo")
-                    .selected_text(current_label)
-                    .show_ui(ui, |ui| {
+                    egui::ComboBox::from_id_salt("tiling_target_monitor_combo")
+                        .selected_text(current_label)
+                        .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut config.tiling_target_monitor,
                             ram_core::models::MonitorTarget::Primary,
@@ -148,15 +206,17 @@ pub fn show(
                                 &mon.name,
                             );
                         }
+                        });
                     });
             });
 
             ui.add_space(2.0);
 
             // 2. Layout mode selection
-            ui.horizontal(|ui| {
-                ui.label("Grid Layout:");
-                let current_layout_label = match &config.tiling_layout_mode {
+            setting_row(ui, "grid_layout", |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Grid Layout:");
+                    let current_layout_label = match &config.tiling_layout_mode {
                     ram_core::models::TilingLayoutMode::Auto => "Auto Grid (Square-like)",
                     ram_core::models::TilingLayoutMode::FixedColumns(_) => "Fixed Columns",
                     ram_core::models::TilingLayoutMode::FixedRows(_) => "Fixed Rows",
@@ -165,11 +225,11 @@ pub fn show(
                     }
                     ram_core::models::TilingLayoutMode::SideBySide => "Side-by-Side (1 Row)",
                     ram_core::models::TilingLayoutMode::Stacked => "Stacked (1 Column)",
-                };
+                    };
 
-                egui::ComboBox::from_id_salt("tiling_layout_mode_combo")
-                    .selected_text(current_layout_label)
-                    .show_ui(ui, |ui| {
+                    egui::ComboBox::from_id_salt("tiling_layout_mode_combo")
+                        .selected_text(current_layout_label)
+                        .show_ui(ui, |ui| {
                         if ui
                             .selectable_label(
                                 matches!(
@@ -253,81 +313,90 @@ pub fn show(
                         {
                             config.tiling_layout_mode = ram_core::models::TilingLayoutMode::Stacked;
                         }
+                        });
                     });
             });
 
             // Dynamic layout parameters
             match &mut config.tiling_layout_mode {
                 ram_core::models::TilingLayoutMode::FixedColumns(cols) => {
-                    ui.horizontal(|ui| {
-                        ui.label("Columns:");
-                        let mut c = *cols as i32;
-                        if ui
-                            .add(egui::DragValue::new(&mut c).range(1..=12).speed(0.1))
-                            .changed()
-                        {
-                            let val = c.clamp(1, 12) as u32;
-                            *cols = val;
-                            config.tiling_custom_cols = val;
-                        }
+                    setting_row(ui, "layout_dimensions", |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Columns:");
+                            let mut c = *cols as i32;
+                            if ui
+                                .add(egui::DragValue::new(&mut c).range(1..=12).speed(0.1))
+                                .changed()
+                            {
+                                let val = c.clamp(1, 12) as u32;
+                                *cols = val;
+                                config.tiling_custom_cols = val;
+                            }
+                        });
                     });
                 }
                 ram_core::models::TilingLayoutMode::FixedRows(rows) => {
-                    ui.horizontal(|ui| {
-                        ui.label("Rows:");
-                        let mut r = *rows as i32;
-                        if ui
-                            .add(egui::DragValue::new(&mut r).range(1..=12).speed(0.1))
-                            .changed()
-                        {
-                            let val = r.clamp(1, 12) as u32;
-                            *rows = val;
-                            config.tiling_custom_rows = val;
-                        }
+                    setting_row(ui, "layout_rows", |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Rows:");
+                            let mut r = *rows as i32;
+                            if ui
+                                .add(egui::DragValue::new(&mut r).range(1..=12).speed(0.1))
+                                .changed()
+                            {
+                                let val = r.clamp(1, 12) as u32;
+                                *rows = val;
+                                config.tiling_custom_rows = val;
+                            }
+                        });
                     });
                 }
                 ram_core::models::TilingLayoutMode::CustomGrid { cols, rows } => {
-                    ui.horizontal(|ui| {
-                        ui.label("Columns:");
-                        let mut c = *cols as i32;
-                        if ui
-                            .add(egui::DragValue::new(&mut c).range(1..=12).speed(0.1))
-                            .changed()
-                        {
-                            let val = c.clamp(1, 12) as u32;
-                            *cols = val;
-                            config.tiling_custom_cols = val;
-                        }
-                        ui.label("Rows:");
-                        let mut r = *rows as i32;
-                        if ui
-                            .add(egui::DragValue::new(&mut r).range(1..=12).speed(0.1))
-                            .changed()
-                        {
-                            let val = r.clamp(1, 12) as u32;
-                            *rows = val;
-                            config.tiling_custom_rows = val;
-                        }
+                    setting_row(ui, "layout_columns", |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Columns:");
+                            let mut c = *cols as i32;
+                            if ui
+                                .add(egui::DragValue::new(&mut c).range(1..=12).speed(0.1))
+                                .changed()
+                            {
+                                let val = c.clamp(1, 12) as u32;
+                                *cols = val;
+                                config.tiling_custom_cols = val;
+                            }
+                            ui.label("Rows:");
+                            let mut r = *rows as i32;
+                            if ui
+                                .add(egui::DragValue::new(&mut r).range(1..=12).speed(0.1))
+                                .changed()
+                            {
+                                let val = r.clamp(1, 12) as u32;
+                                *rows = val;
+                                config.tiling_custom_rows = val;
+                            }
+                        });
                     });
                 }
                 _ => {}
             }
 
             ui.add_space(2.0);
-            ui.horizontal(|ui| {
-                ui.label("Window Padding:");
-                let mut pad = config.tiling_padding as i32;
-                if ui
-                    .add(
-                        egui::DragValue::new(&mut pad)
-                            .range(0..=50)
-                            .suffix(" px")
-                            .speed(0.2),
-                    )
-                    .changed()
-                {
-                    config.tiling_padding = pad.clamp(0, 50) as u32;
-                }
+            setting_row(ui, "window_padding", |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Window Padding:");
+                    let mut pad = config.tiling_padding as i32;
+                    if ui
+                        .add(
+                            egui::DragValue::new(&mut pad)
+                                .range(0..=50)
+                                .suffix(" px")
+                                .speed(0.2),
+                        )
+                        .changed()
+                    {
+                        config.tiling_padding = pad.clamp(0, 50) as u32;
+                    }
+                });
             });
 
             ui.add_space(6.0);
@@ -341,16 +410,12 @@ pub fn show(
         });
 
         ui.add_space(4.0);
-        ui.checkbox(
-            &mut config.rename_roblox_windows,
-            "Name Roblox windows after their account",
-        ).on_hover_text(
-            "Renames each launched Roblox window to the account's alias, so tiled \
-             windows are tellable apart.\n\nOff by default. This writes to the Roblox \
-             window rather than just reading it, and how Hyperion treats that is not \
-             documented. It also changes what capture software matching on window \
-             title will find.",
-        );
+        setting_row(ui, "rename_windows", |ui| {
+            ui.checkbox(
+                &mut config.rename_roblox_windows,
+                "Name Roblox windows after their account",
+            );
+        });
         if config.rename_roblox_windows && !config.anonymize_names {
             ui.colored_label(
                 theme.text_muted,
@@ -359,24 +424,23 @@ pub fn show(
         }
 
         ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            ui.label("Launch delay:");
-            let mut secs = config.launch_delay_secs as i32;
-            ui.add(
-                egui::DragValue::new(&mut secs)
-                    .range(0..=300)
-                    .speed(0.2)
-                    .suffix(" s"),
-            )
-            .on_hover_text(
-                "Minimum gap between account launches. Applies to single and bulk launches. 0 disables throttling.",
-            );
-            config.launch_delay_secs = secs.max(0) as u32;
-            ui.label(
-                egui::RichText::new("(Roblox rate-limits some IPs)")
-                    .small()
-                    .color(ui.visuals().weak_text_color()),
-            );
+        setting_row(ui, "launch_delay", |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Launch delay:");
+                let mut secs = config.launch_delay_secs as i32;
+                ui.add(
+                    egui::DragValue::new(&mut secs)
+                        .range(0..=300)
+                        .speed(0.2)
+                        .suffix(" s"),
+                );
+                config.launch_delay_secs = secs.max(0) as u32;
+                ui.label(
+                    egui::RichText::new("(Roblox rate-limits some IPs)")
+                        .small()
+                        .color(ui.visuals().weak_text_color()),
+                );
+            });
         });
     });
     ui.add_space(6.0);
@@ -386,14 +450,15 @@ pub fn show(
         ui.set_min_width(ui.available_width());
         ui.strong("Privacy");
         ui.add_space(4.0);
-        ui.checkbox(
-            &mut config.privacy_mode,
-            "Clear RobloxCookies.dat before each launch",
-        ).on_hover_text("Prevents Roblox from associating your accounts via stored cookies.");
-        ui.checkbox(
-            &mut config.anonymize_names,
-            "Anonymize account names",
-        ).on_hover_text("Replaces usernames and display names with generic \"Account 1\", \"Account 2\", etc.");
+        setting_row(ui, "privacy_mode", |ui| {
+            ui.checkbox(
+                &mut config.privacy_mode,
+                "Clear RobloxCookies.dat before each launch",
+            );
+        });
+        setting_row(ui, "anonymize_names", |ui| {
+            ui.checkbox(&mut config.anonymize_names, "Anonymize account names");
+        });
     });
     ui.add_space(6.0);
 
@@ -402,12 +467,9 @@ pub fn show(
         ui.set_min_width(ui.available_width());
         ui.strong("Developer Options");
         ui.add_space(4.0);
-        ui.checkbox(
-            &mut config.developer_options,
-            "Show the Asset Manager tab",
-        ).on_hover_text(
-            "Upload assets to Roblox from any saved account, track moderation, and grant experiences permission to use them.",
-        );
+        setting_row(ui, "developer_options", |ui| {
+            ui.checkbox(&mut config.developer_options, "Show the Asset Manager tab");
+        });
         if config.developer_options {
             ui.colored_label(
                 theme.warning,
@@ -420,7 +482,12 @@ pub fn show(
     // ---- Roblox path override ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
         ui.set_min_width(ui.available_width());
-        ui.strong("Roblox Player Path");
+        ui.horizontal(|ui| {
+            ui.strong("Roblox Player Path");
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                setting_info(ui, "roblox_player_path");
+            });
+        });
         ui.add_space(4.0);
         ui.label("Leave empty for auto-detect:");
         let mut path_str = config
@@ -478,10 +545,15 @@ pub fn show(
         }
 
         ui.add_space(10.0);
-        ui.label(if has_password {
-            "Change your master password:"
-        } else {
-            "Require a master password at startup:"
+        ui.horizontal(|ui| {
+            ui.label(if has_password {
+                "Change your master password:"
+            } else {
+                "Require a master password at startup:"
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                setting_info(ui, "encryption_password");
+            });
         });
         ui.add_space(4.0);
 
