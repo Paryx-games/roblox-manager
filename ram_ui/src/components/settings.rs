@@ -502,8 +502,11 @@ pub fn show(
         ui.set_min_width(ui.available_width());
         ui.strong("Developer Options");
         ui.add_space(4.0);
+        setting_row(ui, "utility_enabled", |ui| {
+            ui.checkbox(&mut config.utility_enabled, "Show the Utility tab");
+        });
         setting_row(ui, "developer_options", |ui| {
-            ui.checkbox(&mut config.developer_options, "Show the Asset Manager tab");
+            ui.checkbox(&mut config.developer_options, "Show the Assets tab in Utility");
         });
         if config.developer_options {
             ui.colored_label(

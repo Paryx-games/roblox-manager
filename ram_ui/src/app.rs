@@ -147,7 +147,10 @@ enum Tab {
     Groups,
     PrivateServers,
     Presets,
-    /// Only reachable while `config.developer_options` is on.
+    /// Only reachable while `config.utility_enabled` is on.
+    Utility,
+    /// Only reachable while `config.utility_enabled` and
+    /// `config.developer_options` are on.
     AssetManager,
     Settings,
 }
@@ -260,6 +263,7 @@ pub struct AppState {
     asset_manager_state: asset_manager::AssetManagerState,
     groups_state: groups_panel::GroupsPanelState,
     settings_state: settings::SettingsState,
+    utility_warning_visible: bool,
     add_dialog: AddAccountDialog,
 
     /// Cached preset list (loaded from disk on startup + after each edit).
@@ -490,6 +494,7 @@ impl AppState {
             asset_manager_state: asset_manager::AssetManagerState::default(),
             groups_state: groups_panel::GroupsPanelState::default(),
             settings_state: settings::SettingsState::default(),
+            utility_warning_visible: true,
             add_dialog: AddAccountDialog::default(),
             presets: Vec::new(),
             presets_dir: ram_core::presets::presets_dir(&crate::data_dir()),
@@ -2070,8 +2075,13 @@ impl eframe::App for AppState {
 
         // Turning Developer options off must not strand the user on a tab that
         // is no longer in the bar.
-        if !self.config.developer_options && self.active_tab == Tab::AssetManager {
+        if !self.config.utility_enabled
+            && matches!(self.active_tab, Tab::Utility | Tab::AssetManager)
+        {
             self.active_tab = Tab::Accounts;
+        }
+        if !self.config.developer_options && self.active_tab == Tab::AssetManager {
+            self.active_tab = Tab::Utility;
         }
 
         // ---- Top bar ----
@@ -2085,11 +2095,11 @@ impl eframe::App for AppState {
                 ui.selectable_value(&mut self.active_tab, Tab::Groups, "👥 Groups");
                 ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "🔒 Servers");
                 ui.selectable_value(&mut self.active_tab, Tab::Presets, "⭐ Presets");
-                if self.config.developer_options {
+                if self.config.utility_enabled {
                     ui.selectable_value(
                         &mut self.active_tab,
-                        Tab::AssetManager,
-                        "\u{1f4e6} Asset",
+                        Tab::Utility,
+                        "🧰 Utility",
                     );
                 }
                 ui.selectable_value(&mut self.active_tab, Tab::Settings, "⚙ Settings");
@@ -2148,6 +2158,7 @@ impl eframe::App for AppState {
             Tab::Groups => self.show_groups_tab(ctx),
             Tab::PrivateServers => self.show_private_servers_tab(ctx),
             Tab::Presets => self.show_presets_tab(ctx),
+            Tab::Utility => self.show_utility_tab(ctx),
             Tab::AssetManager => self.show_asset_manager_tab(ctx),
             Tab::Settings => self.show_settings_tab(ctx),
         }
@@ -3111,6 +3122,31 @@ impl AppState {
                     .arg(&self.presets_dir)
                     .spawn();
             }
+        }
+    }
+
+    fn show_utility_tab(&mut self, ctx: &egui::Context) {
+        if self.utility_warning_visible {
+            egui::TopBottomPanel::top("utility_hyperion_warning").show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(245, 200, 65),
+                        "Warning: Hyperion may detect multi-instance and window-management behavior.",
+                    );
+                    if ui.button("Close").clicked() {
+                        self.utility_warning_visible = false;
+                    }
+                });
+            });
+        }
+
+        if self.config.developer_options {
+            self.show_asset_manager_tab(ctx);
+        } else {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.heading("Utility");
+                ui.label("Enable the Assets tab in Settings to use Roblox asset tools.");
+            });
         }
     }
 
