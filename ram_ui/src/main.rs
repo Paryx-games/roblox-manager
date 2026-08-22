@@ -1,7 +1,7 @@
 // The release binary is a GUI app with no console. Under `cargo test` the same
 // attribute would detach the test harness from its console and swallow every
 // result, so it is applied only to non-test builds.
-#![cfg_attr(not(test), windows_subsystem = "windows")]
+#![cfg_attr(all(not(test), not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
 mod bridge;
@@ -258,19 +258,27 @@ fn main() {
     let data_dir = data_dir();
     let _ = std::fs::create_dir_all(&data_dir);
 
-    // Log to a file so crashes are visible even without a console
-    // (the #[windows_subsystem = "windows"] attribute suppresses stderr).
-    let subscriber = tracing_subscriber::fmt().with_env_filter(
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-    );
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let subscriber = tracing_subscriber::fmt().with_env_filter(filter);
 
-    match log_appender(&data_dir) {
-        Some(appender) => subscriber.with_writer(Scrubbed(appender)).init(),
-        // No writable log directory. stderr goes nowhere under
-        // `windows_subsystem = "windows"`, so this run is effectively silent,
-        // but the app must still start.
-        None => subscriber.init(),
+    // Debug builds keep a console attached so `cargo run` shows the same
+    // startup and runtime diagnostics that are written to the release log.
+    if cfg!(debug_assertions) {
+        subscriber.with_writer(std::io::stderr).init();
+    } else {
+        // Release builds have no console, so write to the rotating log file.
+        match log_appender(&data_dir) {
+            Some(appender) => subscriber.with_writer(Scrubbed(appender)).init(),
+            None => subscriber.init(),
+        }
     }
+
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        profile = if cfg!(debug_assertions) { "debug" } else { "release" },
+        data_dir = %data_dir.display(),
+        "RM started"
+    );
 
     // Install a panic hook that flushes the message to the log before dying.
     // Nothing extra is needed to make that flush happen: the appender writes
