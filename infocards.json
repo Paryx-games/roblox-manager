@@ -16,6 +16,7 @@
     "anonymize_names": { "type": "info", "text": "Replaces account names with generic labels in the app and window titles." },
     "utility_enabled": { "type": "info", "text": "Shows the Utility tab, which contains optional tools such as Assets." },
     "developer_options": { "type": "warning", "text": "Shows the Assets tab inside Utility. Uploading creates permanent, publicly moderated Roblox assets." },
+    "data_folder": { "type": "info", "text": "Opens the Windows AppData folder where RM stores accounts, settings, logs, presets, and asset data." },
     "roblox_player_path": { "type": "info", "text": "The RobloxPlayerBeta.exe file to launch directly. Leave empty to detect the installed player automatically." },
     "encryption_password": { "type": "caution", "text": "A master password protects the account store and is required each time RM starts. Without it, the accounts cannot be recovered." }
 }

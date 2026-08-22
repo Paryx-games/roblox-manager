@@ -21,6 +21,7 @@ pub enum SettingsAction {
     EnableMultiInstance,
     DisableMultiInstance,
     TileWindowsNow,
+    OpenDataFolder,
 }
 
 /// Persistent state for the settings panel password change UI.
@@ -514,6 +515,12 @@ pub fn show(
                 "\u{26a0} Uploads are permanent and public. Every asset is moderated under the account that uploaded it.",
             );
         }
+        ui.add_space(6.0);
+        setting_row(ui, "data_folder", |ui| {
+            if ui.button("Open RM data folder").clicked() {
+                action = Some(SettingsAction::OpenDataFolder);
+            }
+        });
     });
     ui.add_space(6.0);
 

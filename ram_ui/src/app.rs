@@ -4311,6 +4311,16 @@ impl AppState {
                     });
                     self.toasts.push(Toast::info("Tiling windows..."));
                 }
+                Some(settings::SettingsAction::OpenDataFolder) => {
+                    let data_dir = crate::data_dir();
+                    let result = std::process::Command::new("explorer")
+                        .arg(&data_dir)
+                        .spawn();
+                    if let Err(e) = result {
+                        self.toasts
+                            .push(Toast::error(format!("Could not open RM data folder: {e}")));
+                    }
+                }
                 None => {}
             }
             if action.is_some() || changed {
