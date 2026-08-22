@@ -71,7 +71,7 @@ fn setting_info(ui: &mut egui::Ui, reference_id: &str) {
         ),
     };
     let response = egui::Frame::default()
-        .inner_margin(egui::Margin::same(2.0))
+        .inner_margin(egui::Margin::same(10.0))
         .show(ui, |ui| {
             ui.add(
                 egui::Image::from_bytes(
