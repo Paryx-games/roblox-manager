@@ -2,12 +2,14 @@
 
 use eframe::egui;
 use ram_core::models::AppConfig;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use crate::theme::ThemeUi;
 
 const INFO_WHITE_PNG: &[u8] = include_bytes!("../../../assets/info_white.png");
+#[allow(dead_code)]
 const INFO_BLACK_PNG: &[u8] = include_bytes!("../../../assets/info_black.png");
 
 /// Actions the settings panel can emit.
@@ -28,26 +30,44 @@ pub struct SettingsState {
     pub confirm_password_input: String,
 }
 
-fn info_cards() -> &'static HashMap<String, String> {
-    static CARDS: OnceLock<HashMap<String, String>> = OnceLock::new();
+#[derive(Deserialize)]
+struct InfoCard {
+    #[serde(rename = "type")]
+    kind: InfoCardType,
+    text: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum InfoCardType {
+    Info,
+    Warning,
+    Caution,
+}
+
+fn info_cards() -> &'static HashMap<String, InfoCard> {
+    static CARDS: OnceLock<HashMap<String, InfoCard>> = OnceLock::new();
     CARDS.get_or_init(|| {
         serde_json::from_str(include_str!("../../../infocards.json")).unwrap_or_default()
     })
 }
 
 fn setting_info(ui: &mut egui::Ui, reference_id: &str) {
-    let Some(text) = info_cards().get(reference_id) else {
+    let Some(card) = info_cards().get(reference_id) else {
         return;
     };
-    let icon_bytes = if ui.visuals().dark_mode {
-        INFO_WHITE_PNG
-    } else {
-        INFO_BLACK_PNG
-    };
-    let icon_name = if ui.visuals().dark_mode {
-        "info_white"
-    } else {
-        "info_black"
+    let (icon_bytes, icon_name, color) = match card.kind {
+        InfoCardType::Info => (INFO_WHITE_PNG, "info_white", egui::Color32::from_gray(180)),
+        InfoCardType::Warning => (
+            INFO_WHITE_PNG,
+            "info_white",
+            egui::Color32::from_rgb(235, 190, 65),
+        ),
+        InfoCardType::Caution => (
+            INFO_WHITE_PNG,
+            "info_white",
+            egui::Color32::from_rgb(220, 85, 85),
+        ),
     };
     let response = egui::Frame::default()
         .inner_margin(egui::Margin::same(2.0))
@@ -58,12 +78,21 @@ fn setting_info(ui: &mut egui::Ui, reference_id: &str) {
                     icon_bytes.to_vec(),
                 )
                 .fit_to_exact_size(egui::vec2(16.0, 16.0))
-                .tint(egui::Color32::from_white_alpha(190))
+                .tint(color)
                 .sense(egui::Sense::hover()),
             )
         })
         .inner;
-    response.on_hover_text(text);
+    response.on_hover_ui(|ui| {
+        let surface = color.gamma_multiply(0.22);
+        egui::Frame::default()
+            .fill(surface)
+            .rounding(egui::Rounding::same(4.0))
+            .inner_margin(egui::Margin::same(8.0))
+            .show(ui, |ui| {
+                ui.colored_label(color, &card.text);
+            });
+    });
 }
 
 fn setting_row<R>(
