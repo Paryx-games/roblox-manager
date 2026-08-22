@@ -1,4 +1,6 @@
-# RM - Roblox Manager
+<p align="center">
+  <img src="assets/branding/LogoThumb.png" alt="thumbnail-large" width="650">
+</p>
 
 > [!NOTE]
 > This repository is a fork of [gitlab.com/centerepic/robloxmanager](https://gitlab.com/centerepic/robloxmanager).
@@ -56,7 +58,6 @@ RUST_LOG=debug cargo run
 
 > [!TIP]
 > If you are developing RM, `cargo check` is the quickest way to catch compilation errors without producing a release build.
-
 > [!IMPORTANT]
 > If you are planning to contribute, please read [the commit guide](CONVENTIONAL_COMMITS.md) and follow that structure. Your merge will be denied otherwise.
 
@@ -73,8 +74,8 @@ RUST_LOG=debug cargo run
 
 ## Credits
 
-* [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of mentioned RobloxAccountManager, forked by me
-* [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by ic3w0lf22 - The original Roblox Account Manager that served as the primary reference for this project
+- [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of mentioned RobloxAccountManager, forked by me
+- [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by ic3w0lf22 - The original Roblox Account Manager that served as the primary reference for this project
 
 ## Background
 
