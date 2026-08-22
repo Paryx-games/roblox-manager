@@ -49,14 +49,20 @@ fn setting_info(ui: &mut egui::Ui, reference_id: &str) {
     } else {
         "info_black"
     };
-    let response = ui.add(
-        egui::Image::from_bytes(
-            format!("bytes://settings/{icon_name}.png"),
-            icon_bytes.to_vec(),
-        )
-        .fit_to_exact_size(egui::vec2(16.0, 16.0))
-        .sense(egui::Sense::hover()),
-    );
+    let response = egui::Frame::default()
+        .inner_margin(egui::Margin::same(2.0))
+        .show(ui, |ui| {
+            ui.add(
+                egui::Image::from_bytes(
+                    format!("bytes://settings/{icon_name}.png"),
+                    icon_bytes.to_vec(),
+                )
+                .fit_to_exact_size(egui::vec2(16.0, 16.0))
+                .tint(egui::Color32::from_white_alpha(190))
+                .sense(egui::Sense::hover()),
+            )
+        })
+        .inner;
     response.on_hover_text(text);
 }
 

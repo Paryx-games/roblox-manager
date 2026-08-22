@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.12.1
+
+### Changed
+- **Info card icons softened.** Settings information icons are now slightly grayer and have a small amount of padding for a quieter visual footprint.
+
 ## v1.12.0
 
 ### Added
