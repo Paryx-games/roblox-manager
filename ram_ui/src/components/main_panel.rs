@@ -395,7 +395,7 @@ pub fn show(
                         .rounding(egui::Rounding::same(4.0))
                         .fill(ui.visuals().faint_bg_color)
                         .stroke(egui::Stroke::new(
-                            1.0,
+                            1.0_f32,
                             ui.visuals().widgets.noninteractive.bg_stroke.color,
                         ))
                         .show(ui, |ui: &mut egui::Ui| {
@@ -709,7 +709,7 @@ fn draw_presence_chip(ui: &mut egui::Ui, presence: &ram_core::models::Presence) 
     };
     egui::Frame::default()
         .fill(color.linear_multiply(0.18))
-        .stroke(egui::Stroke::new(1.0, color.linear_multiply(0.55)))
+        .stroke(egui::Stroke::new(1.0_f32, color.linear_multiply(0.55)))
         .rounding(egui::Rounding::same(10.0))
         .inner_margin(egui::Margin::symmetric(8.0, 2.0))
         .show(ui, |ui| {

@@ -476,7 +476,7 @@ pub fn show(
                     // Outer frame for the whole group
                     egui::Frame::none()
                         .fill(bg_color)
-                        .stroke(egui::Stroke::new(1.0, group_color.gamma_multiply(0.4)))
+                        .stroke(egui::Stroke::new(1.0_f32, group_color.gamma_multiply(0.4)))
                         .rounding(egui::Rounding::same(4.0))
                         .inner_margin(egui::Margin::same(2.0))
                         .outer_margin(egui::Margin {
@@ -525,7 +525,7 @@ pub fn show(
                                         ui.painter().rect_stroke(
                                             rect.expand(2.0),
                                             4.0,
-                                            egui::Stroke::new(2.0, group_color),
+                                            egui::Stroke::new(2.0_f32, group_color),
                                         );
                                         let already_in = accounts
                                             .iter()
@@ -554,7 +554,7 @@ pub fn show(
                                         ui.painter().hline(
                                             rect.x_range(),
                                             line_y,
-                                            egui::Stroke::new(2.0, ui.theme().drop_reorder),
+                                            egui::Stroke::new(2.0_f32, ui.theme().drop_reorder),
                                         );
                                     }
                                     _ => {}
@@ -818,7 +818,7 @@ fn render_account_row(
                     ui.painter().hline(
                         rect.x_range(),
                         line_y,
-                        egui::Stroke::new(2.0, theme.drop_reorder),
+                        egui::Stroke::new(2.0_f32, theme.drop_reorder),
                     );
                 } else {
                     // Different groups / assign-to-group drop. Green reads as
@@ -830,7 +830,7 @@ fn render_account_row(
                     };
                     ui.painter().rect_filled(rect, 2.0, highlight_color);
                     ui.painter()
-                        .rect_stroke(rect, 2.0, egui::Stroke::new(1.5, theme.success_text));
+                        .rect_stroke(rect, 2.0, egui::Stroke::new(1.5_f32, theme.success_text));
                 }
             }
         }
@@ -1226,7 +1226,7 @@ fn show_group_editor(
                             ui.painter().rect_stroke(
                                 rect,
                                 4.0,
-                                egui::Stroke::new(2.0, ui.theme().on_accent),
+                                egui::Stroke::new(2.0_f32, ui.theme().on_accent),
                             );
                         }
                         if resp.clicked() {

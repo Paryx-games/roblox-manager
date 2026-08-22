@@ -196,9 +196,9 @@ impl Theme {
         // Default dark-theme widgets render with no border and a background
         // indistinguishable from `extreme_bg_color`, which made TextEdits
         // invisible next to their labels.
-        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, self.widget_border);
-        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, self.widget_border_hover);
-        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, self.accent_border);
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0_f32, self.widget_border);
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0_f32, self.widget_border_hover);
+        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0_f32, self.accent_border);
         // Slight rounding on inputs/buttons to soften those borders.
         visuals.widgets.inactive.rounding = egui::Rounding::same(3.0);
         visuals.widgets.hovered.rounding = egui::Rounding::same(3.0);

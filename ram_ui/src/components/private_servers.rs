@@ -242,7 +242,7 @@ pub fn show(
                             .rounding(egui::Rounding::same(6.0))
                             .fill(ui.visuals().faint_bg_color)
                             .stroke(egui::Stroke::new(
-                                0.5,
+                                0.5_f32,
                                 ui.visuals().widgets.noninteractive.bg_stroke.color,
                             ))
                             .show(ui, |ui: &mut egui::Ui| {

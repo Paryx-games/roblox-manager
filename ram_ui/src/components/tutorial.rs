@@ -190,7 +190,7 @@ pub fn show_overlay(ctx: &egui::Context, state: &mut TutorialState) {
         painter.rect_stroke(
             padded,
             egui::Rounding::same(6.0),
-            egui::Stroke::new(2.5, color),
+            egui::Stroke::new(2.5_f32, color),
         );
         // Request repaint so the animation keeps running
         ctx.request_repaint();

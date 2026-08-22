@@ -5037,7 +5037,7 @@ impl AppState {
                             .rounding(egui::Rounding::same(4.0))
                             .fill(ui.visuals().faint_bg_color)
                             .stroke(egui::Stroke::new(
-                                1.0,
+                                1.0_f32,
                                 ui.visuals().widgets.noninteractive.bg_stroke.color,
                             ))
                             .show(ui, |ui: &mut egui::Ui| {
