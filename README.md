@@ -48,11 +48,17 @@ The compiled binary will be at `target/release/ram_ui.exe`.
 
 ### Development
 
-```bash
+```powershell
 # Check for errors without building
 cargo check
 
-# Run with debug logging
+# Run with debug logging (powershell, see below for bash)
+$env:RUST_LOG="debug"; cargo run
+```
+
+Using bash / WSL / Git Bash:
+
+```bash
 RUST_LOG=debug cargo run
 ```
 
