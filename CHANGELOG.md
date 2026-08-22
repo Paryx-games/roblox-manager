@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.12.3
+
+### Changed
+- **Readable info cards.** `infocards.json` now uses one multi-line object per card, making descriptions and card types easier to edit.
+- **Cleaner settings spacing.** Reduced excess padding around the info icons while keeping their tooltips visually distinct.
+- **Utility layout.** Utility is now an empty landing tab, while the optional Assets tab appears independently when enabled.
+- **Colored warnings.** The Utility Hyperion notice now has a yellow background and border, and warning/caution info cards use matching yellow or red backgrounds and borders.
+
 ## v1.12.2
 
 ### Added
