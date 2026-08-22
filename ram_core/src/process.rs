@@ -156,7 +156,7 @@ fn place_launcher_query(
     query
 }
 
-/// Build the `roblox-player://` URI and open it via the default handler.
+/// Build the `roblox-player://` URI and pass it directly to the Roblox player.
 ///
 /// `ticket` — the rbx-authentication-ticket from [`crate::auth::RobloxClient`].
 /// `place_id` — numeric Roblox place ID.
@@ -195,23 +195,37 @@ pub fn launch_game(
     // URI was assembled, which is the only reason to log it.
     debug!("URI: {}", crate::redact::scrub(&uri));
 
-    open_uri(&uri, player_path)?;
+    let player_path = player_path
+        .map(PathBuf::from)
+        .or_else(find_roblox_player)
+        .ok_or_else(|| {
+            CoreError::Process(
+                "RobloxPlayerBeta.exe was not found; refusing to launch via the protocol handler"
+                    .into(),
+            )
+        })?;
+    open_player(&uri, &player_path)?;
     Ok(())
 }
 
-/// Shell-execute a URI (delegates to `cmd /C start`).
-fn open_uri(uri: &str, player_path: Option<&std::path::Path>) -> Result<(), CoreError> {
-    if let Some(player_path) = player_path {
-        std::process::Command::new(player_path)
-            .arg(uri)
-            .spawn()
-            .map_err(|e| CoreError::Process(format!("failed to launch Roblox player: {e}")))?;
+/// Spawn the requested Roblox player executable with the launch URI argument.
+fn open_player(uri: &str, player_path: &std::path::Path) -> Result<(), CoreError> {
+    let executable = if player_path.is_dir() {
+        player_path.join(ROBLOX_PLAYER_EXE)
     } else {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", uri])
-            .spawn()
-            .map_err(|e| CoreError::Process(format!("failed to open URI: {e}")))?;
+        player_path.to_path_buf()
+    };
+    if !executable.is_file() {
+        return Err(CoreError::Process(format!(
+            "Roblox player executable does not exist: {}",
+            executable.display()
+        )));
     }
+    info!(path = %executable.display(), "Launching Roblox player executable");
+    std::process::Command::new(&executable)
+        .arg(uri)
+        .spawn()
+        .map_err(|e| CoreError::Process(format!("failed to launch Roblox player: {e}")))?;
     Ok(())
 }
 

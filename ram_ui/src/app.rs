@@ -2677,6 +2677,7 @@ impl AppState {
                                     multi_instance: self.config.multi_instance_enabled,
                                     kill_background: self.config.kill_background_roblox,
                                     privacy_mode: self.config.privacy_mode,
+                                    player_path: self.config.roblox_player_path.clone(),
                                     launch_delay_secs: self.config.launch_delay_secs,
                                 });
                             }
@@ -3017,6 +3018,7 @@ impl AppState {
                                     multi_instance: self.config.multi_instance_enabled,
                                     kill_background: self.config.kill_background_roblox,
                                     privacy_mode: self.config.privacy_mode,
+                                    player_path: self.config.roblox_player_path.clone(),
                                     launch_delay_secs: self.config.launch_delay_secs,
                                 });
                             }

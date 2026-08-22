@@ -153,6 +153,7 @@ pub enum BackendCommand {
         multi_instance: bool,
         kill_background: bool,
         privacy_mode: bool,
+        player_path: Option<PathBuf>,
         /// Seconds to wait between launches (Roblox rate-limit avoidance).
         /// 0 = no extra delay beyond the existing tray-kill window.
         launch_delay_secs: u32,
@@ -944,6 +945,7 @@ async fn handle_command(
             multi_instance,
             kill_background,
             privacy_mode,
+            player_path,
             launch_delay_secs,
         } => {
             if multi_instance {
@@ -1025,7 +1027,7 @@ async fn handle_command(
                                     link_code.as_deref(),
                                     access_code.as_deref(),
                                     launchtime,
-                                    None,
+                                    player_path.as_deref(),
                                 ) {
                                     error!("Bulk launch failed for user {user_id}: {e}");
                                     failed += 1;
