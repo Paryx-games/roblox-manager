@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.12.0
+
+### Added
+- **Settings explanations.** Relevant settings now show a hoverable information icon with descriptions loaded from `infocards.json`.
+- **Theme-aware info icons.** Dark and light variants are embedded into the application executable.
+
+### Changed
+- **Roblox launches use the player executable directly.** RM now resolves and verifies `RobloxPlayerBeta.exe` for single and bulk launches instead of falling back to the `roblox-player:` protocol handler.
+- **Missing Roblox player paths fail clearly.** RM refuses to launch when the configured or auto-detected executable is unavailable.
+
 ## v1.11.3
 
 ### Changed
