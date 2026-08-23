@@ -25,5 +25,5 @@ rfd = "0.15"
 
 # Embedded WebView2-backed login window (Windows-only path; wry pulls webkit
 # on non-Windows targets but this project ships Windows-only).
-wry = "0.55"
+wry = "0.56"
 tao = "0.35"
