@@ -43,7 +43,7 @@ Branch off the default branch. Keep branch names short and descriptive.
 ## Making changes
 
 - Keep PRs focused - one fix or feature per PR. Don't bundle unrelated cleanup in with a feature change; open a separate PR for that.
-- Follow the repository's [Conventional Commits guide](CONVENTIONAL_COMMITS.md) for commit messages (`feat:`, `fix:`, `refactor:`, `docs:`, etc).
+- Follow the repository's [Conventional Commits guide](CONVENTIONAL_COMMITS.md) for commit messages (`feat:`, `fix:`, `refactor:`, `docs:`, etc), and [VERSIONING.md](VERSIONING.md) for how version numbers are chosen.
 - Comments should explain *why*, not *what* - if the code already makes the "what" obvious, skip the comment.
 - If you're touching cookie handling, encryption, storage, or process control (mutex patching, client attribution, etc), say so explicitly in your PR description. These get closer review than UI-only changes.
 
