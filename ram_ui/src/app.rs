@@ -1256,9 +1256,7 @@ impl AppState {
                         // dialog can offer "Open browser as" to investigate.
                         self.add_dialog.loading = false;
                         let msg = match moderation_message {
-                            Some(m) => format!(
-                                "Cookie was rejected by Roblox.\n\nLikely reason: {m}",
-                            ),
+                            Some(_) => "Moderated\n\nExploits detected. Login to the browser to agree and reactivate your account".to_string(),
                             None => "Cookie was rejected by Roblox. The account may be terminated, the cookie may be expired, or you may need to log in again.".to_string(),
                         };
                         self.add_dialog.last_error = Some(msg);
@@ -4638,7 +4636,18 @@ impl AppState {
             return;
         }
 
-        egui::Window::new("Add Account")
+        let dialog_title = if self
+            .add_dialog
+            .last_error
+            .as_deref()
+            .is_some_and(|message| message.starts_with("Moderated\n"))
+        {
+            "Moderated"
+        } else {
+            "Add Account"
+        };
+
+        egui::Window::new(dialog_title)
             .open(&mut open)
             .resizable(false)
             .collapsible(false)
@@ -4934,12 +4943,14 @@ impl AppState {
 
                 if let Some(err) = &self.add_dialog.last_error {
                     ui.add_space(4.0);
-                    ui.horizontal(|ui| {
-                        ui.colored_label(
-                            ui.theme().danger,
-                            format!("⚠ {err}"),
-                        );
-                    });
+                    ui.set_max_width(360.0);
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(format!("⚠ {err}"))
+                                .color(ui.theme().danger),
+                        )
+                        .wrap(),
+                    );
                     ui.add_space(4.0);
                 }
 
