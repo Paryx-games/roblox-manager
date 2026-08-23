@@ -57,6 +57,7 @@ pub struct MainPanelResult {
 }
 
 /// Draw the main panel for a selected account.
+#[allow(clippy::too_many_arguments)]
 pub fn show(
     ui: &mut egui::Ui,
     account: &Account,
