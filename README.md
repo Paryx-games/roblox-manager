@@ -7,8 +7,13 @@
 
 A fast, lightweight Roblox account manager built with Rust and [egui](https://github.com/emilk/egui). Manage multiple Roblox accounts, launch games, and switch between sessions with ease.
 
+**[Visit the RM website](https://paryx-games.github.io/roblox-manager/)** for more information, including additional details about features and the project.
+
 > [!WARNING]
 > This tool interacts with Roblox authentication cookies and game-launching internals. Use it at your own risk. The multi-instance feature bypasses Roblox's singleton mutex, which may conflict with Hyperion anti-cheat and could carry a ban risk. This project is not affiliated with or endorsed by Roblox Corporation.
+
+> [!NOTE]
+> This project is independent and is not affiliated with, endorsed by, or sponsored by Roblox Corporation.
 
 ## Features
 
@@ -22,6 +27,10 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 
 > [!IMPORTANT]
 > RM stores Roblox authentication cookies in encrypted form. Never share your `.ROBLOSECURITY` cookie with anyone, and treat it like a password.
+>
+> If you are planning to contribute, please read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) before opening a pull request. Changes involving cookie handling, encryption, storage, or process control require additional review and should be explicitly mentioned in the PR description.
+>
+> Never include `.ROBLOSECURITY` cookies, authentication tokens, credentials, encryption keys, or other sensitive account data in issues, pull requests, commits, logs, or screenshots. If you discover a security vulnerability, see [SECURITY.md](SECURITY.md) for how to report it privately.
 
 ## Building from Source
 
@@ -59,15 +68,6 @@ $env:RUST_LOG="debug"; cargo run
 > [!TIP]
 > If you are developing RM, `cargo check` is the quickest way to catch compilation errors without producing a release build.
 
-> [!IMPORTANT]
-> If you are planning to contribute, please read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) before opening a pull request. PRs are expected to follow the repository's contribution requirements.
-
-> [!WARNING]
-> Changes involving cookie handling, encryption, storage, or process control (mutex patching, client attribution, etc.) require additional review. Please explicitly mention these areas in your pull request description when applicable.
-
-> [!CAUTION]
-> Never include `.ROBLOSECURITY` cookies, authentication tokens, credentials, encryption keys, or other sensitive account data in issues, pull requests, commits, logs, or screenshots. If you discover a security vulnerability, see [SECURITY.md](SECURITY.md) for how to report it privately.
-
 ## Usage
 
 1. **First launch** - Nothing to set up. Encryption configures itself on this PC
@@ -81,14 +81,14 @@ $env:RUST_LOG="debug"; cargo run
 
 ## Credits
 
-- [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of mentioned RobloxAccountManager, forked by me
-- [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by ic3w0lf22 - The original Roblox Account Manager that served as the primary reference for this project
+- [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of RobloxAccountManager that this repository was forked from
+- [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by [ic3w0lf22](https://github.com/ic3w0lf22) - The original Roblox Account Manager that served as the primary reference for this project
 
 ## Background
 
-RM is the spiritual successor to [ByeBanAsync](https://github.com/centerepic/ByeBanAsync), since just clearing RobloxCookies.dat isn't effective anymore. If you completely avoid the browser, this may limit some of the ways Roblox can associate activity between accounts.
+RM is the spiritual successor to [ByeBanAsync](https://github.com/centerepic/ByeBanAsync), since simply clearing `RobloxCookies.dat` is no longer effective on its own. The project focuses on managing separate Roblox sessions and account data while adapting to changes in Roblox's client behaviour.
 
-Later updates may be made to reinforce anti-association if needed.
+Later updates may be made to reinforce account isolation and session management if needed.
 
 ## License
 
