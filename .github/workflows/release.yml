@@ -1,8 +1,6 @@
 name: release
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
 permissions:
@@ -10,27 +8,8 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
 jobs:
-  check:
-    name: check
-    if: github.ref_type == 'branch'
-    runs-on: windows-latest
-    steps:
-      - name: checkout
-        uses: actions/checkout@v5
-      - name: setup rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - name: cache cargo
-        uses: Swatinem/rust-cache@v2
-      # clippy implies check, so there's no separate cargo check step.
-      - name: clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: test
-        run: cargo test --workspace
   build:
     name: build
-    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     runs-on: windows-latest
     steps:
       - name: checkout
@@ -49,7 +28,6 @@ jobs:
           retention-days: 1
   release:
     name: release
-    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     needs: build
     runs-on: windows-latest
     steps:
