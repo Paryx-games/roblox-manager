@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.12.4
+
+### Changed
+
+- **Clearer launch data fields.** Launch data now rejects `placeId`, `jobId`, and `gameInstanceId`, with guidance to use the dedicated Place ID and Job ID fields instead.
+
 ## v1.12.3
 
 ### Added
