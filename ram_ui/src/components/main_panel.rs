@@ -271,7 +271,7 @@ pub fn show(
                 );
                 ui.label(
                     egui::RichText::new(
-                        "Examples: ?vip=true    ?privateServerLinkCode=CODE    ?gameInstanceId=GUID",
+                        "examples: ?linkCode=CODE    ?accessCode=CODE    ?userId=123456789    ?launchData=DATA",
                     )
                     .small()
                     .color(ui.visuals().weak_text_color()),
