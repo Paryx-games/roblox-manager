@@ -146,18 +146,22 @@ pub fn show(
 
         ui.label(
             egui::RichText::new(
-                "Examples: ?vip=true    ?privateServerLinkCode=CODE    ?gameInstanceId=GUID",
+                "examples: ?linkCode=CODE    ?accessCode=CODE    ?userId=123456789    ?launchData=DATA",
             )
             .small()
             .color(ui.visuals().weak_text_color()),
         );
+        let invalid_data_message = super::invalid_launch_data_message(data_input);
+        if let Some(message) = invalid_data_message {
+            ui.colored_label(ui.theme().danger_text, message);
+        }
 
         ui.add_space(8.0);
 
         ui.horizontal(|ui| {
             let place_valid = place_id_input.parse::<u64>().is_ok();
             let btn = ui.add_enabled(
-                place_valid,
+                place_valid && invalid_data_message.is_none(),
                 egui::Button::new(format!("\u{1f680}  Launch {count} Accounts")),
             );
             if btn.clicked() {

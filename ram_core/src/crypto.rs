@@ -304,7 +304,7 @@ pub fn delete_device_key() -> Result<(), CoreError> {
 /// Wrap `data_key` under `wrapping_key` and lay out the full header.
 fn build_header(
     mode: u8,
-    salt: &[u8; SALT_LEN],
+    salt: Option<&[u8; SALT_LEN]>,
     wrapping_key: &StoreKey,
     data_key: &StoreKey,
 ) -> Result<Vec<u8>, CoreError> {
@@ -312,7 +312,9 @@ fn build_header(
     header[..MAGIC.len()].copy_from_slice(MAGIC);
     header[OFF_VERSION] = VERSION;
     header[OFF_MODE] = mode;
-    header[OFF_SALT..OFF_SALT + SALT_LEN].copy_from_slice(salt);
+    if let Some(salt) = salt {
+        header[OFF_SALT..OFF_SALT + SALT_LEN].copy_from_slice(salt);
+    }
 
     let mut wrap_nonce = [0u8; NONCE_LEN];
     OsRng.fill_bytes(&mut wrap_nonce);
@@ -459,7 +461,7 @@ fn decrypt_body(data: &[u8], key: &StoreKey) -> Result<AccountStore, CoreError> 
 pub fn create_device_session() -> Result<StoreSession, CoreError> {
     let wrapping = device_key_or_create()?;
     let data_key = StoreKey::random();
-    let header = build_header(MODE_DEVICE, &[0u8; SALT_LEN], &wrapping, &data_key)?;
+    let header = build_header(MODE_DEVICE, None, &wrapping, &data_key)?;
     Ok(StoreSession {
         key: data_key,
         header,
@@ -472,7 +474,7 @@ pub fn create_password_session(password: &str) -> Result<StoreSession, CoreError
     OsRng.fill_bytes(&mut salt);
     let wrapping = derive_wrapping_key(password, &salt)?;
     let data_key = StoreKey::random();
-    let header = build_header(MODE_PASSWORD, &salt, &wrapping, &data_key)?;
+    let header = build_header(MODE_PASSWORD, Some(&salt), &wrapping, &data_key)?;
     Ok(StoreSession {
         key: data_key,
         header,
@@ -489,11 +491,11 @@ pub fn rewrap(session: &StoreSession, password: Option<&str>) -> Result<StoreSes
             let mut salt = [0u8; SALT_LEN];
             OsRng.fill_bytes(&mut salt);
             let wrapping = derive_wrapping_key(pw, &salt)?;
-            build_header(MODE_PASSWORD, &salt, &wrapping, &session.key)?
+            build_header(MODE_PASSWORD, Some(&salt), &wrapping, &session.key)?
         }
         None => {
             let wrapping = device_key_or_create()?;
-            build_header(MODE_DEVICE, &[0u8; SALT_LEN], &wrapping, &session.key)?
+            build_header(MODE_DEVICE, None, &wrapping, &session.key)?
         }
     };
     Ok(StoreSession {
