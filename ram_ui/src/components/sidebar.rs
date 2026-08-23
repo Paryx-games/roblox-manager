@@ -829,8 +829,11 @@ fn render_account_row(
                         Theme::wash(theme.accent_text, 50)
                     };
                     ui.painter().rect_filled(rect, 2.0, highlight_color);
-                    ui.painter()
-                        .rect_stroke(rect, 2.0, egui::Stroke::new(1.5_f32, theme.success_text));
+                    ui.painter().rect_stroke(
+                        rect,
+                        2.0,
+                        egui::Stroke::new(1.5_f32, theme.success_text),
+                    );
                 }
             }
         }
