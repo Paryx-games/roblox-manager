@@ -217,7 +217,7 @@ pub fn spawn_browse_as_to(
         .arg(&profile_dir)
         .arg(&cookie_in)
         .arg(&label)
-        .args(destination_url.into_iter())
+        .args(destination_url)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

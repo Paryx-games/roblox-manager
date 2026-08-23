@@ -123,15 +123,20 @@ pub fn show(
                 });
 
             ui.add_space(4.0);
+            let invalid_data_message = super::invalid_launch_data_message(&state.data_input);
             if let Some(err) = &state.error {
                 ui.colored_label(ui.theme().danger_text, err);
+                ui.add_space(2.0);
+            }
+            if let Some(message) = invalid_data_message {
+                ui.colored_label(ui.theme().danger_text, message);
                 ui.add_space(2.0);
             }
 
             ui.horizontal(|ui| {
                 let name_ok = !state.name_input.trim().is_empty();
                 let pid_ok = state.place_id_input.trim().parse::<u64>().is_ok();
-                let can_save = name_ok && pid_ok;
+                let can_save = name_ok && pid_ok && invalid_data_message.is_none();
                 let save_label = if is_edit {
                     "Save changes"
                 } else {
