@@ -57,6 +57,7 @@ pub struct MainPanelResult {
 }
 
 /// Draw the main panel for a selected account.
+#[allow(clippy::too_many_arguments)]
 pub fn show(
     ui: &mut egui::Ui,
     account: &Account,
@@ -271,15 +272,19 @@ pub fn show(
                 );
                 ui.label(
                     egui::RichText::new(
-                        "Examples: ?vip=true    ?privateServerLinkCode=CODE    ?gameInstanceId=GUID",
+                        "examples: ?linkCode=CODE    ?accessCode=CODE    ?userId=123456789    ?launchData=DATA",
                     )
                     .small()
                     .color(ui.visuals().weak_text_color()),
                 );
+                let invalid_data_message = super::invalid_launch_data_message(&state.data_input);
+                if let Some(message) = invalid_data_message {
+                    ui.colored_label(ui.theme().danger_text, message);
+                }
                 ui.add_space(10.0);
 
                 let place_valid = state.place_id_input.parse::<u64>().is_ok();
-                let can_launch = place_valid && account.can_launch();
+                let can_launch = place_valid && invalid_data_message.is_none() && account.can_launch();
 
                 // Primary action row — Launch + Open browser as + save-preset
                 // icon button. Launch dominates visually so the user always
@@ -419,6 +424,7 @@ pub fn show(
                             ui.add_space(6.0);
                             ui.horizontal(|ui| {
                                 let can_save = place_valid
+                                    && invalid_data_message.is_none()
                                     && !state.preset_name_input.trim().is_empty();
                                 let save_clicked = ui
                                     .add_enabled(can_save, egui::Button::new("Save"))
