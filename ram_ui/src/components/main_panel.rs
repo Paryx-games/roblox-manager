@@ -255,20 +255,23 @@ pub fn show(
                 }
 
                 // Floating-label inputs (label above the field, full width).
-                labelled_input(ui, "Place ID", &mut state.place_id_input, "");
+                labelled_input(ui, "Place ID", &mut state.place_id_input, "", false);
                 ui.add_space(6.0);
                 labelled_input(
                     ui,
                     "Job ID (optional)",
                     &mut state.job_id_input,
                     "Specific server GUID",
+                    false,
                 );
                 ui.add_space(6.0);
+                let invalid_data_message = super::invalid_launch_data_message(&state.data_input);
                 labelled_input(
                     ui,
                     "Data (optional)",
                     &mut state.data_input,
                     "Extra launch query data",
+                    invalid_data_message.is_some(),
                 );
                 ui.label(
                     egui::RichText::new(
@@ -277,7 +280,6 @@ pub fn show(
                     .small()
                     .color(ui.visuals().weak_text_color()),
                 );
-                let invalid_data_message = super::invalid_launch_data_message(&state.data_input);
                 if let Some(message) = invalid_data_message {
                     ui.colored_label(ui.theme().danger_text, message);
                 }
@@ -729,18 +731,30 @@ fn draw_presence_chip(ui: &mut egui::Ui, presence: &ram_core::models::Presence) 
 }
 
 /// Input with the label rendered above the field rather than to its left.
-fn labelled_input(ui: &mut egui::Ui, label: &str, value: &mut String, hint: &str) {
+fn labelled_input(ui: &mut egui::Ui, label: &str, value: &mut String, hint: &str, invalid: bool) {
     ui.vertical(|ui| {
         ui.label(
             egui::RichText::new(label)
                 .color(ui.visuals().weak_text_color())
                 .small(),
         );
-        ui.add(
+        let response = ui.add(
             egui::TextEdit::singleline(value)
                 .desired_width(f32::INFINITY)
-                .hint_text(hint),
+                .hint_text(hint)
+                .text_color(if invalid {
+                    ui.theme().danger_text
+                } else {
+                    ui.visuals().text_color()
+                }),
         );
+        if invalid {
+            ui.painter().rect_stroke(
+                response.rect,
+                egui::Rounding::same(2.0),
+                egui::Stroke::new(1.0_f32, ui.theme().danger_text),
+            );
+        }
     });
 }
 
