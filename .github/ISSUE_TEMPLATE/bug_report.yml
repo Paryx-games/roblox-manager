@@ -9,7 +9,7 @@ body:
       value: |
         Thanks for taking the time to report a bug.
 
-        **Do not include `.ROBLOSECURITY` cookies, CSRF tokens, launch tickets, passwords, or unredacted logs.** If the problem could expose credentials, bypass encryption, corrupt protected account data, or otherwise affect security, do not file a public issue. Report it privately through [GitHub Security Advisories](../../security/advisories/new).
+        **Do not include `.ROBLOSECURITY` cookies, CSRF tokens, launch tickets, passwords, or unredacted logs.** If the problem could expose credentials, bypass encryption, corrupt protected account data, or otherwise affect security, do not file a public issue. Report it privately through [GitHub Security Advisories](https://github.com/Paryx-games/roblox-manager/security/advisories/new).
 
   - type: checkboxes
     id: checks
@@ -18,7 +18,7 @@ body:
       options:
         - label: I searched existing issues and did not find a duplicate.
           required: true
-        - label: I have removed cookies, tokens, passwords, and other sensitive data from this report.
+        - label: I have removed or redacted all sensitive information from this report, including cookies, tokens, passwords, account identifiers, and private server codes.
           required: true
         - label: This is an ordinary bug, not a security vulnerability.
           required: true
