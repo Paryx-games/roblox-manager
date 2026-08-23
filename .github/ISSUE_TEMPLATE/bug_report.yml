@@ -1,0 +1,108 @@
+name: Bug report
+description: Report a reproducible problem with Roblox Manager
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        **Do not include `.ROBLOSECURITY` cookies, CSRF tokens, launch tickets, passwords, or unredacted logs.** If the problem could expose credentials, bypass encryption, corrupt protected account data, or otherwise affect security, do not file a public issue. Report it privately through [GitHub Security Advisories](../../security/advisories/new).
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I have removed cookies, tokens, passwords, and other sensitive data from this report.
+          required: true
+        - label: This is an ordinary bug, not a security vulnerability.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of RM is affected?
+      options:
+        - Account management or authentication
+        - Game launching or multi-instance
+        - Bulk launch or groups
+        - Privacy mode or cookie handling
+        - Window tiling or process detection
+        - Live presence
+        - Encrypted storage or settings
+        - UI or visual issue
+        - Build or installation
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: RM version or commit
+      description: Include the release version, or the commit hash if built from source.
+      placeholder: "Example: v0.1.0 or a1b2c3d"
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Include Windows 10 or 11 and the build number if known.
+      placeholder: "Example: Windows 11 23H2 (22631.3155)"
+    validations:
+      required: true
+
+  - type: input
+    id: roblox
+    attributes:
+      label: Roblox version or update date
+      description: Add the Roblox client version or the approximate date it last updated, if relevant.
+      placeholder: "Example: client updated 2026-08-20"
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest sequence of actions that reliably triggers the problem. Do not paste account cookies or private server codes.
+      placeholder: |
+        1. Open RM
+        2. Select ...
+        3. Click ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+      description: Describe the observed result, including any exact error text.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste relevant logs or drag in screenshots. Redact cookies, tokens, passwords, account names, usernames, and private server codes first.
+      render: text
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Mention relevant settings, whether the issue started after a Roblox or RM update, and whether it happens every time.

@@ -1,0 +1,75 @@
+name: Feature request
+description: Suggest an improvement or new capability for Roblox Manager
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping shape RM. It currently targets Windows 10/11 and Roblox account management, game launching, multi-instance use, privacy, and related workflows.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I understand RM is currently Windows-only.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What workflow is difficult, slow, or impossible today? Include who would benefit.
+      placeholder: "When managing ..., I need ... because ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior or experience you would like. Concrete examples are useful.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: How do you handle this today, and why is that not sufficient?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Related area
+      description: Which part of RM would this change affect?
+      options:
+        - Account management or authentication
+        - Game launching or multi-instance
+        - Bulk launch or groups
+        - Privacy mode or cookie handling
+        - Window tiling or process detection
+        - Live presence
+        - Encrypted storage or settings
+        - UI or visual improvement
+        - Build or installation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add mockups, screenshots, links, constraints, or examples of similar behavior elsewhere. Do not include cookies, passwords, or other secrets.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be interested in helping implement this feature.
