@@ -1,5 +1,5 @@
 [package]
-name = "ram_core"
+name = "ram_ui"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
