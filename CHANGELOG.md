@@ -5,6 +5,7 @@
 ### Changed
 
 - **Clearer launch data fields.** Launch data now rejects `placeId`, `jobId`, and `gameInstanceId`, with guidance to use the dedicated Place ID and Job ID fields instead.
+- **Centralized workspace version.** The root `Cargo.toml` now owns the application version, which both crates inherit and the update checker reports.
 
 ## v1.12.3
 
