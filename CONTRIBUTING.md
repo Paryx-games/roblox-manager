@@ -29,11 +29,14 @@ assets/     Bundled application assets
 
 ### Fork and branch
 
-```powershell
-git clone https://github.com/<your-username>/roblox-manager.git
+1. Click **Fork** on this repo's GitHub page — this creates your own copy under your GitHub account.
+2. Clone *your fork* (not this repo) to your computer, replacing `GITHUB_USERNAME` below with your actual GitHub username:
+
+​```powershell
+git clone https://github.com/GITHUB_USERNAME/roblox-manager.git
 cd roblox-manager
 git checkout -b your-feature-name
-```
+​```
 
 Branch off the default branch. Keep branch names short and descriptive.
 
