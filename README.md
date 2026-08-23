@@ -64,6 +64,7 @@ RUST_LOG=debug cargo run
 
 > [!TIP]
 > If you are developing RM, `cargo check` is the quickest way to catch compilation errors without producing a release build.
+
 > [!IMPORTANT]
 > If you are planning to contribute, please read [the commit guide](CONVENTIONAL_COMMITS.md) and follow that structure. Your merge will be denied otherwise.
 
