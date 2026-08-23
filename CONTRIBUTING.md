@@ -29,8 +29,11 @@ assets/     Bundled application assets
 
 ### Fork and branch
 
+1. Click **Fork** on this repo's GitHub page — this creates your own copy under your GitHub account.
+2. Clone *your fork* (not this repo) to your computer, replacing `GITHUB_USERNAME` below with your actual GitHub username:
+
 ```powershell
-git clone https://github.com/<your-username>/roblox-manager.git
+git clone https://github.com/GITHUB_USERNAME/roblox-manager.git
 cd roblox-manager
 git checkout -b your-feature-name
 ```
@@ -40,7 +43,7 @@ Branch off the default branch. Keep branch names short and descriptive.
 ## Making changes
 
 - Keep PRs focused - one fix or feature per PR. Don't bundle unrelated cleanup in with a feature change; open a separate PR for that.
-- Follow the repository's [Conventional Commits guide](CONVENTIONAL_COMMITS.md) for commit messages (`feat:`, `fix:`, `refactor:`, `docs:`, etc).
+- Follow the repository's [Conventional Commits guide](CONVENTIONAL_COMMITS.md) for commit messages (`feat:`, `fix:`, `refactor:`, `docs:`, etc), and [VERSIONING.md](VERSIONING.md) for how version numbers are chosen.
 - Comments should explain *why*, not *what* - if the code already makes the "what" obvious, skip the comment.
 - If you're touching cookie handling, encryption, storage, or process control (mutex patching, client attribution, etc), say so explicitly in your PR description. These get closer review than UI-only changes.
 

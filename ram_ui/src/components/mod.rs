@@ -11,6 +11,32 @@ pub mod tutorial;
 use eframe::egui;
 use ram_core::models::LaunchPreset;
 
+/// Explain when launch data contains values that belong in dedicated fields.
+pub fn invalid_launch_data_message(data: &str) -> Option<&'static str> {
+    let mut has_place_id = false;
+    let mut has_job_id = false;
+
+    for part in data.split('&') {
+        let key = part
+            .trim()
+            .trim_start_matches('?')
+            .split_once('=')
+            .map_or(part.trim().trim_start_matches('?'), |(key, _)| key.trim());
+        match key.to_ascii_lowercase().as_str() {
+            "placeid" => has_place_id = true,
+            "jobid" | "gameinstanceid" => has_job_id = true,
+            _ => {}
+        }
+    }
+
+    match (has_place_id, has_job_id) {
+        (true, true) => Some("Use the Place ID and Job ID fields instead."),
+        (true, false) => Some("Use the Place ID field instead."),
+        (false, true) => Some("Use the Job ID field instead."),
+        (false, false) => None,
+    }
+}
+
 /// Longest preset name drawn on a chip before it is cut short. A chip wider
 /// than the row can never wrap, so an unbounded name would overflow the panel.
 const CHIP_NAME_MAX_CHARS: usize = 24;
@@ -93,6 +119,28 @@ fn chips_ui(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn launch_data_guides_reserved_fields() {
+        assert_eq!(
+            invalid_launch_data_message("?placeId=123"),
+            Some("Use the Place ID field instead.")
+        );
+        assert_eq!(
+            invalid_launch_data_message("jobId=abc"),
+            Some("Use the Job ID field instead.")
+        );
+        assert_eq!(
+            invalid_launch_data_message("?gameInstanceId=abc"),
+            Some("Use the Job ID field instead.")
+        );
+        assert_eq!(
+            invalid_launch_data_message("?PLACEID=123&gameInstanceId=abc"),
+            Some("Use the Place ID and Job ID fields instead.")
+        );
+        assert_eq!(invalid_launch_data_message("?launchData=placeId"), None);
+        assert_eq!(invalid_launch_data_message("?vip=true&userId=123"), None);
+    }
 
     fn preset(name: &str) -> LaunchPreset {
         LaunchPreset {

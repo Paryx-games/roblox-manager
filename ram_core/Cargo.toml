@@ -1,11 +1,11 @@
 [package]
 name = "ram_core"
-version = "1.12.3"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
 description = "Core library for RM - Roblox Account Manager"
-license = "MIT"
-repository = "https://gitlab.com/centerepic/robloxmanager"
-authors = ["RM Contributors"]
 
 [dependencies]
 tokio = { workspace = true }
