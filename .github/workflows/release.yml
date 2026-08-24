@@ -193,14 +193,12 @@ jobs:
               --method POST `
               "repos/$repository/releases/generate-notes" `
               -f "tag_name=$currentTag" `
-              -f "target_commitish=$currentTag" `
               -f "previous_tag_name=$previousTag"
           } else {
             $response = gh api `
               --method POST `
               "repos/$repository/releases/generate-notes" `
-              -f "tag_name=$currentTag" `
-              -f "target_commitish=$currentTag"
+              -f "tag_name=$currentTag"
           }
 
           $generated = $response | ConvertFrom-Json
@@ -352,7 +350,7 @@ jobs:
 
             Write-Host "$($executable.Name): $hash"
 
-            $lines += "- ``$($executable.Name)`` - ``$hash``"
+            $lines += "- ``$($executable.Name)`` - ``$($hash)``"
           }
 
           Set-Content -Path sha256.md -Value ($lines -join "`n")
@@ -389,6 +387,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release-tag.outputs.value }}
-          target_commitish: ${{ steps.release-tag.outputs.value }}
           files: release/*.exe
           body_path: final-release-notes.md
