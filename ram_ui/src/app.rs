@@ -1850,9 +1850,8 @@ impl eframe::App for AppState {
         // left behind sticks until the user restarts the client.
         self.restore_roblox_window_titles();
         if self.config.privacy_clean_on_exit {
-            match ram_core::process::prepare_privacy_cleanup(
-                self.config.privacy_cleanup_options(),
-            ) {
+            match ram_core::process::prepare_privacy_cleanup(self.config.privacy_cleanup_options())
+            {
                 Ok(cleanup) => {
                     if let Err(error) = cleanup.commit() {
                         tracing::warn!(%error, "Could not finish privacy cleanup on exit");
@@ -3067,7 +3066,7 @@ impl AppState {
                                         .or_else(|| self.config.roblox_player_path.clone()),
                                     multi_instance: self.config.multi_instance_enabled,
                                     kill_background: self.config.kill_background_roblox,
-                                            privacy: self.config.privacy_cleanup_options(),
+                                    privacy: self.config.privacy_cleanup_options(),
                                 });
                             }
                         } else if self.selected_ids.len() > 1 {
