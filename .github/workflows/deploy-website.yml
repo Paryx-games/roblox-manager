@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "website/**"
+      - "CHANGELOG.md"
       - ".github/workflows/**"
 
 permissions:
@@ -36,6 +37,10 @@ jobs:
       - name: install dependencies
         working-directory: website
         run: pnpm install --frozen-lockfile
+
+      - name: generate changelog
+        working-directory: website
+        run: pnpm generate:changelog
 
       - name: build
         working-directory: website

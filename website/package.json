@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "generate:changelog": "node scripts/generate-changelog.mjs",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
