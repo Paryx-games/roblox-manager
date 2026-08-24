@@ -1,19 +1,14 @@
 # Changelog
 
-## v1.14.0
-
-### Added
-
-- **Privacy cleanup scopes.** Privacy settings now offer independent checkboxes for cookies, LocalStorage, full Roblox user-state cleanup, and cleanup on both launch and exit. Cookies remain enabled by default.
-- **Transactional privacy cleanup.** Selected Roblox state is moved into a temporary backup before launch, restored automatically when launching fails, and removed after a successful launch.
-- **Per-launch bulk cleanup.** Bulk launches prepare privacy cleanup for each account immediately before its launch instead of cleaning only once for the entire batch.
-- **Active-client protection.** Privacy cleanup refuses to touch Roblox files while a Roblox client is running, preventing the client from rewriting state during cleanup.
-
 ## v1.13.0
 
 ### Added
 
 - **Built-in MAC address rotation.** Privacy settings can rotate the active Windows network adapter's MAC address, preserving the PC's permanent adapter OUI by default or using a selectable well-known vendor OUI. Rotation is explicit, requires the NetAdapter PowerShell module, and may require administrator permissions.
+- **Privacy cleanup scopes.** Privacy settings now offer independent checkboxes for cookies, LocalStorage, full Roblox user-state cleanup, and cleanup on both launch and exit. Cookies remain enabled by default.
+- **Transactional privacy cleanup.** Selected Roblox state is moved into a temporary backup before launch, restored automatically when launching fails, and removed after a successful launch.
+- **Per-launch bulk cleanup.** Bulk launches prepare privacy cleanup for each account immediately before its launch instead of cleaning only once for the entire batch.
+- **Active-client protection.** Privacy cleanup refuses to touch Roblox files while a Roblox client is running, preventing the client from rewriting state during cleanup.
 
 ## v1.12.4
 
