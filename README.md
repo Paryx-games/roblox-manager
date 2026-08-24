@@ -1,5 +1,22 @@
 <p align="center">
-  <img src="assets/branding/LogoThumb.png" alt="thumbnail-large" width="650">
+  <img src="assets/branding/LogoThumb.png" alt="roblox manager" width="650">
+</p>
+
+<p align="center">
+  <a href="https://github.com/Paryx-games/roblox-manager/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/ci.yml?label=ci&logo=github&logoColor=white&color=9333ea" alt="ci">
+  </a>
+  <a href="https://github.com/Paryx-games/roblox-manager/actions/workflows/release.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/release.yml?label=release&logo=github&logoColor=white&color=7c3aed" alt="release">
+  </a>
+  <a href="https://github.com/Paryx-games/roblox-manager/releases/latest">
+    <img src="https://img.shields.io/github/v/release/Paryx-games/roblox-manager?label=version&logo=github&logoColor=white&color=6366f1" alt="version">
+  </a>
+  <img src="https://img.shields.io/github/downloads/Paryx-games/roblox-manager?label=downloads&logo=github&logoColor=white&color=4f46e5" alt="downloads">
+  <img src="https://img.shields.io/github/license/Paryx-games/roblox-manager?label=license&logo=github&logoColor=white&color=3b82f6" alt="license">
+  <img src="https://img.shields.io/github/stars/Paryx-games/roblox-manager?style=flat&label=stars&logo=github&logoColor=white&color=0ea5e9" alt="stars">
+  <img src="https://img.shields.io/github/issues/Paryx-games/roblox-manager?label=issues&logo=github&logoColor=white&color=14b8a6" alt="issues">
+  <img src="https://img.shields.io/badge/rust-22c55e?logo=github&logoColor=white" alt="rust">
 </p>
 
 > [!NOTE]
