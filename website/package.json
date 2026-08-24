@@ -6,6 +6,7 @@
   "scripts": {
     "generate:changelog": "node scripts/generate-changelog.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/generate-changelog.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },
