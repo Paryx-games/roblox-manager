@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+
   workflow_dispatch:
     inputs:
       tag:
@@ -25,6 +26,9 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable
@@ -75,6 +79,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: download executables
         uses: actions/download-artifact@v4
@@ -90,11 +95,24 @@ jobs:
             Select-Object Name, Length, LastWriteTime |
             Format-Table -AutoSize
 
+      - name: get release tag
+        id: release-tag
+        shell: pwsh
+        run: |
+          $currentTag = "${{ inputs.tag || github.ref_name }}"
+
+          if ($currentTag -notlike "v*") {
+            throw "Invalid release tag: $currentTag"
+          }
+
+          Write-Host "Release tag: $currentTag"
+          "value=$currentTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
       - name: get previous tag
         id: previous-tag
         shell: pwsh
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "${{ steps.release-tag.outputs.value }}"
 
           Write-Host "Current tag: $currentTag"
 
@@ -122,7 +140,7 @@ jobs:
       - name: extract changelog
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}"
+          $version = "${{ steps.release-tag.outputs.value }}"
           $path = "CHANGELOG.md"
           $lines = Get-Content $path
 
@@ -161,7 +179,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "${{ steps.release-tag.outputs.value }}"
           $previousTag = "${{ steps.previous-tag.outputs.value }}"
           $repository = "${{ github.repository }}"
 
@@ -175,14 +193,14 @@ jobs:
               --method POST `
               "repos/$repository/releases/generate-notes" `
               -f "tag_name=$currentTag" `
-              -f "target_commitish=${{ github.sha }}" `
+              -f "target_commitish=$currentTag" `
               -f "previous_tag_name=$previousTag"
           } else {
             $response = gh api `
               --method POST `
               "repos/$repository/releases/generate-notes" `
               -f "tag_name=$currentTag" `
-              -f "target_commitish=${{ github.sha }}"
+              -f "target_commitish=$currentTag"
           }
 
           $generated = $response | ConvertFrom-Json
@@ -193,7 +211,6 @@ jobs:
 
           Set-Content -Path github-release-notes-raw.md -Value $notes
 
-          # Pull the new contributors section out before removing it.
           $newContributorMatch = [regex]::Match(
             $notes,
             '(?ms)## New Contributors\s*\r?\n(?<body>.*?)(?=\r?\n\*\*Full Changelog\*\*)'
@@ -211,8 +228,6 @@ jobs:
             Set-Content -Path new-contributors-raw.md -Value ""
           }
 
-          # Remove the automatically generated contributors section because
-          # the release gets a custom contributors section below.
           $notes = [regex]::Replace(
             $notes,
             '(?ms)\r?\n## New Contributors.*?(?=\r?\n\*\*Full Changelog\*\*)',
@@ -226,7 +241,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "${{ steps.release-tag.outputs.value }}"
           $previousTag = "${{ steps.previous-tag.outputs.value }}"
           $repository = "${{ github.repository }}"
 
@@ -373,5 +388,7 @@ jobs:
       - name: create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.release-tag.outputs.value }}
+          target_commitish: ${{ steps.release-tag.outputs.value }}
           files: release/*.exe
           body_path: final-release-notes.md
