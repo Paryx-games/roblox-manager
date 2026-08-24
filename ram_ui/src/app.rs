@@ -410,6 +410,8 @@ pub struct AppState {
 
     /// When set, shows a confirmation dialog before removing the account.
     confirm_remove: Option<u64>,
+    /// Place ID received when a browse-as window's Roblox launch was blocked.
+    browse_launch_prompt: Option<u64>,
 
     /// Available update info: (version, release_url).
     update_available: Option<(String, String)>,
@@ -551,6 +553,7 @@ impl AppState {
             show_passwordless_offer: false,
             device_key_missing: false,
             confirm_remove: None,
+            browse_launch_prompt: None,
             update_available: None,
             show_changelog: false,
             tutorial: tutorial::TutorialState::default(),
@@ -1862,6 +1865,21 @@ impl eframe::App for AppState {
         self.bridge.set_repaint_ctx(ctx.clone());
         self.process_events();
 
+        if self.browse_launch_prompt.is_none() {
+            if let Some(place_id) =
+                crate::browser_login::take_browse_as_launch_request(&crate::data_dir())
+            {
+                tracing::info!(
+                    "Prepopulating Place ID field with {place_id} from blocked browser launch"
+                );
+                self.browse_launch_prompt = Some(place_id);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                    egui::UserAttentionType::Critical,
+                ));
+            }
+        }
+
         // Top up the blurred-avatar cache for anonymize mode. No-op once
         // every visible avatar already has its blur computed; on first toggle
         // or after a fresh fetch this fills in the gap.
@@ -2170,6 +2188,9 @@ impl eframe::App for AppState {
 
         // ---- Confirmation dialog for account removal ----
         self.show_confirm_remove_dialog(ctx);
+
+        // ---- Blocked browser launch prompt ----
+        self.show_browse_launch_prompt(ctx);
 
         // ---- Confirmation before an asset upload batch ----
         self.show_upload_confirm_dialog(ctx);
@@ -4352,6 +4373,26 @@ impl AppState {
                             .push(Toast::error(format!("Could not open RM data folder: {e}")));
                     }
                 }
+                Some(settings::SettingsAction::CleanOrphanedData) => {
+                    let known_user_ids = self
+                        .store
+                        .accounts
+                        .iter()
+                        .map(|account| account.user_id)
+                        .collect();
+                    match crate::browser_login::clean_orphaned_browse_as_data(
+                        &crate::data_dir(),
+                        &known_user_ids,
+                    ) {
+                        Ok(0) => self.toasts.push(Toast::info("No orphaned data found")),
+                        Ok(count) => self.toasts.push(Toast::success(format!(
+                            "Removed {count} orphaned browse-as profile(s)"
+                        ))),
+                        Err(e) => self.toasts.push(Toast::error(format!(
+                            "Could not clean orphaned data: {e}"
+                        ))),
+                    }
+                }
                 None => {}
             }
             if action.is_some() || changed {
@@ -5164,6 +5205,42 @@ impl AppState {
             });
         if !keep_open {
             self.confirm_remove = None;
+        }
+    }
+
+    fn show_browse_launch_prompt(&mut self, ctx: &egui::Context) {
+        let Some(place_id) = self.browse_launch_prompt else {
+            return;
+        };
+
+        let mut open = true;
+        let mut confirm = false;
+        let mut close = false;
+        egui::Window::new("Roblox launch blocked")
+            .open(&mut open)
+            .resizable(false)
+            .collapsible(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.label("Launching Roblox from the browser does not work here.");
+                ui.label("We pre-populated the Place ID field for you.");
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Confirm").clicked() {
+                        confirm = true;
+                    }
+                    if ui.button("Close").clicked() {
+                        close = true;
+                    }
+                });
+            });
+
+        if confirm {
+            self.main_panel_state.place_id_input = place_id.to_string();
+            self.active_tab = Tab::Accounts;
+            self.browse_launch_prompt = None;
+        } else if close || !open {
+            self.browse_launch_prompt = None;
         }
     }
 

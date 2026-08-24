@@ -22,6 +22,7 @@ pub enum SettingsAction {
     DisableMultiInstance,
     TileWindowsNow,
     OpenDataFolder,
+    CleanOrphanedData,
 }
 
 /// Persistent state for the settings panel password change UI.
@@ -511,6 +512,13 @@ pub fn show(
         setting_row(ui, "developer_options", |ui| {
             ui.checkbox(&mut config.developer_options, "Show the Assets tab in Utility");
         });
+        if ui
+            .button("Clean orphaned data")
+            .on_hover_text("Remove browse-as profiles for accounts no longer in RM")
+            .clicked()
+        {
+            action = Some(SettingsAction::CleanOrphanedData);
+        }
         if config.developer_options {
             ui.colored_label(
                 theme.warning,

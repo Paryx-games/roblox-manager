@@ -16,7 +16,7 @@
 //! `main()` dispatches the child mode via [`FLAG`] before `eframe::run_native`
 //! so the normal UI never initializes in the child process.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
@@ -24,7 +24,12 @@ use tao::event::{Event, StartCause, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::window::WindowBuilder;
 use tracing::{info, warn};
-use wry::{WebContext, WebViewBuilder};
+use webview2_com::{
+    take_pwstr, LaunchingExternalUriSchemeEventHandler,
+    Microsoft::Web::WebView2::Win32::ICoreWebView2_18,
+};
+use windows_core::Interface;
+use wry::{NewWindowResponse, WebContext, WebViewBuilder, WebViewExtWindows};
 
 /// CLI flag that switches `main()` into child webview mode.
 /// Invoked as: `ram_ui.exe --browser-login <profile_dir> <outfile>`.
@@ -44,12 +49,80 @@ const BROWSE_AS_BOOT_URL: &str = "https://www.roblox.com/login";
 /// detect the bootstrap navigation and skip the redirect on subsequent ones.
 const BROWSE_AS_BOOT_PATH: &str = "/login";
 const BROWSE_AS_HOME_URL: &str = "https://www.roblox.com/home";
+const BROWSE_AS_REQUEST_FILE: &str = "launch_request";
 const POLL_INTERVAL: Duration = Duration::from_millis(400);
 
 pub enum LoginOutcome {
     Success(String),
     Cancelled,
     Failed(String),
+}
+
+/// Read and consume a place ID handed back by a browse-as child after RM
+/// blocked Roblox's external player launch.
+pub fn take_browse_as_launch_request(data_dir: &Path) -> Option<u64> {
+    let browse_dir = data_dir.join("webview_browse_as");
+    let entries = std::fs::read_dir(browse_dir).ok()?;
+
+    for entry in entries.flatten() {
+        let request_path = entry.path().join(BROWSE_AS_REQUEST_FILE);
+        let Ok(contents) = std::fs::read_to_string(&request_path) else {
+            continue;
+        };
+        let _ = std::fs::remove_file(request_path);
+        if let Ok(place_id) = contents.trim().parse::<u64>() {
+            return Some(place_id);
+        }
+    }
+    None
+}
+
+/// Remove per-account browse-as profiles whose numeric IDs are no longer in
+/// the account store. Returns the number of profiles removed.
+pub fn clean_orphaned_browse_as_data(
+    data_dir: &Path,
+    known_user_ids: &std::collections::HashSet<u64>,
+) -> Result<usize, String> {
+    let browse_dir = data_dir.join("webview_browse_as");
+    let entries =
+        std::fs::read_dir(&browse_dir).map_err(|e| format!("read browse-as data: {e}"))?;
+    let mut removed = 0;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let Ok(user_id) = name.parse::<u64>() else {
+            continue;
+        };
+        if !known_user_ids.contains(&user_id) {
+            std::fs::remove_dir_all(&path)
+                .map_err(|e| format!("remove orphaned profile {user_id}: {e}"))?;
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
+fn extract_place_id(uri: &str) -> Option<u64> {
+    let lower = uri.to_ascii_lowercase();
+    for marker in ["placeid%3d", "placeid="] {
+        let Some(marker_start) = lower.find(marker) else {
+            continue;
+        };
+        let start = marker_start + marker.len();
+        let end = uri[start..]
+            .bytes()
+            .take_while(|byte| byte.is_ascii_digit())
+            .count();
+        if end > 0 {
+            if let Ok(place_id) = uri[start..start + end].parse::<u64>() {
+                return Some(place_id);
+            }
+        }
+    }
+    None
 }
 
 // ---------------------------------------------------------------------------
@@ -219,8 +292,8 @@ pub fn spawn_browse_as_to(
         .arg(&label)
         .args(destination_url)
         .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
         .spawn()
         .map_err(|e| {
             // Best-effort cleanup if the spawn itself failed
@@ -274,6 +347,7 @@ fn run_browse_as_inner(
     }
 
     std::fs::create_dir_all(&profile_dir).map_err(|e| format!("create profile dir: {e}"))?;
+    let launch_request_path = profile_dir.join(BROWSE_AS_REQUEST_FILE);
 
     let event_loop = EventLoopBuilder::<()>::new().build();
 
@@ -321,14 +395,129 @@ fn run_browse_as_inner(
                     location.replace({home_url_js});
                 }}
             }} catch (e) {{}}
+        }})();
+        (function(){{
+            function report(url) {{
+                try {{ window.ipc.postMessage("LAUNCH_INTERCEPT:" + url); }} catch (e) {{}}
+            }}
+            // catch location.href = "roblox-player:..."
+            try {{
+                var d = Object.getOwnPropertyDescriptor(Location.prototype, "href");
+                Object.defineProperty(window.location, "href", {{
+                    set: function(url) {{
+                        if (typeof url === "string" && url.indexOf("roblox-player:") === 0) {{
+                            report(url);
+                            return;
+                        }}
+                        d.set.call(this, url);
+                    }},
+                    get: d.get,
+                    configurable: true
+                }});
+            }} catch (e) {{}}
+            // catch location.assign(...) / location.replace(...)
+            try {{
+                ["assign", "replace"].forEach(function(fn) {{
+                    var orig = window.location[fn].bind(window.location);
+                    window.location[fn] = function(url) {{
+                        if (typeof url === "string" && url.indexOf("roblox-player:") === 0) {{
+                            report(url);
+                            return;
+                        }}
+                        return orig(url);
+                    }};
+                }});
+            }} catch (e) {{}}
+            // catch window.open("roblox-player:...")
+            try {{
+                var origOpen = window.open.bind(window);
+                window.open = function(url, ...rest) {{
+                    if (typeof url === "string" && url.indexOf("roblox-player:") === 0) {{
+                        report(url);
+                        return null;
+                    }}
+                    return origOpen(url, ...rest);
+                }};
+            }} catch (e) {{}}
+            // catch <a href="roblox-player:...">.click()
+            document.addEventListener("click", function(e) {{
+                var a = e.target.closest && e.target.closest("a[href^='roblox-player:']");
+                if (a) {{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    report(a.href);
+                }}
+            }}, true);
         }})();"#,
     );
 
     let webview = WebViewBuilder::new_with_web_context(&mut web_context)
         .with_url(BROWSE_AS_BOOT_URL)
         .with_initialization_script(&init_script)
+        .with_navigation_handler(|url: String| {
+            tracing::info!("nav handler saw: {url}");
+            if url.starts_with("roblox-player:") {
+                tracing::warn!("browse_as child: intercepted launch attempt: {url}");
+                false
+            } else {
+                true
+            }
+        })
+        .with_new_window_req_handler(|url, _features| {
+            tracing::info!("new-window request: {url}");
+            if url.starts_with("roblox-player:") {
+                tracing::warn!("browse_as child: blocked launch attempt: {url}");
+                NewWindowResponse::Deny
+            } else {
+                NewWindowResponse::Allow
+            }
+        })
+        .with_ipc_handler(move |request: wry::http::Request<String>| {
+            let message = request.body();
+
+            if let Some(url) = message.strip_prefix("LAUNCH_INTERCEPT:") {
+                tracing::warn!("browse_as child: intercepted launch attempt: {url}");
+                // TODO: parse placeId out of `url`, write handoff file, close window
+            }
+        })
         .build(&window)
         .map_err(|e| format!("webview build: {e}"))?;
+
+    // External protocol launches bypass wry's navigation and new-window
+    // callbacks. Cancel them at the WebView2 boundary instead.
+    if let Ok(webview18) = webview.webview().cast::<ICoreWebView2_18>() {
+        let handler = LaunchingExternalUriSchemeEventHandler::create(Box::new(move |_, args| {
+            if let Some(args) = args {
+                let mut uri = windows_core::PWSTR::null();
+                unsafe { args.Uri(&mut uri)? };
+                let uri = take_pwstr(uri);
+                if uri
+                    .get(.."roblox-player:".len())
+                    .is_some_and(|scheme| scheme.eq_ignore_ascii_case("roblox-player:"))
+                {
+                    tracing::warn!("browse_as child: blocked roblox-player launch");
+                    if let Some(place_id) = extract_place_id(&uri) {
+                        if let Err(error) =
+                            std::fs::write(&launch_request_path, place_id.to_string())
+                        {
+                            tracing::warn!("browse_as child: failed to notify parent: {error}");
+                        }
+                    } else {
+                        tracing::warn!("browse_as child: blocked launch had no place ID");
+                    }
+                    unsafe { args.SetCancel(true)? };
+                }
+            }
+            Ok(())
+        }));
+        unsafe {
+            webview18
+                .add_LaunchingExternalUriScheme(&handler, &mut 0)
+                .map_err(|e| format!("external URI handler: {e:?}"))?;
+        }
+    } else {
+        warn!("browse_as child: WebView2 external URI cancellation is unavailable");
+    }
 
     info!("browse_as child: entering event loop");
     event_loop.run(move |event, _, control_flow| {
