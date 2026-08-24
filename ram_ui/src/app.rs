@@ -818,7 +818,7 @@ impl AppState {
                 .or_else(|| self.config.roblox_player_path.clone()),
             multi_instance: self.config.multi_instance_enabled,
             kill_background: self.config.kill_background_roblox,
-            privacy_mode: self.config.privacy_mode,
+            privacy: self.config.privacy_cleanup_options(),
         });
         self.toasts
             .push(Toast::info(format!("Joining {target_name}'s server")));
@@ -2464,7 +2464,7 @@ impl AppState {
                                                 .or_else(|| self.config.roblox_player_path.clone()),
                                             multi_instance: self.config.multi_instance_enabled,
                                             kill_background: self.config.kill_background_roblox,
-                                            privacy_mode: self.config.privacy_mode,
+                                            privacy: self.config.privacy_cleanup_options(),
                                         });
                                     }
                                 }
@@ -2731,7 +2731,7 @@ impl AppState {
                                     access_code: None,
                                     multi_instance: self.config.multi_instance_enabled,
                                     kill_background: self.config.kill_background_roblox,
-                                    privacy_mode: self.config.privacy_mode,
+                                    privacy: self.config.privacy_cleanup_options(),
                                     player_path: self.config.roblox_player_path.clone(),
                                     launch_delay_secs: self.config.launch_delay_secs,
                                 });
@@ -2907,7 +2907,7 @@ impl AppState {
                                             .or_else(|| self.config.roblox_player_path.clone()),
                                         multi_instance: self.config.multi_instance_enabled,
                                         kill_background: self.config.kill_background_roblox,
-                                        privacy_mode: self.config.privacy_mode,
+                                        privacy: self.config.privacy_cleanup_options(),
                                     });
                                 }
                             }
@@ -3053,7 +3053,7 @@ impl AppState {
                                         .or_else(|| self.config.roblox_player_path.clone()),
                                     multi_instance: self.config.multi_instance_enabled,
                                     kill_background: self.config.kill_background_roblox,
-                                    privacy_mode: self.config.privacy_mode,
+                                            privacy: self.config.privacy_cleanup_options(),
                                 });
                             }
                         } else if self.selected_ids.len() > 1 {
@@ -3081,7 +3081,7 @@ impl AppState {
                                     access_code: ac,
                                     multi_instance: self.config.multi_instance_enabled,
                                     kill_background: self.config.kill_background_roblox,
-                                    privacy_mode: self.config.privacy_mode,
+                                    privacy: self.config.privacy_cleanup_options(),
                                     player_path: self.config.roblox_player_path.clone(),
                                     launch_delay_secs: self.config.launch_delay_secs,
                                 });

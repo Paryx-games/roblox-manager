@@ -8,7 +8,7 @@ use eframe::egui;
 use ram_core::assets::{AssetKind, Creator, ModerationStatus, OperationOutcome};
 use ram_core::auth::RobloxClient;
 use ram_core::instances::{Attribution, InstanceRegistry, TrackedInstance};
-use ram_core::models::{Account, AccountStore, Presence};
+use ram_core::models::{Account, AccountStore, PrivacyCleanupOptions, Presence};
 use ram_core::{api, assets, assets_api, crypto, group_api, process, CoreError};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -89,7 +89,7 @@ pub enum BackendCommand {
         player_path: Option<PathBuf>,
         multi_instance: bool,
         kill_background: bool,
-        privacy_mode: bool,
+        privacy: PrivacyCleanupOptions,
     },
     /// Save the account store to disk.
     SaveStore {
@@ -154,7 +154,7 @@ pub enum BackendCommand {
         access_code: Option<String>,
         multi_instance: bool,
         kill_background: bool,
-        privacy_mode: bool,
+        privacy: PrivacyCleanupOptions,
         player_path: Option<PathBuf>,
         /// Seconds to wait between launches (Roblox rate-limit avoidance).
         /// 0 = no extra delay beyond the existing tray-kill window.
@@ -801,7 +801,7 @@ async fn handle_command(
             player_path,
             multi_instance,
             kill_background,
-            privacy_mode,
+            privacy,
         } => {
             let cookie = if use_credential_manager {
                 crypto::credential_load(user_id)?
@@ -817,10 +817,8 @@ async fn handle_command(
             if kill_background || multi_instance {
                 process::kill_tray_roblox();
             }
-            if privacy_mode {
-                process::clear_roblox_cookies();
-            }
             let ticket = client.generate_auth_ticket(&cookie).await?;
+            let cleanup = process::prepare_privacy_cleanup(privacy)?;
             let launchtime = note_launch(registry, user_id, place_id);
             process::launch_game(
                 &ticket,
@@ -832,6 +830,7 @@ async fn handle_command(
                 launchtime,
                 player_path.as_deref(),
             )?;
+            cleanup.commit()?;
             Ok(BackendEvent::GameLaunched)
         }
         BackendCommand::SaveStore {
@@ -949,7 +948,7 @@ async fn handle_command(
             access_code,
             multi_instance,
             kill_background,
-            privacy_mode,
+            privacy,
             player_path,
             launch_delay_secs,
         } => {
@@ -959,10 +958,6 @@ async fn handle_command(
             if kill_background || multi_instance {
                 process::kill_tray_roblox();
             }
-            if privacy_mode {
-                process::clear_roblox_cookies();
-            }
-
             // If no Job ID was provided and no link_code (private server), resolve
             // a public server so all accounts land in the same server.
             let resolved_job_id = if job_id.is_some() || link_code.is_some() {
@@ -1020,12 +1015,22 @@ async fn handle_command(
                     Ok(cookie) => {
                         match client.generate_auth_ticket(&cookie).await {
                             Ok(ticket) => {
+                                let cleanup = match process::prepare_privacy_cleanup(privacy) {
+                                    Ok(cleanup) => cleanup,
+                                    Err(error) => {
+                                        error!(
+                                            "Bulk launch privacy cleanup failed for user {user_id}: {error}"
+                                        );
+                                        failed += 1;
+                                        continue;
+                                    }
+                                };
                                 // Snapshot before each launch in the batch, not
                                 // once for the batch: by the time account three
                                 // goes out, accounts one and two have clients
                                 // that must not look new.
                                 let launchtime = note_launch(registry, *user_id, place_id);
-                                if let Err(e) = process::launch_game(
+                                match process::launch_game(
                                     &ticket,
                                     place_id,
                                     resolved_job_id.as_deref(),
@@ -1035,10 +1040,18 @@ async fn handle_command(
                                     launchtime,
                                     player_path.as_deref(),
                                 ) {
-                                    error!("Bulk launch failed for user {user_id}: {e}");
-                                    failed += 1;
-                                } else {
-                                    launched += 1;
+                                    Ok(()) => {
+                                        launched += 1;
+                                        if let Err(error) = cleanup.commit() {
+                                            error!(
+                                                "Bulk launch privacy backup cleanup failed for user {user_id}: {error}"
+                                            );
+                                        }
+                                    }
+                                    Err(error) => {
+                                        error!("Bulk launch failed for user {user_id}: {error}");
+                                        failed += 1;
+                                    }
                                 }
                             }
                             Err(e) => {
@@ -1989,7 +2002,7 @@ mod tests {
                 player_path: None,
                 multi_instance: false,
                 kill_background: false,
-                privacy_mode: false,
+                privacy: PrivacyCleanupOptions::default(),
             },
             BackendCommand::CheckForUpdates {
                 current_version: "1.8.1".to_string(),

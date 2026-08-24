@@ -299,7 +299,7 @@ pub struct AppConfig {
 }
 
 /// Filesystem cleanup selections used for a privacy-protected launch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PrivacyCleanupOptions {
     pub cookies: bool,
     pub local_storage: bool,
