@@ -493,7 +493,25 @@ pub fn show(
         setting_row(ui, "privacy_mode", |ui| {
             ui.checkbox(
                 &mut config.privacy_mode,
-                "Clear RobloxCookies.dat before each launch",
+                "Clean cookies before launch",
+            );
+        });
+        setting_row(ui, "privacy_local_storage", |ui| {
+            ui.checkbox(
+                &mut config.privacy_clean_local_storage,
+                "Clean cookies and LocalStorage",
+            );
+        });
+        setting_row(ui, "privacy_full_profile", |ui| {
+            ui.checkbox(
+                &mut config.privacy_clean_full_profile,
+                "Clean full Roblox cache/profile",
+            );
+        });
+        setting_row(ui, "privacy_on_exit", |ui| {
+            ui.checkbox(
+                &mut config.privacy_clean_on_exit,
+                "Clean selected privacy data on launch and exit",
             );
         });
         setting_row(ui, "mac_rotation", |ui| {

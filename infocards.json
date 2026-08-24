@@ -49,7 +49,19 @@
     },
     "privacy_mode": {
         "type": "info",
-        "text": "Truncates %LOCALAPPDATA%\\Roblox\\LocalStorage\\RobloxCookies.dat before each launch. Roblox recreates the file for later use; clearing it may reduce account association through stored browser cookies but does not guarantee isolation."
+        "text": "Moves %LOCALAPPDATA%\\Roblox\\LocalStorage\\RobloxCookies.dat into a temporary backup before each launch, then securely removes the backup after a successful launch. Cookies are enabled by default; this does not guarantee full account isolation."
+    },
+    "privacy_local_storage": {
+        "type": "warning",
+        "text": "Moves the Roblox LocalStorage directory into a temporary backup before launch. It may remove additional local session state and can be restored automatically if launching fails."
+    },
+    "privacy_full_profile": {
+        "type": "warning",
+        "text": "Moves Roblox user-state directories such as LocalStorage, logs, Downloads, and ClientSettings into a temporary backup. Roblox must be closed before cleanup and the backup is removed after a successful launch."
+    },
+    "privacy_on_exit": {
+        "type": "info",
+        "text": "Repeats the selected cleanup when RM exits, but refuses to touch privacy data while a Roblox client is running."
     },
     "mac_rotation": {
         "type": "warning",

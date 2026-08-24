@@ -223,6 +223,15 @@ pub struct AppConfig {
     /// Clear RobloxCookies.dat before each launch to prevent account association.
     #[serde(default = "default_true")]
     pub privacy_mode: bool,
+    /// Clear Roblox LocalStorage before launches when selected.
+    #[serde(default)]
+    pub privacy_clean_local_storage: bool,
+    /// Clear user-state directories under the Roblox profile when selected.
+    #[serde(default)]
+    pub privacy_clean_full_profile: bool,
+    /// Apply the selected privacy cleanup when RM exits, if no Roblox client is running.
+    #[serde(default)]
+    pub privacy_clean_on_exit: bool,
     /// Enable the built-in MAC address rotation action.
     #[serde(default)]
     pub mac_rotation_enabled: bool,
@@ -287,6 +296,20 @@ pub struct AppConfig {
     /// correct for users upgrading from a release that predates it.
     #[serde(default)]
     pub offered_passwordless: bool,
+}
+
+/// Filesystem cleanup selections used for a privacy-protected launch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrivacyCleanupOptions {
+    pub cookies: bool,
+    pub local_storage: bool,
+    pub full_profile: bool,
+}
+
+impl PrivacyCleanupOptions {
+    pub fn is_empty(self) -> bool {
+        !self.cookies && !self.local_storage && !self.full_profile
+    }
 }
 
 /// Target monitor(s) for window arrangement / tiling.
@@ -414,6 +437,9 @@ impl Default for AppConfig {
             groups: HashMap::new(),
             favorite_places: Vec::new(),
             privacy_mode: true,
+            privacy_clean_local_storage: false,
+            privacy_clean_full_profile: false,
+            privacy_clean_on_exit: false,
             mac_rotation_enabled: false,
             mac_preserve_oui: true,
             mac_alternate_oui: default_mac_oui(),
@@ -439,6 +465,13 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    pub fn privacy_cleanup_options(&self) -> PrivacyCleanupOptions {
+        PrivacyCleanupOptions {
+            cookies: self.privacy_mode,
+            local_storage: self.privacy_clean_local_storage,
+            full_profile: self.privacy_clean_full_profile,
+        }
+    }
     /// Retrieve the current tiling options configuration.
     pub fn tiling_options(&self) -> TilingOptions {
         TilingOptions {
