@@ -111,8 +111,9 @@ pub fn prepare_privacy_cleanup(
         ));
     }
 
-    let local_app_data = std::env::var("LOCALAPPDATA")
-        .map_err(|_| CoreError::Process("LOCALAPPDATA is not set; cannot clean Roblox state".into()))?;
+    let local_app_data = std::env::var("LOCALAPPDATA").map_err(|_| {
+        CoreError::Process("LOCALAPPDATA is not set; cannot clean Roblox state".into())
+    })?;
     let roblox_root = PathBuf::from(local_app_data).join("Roblox");
     let mut targets = Vec::new();
     if options.full_profile {
@@ -151,7 +152,9 @@ pub fn prepare_privacy_cleanup(
                 original.display()
             )));
         }
-        cleanup.entries.push(PrivacyBackupEntry { original, backup });
+        cleanup
+            .entries
+            .push(PrivacyBackupEntry { original, backup });
     }
     Ok(cleanup)
 }
