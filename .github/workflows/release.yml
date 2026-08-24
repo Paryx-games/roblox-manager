@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 env:
-  cargo_term_color: always
+  CARGO_TERM_COLOR: always
 
 jobs:
   build:
@@ -29,11 +29,34 @@ jobs:
       - name: build
         run: cargo build --release
 
-      - name: upload executable
+      - name: inspect build output
+        shell: pwsh
+        run: |
+          Write-Host "=== release binaries ==="
+          Get-ChildItem -Path target/release -Filter "*.exe" -File |
+            Select-Object Name, Length, LastWriteTime |
+            Format-Table -AutoSize
+
+      - name: verify executables
+        shell: pwsh
+        run: |
+          $executables = Get-ChildItem -Path target/release -Filter "*.exe" -File
+
+          if (-not $executables) {
+            throw "No executable files were produced."
+          }
+
+          Write-Host "Found $($executables.Count) executable(s):"
+
+          foreach ($executable in $executables | Sort-Object Name) {
+            Write-Host " - $($executable.Name)"
+          }
+
+      - name: upload executables
         uses: actions/upload-artifact@v4
         with:
-          name: ram_ui
-          path: target/release/ram_ui.exe
+          name: release-executables
+          path: target/release/*.exe
           retention-days: 1
 
   release:
@@ -47,26 +70,48 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: download executable
+      - name: download executables
         uses: actions/download-artifact@v4
         with:
-          name: ram_ui
+          name: release-executables
           path: release
+
+      - name: inspect downloaded executables
+        shell: pwsh
+        run: |
+          Write-Host "=== downloaded release files ==="
+          Get-ChildItem -Path release -File |
+            Select-Object Name, Length, LastWriteTime |
+            Format-Table -AutoSize
 
       - name: get previous tag
         id: previous-tag
         shell: pwsh
         run: |
           $currentTag = "${{ github.ref_name }}"
+
+          Write-Host "Current tag: $currentTag"
+
           $tags = git tag --sort=-version:refname |
-            Where-Object { $_ -ne $currentTag }
+            Where-Object {
+              $_ -ne $currentTag -and $_ -like "v*"
+            }
+
+          Write-Host "Available previous version tags:"
+          $tags | ForEach-Object {
+            Write-Host " - $_"
+          }
 
           if (-not $tags) {
+            Write-Host "No previous version tag found."
             "value=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
             exit 0
           }
 
-          "value=$($tags[0])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $previousTag = $tags[0]
+
+          Write-Host "Previous tag: $previousTag"
+          "value=$previousTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: extract changelog
         shell: pwsh
@@ -74,6 +119,8 @@ jobs:
           $version = "${{ github.ref_name }}"
           $path = "CHANGELOG.md"
           $lines = Get-Content $path
+
+          Write-Host "Extracting changelog entry for $version"
 
           $start = -1
           $end = $lines.Count
@@ -97,15 +144,228 @@ jobs:
           }
 
           $section = ($lines[$start..($end - 1)] -join "`n")
+
+          Write-Host "=== changelog entry ==="
+          Write-Host $section
+
           Set-Content -Path release-notes.md -Value $section
+
+      - name: generate github release notes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $currentTag = "${{ github.ref_name }}"
+          $previousTag = "${{ steps.previous-tag.outputs.value }}"
+          $repository = "${{ github.repository }}"
+
+          Write-Host "Generating GitHub release notes"
+          Write-Host "Repository: $repository"
+          Write-Host "Current tag: $currentTag"
+          Write-Host "Previous tag: $(if ($previousTag) { $previousTag } else { "<none>" })"
+
+          if ($previousTag) {
+            $response = gh api `
+              --method POST `
+              "repos/$repository/releases/generate-notes" `
+              -f "tag_name=$currentTag" `
+              -f "target_commitish=${{ github.sha }}" `
+              -f "previous_tag_name=$previousTag"
+          } else {
+            $response = gh api `
+              --method POST `
+              "repos/$repository/releases/generate-notes" `
+              -f "tag_name=$currentTag" `
+              -f "target_commitish=${{ github.sha }}"
+          }
+
+          $generated = $response | ConvertFrom-Json
+          $notes = $generated.body
+
+          Write-Host "=== github-generated release notes ==="
+          Write-Host $notes
+
+          Set-Content -Path github-release-notes-raw.md -Value $notes
+
+          # Pull the new contributors section out before removing it.
+          $newContributorMatch = [regex]::Match(
+            $notes,
+            '(?ms)## New Contributors\s*\r?\n(?<body>.*?)(?=\r?\n\*\*Full Changelog\*\*)'
+          )
+
+          if ($newContributorMatch.Success) {
+            $newContributorBody = $newContributorMatch.Groups["body"].Value.Trim()
+
+            Write-Host "=== github new contributors ==="
+            Write-Host $newContributorBody
+
+            Set-Content -Path new-contributors-raw.md -Value $newContributorBody
+          } else {
+            Write-Host "No new contributors section was generated."
+            Set-Content -Path new-contributors-raw.md -Value ""
+          }
+
+          # Remove the automatically generated contributors section because
+          # the release gets a custom contributors section below.
+          $notes = [regex]::Replace(
+            $notes,
+            '(?ms)\r?\n## New Contributors.*?(?=\r?\n\*\*Full Changelog\*\*)',
+            ''
+          )
+
+          Set-Content -Path github-release-notes.md -Value $notes.Trim()
+
+      - name: generate contributors
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $currentTag = "${{ github.ref_name }}"
+          $previousTag = "${{ steps.previous-tag.outputs.value }}"
+          $repository = "${{ github.repository }}"
+
+          Write-Host "Generating contributors for $currentTag"
+
+          if ($previousTag) {
+            Write-Host "Comparing $previousTag...$currentTag"
+
+            $response = gh api `
+              "repos/$repository/compare/$previousTag...$currentTag"
+
+            $compare = $response | ConvertFrom-Json
+            $commits = $compare.commits
+          } else {
+            Write-Host "No previous tag. Reading commits from $currentTag."
+
+            $response = gh api `
+              "repos/$repository/commits?sha=$currentTag&per_page=100"
+
+            $commits = $response | ConvertFrom-Json
+          }
+
+          Write-Host "Commits in release range: $($commits.Count)"
+
+          $contributors = @{}
+
+          foreach ($commit in $commits) {
+            $name = $commit.commit.author.name
+
+            if (-not $name) {
+              continue
+            }
+
+            if (-not $contributors.ContainsKey($name)) {
+              $contributors[$name] = $true
+            }
+          }
+
+          Write-Host "Contributors found: $($contributors.Count)"
+
+          $lines = @(
+            "## Contributors"
+            ""
+          )
+
+          foreach ($name in ($contributors.Keys | Sort-Object)) {
+            Write-Host "Contributor: $name"
+            $lines += "- $name"
+          }
+
+          $newContributorBody = Get-Content -Path new-contributors-raw.md -Raw
+
+          if ($newContributorBody.Trim()) {
+            $newContributorNames = @()
+
+            foreach ($line in ($newContributorBody -split "\r?\n")) {
+              if ($line -match '^- \[\*\*@?([^*\]]+)\*\*') {
+                $name = $matches[1].Trim()
+
+                if ($name -and $newContributorNames -notcontains $name) {
+                  $newContributorNames += $name
+                }
+              }
+            }
+
+            if ($newContributorNames.Count -gt 0) {
+              $lines += ""
+              $lines += "### New Contributors"
+              $lines += ""
+
+              foreach ($name in ($newContributorNames | Sort-Object)) {
+                Write-Host "New contributor: $name"
+                $lines += "- $name"
+              }
+            }
+          }
+
+          $contributorsMarkdown = $lines -join "`n"
+
+          Write-Host "=== contributors section ==="
+          Write-Host $contributorsMarkdown
+
+          Set-Content -Path contributors.md -Value $contributorsMarkdown
+
+      - name: generate sha256 checksums
+        shell: pwsh
+        run: |
+          $executables = Get-ChildItem -Path release -Filter "*.exe" -File |
+            Sort-Object Name
+
+          if (-not $executables) {
+            throw "No executable files were found in the release directory."
+          }
+
+          Write-Host "Generating SHA256 checksums for $($executables.Count) executable(s)."
+
+          $lines = @(
+            "## SHA256"
+            ""
+            "Checksums for all executable files included in this release."
+            ""
+          )
+
+          foreach ($executable in $executables) {
+            $hash = (
+              Get-FileHash -Path $executable.FullName -Algorithm SHA256
+            ).Hash.ToLower()
+
+            Write-Host "$($executable.Name): $hash"
+
+            $lines += "- ``$($executable.Name)`` - ``$hash``"
+          }
+
+          Set-Content -Path sha256.md -Value ($lines -join "`n")
+
+      - name: assemble release notes
+        shell: pwsh
+        run: |
+          $changelog = (Get-Content -Path release-notes.md -Raw).Trim()
+          $githubNotes = (Get-Content -Path github-release-notes.md -Raw).Trim()
+          $contributors = (Get-Content -Path contributors.md -Raw).Trim()
+          $sha256 = (Get-Content -Path sha256.md -Raw).Trim()
+
+          $warning = @"
+          > [!NOTE]
+          > This was auto-generated by GitHub Actions. It may be inaccurate. Please check [CHANGELOG.md](https://github.com/Paryx-games/roblox-manager/blob/main/CHANGELOG.md) for a detailed changelog.
+          "@
+
+          $parts = @(
+            $changelog
+            $githubNotes
+            $contributors
+            $sha256
+            $warning.Trim()
+          )
+
+          $finalNotes = $parts -join "`n`n"
+
+          Write-Host "=== final release notes ==="
+          Write-Host $finalNotes
+
+          Set-Content -Path final-release-notes.md -Value $finalNotes
 
       - name: create release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/ram_ui.exe
-          generate_release_notes: true
-          previous_tag: ${{ steps.previous-tag.outputs.value }}
-          body_path: release-notes.md
-          body: |
-            > [!NOTE]
-            > This was auto-generated by GitHub Actions. It may be inaccurate. Please check [CHANGELOG.md](https://github.com/Paryx-games/roblox-manager/blob/main/CHANGELOG.md) for a detailed changelog.
+          files: release/*.exe
+          body_path: final-release-notes.md
