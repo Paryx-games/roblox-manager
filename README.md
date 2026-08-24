@@ -12,7 +12,7 @@
   <a href="https://github.com/Paryx-games/roblox-manager/releases/latest">
     <img src="https://img.shields.io/github/v/release/Paryx-games/roblox-manager?label=version&logo=github&logoColor=white&color=6366f1" alt="version">
   </a>
-  <img src="https://img.shields.io/github/downloads/Paryx-games/roblox-manager?label=downloads&logo=github&logoColor=white&color=4f46e5" alt="downloads">
+  <img src="https://img.shields.io/github/downloads/Paryx-games/roblox-manager/total?label=downloads&logo=github&logoColor=white&color=4f46e5" alt="downloads">
   <img src="https://img.shields.io/github/license/Paryx-games/roblox-manager?label=license&logo=github&logoColor=white&color=3b82f6" alt="license">
   <img src="https://img.shields.io/github/stars/Paryx-games/roblox-manager?style=flat&label=stars&logo=github&logoColor=white&color=0ea5e9" alt="stars">
   <img src="https://img.shields.io/github/issues/Paryx-games/roblox-manager?label=issues&logo=github&logoColor=white&color=14b8a6" alt="issues">
