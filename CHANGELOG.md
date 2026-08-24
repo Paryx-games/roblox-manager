@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.14.0
+
+### Added
+
+- **Privacy cleanup scopes.** Privacy settings now offer independent checkboxes for cookies, LocalStorage, full Roblox user-state cleanup, and cleanup on both launch and exit. Cookies remain enabled by default.
+- **Transactional privacy cleanup.** Selected Roblox state is moved into a temporary backup before launch, restored automatically when launching fails, and removed after a successful launch.
+- **Per-launch bulk cleanup.** Bulk launches prepare privacy cleanup for each account immediately before its launch instead of cleaning only once for the entire batch.
+- **Active-client protection.** Privacy cleanup refuses to touch Roblox files while a Roblox client is running, preventing the client from rewriting state during cleanup.
+
 ## v1.13.0
 
 ### Added

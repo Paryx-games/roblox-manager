@@ -1849,6 +1849,20 @@ impl eframe::App for AppState {
         // Hand the clients their own titles back. They outlive RM, so a rename
         // left behind sticks until the user restarts the client.
         self.restore_roblox_window_titles();
+        if self.config.privacy_clean_on_exit {
+            match ram_core::process::prepare_privacy_cleanup(
+                self.config.privacy_cleanup_options(),
+            ) {
+                Ok(cleanup) => {
+                    if let Err(error) = cleanup.commit() {
+                        tracing::warn!(%error, "Could not finish privacy cleanup on exit");
+                    }
+                }
+                Err(error) => {
+                    tracing::warn!(%error, "Privacy cleanup on exit was skipped");
+                }
+            }
+        }
         if self.asset_index_dirty {
             self.save_asset_index();
         }

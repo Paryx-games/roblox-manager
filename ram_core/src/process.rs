@@ -26,32 +26,6 @@ use crate::models::PrivacyCleanupOptions;
 // Privacy — clear Roblox cookie tracking file
 // ---------------------------------------------------------------------------
 
-/// Clear `RobloxCookies.dat` so Roblox cannot associate accounts across launches.
-///
-/// The file lives at `%LOCALAPPDATA%\Roblox\LocalStorage\RobloxCookies.dat`.
-/// We truncate it to an empty file; Roblox will recreate it on the next launch
-/// with only the current session's cookie.
-pub fn clear_roblox_cookies() {
-    let Ok(local_app_data) = std::env::var("LOCALAPPDATA") else {
-        warn!("LOCALAPPDATA not set — cannot clear RobloxCookies.dat");
-        return;
-    };
-    let path = PathBuf::from(local_app_data)
-        .join("Roblox")
-        .join("LocalStorage")
-        .join("RobloxCookies.dat");
-
-    if !path.exists() {
-        debug!("RobloxCookies.dat does not exist, nothing to clear");
-        return;
-    }
-
-    match std::fs::write(&path, b"") {
-        Ok(()) => info!("Cleared RobloxCookies.dat for privacy"),
-        Err(e) => warn!("Failed to clear RobloxCookies.dat: {e}"),
-    }
-}
-
 struct PrivacyBackupEntry {
     original: PathBuf,
     backup: PathBuf,
