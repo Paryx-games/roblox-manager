@@ -2,6 +2,11 @@
 
 ## v1.12.4
 
+### Added
+
+- **Blocked browser launch fallback.** When Roblox cannot launch from the embedded browser, RM blocks the external player launch, brings its window to the foreground, flashes the taskbar, and offers to prepopulate the Place ID field.
+- **Orphaned data cleanup.** Developer Options now includes a button to remove browse-as profiles for accounts that are no longer in RM.
+
 ### Changed
 
 - **Clearer launch data fields.** Launch data now rejects `placeId`, `jobId`, and `gameInstanceId`, with guidance to use the dedicated Place ID and Job ID fields instead.
