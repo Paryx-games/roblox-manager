@@ -49,14 +49,6 @@ jobs:
       - name: setup pages
         uses: actions/configure-pages@v5
 
-      - name: inspect pages artifact
-        working-directory: website
-        run: |
-          echo "=== files ==="
-          find dist -type f -print
-          echo "=== index.html ==="
-          cat dist/index.html
-
       - name: upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
