@@ -16,6 +16,7 @@ const INFO_BLACK_PNG: &[u8] = include_bytes!("../../../assets/info_black.png");
 #[allow(dead_code)]
 pub enum SettingsAction {
     SaveConfig,
+    RotateMacAddress,
     ChangePassword { new_password: String },
     ClearPassword,
     EnableMultiInstance,
@@ -495,6 +496,57 @@ pub fn show(
                 "Clear RobloxCookies.dat before each launch",
             );
         });
+        setting_row(ui, "mac_rotation", |ui| {
+            ui.checkbox(
+                &mut config.mac_rotation_enabled,
+                "Enable MAC address rotation",
+            );
+        });
+        if config.mac_rotation_enabled {
+            ui.indent("mac_rotation_options", |ui| {
+                setting_row(ui, "mac_preserve_oui", |ui| {
+                    ui.checkbox(
+                        &mut config.mac_preserve_oui,
+                        "Keep this PC's adapter OUI",
+                    );
+                });
+                if !config.mac_preserve_oui {
+                    setting_row(ui, "mac_alternate_oui", |ui| {
+                        egui::ComboBox::from_id_salt("mac_alternate_oui")
+                            .selected_text(match config.mac_alternate_oui.as_str() {
+                                "00:1B:21" => "Intel (00:1B:21)",
+                                "00:E0:4C" => "Realtek (00:E0:4C)",
+                                "3C:52:82" => "Microsoft (3C:52:82)",
+                                _ => "Custom / saved OUI",
+                            })
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut config.mac_alternate_oui,
+                                    "00:1B:21".to_string(),
+                                    "Intel (00:1B:21)",
+                                );
+                                ui.selectable_value(
+                                    &mut config.mac_alternate_oui,
+                                    "00:E0:4C".to_string(),
+                                    "Realtek (00:E0:4C)",
+                                );
+                                ui.selectable_value(
+                                    &mut config.mac_alternate_oui,
+                                    "3C:52:82".to_string(),
+                                    "Microsoft (3C:52:82)",
+                                );
+                            });
+                    });
+                }
+                if ui.button("Rotate MAC address now").clicked() {
+                    action = Some(SettingsAction::RotateMacAddress);
+                }
+                ui.colored_label(
+                    theme.text_muted,
+                    "The adapter briefly disconnects and Windows may request administrator permission.",
+                );
+            });
+        }
         setting_row(ui, "anonymize_names", |ui| {
             ui.checkbox(&mut config.anonymize_names, "Anonymize account names");
         });

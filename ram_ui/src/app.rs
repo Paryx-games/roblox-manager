@@ -4298,6 +4298,15 @@ impl AppState {
                         self.toasts.push(Toast::success("Settings saved"));
                     }
                 }
+                Some(settings::SettingsAction::RotateMacAddress) => {
+                    match ram_core::process::rotate_mac_address(
+                        self.config.mac_preserve_oui,
+                        &self.config.mac_alternate_oui,
+                    ) {
+                        Ok(()) => self.toasts.push(Toast::success("MAC address rotated")),
+                        Err(e) => self.toasts.push(Toast::error(format!("MAC rotation failed: {e}"))),
+                    }
+                }
                 Some(settings::SettingsAction::EnableMultiInstance) => {
                     if self.roblox_running {
                         // Kill tray processes first, then check again

@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.13.0
+
+### Added
+
+- **Built-in MAC address rotation.** Privacy settings can rotate the active Windows network adapter's MAC address, preserving the PC's permanent adapter OUI by default or using a selectable well-known vendor OUI. Rotation is explicit, requires the NetAdapter PowerShell module, and may require administrator permissions.
+
 ## v1.12.4
 
 ### Added

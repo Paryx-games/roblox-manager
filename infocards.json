@@ -51,6 +51,18 @@
         "type": "info",
         "text": "Truncates %LOCALAPPDATA%\\Roblox\\LocalStorage\\RobloxCookies.dat before each launch. Roblox recreates the file for later use; clearing it may reduce account association through stored browser cookies but does not guarantee isolation."
     },
+    "mac_rotation": {
+        "type": "warning",
+        "text": "Changes the active Windows network adapter's MAC address using PowerShell. The adapter briefly disconnects, administrator permission may be required, and networks may identify or block a changed address."
+    },
+    "mac_preserve_oui": {
+        "type": "info",
+        "text": "Keeps the first three bytes (the manufacturer's OUI) from this PC's active adapter and randomizes only the device portion of the MAC address."
+    },
+    "mac_alternate_oui": {
+        "type": "info",
+        "text": "Selects a well-known vendor OUI for the rotated address when preserving this PC's OUI is disabled."
+    },
     "anonymize_names": {
         "type": "info",
         "text": "Replaces usernames, display names, and aliases shown by RM with stable generic account labels. Renamed Roblox windows use the same generic labels, and cached avatars are blurred when displayed in the app."

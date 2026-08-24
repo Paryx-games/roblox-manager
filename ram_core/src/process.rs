@@ -51,6 +51,93 @@ pub fn clear_roblox_cookies() {
     }
 }
 
+/// Rotate the MAC address of the first active hardware network adapter.
+///
+/// Windows applies this through the NetAdapter PowerShell module and requires
+/// an elevated process. The adapter is briefly disabled while the address is
+/// changed, so callers should only invoke this as an explicit user action.
+pub fn rotate_mac_address(preserve_oui: bool, alternate_oui: &str) -> Result<(), CoreError> {
+    #[cfg(not(windows))]
+    {
+        let _ = (preserve_oui, alternate_oui);
+        return Err(CoreError::Process(
+            "MAC address rotation is only supported on Windows".into(),
+        ));
+    }
+
+    #[cfg(windows)]
+    {
+        let normalized_oui: String = alternate_oui
+            .chars()
+            .filter(|character| *character != ':' && *character != '-')
+            .collect();
+        if normalized_oui.len() != 6
+            || !normalized_oui
+                .chars()
+                .all(|character| character.is_ascii_hexdigit())
+        {
+            return Err(CoreError::Process(format!(
+                "invalid alternate MAC OUI: {alternate_oui}"
+            )));
+        }
+
+        let random_suffix = rand::random::<[u8; 3]>();
+        let suffix = format!(
+            "{:02X}-{:02X}-{:02X}",
+            random_suffix[0], random_suffix[1], random_suffix[2]
+        );
+        let oui = normalized_oui
+            .as_bytes()
+            .chunks(2)
+            .map(|pair| std::str::from_utf8(pair).unwrap_or_default())
+            .collect::<Vec<_>>()
+            .join("-");
+
+        let oui_expression = if preserve_oui {
+            "$current.Replace('-', '').Substring(0, 6) -replace '(..)(..)(..)', '$1-$2-$3'"
+                .to_string()
+        } else {
+            format!("'{oui}'")
+        };
+        let script = format!(
+            "$ErrorActionPreference = 'Stop'; \
+             $adapter = Get-NetAdapter | Where-Object {{ $_.Status -eq 'Up' -and $_.HardwareInterface }} | \
+               Sort-Object ifIndex | Select-Object -First 1; \
+             if ($null -eq $adapter) {{ throw 'No active hardware network adapter was found' }}; \
+             $current = if ($adapter.PermanentAddress) {{ $adapter.PermanentAddress }} else {{ $adapter.MacAddress }}; \
+             $oui = {oui_expression}; \
+             $newAddress = \"$oui-{suffix}\"; \
+             Disable-NetAdapter -Name $adapter.Name -Confirm:$false; \
+             Set-NetAdapter -Name $adapter.Name -MacAddress $newAddress -Confirm:$false; \
+             Enable-NetAdapter -Name $adapter.Name -Confirm:$false; \
+             Write-Output $newAddress"
+        );
+
+        let output = std::process::Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &script,
+            ])
+            .output()
+            .map_err(|error| CoreError::Process(format!("could not start PowerShell: {error}")))?;
+        if !output.status.success() {
+            let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(CoreError::Process(if message.is_empty() {
+                "MAC address rotation failed; run RM as administrator and try again".into()
+            } else {
+                format!("MAC address rotation failed: {message}")
+            }));
+        }
+        let new_address = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        info!("Rotated active network adapter MAC address to {new_address}");
+        Ok(())
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Game launch via URI scheme
 // ---------------------------------------------------------------------------

@@ -223,6 +223,15 @@ pub struct AppConfig {
     /// Clear RobloxCookies.dat before each launch to prevent account association.
     #[serde(default = "default_true")]
     pub privacy_mode: bool,
+    /// Enable the built-in MAC address rotation action.
+    #[serde(default)]
+    pub mac_rotation_enabled: bool,
+    /// Preserve the machine's current adapter OUI when rotating its MAC.
+    #[serde(default = "default_true")]
+    pub mac_preserve_oui: bool,
+    /// Alternate well-known OUI used when `mac_preserve_oui` is disabled.
+    #[serde(default = "default_mac_oui")]
+    pub mac_alternate_oui: String,
     /// Automatically arrange Roblox windows in a grid after launching.
     #[serde(default)]
     pub auto_arrange_windows: bool,
@@ -379,6 +388,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_mac_oui() -> String {
+    "00:1B:21".to_string()
+}
+
 fn default_sort_order() -> u32 {
     u32::MAX
 }
@@ -401,6 +414,9 @@ impl Default for AppConfig {
             groups: HashMap::new(),
             favorite_places: Vec::new(),
             privacy_mode: true,
+            mac_rotation_enabled: false,
+            mac_preserve_oui: true,
+            mac_alternate_oui: default_mac_oui(),
             auto_arrange_windows: false,
             tiling_target_monitor: MonitorTarget::Primary,
             tiling_layout_mode: TilingLayoutMode::Auto,
