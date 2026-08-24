@@ -20,6 +20,7 @@ use tracing::{debug, info, warn};
 
 use crate::error::CoreError;
 use crate::instances::{classify_cmdline, LiveClient};
+use crate::models::PrivacyCleanupOptions;
 
 // ---------------------------------------------------------------------------
 // Privacy — clear Roblox cookie tracking file
@@ -48,6 +49,144 @@ pub fn clear_roblox_cookies() {
     match std::fs::write(&path, b"") {
         Ok(()) => info!("Cleared RobloxCookies.dat for privacy"),
         Err(e) => warn!("Failed to clear RobloxCookies.dat: {e}"),
+    }
+}
+
+struct PrivacyBackupEntry {
+    original: PathBuf,
+    backup: PathBuf,
+}
+
+/// Transactional filesystem cleanup for one privacy-protected launch.
+///
+/// The selected state is moved out of the way before launch. Dropping this
+/// guard restores it, while [`PrivacyCleanup::commit`] removes the backup
+/// after a successful launch.
+pub struct PrivacyCleanup {
+    entries: Vec<PrivacyBackupEntry>,
+    backup_root: Option<PathBuf>,
+    committed: bool,
+}
+
+impl PrivacyCleanup {
+    /// Permanently remove the temporary backup after a successful launch.
+    pub fn commit(mut self) -> Result<(), CoreError> {
+        self.committed = true;
+        for entry in &self.entries {
+            remove_privacy_path(&entry.backup).map_err(|error| {
+                CoreError::Process(format!(
+                    "privacy cleanup could not remove backup {}: {error}",
+                    entry.backup.display()
+                ))
+            })?;
+        }
+        if let Some(root) = &self.backup_root {
+            std::fs::remove_dir(root).map_err(|error| {
+                CoreError::Process(format!(
+                    "privacy cleanup could not remove temporary directory {}: {error}",
+                    root.display()
+                ))
+            })?;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for PrivacyCleanup {
+    fn drop(&mut self) {
+        if self.committed {
+            return;
+        }
+        for entry in self.entries.iter().rev() {
+            if entry.original.exists() {
+                let _ = remove_privacy_path(&entry.original);
+            }
+            if entry.backup.exists() {
+                if let Err(error) = std::fs::rename(&entry.backup, &entry.original) {
+                    warn!(
+                        path = %entry.original.display(),
+                        %error,
+                        "Could not restore privacy backup"
+                    );
+                }
+            }
+        }
+        if let Some(root) = &self.backup_root {
+            let _ = std::fs::remove_dir(root);
+        }
+    }
+}
+
+/// Move selected Roblox user state into a temporary backup before launching.
+///
+/// Cleanup is refused while any Roblox process is running because the client
+/// can recreate or overwrite the state during the transaction.
+pub fn prepare_privacy_cleanup(
+    options: PrivacyCleanupOptions,
+) -> Result<PrivacyCleanup, CoreError> {
+    if options.is_empty() {
+        return Ok(PrivacyCleanup {
+            entries: Vec::new(),
+            backup_root: None,
+            committed: false,
+        });
+    }
+    if is_roblox_running() {
+        return Err(CoreError::Process(
+            "privacy cleanup refused while a Roblox client is running".into(),
+        ));
+    }
+
+    let local_app_data = std::env::var("LOCALAPPDATA")
+        .map_err(|_| CoreError::Process("LOCALAPPDATA is not set; cannot clean Roblox state".into()))?;
+    let roblox_root = PathBuf::from(local_app_data).join("Roblox");
+    let mut targets = Vec::new();
+    if options.full_profile {
+        targets.extend([
+            roblox_root.join("LocalStorage"),
+            roblox_root.join("logs"),
+            roblox_root.join("Downloads"),
+            roblox_root.join("ClientSettings"),
+        ]);
+    } else if options.local_storage {
+        targets.push(roblox_root.join("LocalStorage"));
+    } else if options.cookies {
+        targets.push(roblox_root.join("LocalStorage").join("RobloxCookies.dat"));
+    }
+
+    let backup_root = std::env::temp_dir().join(format!("RM-privacy-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir(&backup_root).map_err(|error| {
+        CoreError::Process(format!(
+            "could not create privacy backup directory {}: {error}",
+            backup_root.display()
+        ))
+    })?;
+    let mut cleanup = PrivacyCleanup {
+        entries: Vec::new(),
+        backup_root: Some(backup_root.clone()),
+        committed: false,
+    };
+    for (index, original) in targets.into_iter().enumerate() {
+        if !original.exists() {
+            continue;
+        }
+        let backup = backup_root.join(format!("item-{index}"));
+        if let Err(error) = std::fs::rename(&original, &backup) {
+            return Err(CoreError::Process(format!(
+                "could not move {} into privacy backup: {error}",
+                original.display()
+            )));
+        }
+        cleanup.entries.push(PrivacyBackupEntry { original, backup });
+    }
+    Ok(cleanup)
+}
+
+fn remove_privacy_path(path: &std::path::Path) -> std::io::Result<()> {
+    if path.is_dir() {
+        std::fs::remove_dir_all(path)
+    } else {
+        std::fs::remove_file(path)
     }
 }
 
