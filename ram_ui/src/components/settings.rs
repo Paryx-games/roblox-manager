@@ -493,26 +493,36 @@ pub fn show(
         setting_row(ui, "privacy_mode", |ui| {
             ui.checkbox(
                 &mut config.privacy_mode,
-                "Clean cookies before launch",
+                "Clean before launch",
             );
         });
-        setting_row(ui, "privacy_local_storage", |ui| {
-            ui.checkbox(
-                &mut config.privacy_clean_local_storage,
-                "Clean cookies and LocalStorage",
-            );
-        });
-        setting_row(ui, "privacy_full_profile", |ui| {
-            ui.checkbox(
-                &mut config.privacy_clean_full_profile,
-                "Clean full Roblox cache/profile",
-            );
-        });
-        setting_row(ui, "privacy_on_exit", |ui| {
-            ui.checkbox(
-                &mut config.privacy_clean_on_exit,
-                "Clean selected privacy data on launch and exit",
-            );
+        ui.indent("privacy_cleanup_options", |ui| {
+            ui.add_enabled_ui(config.privacy_mode, |ui| {
+                setting_row(ui, "privacy_cookies", |ui| {
+                    ui.checkbox(
+                        &mut config.privacy_clean_cookies,
+                        "Clean cookies",
+                    );
+                });
+                setting_row(ui, "privacy_local_storage", |ui| {
+                    ui.checkbox(
+                        &mut config.privacy_clean_local_storage,
+                        "Clean cookies and LocalStorage",
+                    );
+                });
+                setting_row(ui, "privacy_full_profile", |ui| {
+                    ui.checkbox(
+                        &mut config.privacy_clean_full_profile,
+                        "Clean full Roblox cache/profile",
+                    );
+                });
+                setting_row(ui, "privacy_on_exit", |ui| {
+                    ui.checkbox(
+                        &mut config.privacy_clean_on_exit,
+                        "Clean selected privacy data on exit",
+                    );
+                });
+            });
         });
         setting_row(ui, "mac_rotation", |ui| {
             ui.checkbox(

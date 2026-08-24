@@ -220,9 +220,12 @@ pub struct AppConfig {
     /// Saved favorite places for quick launching.
     #[serde(default)]
     pub favorite_places: Vec<FavoritePlace>,
-    /// Clear RobloxCookies.dat before each launch to prevent account association.
+    /// Enable the selected privacy cleanup before launches.
     #[serde(default = "default_true")]
     pub privacy_mode: bool,
+    /// Clear RobloxCookies.dat when privacy cleanup is enabled.
+    #[serde(default = "default_true")]
+    pub privacy_clean_cookies: bool,
     /// Clear Roblox LocalStorage before launches when selected.
     #[serde(default)]
     pub privacy_clean_local_storage: bool,
@@ -437,6 +440,7 @@ impl Default for AppConfig {
             groups: HashMap::new(),
             favorite_places: Vec::new(),
             privacy_mode: true,
+            privacy_clean_cookies: true,
             privacy_clean_local_storage: false,
             privacy_clean_full_profile: false,
             privacy_clean_on_exit: false,
@@ -466,8 +470,11 @@ impl Default for AppConfig {
 
 impl AppConfig {
     pub fn privacy_cleanup_options(&self) -> PrivacyCleanupOptions {
+        if !self.privacy_mode {
+            return PrivacyCleanupOptions::default();
+        }
         PrivacyCleanupOptions {
-            cookies: self.privacy_mode,
+            cookies: self.privacy_clean_cookies,
             local_storage: self.privacy_clean_local_storage,
             full_profile: self.privacy_clean_full_profile,
         }

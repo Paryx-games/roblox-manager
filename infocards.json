@@ -49,7 +49,11 @@
     },
     "privacy_mode": {
         "type": "info",
-        "text": "Moves %LOCALAPPDATA%\\Roblox\\LocalStorage\\RobloxCookies.dat into a temporary backup before each launch, then securely removes the backup after a successful launch. Cookies are enabled by default; this does not guarantee full account isolation."
+        "text": "Enables the selected privacy cleanup before each launch. Cleanup is refused while a Roblox client is running; this does not guarantee full account isolation."
+    },
+    "privacy_cookies": {
+        "type": "info",
+        "text": "Moves %LOCALAPPDATA%\\Roblox\\LocalStorage\\RobloxCookies.dat into a temporary backup before each launch, then removes the backup after a successful launch. Cookies are enabled by default."
     },
     "privacy_local_storage": {
         "type": "warning",
