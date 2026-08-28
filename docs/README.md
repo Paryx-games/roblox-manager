@@ -9,34 +9,35 @@ icon: house-chimney
 
 Roblox Manager keeps your Roblox sessions in one place. Manage accounts, launch games, save server targets, and run multiple instances from one Windows app.
 
-### Manage every session
+## What you can do
 
-Switch accounts quickly. Launch the games you want. Keep each session organized.
-
-{% columns %}
-{% column %}
-#### <i class="fa-users">:users:</i> Keep accounts organized
-
-Add accounts once, then identify them with aliases, groups, and pins.
-{% endcolumn %}
-
-{% column %}
-#### <i class="fa-gamepad">:gamepad:</i> Launch with confidence
-
-Start games for one account or several accounts at once.
-{% endcolumn %}
-
-{% column %}
-#### <i class="fa-bookmark">:bookmark:</i> Save repeat launches
-
-Keep Place IDs, server IDs, and launch data in reusable presets.
-{% endcolumn %}
-{% endcolumns %}
+* Add and organize Roblox accounts with aliases, groups, and pins.
+* Launch games for one account or several accounts at once.
+* Save Place IDs, server IDs, and launch data as reusable presets.
+* Inspect groups, save private-server bookmarks, and track developer asset uploads.
+* Run multiple Roblox clients and arrange their windows across your displays.
 
 {% hint style="warning" %}
 Never share your `.ROBLOSECURITY` cookie. It provides access to your Roblox account.
 {% endhint %}
 
-### Explore the guides
+## Start here
 
-<table data-view="cards"><thead><tr><th>Guide</th><th data-card-target data-type="content-ref">Open</th></tr></thead><tbody><tr><td>First session</td><td><a href="getting-started/first-session.md">first-session.md</a></td></tr><tr><td>Manage accounts</td><td><a href="guides/manage-accounts.md">manage-accounts.md</a></td></tr><tr><td>Launch games</td><td><a href="guides/launch-games.md">launch-games.md</a></td></tr><tr><td>Save launch presets</td><td><a href="guides/launch-presets.md">launch-presets.md</a></td></tr><tr><td>Groups and private servers</td><td><a href="guides/groups.md">groups.md</a></td></tr></tbody></table>
+1. [Install Roblox Manager](getting-started/installing.md)
+2. [Complete your first session](getting-started/first-session.md)
+3. [Manage your accounts](guides/manage-accounts.md)
+4. [Launch a game](guides/launch-games.md)
+
+## Explore the guides
+
+* [Save launch presets](guides/launch-presets.md)
+* [Use multi-instance mode](guides/multi-instance.md)
+* [Browse groups](guides/groups.md)
+* [Save private servers](guides/private-servers.md)
+* [Use the asset manager](guides/asset-manager.md)
+* [Read the privacy and security guidance](security/privacy-and-security.md)
+
+## Developer docs
+
+* [Contributing and syncing a fork](developers/contributing.md)
+* [Releasing RM](developers/releasing.md)
