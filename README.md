@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Paryx-games/roblox-manager/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/ci.yml?label=ci&logo=github&logoColor=white&color=9333ea" alt="ci">
+  <a href="https://github.com/Paryx-games/roblox-manager/actions/workflows/rust.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/rust.yml?label=ci&logo=github&logoColor=white&color=9333ea" alt="ci">
   </a>
   <a href="https://github.com/Paryx-games/roblox-manager/actions/workflows/release.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/release.yml?label=release&logo=github&logoColor=white&color=7c3aed" alt="release">

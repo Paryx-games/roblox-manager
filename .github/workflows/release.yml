@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,6 +15,7 @@ jobs:
   build:
     name: build
     runs-on: windows-latest
+    timeout-minutes: 30
 
     steps:
       - name: checkout
@@ -27,7 +28,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: build
-        run: cargo build --release
+        run: cargo build --release --locked
 
       - name: upload executable
         uses: actions/upload-artifact@v4
@@ -40,6 +41,10 @@ jobs:
     name: release
     needs: build
     runs-on: windows-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: write
 
     steps:
       - name: checkout

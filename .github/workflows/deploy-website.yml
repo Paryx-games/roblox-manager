@@ -7,16 +7,21 @@ on:
     paths:
       - "website/**"
       - "CHANGELOG.md"
-      - ".github/workflows/**"
+      - ".github/workflows/deploy-website.yml"
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: checkout
@@ -38,10 +43,6 @@ jobs:
         working-directory: website
         run: pnpm install --frozen-lockfile
 
-      - name: generate changelog
-        working-directory: website
-        run: pnpm generate:changelog
-
       - name: build
         working-directory: website
         run: pnpm build
@@ -57,6 +58,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     environment:
       name: github-pages

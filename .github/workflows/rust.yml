@@ -1,0 +1,60 @@
+name: rust
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ram_core/**"
+      - "ram_ui/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "clippy.toml"
+      - ".github/workflows/rust.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "ram_core/**"
+      - "ram_ui/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "clippy.toml"
+      - ".github/workflows/rust.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: rust
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: check formatting
+        run: cargo fmt --all -- --check
+
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+      - name: test
+        run: cargo test --workspace --all-features --locked
+
+      - name: build
+        run: cargo build --workspace --all-features --locked

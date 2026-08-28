@@ -1,0 +1,56 @@
+name: website
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "website/**"
+      - "CHANGELOG.md"
+      - ".github/workflows/website.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "website/**"
+      - "CHANGELOG.md"
+      - ".github/workflows/website.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  website:
+    name: website
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: website
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
+
+      - name: install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: build
+        run: pnpm build
