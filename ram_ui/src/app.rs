@@ -1497,7 +1497,14 @@ impl AppState {
                         if self.remote_inventory.inflight == 0
                             && self.remote_inventory.items.is_empty()
                         {
-                            self.remote_inventory.error = Some(message);
+                            tracing::warn!(
+                                ?creator,
+                                ?kind,
+                                "individual inventory scan finished without results: {message}"
+                            );
+                            self.remote_inventory.error = Some(message.clone());
+                            self.toasts
+                                .push(Toast::error(format!("Inventory refresh failed: {message}")));
                         }
                     }
                 }
@@ -2927,6 +2934,7 @@ impl AppState {
                                 });
                             }
                             main_panel::MainPanelAction::LoadInventory(user_id) => {
+                                tracing::debug!(user_id, "individual inventory refresh requested");
                                 let node = asset_manager::TreeNode::Inventory(
                                     ram_core::assets::Creator::User(user_id),
                                 );
@@ -3655,6 +3663,12 @@ impl AppState {
             kind,
             cursor,
         });
+        tracing::debug!(
+            user_id,
+            ?creator,
+            ?kind,
+            "individual inventory request queued"
+        );
     }
 
     /// Refresh the universe picker for the acting account, and optionally

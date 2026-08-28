@@ -498,6 +498,10 @@ fn parse_creation_page(body: &serde_json::Value, kind: AssetKind) -> CreationPag
 /// perfectly good cookie.
 fn reword_listing_error(creator: Creator, error: CoreError) -> CoreError {
     match (creator, &error) {
+        (Creator::User(_), CoreError::RobloxApi { status: 401, .. }) => CoreError::RobloxApi {
+            status: 401,
+            message: "Roblox did not accept this account's cookie. Re-add the account.".to_string(),
+        },
         (Creator::Group(id), CoreError::CookieRejected) => CoreError::RobloxApi {
             status: 403,
             message: format!("This account does not have permission to view group {id}'s assets."),
@@ -949,6 +953,21 @@ mod tests {
     fn a_user_403_does_blame_the_cookie() {
         let text = reword_listing_error(Creator::User(1), CoreError::CookieRejected).to_string();
         assert!(text.to_lowercase().contains("cookie"), "got: {text}");
+    }
+
+    #[test]
+    fn a_user_401_explains_that_the_cookie_must_be_replaced() {
+        let text = reword_listing_error(
+            Creator::User(1),
+            CoreError::RobloxApi {
+                status: 401,
+                message: "raw Roblox response".to_string(),
+            },
+        )
+        .to_string();
+        assert!(text.contains("did not accept"), "got: {text}");
+        assert!(text.contains("Re-add"), "got: {text}");
+        assert!(!text.contains("raw Roblox response"), "got: {text}");
     }
 
     #[test]
