@@ -2069,10 +2069,12 @@ impl eframe::App for AppState {
         if let Some(deadline) = self.pending_auto_arrange {
             if std::time::Instant::now() >= deadline {
                 self.pending_auto_arrange = None;
-                self.bridge.send(BackendCommand::ArrangeWindows {
-                    options: self.config.tiling_options(),
-                    delay_secs: 0,
-                });
+                if self.roblox_instance_count >= 2 {
+                    self.bridge.send(BackendCommand::ArrangeWindows {
+                        options: self.config.tiling_options(),
+                        delay_secs: 0,
+                    });
+                }
             }
         }
 
