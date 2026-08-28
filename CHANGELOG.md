@@ -10,10 +10,12 @@
 - **Duplicate bulk-import protection.** Repeated cookies in a paste or imported file are queued only once.
 - **Accessible changelog viewer.** The current release notes can now be opened from the top bar at any time.
 - **Account CSV export.** Export usernames and account metadata without exporting cookies.
+- **Friend and block actions.** Send a friend request or block a target user from the selected account.
 
 ### Fixed
 
 - **Single window arranging.** Multi window only tiles when 2+ roblox applications are present.
+- **Windows emoji rendering.** Replaced unsupported emoji UI icons with font-safe text and symbols so controls no longer show missing glyph boxes.
 
 ## v1.14.1
 

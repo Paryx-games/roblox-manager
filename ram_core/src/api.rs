@@ -2,10 +2,60 @@
 
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use reqwest::Method;
 
 use crate::auth::RobloxClient;
 use crate::error::CoreError;
 use crate::models::{ModerationInfo, Presence};
+
+/// Send a friend request to another user from the authenticated account.
+pub async fn send_friend_request(
+    client: &RobloxClient,
+    cookie: &str,
+    target_user_id: u64,
+) -> Result<(), CoreError> {
+    perform_connection_action(
+        client,
+        cookie,
+        Method::POST,
+        &format!("https://friends.roblox.com/v1/users/{target_user_id}/request-friendship"),
+    )
+    .await
+}
+
+/// Block another user from the authenticated account.
+pub async fn block_user(
+    client: &RobloxClient,
+    cookie: &str,
+    target_user_id: u64,
+) -> Result<(), CoreError> {
+    perform_connection_action(
+        client,
+        cookie,
+        Method::POST,
+        &format!("https://apis.roblox.com/user-blocking-api/v1/users/{target_user_id}/block-user"),
+    )
+    .await
+}
+
+async fn perform_connection_action(
+    client: &RobloxClient,
+    cookie: &str,
+    method: Method,
+    url: &str,
+) -> Result<(), CoreError> {
+    let response = client.request(method, url, cookie, None).await?;
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        let status = response.status();
+        let message = response.text().await.unwrap_or_default();
+        Err(CoreError::RobloxApi {
+            status: status.as_u16(),
+            message: if message.is_empty() { status.to_string() } else { message },
+        })
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Avatar thumbnails

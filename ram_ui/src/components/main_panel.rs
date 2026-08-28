@@ -31,6 +31,8 @@ pub enum MainPanelAction {
     KillAll,
     /// Open a webview pre-logged in as this account.
     OpenBrowserAs(u64),
+    SendFriendRequest { target_user_id: u64 },
+    BlockUser { target_user_id: u64 },
 }
 
 /// Persistent input state for the main panel.
@@ -48,6 +50,7 @@ pub struct MainPanelState {
     pub show_save_form: bool,
     /// Set the frame the save popover opens so we request focus exactly once.
     save_form_needs_focus: bool,
+    pub connection_target_input: String,
 }
 
 /// Result returned by the main panel.
@@ -543,6 +546,19 @@ pub fn show(
                                 alias: state.alias_input.clone(),
                             });
                         }
+                        ui.end_row();
+
+                        ui.label("Friend / block user ID");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut state.connection_target_input);
+                            let target = state.connection_target_input.trim().parse::<u64>().ok();
+                            if ui.add_enabled(target.is_some(), egui::Button::new("Friend")).clicked() {
+                                action = Some(MainPanelAction::SendFriendRequest { target_user_id: target.unwrap_or_default() });
+                            }
+                            if ui.add_enabled(target.is_some(), egui::Button::new("Block")).clicked() {
+                                action = Some(MainPanelAction::BlockUser { target_user_id: target.unwrap_or_default() });
+                            }
+                        });
                         ui.end_row();
 
                         if !account.group.is_empty() {

@@ -964,6 +964,9 @@ impl AppState {
                 BackendEvent::StoreSaved => {
                     // silent
                 }
+                BackendEvent::ConnectionActionCompleted { action, target_user_id } => {
+                    self.toasts.push(Toast::success(format!("{action} for user {target_user_id}")));
+                }
                 BackendEvent::StoreUnlocked {
                     store,
                     session,
@@ -2181,7 +2184,7 @@ impl eframe::App for AppState {
                     if self.device_key_missing {
                         // No password exists for this store, so offering a
                         // password box would be a dead end. Say what happened.
-                        ui.heading("🔒 RM | Cannot Unlock On This PC");
+                        ui.heading("RM | Cannot Unlock On This PC");
                         ui.add_space(16.0);
                         ui.label(
                             "This account store unlocks automatically, but the key for it is \
@@ -2197,11 +2200,11 @@ impl eframe::App for AppState {
                             .weak(),
                         );
                     } else if self.unlocking {
-                        ui.heading("🔒 RM | Unlocking");
+                        ui.heading("RM | Unlocking");
                         ui.add_space(16.0);
                         ui.spinner();
                     } else {
-                        ui.heading("🔒 RM | Unlock Account Store");
+                        ui.heading("RM | Unlock Account Store");
                         ui.add_space(16.0);
                         ui.label("Enter your master password to decrypt accounts:");
                         ui.add_space(8.0);
@@ -2267,10 +2270,10 @@ impl eframe::App for AppState {
             ui.set_min_height(30.0);
 
             ui.horizontal_wrapped(|ui| {
-                ui.selectable_value(&mut self.active_tab, Tab::Accounts, "📋 Accounts");
-                ui.selectable_value(&mut self.active_tab, Tab::Groups, "👥 Groups");
-                ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "🔒 Servers");
-                ui.selectable_value(&mut self.active_tab, Tab::Presets, "⭐ Presets");
+                ui.selectable_value(&mut self.active_tab, Tab::Accounts, "Accounts");
+                ui.selectable_value(&mut self.active_tab, Tab::Groups, "Groups");
+                ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "Servers");
+                ui.selectable_value(&mut self.active_tab, Tab::Presets, "Presets");
                 if self.config.utility_enabled {
                     ui.selectable_value(
                         &mut self.active_tab,
@@ -2279,10 +2282,10 @@ impl eframe::App for AppState {
                     );
                 }
                 if self.config.developer_options {
-                    ui.selectable_value(&mut self.active_tab, Tab::AssetManager, "📦 Assets");
-                    ui.selectable_value(&mut self.active_tab, Tab::Inventory, "🧢 Inventory");
+                    ui.selectable_value(&mut self.active_tab, Tab::AssetManager, "Assets");
+                    ui.selectable_value(&mut self.active_tab, Tab::Inventory, "Inventory");
                 }
-                ui.selectable_value(&mut self.active_tab, Tab::Settings, "⚙ Settings");
+                ui.selectable_value(&mut self.active_tab, Tab::Settings, "Settings");
                 if ui
                     .button("✦ What's new")
                     .on_hover_text("View the current release changelog")
@@ -2303,7 +2306,7 @@ impl eframe::App for AppState {
                         let text = if ui.available_width() < 520.0 {
                             format!("Update v{version}")
                         } else {
-                            format!("⬆ Update v{version} available")
+                            format!("Update v{version} available")
                         };
                         if ui.link(text).on_hover_text("Click to open the GitHub release page").clicked() {
                             ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
@@ -3175,6 +3178,28 @@ impl AppState {
                             }
                             main_panel::MainPanelAction::OpenBrowserAs(uid) => {
                                 self.open_browser_as(uid);
+                            }
+                            main_panel::MainPanelAction::SendFriendRequest { target_user_id } => {
+                                if let Some(session) = self.session() {
+                                    self.bridge.send(BackendCommand::SendFriendRequest {
+                                        user_id: account.user_id,
+                                        target_user_id,
+                                        encrypted_cookie: account.encrypted_cookie.clone(),
+                                        session,
+                                        use_credential_manager: self.config.use_credential_manager,
+                                    });
+                                }
+                            }
+                            main_panel::MainPanelAction::BlockUser { target_user_id } => {
+                                if let Some(session) = self.session() {
+                                    self.bridge.send(BackendCommand::BlockUser {
+                                        user_id: account.user_id,
+                                        target_user_id,
+                                        encrypted_cookie: account.encrypted_cookie.clone(),
+                                        session,
+                                        use_credential_manager: self.config.use_credential_manager,
+                                    });
+                                }
                             }
                         }
                     }
@@ -5281,7 +5306,7 @@ impl AppState {
                         let browser_btn_resp = ui.add_sized(
                             [full_w, 48.0],
                             egui::Button::new(
-                                egui::RichText::new("🌐  Log in with browser")
+                                egui::RichText::new("Log in with browser")
                                     .size(15.0),
                             ),
                         );
@@ -5302,7 +5327,7 @@ impl AppState {
                             .add_sized(
                                 [full_w, 48.0],
                                 egui::Button::new(
-                                    egui::RichText::new("📋  Paste cookie manually")
+                                egui::RichText::new("Paste cookie manually")
                                         .size(15.0),
                                 ),
                             )
@@ -5316,7 +5341,7 @@ impl AppState {
                             .add_sized(
                                 [full_w, 48.0],
                                 egui::Button::new(
-                                    egui::RichText::new("📥  Bulk import")
+                                egui::RichText::new("Bulk import")
                                         .size(15.0),
                                 ),
                             )
@@ -5564,7 +5589,7 @@ impl AppState {
                     ui.set_max_width(360.0);
                     ui.add(
                         egui::Label::new(
-                            egui::RichText::new(format!("⚠ {err}"))
+                            egui::RichText::new(format!("Warning: {err}"))
                                 .color(ui.theme().danger),
                         )
                         .wrap(),
@@ -5770,7 +5795,7 @@ impl AppState {
                 ));
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if ui.button("🗑  Remove").clicked() {
+                    if ui.button("Remove").clicked() {
                         self.bridge
                             .send(BackendCommand::RemoveAccount { user_id: uid });
                         keep_open = false;
@@ -5798,7 +5823,7 @@ impl AppState {
                 ui.label("Terminate every running Roblox instance?");
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    if ui.button("☠  Kill All").clicked() {
+                    if ui.button("Kill All").clicked() {
                         self.bridge.send(BackendCommand::KillAll);
                         keep_open = false;
                     }
@@ -5988,7 +6013,7 @@ impl AppState {
                         .monospace(),
                 );
                 ui.add_space(6.0);
-                if !folder.is_empty() && ui.button("📂  Open containing folder").clicked() {
+                if !folder.is_empty() && ui.button("Open containing folder").clicked() {
                     reveal = true;
                 }
 
@@ -6026,7 +6051,7 @@ impl AppState {
                     if ui
                         .add_enabled(
                             confirmed,
-                            egui::Button::new("🗑  Delete everything and start over"),
+                            egui::Button::new("Delete everything and start over"),
                         )
                         .clicked()
                     {

@@ -126,6 +126,10 @@ pub enum BackendCommand {
     },
     /// Kill all Roblox instances.
     KillAll,
+    /// Send a friend request from one managed account.
+    SendFriendRequest { user_id: u64, target_user_id: u64, encrypted_cookie: Option<String>, session: crypto::StoreSession, use_credential_manager: bool },
+    /// Block a user from one managed account.
+    BlockUser { user_id: u64, target_user_id: u64, encrypted_cookie: Option<String>, session: crypto::StoreSession, use_credential_manager: bool },
     /// Run the potentially blocking tray cleanup without stalling the runtime.
     KillTray,
     /// Validate the preconditions and acquire the singleton mutex off the UI thread.
@@ -489,6 +493,8 @@ pub enum BackendEvent {
     RevalidationComplete,
     /// An error occurred during a background operation.
     Error(String),
+    /// A friend or block action completed.
+    ConnectionActionCompleted { action: String, target_user_id: u64 },
     /// The result of a sweep. Sent whenever the map or the running count
     /// changed, so the UI can render per-account instance state without
     /// enumerating processes on the paint thread.
@@ -1229,6 +1235,16 @@ async fn handle_command(
                 .await
                 .map_err(|error| CoreError::Process(format!("kill task failed: {error}")))??;
             Ok(BackendEvent::Killed(count))
+        }
+        BackendCommand::SendFriendRequest { user_id, target_user_id, encrypted_cookie, session, use_credential_manager } => {
+            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
+            api::send_friend_request(client, &cookie, target_user_id).await?;
+            Ok(BackendEvent::ConnectionActionCompleted { action: "Friend request sent".into(), target_user_id })
+        }
+        BackendCommand::BlockUser { user_id, target_user_id, encrypted_cookie, session, use_credential_manager } => {
+            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
+            api::block_user(client, &cookie, target_user_id).await?;
+            Ok(BackendEvent::ConnectionActionCompleted { action: "User blocked".into(), target_user_id })
         }
         BackendCommand::RefreshAll {
             user_ids,
@@ -2492,6 +2508,8 @@ mod tests {
             | C::UnlockWithDevice { .. }
             | C::UnlockWithPassword { .. }
             | C::KillAll
+            | C::SendFriendRequest { .. }
+            | C::BlockUser { .. }
             | C::RefreshAll { .. }
             | C::RefreshPresenceOnly { .. }
             | C::BulkLaunchEncrypted { .. }
