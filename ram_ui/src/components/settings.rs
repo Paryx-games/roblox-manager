@@ -138,10 +138,10 @@ pub fn show(
         .rounding(egui::Rounding::same(6.0))
         .fill(ui.visuals().extreme_bg_color);
 
-    // ---- Storage backend ----
+    // ---- Account storage ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
         ui.set_min_width(ui.available_width());
-        ui.strong("Storage");
+        ui.strong("Account storage");
         ui.add_space(4.0);
         setting_row(ui, "credential_manager", |ui| {
             ui.checkbox(
@@ -152,12 +152,13 @@ pub fn show(
     });
     ui.add_space(6.0);
 
-    // ---- Launch Behavior ----
+    // ---- Launching ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
         ui.set_min_width(ui.available_width());
-        ui.strong("Launch Behavior & Window Tiling");
+        ui.strong("Launching");
         ui.add_space(4.0);
 
+        ui.strong("App startup");
         let mut wants_startup = config.startup_with_windows;
         let startup_toggled = setting_row(ui, "startup_with_windows", |ui| {
             ui.checkbox(&mut wants_startup, "Start RM with Windows").changed()
@@ -167,6 +168,8 @@ pub fn show(
             action = Some(SettingsAction::SetStartupWithWindows(wants_startup));
         }
 
+        ui.add_space(6.0);
+        ui.strong("Launch safeguards");
         let mut wants_multi = config.multi_instance_enabled;
         let toggled = setting_row(ui, "multi_instance", |ui| {
             ui.checkbox(&mut wants_multi, "Enable multi-instance").changed()
@@ -205,6 +208,10 @@ pub fn show(
             );
         }
 
+        ui.add_space(8.0);
+        ui.separator();
+        ui.add_space(4.0);
+        ui.strong("Window layout");
         ui.add_space(4.0);
         setting_row(ui, "auto_arrange_windows", |ui| {
             ui.checkbox(
@@ -474,6 +481,10 @@ pub fn show(
         }
 
         ui.add_space(8.0);
+        ui.separator();
+        ui.add_space(4.0);
+        ui.strong("Launch pacing");
+        ui.add_space(4.0);
         setting_row(ui, "launch_delay", |ui| {
             ui.horizontal(|ui| {
                 ui.label("Launch delay:");
@@ -495,11 +506,12 @@ pub fn show(
     });
     ui.add_space(6.0);
 
-    // ---- Privacy ----
+    // ---- Privacy and identity ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
         ui.set_min_width(ui.available_width());
-        ui.strong("Privacy");
+        ui.strong("Privacy and identity");
         ui.add_space(4.0);
+        ui.strong("Privacy cleanup");
         setting_row(ui, "privacy_mode", |ui| {
             ui.checkbox(
                 &mut config.privacy_mode,
@@ -534,6 +546,11 @@ pub fn show(
                 });
             });
         });
+        ui.add_space(8.0);
+        ui.separator();
+        ui.add_space(4.0);
+        ui.strong("Network identity");
+        ui.add_space(4.0);
         setting_row(ui, "mac_rotation", |ui| {
             ui.checkbox(
                 &mut config.mac_rotation_enabled,
@@ -585,17 +602,20 @@ pub fn show(
                 );
             });
         }
+        ui.add_space(4.0);
+        ui.strong("Displayed identity");
         setting_row(ui, "anonymize_names", |ui| {
             ui.checkbox(&mut config.anonymize_names, "Anonymize account names");
         });
     });
     ui.add_space(6.0);
 
-    // ---- Developer options ----
+    // ---- App and data ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
         ui.set_min_width(ui.available_width());
-        ui.strong("Developer Options");
+        ui.strong("App and data");
         ui.add_space(4.0);
+        ui.strong("Optional tools");
         setting_row(ui, "utility_enabled", |ui| {
             ui.checkbox(&mut config.utility_enabled, "Show the Utility tab");
         });
@@ -616,6 +636,10 @@ pub fn show(
             );
         }
         ui.add_space(6.0);
+        ui.separator();
+        ui.add_space(4.0);
+        ui.strong("Data location");
+        ui.add_space(4.0);
         setting_row(ui, "data_folder", |ui| {
             if ui.button("Open RM data folder").clicked() {
                 action = Some(SettingsAction::OpenDataFolder);
@@ -624,11 +648,11 @@ pub fn show(
     });
     ui.add_space(6.0);
 
-    // ---- Roblox path override ----
+    // ---- Roblox installation ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
         ui.set_min_width(ui.available_width());
         ui.horizontal(|ui| {
-            ui.strong("Roblox Player Path");
+            ui.strong("Roblox installation");
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 setting_info(ui, "roblox_player_path");
             });
@@ -659,10 +683,10 @@ pub fn show(
     ui.separator();
     ui.add_space(8.0);
 
-    // ---- Encryption ----
+    // ---- Account encryption ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
         ui.set_min_width(ui.available_width());
-        ui.strong("Encryption");
+        ui.strong("Account encryption");
         ui.add_space(4.0);
 
         if has_password {
