@@ -152,6 +152,8 @@ enum Tab {
     /// Only reachable while `config.utility_enabled` and
     /// `config.developer_options` are on.
     AssetManager,
+    /// Full Roblox-owned inventory browser for the selected account.
+    Inventory,
     Settings,
 }
 
@@ -2189,6 +2191,7 @@ impl eframe::App for AppState {
                 }
                 if self.config.developer_options {
                     ui.selectable_value(&mut self.active_tab, Tab::AssetManager, "📦 Assets");
+                    ui.selectable_value(&mut self.active_tab, Tab::Inventory, "🧢 Inventory");
                 }
                 ui.selectable_value(&mut self.active_tab, Tab::Settings, "⚙ Settings");
 
@@ -2248,6 +2251,7 @@ impl eframe::App for AppState {
             Tab::Presets => self.show_presets_tab(ctx),
             Tab::Utility => self.show_utility_tab(ctx),
             Tab::AssetManager => self.show_asset_manager_tab(ctx),
+            Tab::Inventory => self.show_inventory_tab(ctx),
             Tab::Settings => self.show_settings_tab(ctx),
         }
 
@@ -2973,6 +2977,25 @@ impl AppState {
                                     self.toasts.push(Toast::error(
                                         "Unlock the account store before refreshing inventory.",
                                     ));
+                                }
+                            }
+                            main_panel::MainPanelAction::OpenInventory(user_id) => {
+                                self.account_inventory_user_id = Some(user_id);
+                                self.active_tab = Tab::Inventory;
+                                if self.account_inventory_items.is_empty() {
+                                    tracing::debug!(user_id, "opening inventory tab");
+                                    if let Some(session) = self.session() {
+                                        self.account_inventory_loading = true;
+                                        self.account_inventory_error = None;
+                                        self.bridge.send(BackendCommand::FetchUserInventory {
+                                            user_id,
+                                            encrypted_cookie: account.encrypted_cookie.clone(),
+                                            session,
+                                            use_credential_manager: self
+                                                .config
+                                                .use_credential_manager,
+                                        });
+                                    }
                                 }
                             }
                             main_panel::MainPanelAction::LaunchGame {
@@ -4226,6 +4249,122 @@ impl AppState {
                 }
             }
         }
+    }
+
+    fn show_inventory_tab(&mut self, ctx: &egui::Context) {
+        let Some(user_id) = self
+            .account_inventory_user_id
+            .or_else(|| self.store.accounts.first().map(|account| account.user_id))
+        else {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.heading("Roblox inventory");
+                ui.label("Add an account to browse its Roblox inventory.");
+            });
+            return;
+        };
+        let items = if self.account_inventory_user_id == Some(user_id) {
+            self.account_inventory_items.clone()
+        } else {
+            Vec::new()
+        };
+        let loading =
+            self.account_inventory_user_id == Some(user_id) && self.account_inventory_loading;
+        let error = if self.account_inventory_user_id == Some(user_id) {
+            self.account_inventory_error.clone()
+        } else {
+            None
+        };
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.heading("Roblox inventory");
+                ui.label("Owned items");
+                if ui
+                    .add_enabled(!loading, egui::Button::new("Refresh"))
+                    .clicked()
+                {
+                    self.account_inventory_user_id = Some(user_id);
+                    self.account_inventory_items.clear();
+                    self.account_inventory_error = None;
+                    self.account_inventory_loading = true;
+                    if let Some(session) = self.session() {
+                        if let Some(account) = self.store.find_by_id(user_id) {
+                            self.bridge.send(BackendCommand::FetchUserInventory {
+                                user_id,
+                                encrypted_cookie: account.encrypted_cookie.clone(),
+                                session,
+                                use_credential_manager: self.config.use_credential_manager,
+                            });
+                        }
+                    }
+                }
+            });
+            ui.separator();
+            if loading {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label("Loading Roblox inventory...");
+                });
+                return;
+            }
+            if let Some(error) = error {
+                ui.colored_label(ui.theme().danger, error);
+                return;
+            }
+            if items.is_empty() {
+                ui.label("No inventory loaded yet. Press Refresh to fetch this account's items.");
+                return;
+            }
+            ui.columns(2, |columns| {
+                columns[0].heading("Items");
+                egui::ScrollArea::vertical()
+                    .id_salt("full_inventory_item_list")
+                    .show(&mut columns[0], |ui| {
+                        for item in &items {
+                            ui.label(format!("{}  ·  {}", item.name, item.asset_id));
+                        }
+                    });
+                columns[1].heading(format!("{} items", items.len()));
+                egui::Grid::new("full_inventory_grid")
+                    .num_columns(4)
+                    .spacing([12.0, 14.0])
+                    .show(&mut columns[1], |ui| {
+                        for (index, item) in items.iter().enumerate() {
+                            ui.vertical(|ui| {
+                                if let Some(bytes) = self.asset_thumbnails.get(&item.asset_id) {
+                                    ui.add(
+                                        egui::Image::from_bytes(
+                                            format!("bytes://inventory_page_{}", item.asset_id),
+                                            bytes.clone(),
+                                        )
+                                        .fit_to_exact_size(egui::vec2(96.0, 96.0))
+                                        .rounding(5.0),
+                                    );
+                                } else {
+                                    let (rect, _) = ui.allocate_exact_size(
+                                        egui::vec2(96.0, 96.0),
+                                        egui::Sense::hover(),
+                                    );
+                                    ui.painter().rect_filled(
+                                        rect,
+                                        5.0,
+                                        ui.visuals().extreme_bg_color,
+                                    );
+                                }
+                                ui.label(egui::RichText::new(&item.name).small().strong());
+                                ui.label(
+                                    egui::RichText::new(format!("ID {}", item.asset_id))
+                                        .small()
+                                        .color(ui.visuals().weak_text_color()),
+                                );
+                            });
+                            if (index + 1) % 4 == 0 {
+                                ui.end_row();
+                            }
+                        }
+                    });
+            });
+        });
+        self.request_asset_thumbnails(&items.iter().map(|item| item.asset_id).collect::<Vec<_>>());
     }
 
     /// Hash and queue a batch of files. Anything unsupported still gets a row,

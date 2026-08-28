@@ -15,6 +15,7 @@ pub enum MainPanelAction {
     OpenPathEditor,
     /// Reload the selected account's latest inventory from Roblox.
     LoadInventory(u64),
+    OpenInventory(u64),
     RemoveAccount(u64),
     UpdateAlias {
         user_id: u64,
@@ -462,6 +463,13 @@ pub fn show(
                 ui.horizontal(|ui| {
                     ui.heading("Roblox inventory");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button("Open inventory")
+                            .on_hover_text("Open the full inventory browser")
+                            .clicked()
+                        {
+                            action = Some(MainPanelAction::OpenInventory(account.user_id));
+                        }
                         if ui
                             .add_enabled(!inventory_loading, egui::Button::new("Refresh"))
                             .on_hover_text("Fetch hats, accessories, clothing, gear, and emotes owned by this account")

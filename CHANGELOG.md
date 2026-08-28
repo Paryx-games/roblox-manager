@@ -18,6 +18,10 @@
 
 ### Changed
 
+- **Dedicated inventory tab.** Account pages now show only a short Roblox inventory preview with a clear Open inventory button; the full inventory browser is available beside Assets with a list-and-grid layout.
+
+### Changed
+
 - **Cleaner settings guidance.** Removed info cards from straightforward monitor, layout, identity, utility, and data-folder controls while retaining guidance for risky or complex settings.
 - **Improved settings flow.** Reorganized settings headings and subgroups into clearer account, launching, window layout, privacy, app/data, installation, and encryption categories.
 
