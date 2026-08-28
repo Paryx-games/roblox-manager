@@ -15,29 +15,9 @@
         "type": "info",
         "text": "After a launch burst, waits for the clients to appear and arranges attributed Roblox windows using the selected monitor target, layout mode, and padding."
     },
-    "target_display": {
-        "type": "info",
-        "text": "Selects the primary monitor, a specific detected monitor, or all detected monitors as the target for window arrangement."
-    },
     "grid_layout": {
         "type": "info",
         "text": "Selects automatic square-like tiling, a fixed column count, a fixed row count, an explicit column-by-row grid, one row, or one column."
-    },
-    "layout_columns": {
-        "type": "info",
-        "text": "Sets the column count for a custom grid. The value is limited to 1-12; the number of rows is configured in the same control."
-    },
-    "layout_rows": {
-        "type": "info",
-        "text": "Sets the fixed row count used when the layout mode is Fixed Rows. The value is limited to 1-12; the number of columns is calculated to fit the windows."
-    },
-    "layout_dimensions": {
-        "type": "info",
-        "text": "Sets the column count used by Fixed Columns. The value is limited to 1-12; the number of rows is calculated to fit the windows."
-    },
-    "window_padding": {
-        "type": "info",
-        "text": "Sets the spacing, in pixels, between tiled windows and the usable display edges and between neighboring windows. The value is limited to 0-50 px."
     },
     "rename_windows": {
         "type": "caution",
@@ -79,21 +59,9 @@
         "type": "info",
         "text": "Selects a well-known vendor OUI for the rotated address when preserving this PC's OUI is disabled."
     },
-    "anonymize_names": {
-        "type": "info",
-        "text": "Replaces usernames, display names, and aliases shown by RM with stable generic account labels. Renamed Roblox windows use the same generic labels, and cached avatars are blurred when displayed in the app."
-    },
-    "utility_enabled": {
-        "type": "info",
-        "text": "Adds the Utility tab to the top navigation. The current Utility area is a placeholder for future tools and does not provide additional functionality yet."
-    },
     "developer_options": {
         "type": "warning",
         "text": "Adds the Assets tab to the Utility area. Asset uploads create permanent public Roblox assets and are moderated under the account that uploads them."
-    },
-    "data_folder": {
-        "type": "info",
-        "text": "Opens RM's data folder at %APPDATA%\\RM in Windows Explorer. It contains the encrypted account store, configuration, rotating logs, presets, and the asset index."
     },
     "roblox_player_path": {
         "type": "info",
