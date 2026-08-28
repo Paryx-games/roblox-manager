@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Everything the instance sweep owns.
 ///
@@ -291,6 +291,12 @@ pub enum BackendCommand {
         kind: AssetKind,
         cursor: Option<String>,
     },
+    /// Find creations shared by every selected account.
+    FetchBulkCreations {
+        accounts: Vec<(u64, Option<String>)>,
+        session: crypto::StoreSession,
+        use_credential_manager: bool,
+    },
     /// Thumbnail images for the icon views. Unauthenticated, so no cookie.
     FetchAssetThumbnails {
         asset_ids: Vec<u64>,
@@ -515,6 +521,11 @@ pub enum BackendEvent {
         appended: bool,
         page: assets_api::CreationPage,
         error: Option<String>,
+    },
+    /// Creations present in every account requested by a bulk inventory scan.
+    BulkCreationsFetched {
+        items: Vec<assets_api::CreationItem>,
+        failed_accounts: usize,
     },
     /// Thumbnail results. `requested` is echoed back so the caller can tell
     /// which assets Roblox declined to render and schedule a retry, rather
@@ -1459,18 +1470,49 @@ async fn handle_command(
             kind,
             cursor,
         } => {
-            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             let appended = cursor.is_some();
+            let cookie =
+                match decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager) {
+                    Ok(cookie) => cookie,
+                    Err(e) => {
+                        error!(
+                            user_id,
+                            ?creator,
+                            ?kind,
+                            "inventory cookie decrypt failed: {e}"
+                        );
+                        return Ok(BackendEvent::CreationsFetched {
+                            creator,
+                            kind,
+                            appended,
+                            page: assets_api::CreationPage::default(),
+                            error: Some(e.to_string()),
+                        });
+                    }
+                };
+            let started = std::time::Instant::now();
             match assets_api::list_creations(client, &cookie, creator, kind, cursor.as_deref())
                 .await
             {
-                Ok(page) => Ok(BackendEvent::CreationsFetched {
-                    creator,
-                    kind,
-                    appended,
-                    page,
-                    error: None,
-                }),
+                Ok(page) => {
+                    debug!(
+                        user_id,
+                        ?creator,
+                        ?kind,
+                        appended,
+                        item_count = page.items.len(),
+                        has_next_page = page.next_cursor.is_some(),
+                        elapsed_ms = started.elapsed().as_millis(),
+                        "inventory listing completed"
+                    );
+                    Ok(BackendEvent::CreationsFetched {
+                        creator,
+                        kind,
+                        appended,
+                        page,
+                        error: None,
+                    })
+                }
                 // Reported on the node, not as a toast. This endpoint is
                 // undocumented, and the library still works from the local
                 // index without it. Logged as well: routing a failure only
@@ -1488,6 +1530,81 @@ async fn handle_command(
                     })
                 }
             }
+        }
+        BackendCommand::FetchBulkCreations {
+            accounts,
+            session,
+            use_credential_manager,
+        } => {
+            let kinds = ram_core::assets::AssetKind::selectable();
+            let mut inventories = Vec::with_capacity(accounts.len());
+            let mut failed_accounts = 0;
+
+            for (user_id, encrypted_cookie) in accounts {
+                let started = std::time::Instant::now();
+                let cookie = match decrypt_for(
+                    user_id,
+                    encrypted_cookie,
+                    &session,
+                    use_credential_manager,
+                ) {
+                    Ok(cookie) => cookie,
+                    Err(e) => {
+                        failed_accounts += 1;
+                        error!(user_id, "bulk inventory cookie decrypt failed: {e}");
+                        continue;
+                    }
+                };
+
+                let mut items = Vec::new();
+                let mut account_failed = false;
+                for kind in kinds {
+                    match assets_api::list_creations(
+                        client,
+                        &cookie,
+                        ram_core::assets::Creator::User(user_id),
+                        *kind,
+                        None,
+                    )
+                    .await
+                    {
+                        Ok(page) => items.extend(page.items),
+                        Err(e) => {
+                            account_failed = true;
+                            error!(user_id, ?kind, "bulk inventory listing failed: {e}");
+                        }
+                    }
+                }
+                debug!(
+                    user_id,
+                    item_count = items.len(),
+                    elapsed_ms = started.elapsed().as_millis(),
+                    "bulk inventory account completed"
+                );
+                if account_failed {
+                    failed_accounts += 1;
+                    inventories.push(Vec::new());
+                } else {
+                    inventories.push(items);
+                }
+            }
+
+            let common_items = assets_api::common_creation_items(&inventories);
+            if common_items.is_empty() {
+                info!("none found in bulk, try individually");
+            } else {
+                info!(
+                    common_item_count = common_items.len(),
+                    "bulk inventory common items found"
+                );
+                for item in &common_items {
+                    info!(asset_id = item.asset_id, name = %item.name, kind = ?item.kind, "bulk inventory common item");
+                }
+            }
+            Ok(BackendEvent::BulkCreationsFetched {
+                items: common_items,
+                failed_accounts,
+            })
         }
         BackendCommand::FetchAssetThumbnails { asset_ids } => {
             let images = match assets_api::fetch_asset_thumbnails(client, &asset_ids).await {
@@ -1931,6 +2048,7 @@ mod tests {
             | C::SearchGroups { .. }
             | C::ChangeGroupMembership { .. }
             | C::FetchCreations { .. }
+            | C::FetchBulkCreations { .. }
             | C::FetchAssetThumbnails { .. } => false,
         }
     }

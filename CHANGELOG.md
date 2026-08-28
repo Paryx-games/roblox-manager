@@ -6,6 +6,8 @@
 
 - **Windows startup option.** Settings can now add or remove RM from the current Windows user's startup applications.
 - **Copy account info.** Account context menus can now copy the canonical username, Roblox user ID, and account age as a labeled block for quick pasting elsewhere. Accounts without a creation timestamp show an unknown age.
+- **Working account inventory.** The account page now loads the selected account's Roblox creations directly, with debug logging for request timing, asset counts, and failures.
+- **Bulk common inventory.** The multi-account panel can find items shared by every selected account, log the common results, and report `none found in bulk, try individually` when the intersection is empty.
 
 ### Changed
 

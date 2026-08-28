@@ -20,6 +20,8 @@ pub enum GroupPanelAction {
     OpenBrowsers,
     /// Copy the selected account IDs to the clipboard.
     CopyIds,
+    /// Find inventory items shared by every selected account.
+    FindCommonInventory,
     /// Open the path editor for all selected accounts.
     OpenPathEditor,
     /// Deselect all.
@@ -34,6 +36,7 @@ pub enum GroupPanelAction {
 /// `place_id_input`, `job_id_input`, and `data_input` are owned by the parent so single-launch
 /// and bulk-launch views share the same fields — typing a Place ID into one
 /// makes it appear in the other immediately.
+#[allow(clippy::too_many_arguments)]
 pub fn show(
     ui: &mut egui::Ui,
     selected_accounts: &[&Account],
@@ -43,6 +46,9 @@ pub fn show(
     presets: &[LaunchPreset],
     roblox_running: bool,
     anonymize: bool,
+    common_inventory_items: &[ram_core::assets_api::CreationItem],
+    common_inventory_loading: bool,
+    common_inventory_message: Option<&str>,
 ) -> Option<GroupPanelAction> {
     let mut action: Option<GroupPanelAction> = None;
     let count = selected_accounts.len();
@@ -100,10 +106,42 @@ pub fn show(
             if ui.button("Copy IDs").clicked() {
                 action = Some(GroupPanelAction::CopyIds);
             }
+            if ui
+                .add_enabled(!common_inventory_loading, egui::Button::new("Common inventory"))
+                .on_hover_text("Find items present in every selected account")
+                .clicked()
+            {
+                action = Some(GroupPanelAction::FindCommonInventory);
+            }
             if ui.button("Change path").clicked() {
                 action = Some(GroupPanelAction::OpenPathEditor);
             }
         });
+
+        if common_inventory_loading {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label("Checking common inventory...");
+            });
+        } else if let Some(message) = common_inventory_message {
+            ui.label(message);
+        } else if !common_inventory_items.is_empty() {
+            ui.label(format!(
+                "{} common inventory item(s) found",
+                common_inventory_items.len()
+            ));
+            for item in common_inventory_items.iter().take(6) {
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(item.name.clone()).strong());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(format!("{} ({})", item.asset_id, item.kind.as_api_str()));
+                    });
+                });
+            }
+            if common_inventory_items.len() > 6 {
+                ui.label(format!("+ {} more items", common_inventory_items.len() - 6));
+            }
+        }
         ui.add_space(8.0);
         ui.separator();
         ui.add_space(8.0);

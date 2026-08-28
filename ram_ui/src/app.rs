@@ -303,6 +303,10 @@ pub struct AppState {
     publish_groups: Vec<ram_core::assets_api::GroupTarget>,
     /// The inventory page currently loaded in the browse pane.
     remote_inventory: asset_manager::RemoteInventory,
+    /// Results from the latest common-inventory scan for the selected accounts.
+    common_inventory_items: Vec<ram_core::assets_api::CreationItem>,
+    common_inventory_loading: bool,
+    common_inventory_message: Option<String>,
     /// Thumbnail PNGs for the icon views, keyed by asset ID.
     asset_thumbnails: HashMap<u64, Vec<u8>>,
     /// Requests currently in flight, so the same asset is not asked for on
@@ -512,6 +516,9 @@ impl AppState {
             universe_targets_user: None,
             publish_groups: Vec::new(),
             remote_inventory: asset_manager::RemoteInventory::default(),
+            common_inventory_items: Vec::new(),
+            common_inventory_loading: false,
+            common_inventory_message: None,
             asset_thumbnails: HashMap::new(),
             asset_thumbnails_inflight: HashSet::new(),
             asset_thumbnails_retry_at: HashMap::new(),
@@ -1493,6 +1500,23 @@ impl AppState {
                             self.remote_inventory.error = Some(message);
                         }
                     }
+                }
+                BackendEvent::BulkCreationsFetched {
+                    items,
+                    failed_accounts,
+                } => {
+                    self.common_inventory_items = items;
+                    self.common_inventory_loading = false;
+                    self.common_inventory_message = if self.common_inventory_items.is_empty() {
+                        Some("none found in bulk, try individually".to_string())
+                    } else if failed_accounts > 0 {
+                        Some(format!(
+                            "{} common item(s) found; {failed_accounts} account(s) could not be checked.",
+                            self.common_inventory_items.len()
+                        ))
+                    } else {
+                        None
+                    };
                 }
                 BackendEvent::AssetThumbnailsReady { requested, images } => {
                     let now = std::time::Instant::now();
@@ -2716,6 +2740,9 @@ impl AppState {
                     &preset_view,
                     self.roblox_running,
                     self.config.anonymize_names,
+                    &self.common_inventory_items,
+                    self.common_inventory_loading,
+                    self.common_inventory_message.as_deref(),
                 );
                 if let Some(a) = action {
                     match a {
@@ -2790,6 +2817,26 @@ impl AppState {
                                 .collect();
                             ctx.output_mut(|o| o.copied_text = ids.join(", "));
                             self.toasts.push(Toast::info("Copied selected account IDs"));
+                        }
+                        group_panel::GroupPanelAction::FindCommonInventory => {
+                            let accounts: Vec<(u64, Option<String>)> = selected_accounts
+                                .iter()
+                                .map(|account| (account.user_id, account.encrypted_cookie.clone()))
+                                .collect();
+                            if let Some(session) = self.session() {
+                                self.common_inventory_items.clear();
+                                self.common_inventory_message = None;
+                                self.common_inventory_loading = true;
+                                self.bridge.send(BackendCommand::FetchBulkCreations {
+                                    accounts,
+                                    session,
+                                    use_credential_manager: self.config.use_credential_manager,
+                                });
+                            } else {
+                                self.toasts.push(Toast::error(
+                                    "Unlock the account store before checking inventory.",
+                                ));
+                            }
                         }
                         group_panel::GroupPanelAction::ClearSelection => {
                             self.selected_ids.clear();
@@ -3587,8 +3634,14 @@ impl AppState {
         let Some(session) = self.session() else {
             return;
         };
-        let Some(user_id) = self.asset_manager_state.acting_user_id else {
-            return;
+        let user_id = match creator {
+            ram_core::assets::Creator::User(user_id) => user_id,
+            ram_core::assets::Creator::Group(_) => {
+                let Some(user_id) = self.asset_manager_state.acting_user_id else {
+                    return;
+                };
+                user_id
+            }
         };
         let Some(account) = self.store.find_by_id(user_id) else {
             return;

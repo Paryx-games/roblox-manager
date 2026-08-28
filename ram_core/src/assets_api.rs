@@ -349,6 +349,27 @@ pub struct CreationPage {
     pub next_cursor: Option<String>,
 }
 
+/// Return the creations present in every supplied account inventory.
+/// Duplicate asset IDs within one account are ignored.
+pub fn common_creation_items(inventories: &[Vec<CreationItem>]) -> Vec<CreationItem> {
+    let Some(first) = inventories.first() else {
+        return Vec::new();
+    };
+
+    let mut common = std::collections::HashMap::new();
+    for item in first {
+        common.entry(item.asset_id).or_insert_with(|| item.clone());
+    }
+    for inventory in &inventories[1..] {
+        let ids: std::collections::HashSet<u64> =
+            inventory.iter().map(|item| item.asset_id).collect();
+        common.retain(|asset_id, _| ids.contains(asset_id));
+    }
+    let mut items: Vec<CreationItem> = common.into_values().collect();
+    items.sort_by_key(|item| item.asset_id);
+    items
+}
+
 /// Build the creations-listing URL.
 ///
 /// Split out from the request so the query-string rules that Roblox enforces
@@ -696,6 +717,48 @@ fn operation_id(body: &serde_json::Value) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn creation(asset_id: u64, name: &str, kind: AssetKind) -> CreationItem {
+        CreationItem {
+            asset_id,
+            name: name.to_string(),
+            kind,
+            updated: None,
+        }
+    }
+
+    #[test]
+    fn common_creation_items_intersects_by_id_and_deduplicates() {
+        let inventories = vec![
+            vec![
+                creation(2, "Shared", AssetKind::Model),
+                creation(1, "Also shared", AssetKind::Decal),
+                creation(2, "Duplicate", AssetKind::Model),
+            ],
+            vec![
+                creation(1, "Also shared", AssetKind::Decal),
+                creation(2, "Shared", AssetKind::Model),
+                creation(3, "Only here", AssetKind::Audio),
+            ],
+        ];
+
+        let common = common_creation_items(&inventories);
+
+        assert_eq!(
+            common.iter().map(|item| item.asset_id).collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+    }
+
+    #[test]
+    fn common_creation_items_is_empty_when_any_inventory_has_no_match() {
+        let inventories = vec![
+            vec![creation(1, "Shared", AssetKind::Model)],
+            vec![creation(2, "Different", AssetKind::Model)],
+        ];
+
+        assert!(common_creation_items(&inventories).is_empty());
+    }
 
     #[test]
     fn operation_id_strips_the_operations_prefix() {
