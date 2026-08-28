@@ -220,12 +220,18 @@ struct AddAccountDialog {
 /// TSV all work without the user having to pick a format up front. Empty
 /// tokens are dropped and surrounding quotes/whitespace are trimmed.
 fn parse_bulk_cookies(input: &str) -> Vec<String> {
-    input
+    let mut cookies = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for cookie in input
         .split(['\n', '\r', ',', ';', '\t'])
         .map(|s| s.trim().trim_matches('"').trim())
         .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
-        .collect()
+    {
+        if seen.insert(cookie.to_string()) {
+            cookies.push(cookie.to_string());
+        }
+    }
+    cookies
 }
 
 /// Snapshot of an about-to-be-added account that the user must confirm because
