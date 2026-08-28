@@ -196,6 +196,9 @@ pub struct AppConfig {
     pub use_credential_manager: bool,
     /// Enable multi-instance mutex patching (risky — user opt-in).
     pub multi_instance_enabled: bool,
+    /// Launch RM automatically when the current Windows user signs in.
+    #[serde(default)]
+    pub startup_with_windows: bool,
     /// Automatically kill Roblox background tray processes (`--launch-to-tray`).
     /// Always active when multi-instance is enabled; can also be used standalone.
     #[serde(default)]
@@ -431,6 +434,7 @@ impl Default for AppConfig {
             accounts_path: data_dir.join("RM").join("accounts.dat"),
             use_credential_manager: false,
             multi_instance_enabled: false,
+            startup_with_windows: false,
             kill_background_roblox: false,
             launch_delay_secs: 0,
             roblox_player_path: None,

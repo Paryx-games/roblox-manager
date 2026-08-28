@@ -16,6 +16,7 @@ const INFO_BLACK_PNG: &[u8] = include_bytes!("../../../assets/info_black.png");
 #[allow(dead_code)]
 pub enum SettingsAction {
     SaveConfig,
+    SetStartupWithWindows(bool),
     RotateMacAddress,
     ChangePassword { new_password: String },
     ClearPassword,
@@ -156,6 +157,15 @@ pub fn show(
         ui.set_min_width(ui.available_width());
         ui.strong("Launch Behavior & Window Tiling");
         ui.add_space(4.0);
+
+        let mut wants_startup = config.startup_with_windows;
+        let startup_toggled = setting_row(ui, "startup_with_windows", |ui| {
+            ui.checkbox(&mut wants_startup, "Start RM with Windows").changed()
+        });
+        if startup_toggled {
+            config.startup_with_windows = wants_startup;
+            action = Some(SettingsAction::SetStartupWithWindows(wants_startup));
+        }
 
         let mut wants_multi = config.multi_instance_enabled;
         let toggled = setting_row(ui, "multi_instance", |ui| {

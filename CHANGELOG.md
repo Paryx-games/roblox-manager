@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.14.0
+
+### Added
+
+- **Windows startup option.** Settings can now add or remove RM from the current Windows user's startup applications.
+
 ## v1.13.0
 
 ### Added

@@ -7,6 +7,7 @@ mod app;
 mod bridge;
 mod browser_login;
 mod components;
+mod startup;
 mod theme;
 mod toast;
 

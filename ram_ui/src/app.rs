@@ -4311,6 +4311,21 @@ impl AppState {
                         self.toasts.push(Toast::success("Settings saved"));
                     }
                 }
+                Some(settings::SettingsAction::SetStartupWithWindows(enabled)) => {
+                    match crate::startup::set_enabled(enabled) {
+                        Ok(()) => self.toasts.push(Toast::success(if enabled {
+                            "RM will start with Windows"
+                        } else {
+                            "RM will not start with Windows"
+                        })),
+                        Err(e) => {
+                            self.config.startup_with_windows = !enabled;
+                            self.toasts.push(Toast::error(format!(
+                                "Could not update Windows startup: {e}"
+                            )));
+                        }
+                    }
+                }
                 Some(settings::SettingsAction::RotateMacAddress) => {
                     match ram_core::process::rotate_mac_address(
                         self.config.mac_preserve_oui,
