@@ -6,6 +6,10 @@
 
 - **Kill-all confirmation.** Settings can require confirmation before terminating every running Roblox instance.
 
+### Fixed
+
+- **Single window arranging.** Multi window only tiles when 2+ roblox applications are present.
+
 ## v1.14.1
 
 ### Changed
