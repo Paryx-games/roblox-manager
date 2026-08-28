@@ -2397,6 +2397,10 @@ impl AppState {
                             ui.output_mut(|o| o.copied_text = job_id.clone());
                             self.toasts.push(Toast::info("Copied to clipboard"));
                         }
+                        sidebar::SidebarAction::CopyAccountInfo(info) => {
+                            ui.output_mut(|o| o.copied_text = info);
+                            self.toasts.push(Toast::info("Copied to clipboard"));
+                        }
                         sidebar::SidebarAction::OpenBrowserAs(user_id) => {
                             self.open_browser_as(user_id);
                         }

@@ -147,6 +147,8 @@ pub enum SidebarAction {
     RangeSelect(Vec<u64>),
     /// Copy text to clipboard.
     CopyJobId(String),
+    /// Copy the account's username, ID, and age to the clipboard.
+    CopyAccountInfo(String),
     AddAccountDialog,
     /// Double-click: quick-launch this account.
     QuickLaunch(u64),
@@ -1040,6 +1042,13 @@ fn render_account_row(
             ui.close_menu();
         }
         ui.separator();
+
+        if ui.button("\u{1f4cb}  Copy account info").clicked() {
+            actions.push(SidebarAction::CopyAccountInfo(
+                crate::components::format_account_info(account),
+            ));
+            ui.close_menu();
+        }
 
         // ---- This account's running clients ----
         let mine: Vec<&TrackedInstance> = instances

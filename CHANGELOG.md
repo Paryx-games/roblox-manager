@@ -5,6 +5,7 @@
 ### Added
 
 - **Windows startup option.** Settings can now add or remove RM from the current Windows user's startup applications.
+- **Copy account info.** Account context menus can now copy the canonical username, Roblox user ID, and account age as a labeled block for quick pasting elsewhere. Accounts without a creation timestamp show an unknown age.
 
 ### Changed
 

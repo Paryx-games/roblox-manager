@@ -9,7 +9,34 @@ pub mod sidebar;
 pub mod tutorial;
 
 use eframe::egui;
-use ram_core::models::LaunchPreset;
+use ram_core::models::{Account, LaunchPreset};
+
+pub(crate) fn format_account_age(created_at: chrono::DateTime<chrono::Utc>) -> String {
+    format_account_age_at(created_at, chrono::Utc::now())
+}
+
+fn format_account_age_at(
+    created_at: chrono::DateTime<chrono::Utc>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> String {
+    let hours = now.signed_duration_since(created_at).num_hours().max(0);
+    let years = hours / (24 * 365);
+    let months = (hours % (24 * 365)) / (24 * 30);
+    let days = (hours % (24 * 30)) / 24;
+    let hours = hours % 24;
+    format!("{years} years, {months} months, {days} days, {hours} hours")
+}
+
+pub(crate) fn format_account_info(account: &Account) -> String {
+    let age = account
+        .created_at
+        .map(format_account_age)
+        .unwrap_or_else(|| "Unknown".to_string());
+    format!(
+        "Username: {}\nUser ID: {}\nAccount age: {age}",
+        account.username, account.user_id
+    )
+}
 
 /// Explain when launch data contains values that belong in dedicated fields.
 pub fn invalid_launch_data_message(data: &str) -> Option<&'static str> {
@@ -119,6 +146,46 @@ fn chips_ui(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn account_info_includes_username_id_and_age() {
+        let mut account = Account::new(12345, "Builderman".to_string(), "Builderman".to_string());
+        account.created_at = Some(
+            chrono::DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z")
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+        );
+
+        let info = format_account_info(&account);
+
+        assert!(info.starts_with("Username: Builderman\nUser ID: 12345\nAccount age: "));
+        assert!(!info.ends_with("Account age: Unknown"));
+    }
+
+    #[test]
+    fn account_info_uses_unknown_age_when_creation_time_is_missing() {
+        let account = Account::new(12345, "Builderman".to_string(), "Builderman".to_string());
+
+        assert_eq!(
+            format_account_info(&account),
+            "Username: Builderman\nUser ID: 12345\nAccount age: Unknown"
+        );
+    }
+
+    #[test]
+    fn account_age_uses_expected_calendar_approximation() {
+        let created_at = chrono::DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let now = chrono::DateTime::parse_from_rfc3339("2020-12-31T03:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        assert_eq!(
+            format_account_age_at(created_at, now),
+            "1 years, 0 months, 5 days, 3 hours"
+        );
+    }
 
     #[test]
     fn launch_data_guides_reserved_fields() {

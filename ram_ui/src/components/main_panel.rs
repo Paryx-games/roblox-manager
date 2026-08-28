@@ -561,7 +561,7 @@ pub fn show(
                             ui.label(format!(
                                 "{} ({})",
                                 created_at.format("%Y-%m-%d %H:%M UTC"),
-                                format_account_age(created_at),
+                                crate::components::format_account_age(created_at),
                             ));
                             ui.end_row();
                         }
@@ -623,18 +623,6 @@ pub fn show(
         action,
         launch_btn_rect,
     }
-}
-
-fn format_account_age(created_at: chrono::DateTime<chrono::Utc>) -> String {
-    let hours = chrono::Utc::now()
-        .signed_duration_since(created_at)
-        .num_hours()
-        .max(0);
-    let years = hours / (24 * 365);
-    let months = (hours % (24 * 365)) / (24 * 30);
-    let days = (hours % (24 * 30)) / 24;
-    let hours = hours % 24;
-    format!("{years} years, {months} months, {days} days, {hours} hours")
 }
 
 /// Show a placeholder when no account is selected.
