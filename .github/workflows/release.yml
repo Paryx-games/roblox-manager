@@ -179,8 +179,15 @@ jobs:
 
           # pre-release tags get an extra notice stacked under the standard one
           $prereleaseWarning = ""
+          $rcMatch = [regex]::Match($currentTag, "-rc\.(\d+)")
 
-          if ($currentTag -like "*-beta*") {
+          if ($rcMatch.Success) {
+            $rcNumber = $rcMatch.Groups[1].Value
+            $prereleaseWarning = @"
+          > [!TIP]
+          > This is our release candidate version $rcNumber. It's mostly a stable build, so it should be safe for regular use, but please report any bugs you find at https://github.com/Paryx-games/roblox-manager/issues.
+          "@
+          } elseif ($currentTag -like "*-beta*") {
             $prereleaseWarning = @"
           > [!WARNING]
           > This is a beta release. It should be broadly stable, but you may run into occasional bugs. Please report anything unexpected.
