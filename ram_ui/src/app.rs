@@ -304,7 +304,11 @@ pub struct AppState {
     /// The inventory page currently loaded in the browse pane.
     remote_inventory: asset_manager::RemoteInventory,
     /// Results from the latest common-inventory scan for the selected accounts.
-    common_inventory_items: Vec<ram_core::assets_api::CreationItem>,
+    common_inventory_items: Vec<ram_core::assets_api::UserInventoryItem>,
+    account_inventory_user_id: Option<u64>,
+    account_inventory_items: Vec<ram_core::assets_api::UserInventoryItem>,
+    account_inventory_loading: bool,
+    account_inventory_error: Option<String>,
     common_inventory_loading: bool,
     common_inventory_message: Option<String>,
     /// Thumbnail PNGs for the icon views, keyed by asset ID.
@@ -517,6 +521,10 @@ impl AppState {
             publish_groups: Vec::new(),
             remote_inventory: asset_manager::RemoteInventory::default(),
             common_inventory_items: Vec::new(),
+            account_inventory_user_id: None,
+            account_inventory_items: Vec::new(),
+            account_inventory_loading: false,
+            account_inventory_error: None,
             common_inventory_loading: false,
             common_inventory_message: None,
             asset_thumbnails: HashMap::new(),
@@ -1524,6 +1532,22 @@ impl AppState {
                     } else {
                         None
                     };
+                }
+                BackendEvent::UserInventoryFetched {
+                    user_id,
+                    items,
+                    error,
+                } => {
+                    if self.account_inventory_user_id != Some(user_id) {
+                        continue;
+                    }
+                    self.account_inventory_loading = false;
+                    self.account_inventory_items = items;
+                    self.account_inventory_error = error;
+                    if let Some(error) = self.account_inventory_error.as_deref() {
+                        self.toasts
+                            .push(Toast::error(format!("Inventory refresh failed: {error}")));
+                    }
                 }
                 BackendEvent::AssetThumbnailsReady { requested, images } => {
                     let now = std::time::Instant::now();
@@ -2891,18 +2915,17 @@ impl AppState {
                                 .unwrap_or_else(|| "Auto-detect".to_string());
                             format!("Default ({path})")
                         });
-                    let inventory_node = asset_manager::TreeNode::Inventory(
-                        ram_core::assets::Creator::User(account.user_id),
-                    );
-                    let inventory_items = if self.remote_inventory.node == Some(inventory_node) {
-                        self.remote_inventory.items.clone()
+                    let inventory_items = if self.account_inventory_user_id == Some(account.user_id)
+                    {
+                        self.account_inventory_items.clone()
                     } else {
                         Vec::new()
                     };
-                    let inventory_loading = self.remote_inventory.node == Some(inventory_node)
-                        && self.remote_inventory.loading();
-                    let inventory_error = if self.remote_inventory.node == Some(inventory_node) {
-                        self.remote_inventory.error.as_deref()
+                    let inventory_loading = self.account_inventory_user_id == Some(account.user_id)
+                        && self.account_inventory_loading;
+                    let inventory_error = if self.account_inventory_user_id == Some(account.user_id)
+                    {
+                        self.account_inventory_error.as_deref()
                     } else {
                         None
                     };
@@ -2935,19 +2958,21 @@ impl AppState {
                             }
                             main_panel::MainPanelAction::LoadInventory(user_id) => {
                                 tracing::debug!(user_id, "individual inventory refresh requested");
-                                let node = asset_manager::TreeNode::Inventory(
-                                    ram_core::assets::Creator::User(user_id),
-                                );
-                                let kinds = ram_core::assets::AssetKind::selectable().to_vec();
-                                self.remote_inventory = asset_manager::RemoteInventory {
-                                    node: Some(node),
-                                    filter: None,
-                                    requested: true,
-                                    inflight: kinds.len(),
-                                    ..Default::default()
-                                };
-                                for kind in kinds {
-                                    self.fetch_creations(node, kind, None);
+                                if let Some(session) = self.session() {
+                                    self.account_inventory_user_id = Some(user_id);
+                                    self.account_inventory_items.clear();
+                                    self.account_inventory_error = None;
+                                    self.account_inventory_loading = true;
+                                    self.bridge.send(BackendCommand::FetchUserInventory {
+                                        user_id,
+                                        encrypted_cookie: account.encrypted_cookie.clone(),
+                                        session,
+                                        use_credential_manager: self.config.use_credential_manager,
+                                    });
+                                } else {
+                                    self.toasts.push(Toast::error(
+                                        "Unlock the account store before refreshing inventory.",
+                                    ));
                                 }
                             }
                             main_panel::MainPanelAction::LaunchGame {

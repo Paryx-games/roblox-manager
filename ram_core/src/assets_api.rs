@@ -312,6 +312,135 @@ fn parse_universe_list(body: &serde_json::Value) -> Vec<UniverseTarget> {
 // Inventories
 // ---------------------------------------------------------------------------
 
+/// Roblox's authenticated user-inventory service, separate from the Creator
+/// Dashboard creations service below.
+pub const USER_INVENTORY_BASE: &str = "https://inventory.roblox.com/v1";
+
+/// Public asset categories supported by the user inventory endpoint.
+pub const USER_INVENTORY_ASSET_TYPES: &[&str] = &[
+    "Hat",
+    "HairAccessory",
+    "FaceAccessory",
+    "NeckAccessory",
+    "ShoulderAccessory",
+    "FrontAccessory",
+    "BackAccessory",
+    "WaistAccessory",
+    "Shirt",
+    "Pants",
+    "TShirt",
+    "Gear",
+    "EmoteAnimation",
+];
+
+/// One asset owned by a Roblox user.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserInventoryItem {
+    pub asset_id: u64,
+    pub name: String,
+    pub asset_type: String,
+}
+
+fn user_inventory_url(user_id: u64, asset_type: &str, cursor: Option<&str>) -> String {
+    let mut url = format!(
+        "{USER_INVENTORY_BASE}/users/{user_id}/items/Asset?assetTypes={asset_type}&sortOrder=Desc&limit=100"
+    );
+    if let Some(cursor) = cursor.filter(|cursor| !cursor.is_empty()) {
+        url.push_str("&cursor=");
+        url.push_str(&percent_encode(cursor));
+    }
+    url
+}
+
+fn parse_user_inventory_items(
+    body: &serde_json::Value,
+    fallback_asset_type: &str,
+) -> (Vec<UserInventoryItem>, Option<String>) {
+    let items = body
+        .get("data")
+        .and_then(|value| value.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| {
+            let asset_id = entry.get("id").and_then(json_u64)?;
+            Some(UserInventoryItem {
+                asset_id,
+                name: entry
+                    .get("name")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("Untitled")
+                    .to_string(),
+                asset_type: entry
+                    .get("assetType")
+                    .and_then(|value| value.get("name"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or(fallback_asset_type)
+                    .to_string(),
+            })
+        })
+        .collect();
+    let next_cursor = body
+        .get("nextPageCursor")
+        .and_then(|value| value.as_str())
+        .filter(|cursor| !cursor.is_empty())
+        .map(str::to_string);
+    (items, next_cursor)
+}
+
+/// List one category of assets from a user's Roblox inventory.
+pub async fn list_user_inventory(
+    client: &RobloxClient,
+    cookie: &str,
+    user_id: u64,
+    asset_type: &str,
+) -> Result<Vec<UserInventoryItem>, CoreError> {
+    let mut items = Vec::new();
+    let mut cursor = None;
+    loop {
+        let url = user_inventory_url(user_id, asset_type, cursor.as_deref());
+        let body: serde_json::Value =
+            client
+                .get_json(&url, cookie)
+                .await
+                .map_err(|error| match error {
+                    CoreError::RobloxApi { status: 401, .. } => CoreError::RobloxApi {
+                        status: 401,
+                        message: "Roblox did not accept this account's cookie. Re-add the account."
+                            .to_string(),
+                    },
+                    other => other,
+                })?;
+        let (mut page_items, next_cursor) = parse_user_inventory_items(&body, asset_type);
+        items.append(&mut page_items);
+        cursor = next_cursor;
+        if cursor.is_none() {
+            break;
+        }
+    }
+    Ok(items)
+}
+
+/// Return assets present in every supplied user inventory, deduplicated by ID.
+pub fn common_user_inventory_items(
+    inventories: &[Vec<UserInventoryItem>],
+) -> Vec<UserInventoryItem> {
+    let Some(first) = inventories.first() else {
+        return Vec::new();
+    };
+    let mut common = std::collections::HashMap::new();
+    for item in first {
+        common.entry(item.asset_id).or_insert_with(|| item.clone());
+    }
+    for inventory in &inventories[1..] {
+        let ids: std::collections::HashSet<u64> =
+            inventory.iter().map(|item| item.asset_id).collect();
+        common.retain(|asset_id, _| ids.contains(asset_id));
+    }
+    let mut items: Vec<UserInventoryItem> = common.into_values().collect();
+    items.sort_by_key(|item| item.asset_id);
+    items
+}
+
 /// Creations listing. Undocumented, but verified live against a real account:
 /// this is the host the Creator Dashboard uses, and it is **not**
 /// `toolbox-service`, which 404s on every `creations/*` path.
@@ -729,6 +858,62 @@ mod tests {
             kind,
             updated: None,
         }
+    }
+
+    fn user_item(asset_id: u64, name: &str, asset_type: &str) -> UserInventoryItem {
+        UserInventoryItem {
+            asset_id,
+            name: name.to_string(),
+            asset_type: asset_type.to_string(),
+        }
+    }
+
+    #[test]
+    fn user_inventory_items_parse_asset_type_names() {
+        let body = serde_json::json!({
+            "data": [{
+                "id": 123,
+                "name": "Cool Hat",
+                "assetType": { "id": 8, "name": "Hat" }
+            }]
+        });
+        let (parsed, next_cursor) = parse_user_inventory_items(&body, "Hat");
+        assert_eq!(parsed, vec![user_item(123, "Cool Hat", "Hat")]);
+        assert!(next_cursor.is_none());
+    }
+
+    #[test]
+    fn user_inventory_url_targets_the_user_inventory_service() {
+        let url = user_inventory_url(123, "Hat", None);
+        assert_eq!(
+            url,
+            "https://inventory.roblox.com/v1/users/123/items/Asset?assetTypes=Hat&sortOrder=Desc&limit=100"
+        );
+    }
+
+    #[test]
+    fn user_inventory_url_encodes_a_page_cursor() {
+        let url = user_inventory_url(123, "Hat", Some("a/b=="));
+        assert!(url.ends_with("&cursor=a%2Fb%3D%3D"), "got: {url}");
+    }
+
+    #[test]
+    fn common_user_inventory_items_intersects_owned_assets_by_id() {
+        let inventories = vec![
+            vec![
+                user_item(2, "Shared Hat", "Hat"),
+                user_item(1, "Hair", "HairAccessory"),
+            ],
+            vec![
+                user_item(1, "Hair", "HairAccessory"),
+                user_item(2, "Shared Hat", "Hat"),
+            ],
+        ];
+        let common = common_user_inventory_items(&inventories);
+        assert_eq!(
+            common.iter().map(|item| item.asset_id).collect::<Vec<_>>(),
+            vec![1, 2]
+        );
     }
 
     #[test]

@@ -67,7 +67,7 @@ pub fn show(
     presets: &[LaunchPreset],
     anonymize: bool,
     player_path_label: &str,
-    inventory_items: &[ram_core::assets_api::CreationItem],
+    inventory_items: &[ram_core::assets_api::UserInventoryItem],
     inventory_loading: bool,
     inventory_error: Option<&str>,
 ) -> MainPanelResult {
@@ -460,11 +460,11 @@ pub fn show(
             section_frame.show(ui, |ui: &mut egui::Ui| {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    ui.heading("Inventory");
+                    ui.heading("Roblox inventory");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .add_enabled(!inventory_loading, egui::Button::new("Refresh"))
-                            .on_hover_text("Fetch the latest Roblox inventory for this account")
+                            .on_hover_text("Fetch hats, accessories, clothing, gear, and emotes owned by this account")
                             .clicked()
                         {
                             action = Some(MainPanelAction::LoadInventory(account.user_id));
@@ -485,7 +485,7 @@ pub fn show(
                     );
                 } else if inventory_items.is_empty() {
                     ui.label(
-                        egui::RichText::new("No inventory loaded yet. Refresh to fetch recent Roblox items.")
+                        egui::RichText::new("No user inventory loaded yet. Refresh to fetch hats, accessories, clothing, gear, and emotes.")
                             .color(ui.visuals().weak_text_color()),
                     );
                 } else {
@@ -493,7 +493,7 @@ pub fn show(
                         ui.horizontal(|ui| {
                             ui.label(egui::RichText::new(item.name.clone()).strong());
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                ui.label(item.kind.as_api_str());
+                                ui.label(&item.asset_type);
                             });
                         });
                     }

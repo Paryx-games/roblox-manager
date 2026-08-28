@@ -46,7 +46,7 @@ pub fn show(
     presets: &[LaunchPreset],
     roblox_running: bool,
     anonymize: bool,
-    common_inventory_items: &[ram_core::assets_api::CreationItem],
+    common_inventory_items: &[ram_core::assets_api::UserInventoryItem],
     common_inventory_loading: bool,
     common_inventory_message: Option<&str>,
 ) -> Option<GroupPanelAction> {
@@ -108,7 +108,7 @@ pub fn show(
             }
             if ui
                 .add_enabled(!common_inventory_loading, egui::Button::new("Common inventory"))
-                .on_hover_text("Find items present in every selected account")
+                .on_hover_text("Find hats, accessories, clothing, gear, and emotes present in every selected account")
                 .clicked()
             {
                 action = Some(GroupPanelAction::FindCommonInventory);
@@ -126,15 +126,15 @@ pub fn show(
         } else if let Some(message) = common_inventory_message {
             ui.label(message);
         } else if !common_inventory_items.is_empty() {
-            ui.label(format!(
-                "{} common inventory item(s) found",
+                ui.label(format!(
+                "{} common Roblox inventory item(s) found",
                 common_inventory_items.len()
             ));
             for item in common_inventory_items.iter().take(6) {
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new(item.name.clone()).strong());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(format!("{} ({})", item.asset_id, item.kind.as_api_str()));
+                        ui.label(format!("{} ({})", item.asset_id, item.asset_type));
                     });
                 });
             }

@@ -291,7 +291,14 @@ pub enum BackendCommand {
         kind: AssetKind,
         cursor: Option<String>,
     },
-    /// Find creations shared by every selected account.
+    /// Fetch the authenticated user's wearable and owned asset inventory.
+    FetchUserInventory {
+        user_id: u64,
+        encrypted_cookie: Option<String>,
+        session: crypto::StoreSession,
+        use_credential_manager: bool,
+    },
+    /// Find user-inventory items shared by every selected account.
     FetchBulkCreations {
         accounts: Vec<(u64, Option<String>)>,
         session: crypto::StoreSession,
@@ -522,9 +529,15 @@ pub enum BackendEvent {
         page: assets_api::CreationPage,
         error: Option<String>,
     },
+    /// The authenticated user's Roblox inventory.
+    UserInventoryFetched {
+        user_id: u64,
+        items: Vec<assets_api::UserInventoryItem>,
+        error: Option<String>,
+    },
     /// Creations present in every account requested by a bulk inventory scan.
     BulkCreationsFetched {
-        items: Vec<assets_api::CreationItem>,
+        items: Vec<assets_api::UserInventoryItem>,
         failed_accounts: usize,
     },
     /// Thumbnail results. `requested` is echoed back so the caller can tell
@@ -1536,7 +1549,7 @@ async fn handle_command(
             session,
             use_credential_manager,
         } => {
-            let kinds = ram_core::assets::AssetKind::selectable();
+            let asset_types = ram_core::assets_api::USER_INVENTORY_ASSET_TYPES;
             let mut inventories = Vec::with_capacity(accounts.len());
             let mut failed_accounts = 0;
 
@@ -1552,26 +1565,24 @@ async fn handle_command(
                     Err(e) => {
                         failed_accounts += 1;
                         error!(user_id, "bulk inventory cookie decrypt failed: {e}");
+                        inventories.push(Vec::new());
                         continue;
                     }
                 };
 
                 let mut items = Vec::new();
                 let mut account_failed = false;
-                for kind in kinds {
-                    match assets_api::list_creations(
-                        client,
-                        &cookie,
-                        ram_core::assets::Creator::User(user_id),
-                        *kind,
-                        None,
-                    )
-                    .await
+                for asset_type in asset_types {
+                    match assets_api::list_user_inventory(client, &cookie, user_id, asset_type)
+                        .await
                     {
-                        Ok(page) => items.extend(page.items),
+                        Ok(fetched) => items.extend(fetched),
                         Err(e) => {
                             account_failed = true;
-                            error!(user_id, ?kind, "bulk inventory listing failed: {e}");
+                            error!(
+                                user_id,
+                                asset_type, "bulk user inventory listing failed: {e}"
+                            );
                         }
                     }
                 }
@@ -1589,7 +1600,7 @@ async fn handle_command(
                 }
             }
 
-            let common_items = assets_api::common_creation_items(&inventories);
+            let common_items = assets_api::common_user_inventory_items(&inventories);
             if common_items.is_empty() {
                 info!("none found in bulk, try individually");
             } else {
@@ -1598,12 +1609,62 @@ async fn handle_command(
                     "bulk inventory common items found"
                 );
                 for item in &common_items {
-                    info!(asset_id = item.asset_id, name = %item.name, kind = ?item.kind, "bulk inventory common item");
+                    info!(asset_id = item.asset_id, name = %item.name, asset_type = %item.asset_type, "bulk user inventory common item");
                 }
             }
             Ok(BackendEvent::BulkCreationsFetched {
                 items: common_items,
                 failed_accounts,
+            })
+        }
+        BackendCommand::FetchUserInventory {
+            user_id,
+            encrypted_cookie,
+            session,
+            use_credential_manager,
+        } => {
+            let cookie =
+                match decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager) {
+                    Ok(cookie) => cookie,
+                    Err(error) => {
+                        error!(user_id, "user inventory cookie decrypt failed: {error}");
+                        return Ok(BackendEvent::UserInventoryFetched {
+                            user_id,
+                            items: Vec::new(),
+                            error: Some(error.to_string()),
+                        });
+                    }
+                };
+            let started = std::time::Instant::now();
+            let mut items = Vec::new();
+            for asset_type in assets_api::USER_INVENTORY_ASSET_TYPES {
+                match assets_api::list_user_inventory(client, &cookie, user_id, asset_type).await {
+                    Ok(mut fetched) => items.append(&mut fetched),
+                    Err(error) => {
+                        error!(
+                            user_id,
+                            asset_type, "user inventory listing failed: {error}"
+                        );
+                        return Ok(BackendEvent::UserInventoryFetched {
+                            user_id,
+                            items: Vec::new(),
+                            error: Some(error.to_string()),
+                        });
+                    }
+                }
+            }
+            items.sort_by_key(|item| item.asset_id);
+            items.dedup_by_key(|item| item.asset_id);
+            debug!(
+                user_id,
+                item_count = items.len(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "user inventory completed"
+            );
+            Ok(BackendEvent::UserInventoryFetched {
+                user_id,
+                items,
+                error: None,
             })
         }
         BackendCommand::FetchAssetThumbnails { asset_ids } => {
@@ -2048,6 +2109,7 @@ mod tests {
             | C::SearchGroups { .. }
             | C::ChangeGroupMembership { .. }
             | C::FetchCreations { .. }
+            | C::FetchUserInventory { .. }
             | C::FetchBulkCreations { .. }
             | C::FetchAssetThumbnails { .. } => false,
         }

@@ -9,6 +9,7 @@
 - **Working account inventory.** The account page now loads the selected account's Roblox creations directly, with debug logging for request timing, asset counts, and failures.
 - **Bulk common inventory.** The multi-account panel can find items shared by every selected account, log the common results, and report `none found in bulk, try individually` when the intersection is empty.
 - **Clearer inventory failures.** Individual inventory refreshes now report terminal request errors in the account panel and toast, with actionable guidance when Roblox rejects an account cookie. Additional debug logs identify request, account, asset type, timing, and result state without logging secrets.
+- **Roblox user inventory.** Account and bulk inventory now use Roblox's authenticated user-inventory service for owned hats, accessories, clothing, gear, and emotes instead of the Creator Dashboard creations endpoint. Private servers remain a separate place/game resource.
 
 ### Changed
 
