@@ -63,6 +63,7 @@ pub enum SortOrder {
     Name,
     Status,
     AccountAge,
+    LastUsed,
 }
 
 impl std::fmt::Display for SortOrder {
@@ -72,6 +73,7 @@ impl std::fmt::Display for SortOrder {
             SortOrder::Name => write!(f, "Name"),
             SortOrder::Status => write!(f, "Status"),
             SortOrder::AccountAge => write!(f, "Account Age"),
+            SortOrder::LastUsed => write!(f, "Last Used"),
         }
     }
 }
@@ -280,9 +282,10 @@ pub fn show(
                         SortOrder::AccountAge,
                         "Account Age",
                     );
+                    ui.selectable_value(&mut state.sort_order, SortOrder::LastUsed, "Last Used");
                 });
             let direction_enabled =
-                matches!(state.sort_order, SortOrder::Name | SortOrder::AccountAge);
+                matches!(state.sort_order, SortOrder::Name | SortOrder::AccountAge | SortOrder::LastUsed);
             ui.add_enabled_ui(direction_enabled, |ui| {
                 egui::ComboBox::from_id_salt("sort_direction")
                     .selected_text(state.sort_direction.to_string())
@@ -453,6 +456,15 @@ pub fn show(
                             }
                         }
                     })
+                });
+            }
+            SortOrder::LastUsed => {
+                let direction = state.sort_direction;
+                filtered.sort_by(|(_, a), (_, b)| {
+                    b.is_pinned.cmp(&a.is_pinned).then_with(|| {
+                        let cmp = b.last_used.cmp(&a.last_used);
+                        if direction == SortDirection::Descending { cmp.reverse() } else { cmp }
+                    }).then_with(|| name_cmp(a, b))
                 });
             }
         }

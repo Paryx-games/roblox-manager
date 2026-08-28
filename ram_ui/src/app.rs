@@ -471,6 +471,7 @@ impl AppState {
             "Name" => sidebar::SortOrder::Name,
             "Status" => sidebar::SortOrder::Status,
             "Account Age" => sidebar::SortOrder::AccountAge,
+            "Last Used" => sidebar::SortOrder::LastUsed,
             _ => sidebar::SortOrder::Custom,
         };
         sidebar_state.sort_direction = match config.sort_direction.as_str() {
@@ -2581,6 +2582,9 @@ impl AppState {
                                     (acc_lookup, self.session())
                                 {
                                     if self.try_consume_launch_slot() {
+                                        if let Some(account) = self.store.find_by_id_mut(uid) {
+                                            account.last_used = Some(chrono::Utc::now());
+                                        }
                                         self.bridge.send(BackendCommand::LaunchGame {
                                             user_id: uid,
                                             encrypted_cookie: enc,
@@ -3078,6 +3082,9 @@ impl AppState {
                                 let ready =
                                     self.session().filter(|_| self.try_consume_launch_slot());
                                 if let Some(session) = ready {
+                                    if let Some(account) = self.store.find_by_id_mut(account.user_id) {
+                                        account.last_used = Some(chrono::Utc::now());
+                                    }
                                     self.bridge.send(BackendCommand::LaunchGame {
                                         user_id: account.user_id,
                                         encrypted_cookie: account.encrypted_cookie.clone(),
@@ -4424,6 +4431,9 @@ impl AppState {
                                 .then_with(|| name_cmp(a, b)),
                             sidebar::SortOrder::AccountAge => {
                                 b.created_at.cmp(&a.created_at).then_with(|| name_cmp(a, b))
+                            }
+                            sidebar::SortOrder::LastUsed => {
+                                b.last_used.cmp(&a.last_used).then_with(|| name_cmp(a, b))
                             }
                             sidebar::SortOrder::Custom => {
                                 a.sort_order.cmp(&b.sort_order).then_with(|| name_cmp(a, b))

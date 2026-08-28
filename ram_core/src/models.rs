@@ -29,6 +29,9 @@ pub struct Account {
     pub last_presence: Presence,
     /// Timestamp of the last successful login/validation.
     pub last_validated: Option<DateTime<Utc>>,
+    /// Timestamp of the last launch requested for this account.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_used: Option<DateTime<Utc>>,
     /// Public Roblox account creation timestamp, when available.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_at: Option<DateTime<Utc>>,
@@ -59,6 +62,7 @@ impl Account {
             avatar_url: String::new(),
             last_presence: Presence::default(),
             last_validated: None,
+            last_used: None,
             created_at: None,
             cookie_expired: false,
             moderation: None,
