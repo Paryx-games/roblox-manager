@@ -2275,6 +2275,13 @@ impl eframe::App for AppState {
                     ui.selectable_value(&mut self.active_tab, Tab::Inventory, "🧢 Inventory");
                 }
                 ui.selectable_value(&mut self.active_tab, Tab::Settings, "⚙ Settings");
+                if ui
+                    .button("✦ What's new")
+                    .on_hover_text("View the current release changelog")
+                    .clicked()
+                {
+                    self.show_changelog = true;
+                }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if let Some((ref version, ref url)) = self.update_available {
