@@ -32,10 +32,23 @@ pub(crate) fn format_account_info(account: &Account) -> String {
         .created_at
         .map(format_account_age)
         .unwrap_or_else(|| "Unknown".to_string());
-    format!(
-        "Username: {}\nUser ID: {}\nAccount age: {age}",
-        account.username, account.user_id
-    )
+    let display_name = if account.display_name.trim().is_empty()
+        || account.display_name == account.username
+    {
+        None
+    } else {
+        Some(account.display_name.trim())
+    };
+    match display_name {
+        Some(display_name) => format!(
+            "Username: {}\nDisplay name: {display_name}\nUser ID: {}\nAccount age: {age}",
+            account.username, account.user_id
+        ),
+        None => format!(
+            "Username: {}\nUser ID: {}\nAccount age: {age}",
+            account.username, account.user_id
+        ),
+    }
 }
 
 /// Explain when launch data contains values that belong in dedicated fields.
