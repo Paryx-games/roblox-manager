@@ -6,7 +6,7 @@ on:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,7 +15,6 @@ jobs:
   build:
     name: build
     runs-on: windows-latest
-    timeout-minutes: 30
 
     steps:
       - name: checkout
@@ -28,7 +27,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: build
-        run: cargo build --release --locked
+        run: cargo build --release
 
       - name: upload executable
         uses: actions/upload-artifact@v4
@@ -41,10 +40,6 @@ jobs:
     name: release
     needs: build
     runs-on: windows-latest
-    timeout-minutes: 20
-
-    permissions:
-      contents: write
 
     steps:
       - name: checkout
@@ -133,8 +128,7 @@ jobs:
 
           Set-Content -Path github-release-notes.md -Value $notes.Trim()
 
-      # sha256 for the single release exe, inserted between the github notes
-      # and its own "New Contributors" section.
+      # sha256 for the single release exe
       - name: generate sha256 checksums
         shell: pwsh
         run: |
@@ -165,17 +159,23 @@ jobs:
           $githubNotes = (Get-Content -Path github-release-notes.md -Raw).Trim()
           $sha256 = (Get-Content -Path sha256.md -Raw).Trim()
 
-          # split github notes on "## New Contributors" so sha256 can sit above it
+          # drop the native "New Contributors" section entirely, not used
           $splitMarker = "## New Contributors"
           $splitIndex = $githubNotes.IndexOf($splitMarker)
 
           if ($splitIndex -ge 0) {
-            $beforeContributors = $githubNotes.Substring(0, $splitIndex).Trim()
-            $contributorsSection = $githubNotes.Substring($splitIndex).Trim()
-          } else {
-            $beforeContributors = $githubNotes
-            $contributorsSection = ""
+            $githubNotes = $githubNotes.Substring(0, $splitIndex).Trim()
           }
+
+          # blank line after </summary> is required for markdown inside <details> to render
+          $changelogBox = @"
+          <details>
+          <summary>Changelog</summary>
+
+          $changelog
+
+          </details>
+          "@
 
           $warning = @"
           > [!NOTE]
@@ -204,7 +204,7 @@ jobs:
           "@
           }
 
-          $parts = @($changelog, $beforeContributors, $sha256, $contributorsSection, $warning.Trim(), $prereleaseWarning.Trim()) |
+          $parts = @($changelogBox.Trim(), $githubNotes, $sha256, $warning.Trim(), $prereleaseWarning.Trim()) |
             Where-Object { $_ }
 
           $finalNotes = $parts -join "`n`n"
