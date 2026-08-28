@@ -120,6 +120,19 @@ pub struct SidebarState {
     /// Pending sort change that needs user confirmation (warning about losing custom order).
     pub pending_sort_change: Option<SortOrder>,
     pub path_editor: Option<PathEditorState>,
+    /// Lower-cased search terms are derived once per account change instead of
+    /// allocating three strings on every paint.
+    search_cache: HashMap<u64, CachedSearchTerms>,
+}
+
+struct CachedSearchTerms {
+    raw_username: String,
+    raw_display_name: String,
+    raw_alias: String,
+    username: String,
+    display_name: String,
+    alias: String,
+    combined: String,
 }
 
 impl Default for SidebarState {
@@ -133,6 +146,7 @@ impl Default for SidebarState {
             editing_group: None,
             pending_sort_change: None,
             path_editor: None,
+            search_cache: HashMap::new(),
         }
     }
 }
@@ -327,6 +341,44 @@ pub fn show(
         // ---- Build filtered + sorted list ----
         let query = state.search_query.to_lowercase();
         let is_searching = !query.is_empty();
+        state
+            .search_cache
+            .retain(|id, _| accounts.iter().any(|a| a.user_id == *id));
+        for account in accounts {
+            let cached = state
+                .search_cache
+                .entry(account.user_id)
+                .or_insert_with(|| {
+                    let username = account.username.to_lowercase();
+                    let display_name = account.display_name.to_lowercase();
+                    let alias = account.alias.to_lowercase();
+                    let combined = format!("{username}\n{display_name}\n{alias}");
+                    CachedSearchTerms {
+                        raw_username: account.username.clone(),
+                        raw_display_name: account.display_name.clone(),
+                        raw_alias: account.alias.clone(),
+                        username,
+                        display_name,
+                        alias,
+                        combined,
+                    }
+                });
+            if cached.raw_username != account.username
+                || cached.raw_display_name != account.display_name
+                || cached.raw_alias != account.alias
+            {
+                cached.raw_username = account.username.clone();
+                cached.raw_display_name = account.display_name.clone();
+                cached.raw_alias = account.alias.clone();
+                cached.username = account.username.to_lowercase();
+                cached.display_name = account.display_name.to_lowercase();
+                cached.alias = account.alias.to_lowercase();
+                cached.combined = format!(
+                    "{}\n{}\n{}",
+                    cached.username, cached.display_name, cached.alias
+                );
+            }
+        }
         let mut filtered: Vec<(usize, &Account)> = accounts
             .iter()
             .enumerate()
@@ -334,9 +386,10 @@ pub fn show(
                 if query.is_empty() {
                     return true;
                 }
-                a.username.to_lowercase().contains(&query)
-                    || a.display_name.to_lowercase().contains(&query)
-                    || a.alias.to_lowercase().contains(&query)
+                state
+                    .search_cache
+                    .get(&a.user_id)
+                    .is_some_and(|terms| terms.combined.contains(&query))
             })
             .collect();
 

@@ -10,10 +10,12 @@ use ram_core::auth::RobloxClient;
 use ram_core::instances::{Attribution, InstanceRegistry, TrackedInstance};
 use ram_core::models::{Account, AccountStore, Presence, PrivacyCleanupOptions};
 use ram_core::{api, assets, assets_api, crypto, group_api, process, CoreError};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::sync::Semaphore;
 use tracing::{debug, error, info, warn};
 
 /// Everything the instance sweep owns.
@@ -124,9 +126,53 @@ pub enum BackendCommand {
     },
     /// Kill all Roblox instances.
     KillAll,
+    /// Run the potentially blocking tray cleanup without stalling the runtime.
+    KillTray,
+    /// Validate the preconditions and acquire the singleton mutex off the UI thread.
+    EnableMultiInstance,
+    /// Rotate the active adapter MAC address off the UI thread.
+    RotateMacAddress {
+        preserve_oui: bool,
+        alternate_oui: String,
+    },
+    /// Update the Windows startup registration off the UI thread.
+    SetStartupWithWindows(bool),
+    /// Open a folder using the platform shell.
+    OpenDataFolder {
+        path: PathBuf,
+    },
+    /// Open an arbitrary path using the platform shell.
+    OpenPath {
+        path: PathBuf,
+    },
+    /// Remove browse-as profiles for accounts no longer in the store.
+    CleanOrphanedData {
+        data_dir: PathBuf,
+        known_user_ids: HashSet<u64>,
+    },
+    /// Clear backend-side transient caches.
+    ClearCaches,
+    /// Focus a tracked Roblox client.
+    FocusInstance {
+        pid: u32,
+    },
+    /// Kill a tracked client after verifying its launch token.
+    KillInstance {
+        pid: u32,
+        launchtime: i64,
+    },
+    /// Restore window titles and perform privacy cleanup during shutdown.
+    ShutdownCleanup {
+        original_titles: Vec<(u32, String)>,
+        privacy: Option<PrivacyCleanupOptions>,
+    },
+    /// Apply RM labels to Roblox windows off the paint thread.
+    ApplyInstanceTitles(Vec<(u32, String)>),
     /// Refresh avatars + presence for all accounts, decrypting a cookie on this side.
     RefreshAll {
         user_ids: Vec<u64>,
+        /// Accounts without an in-memory image cache entry.
+        avatar_user_ids: Vec<u64>,
         /// The first account's encrypted cookie (or None if credential manager).
         first_user_id: u64,
         encrypted_cookie: Option<String>,
@@ -335,6 +381,17 @@ impl BackendCommand {
             BackendCommand::SaveStore { .. } | BackendCommand::RekeyStore { .. }
         )
     }
+
+    /// Refresh commands are periodic and can be requested by both a timer and
+    /// an event. Coalesce an identical request while one is already running.
+    fn coalesce_key(&self) -> Option<&'static str> {
+        match self {
+            Self::RefreshAll { .. } => Some("refresh-all"),
+            Self::RefreshPresenceOnly { .. } => Some("refresh-presence"),
+            Self::RevalidateAll { .. } => Some("revalidate"),
+            _ => None,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -355,7 +412,9 @@ pub enum BackendEvent {
         encrypted_cookie: Option<String>,
     },
     /// Account removed.
-    AccountRemoved { user_id: u64 },
+    AccountRemoved {
+        user_id: u64,
+    },
     /// Avatar URLs fetched.
     AvatarsUpdated(Vec<(u64, String)>),
     /// Raw avatar image bytes downloaded.
@@ -385,10 +444,37 @@ pub enum BackendEvent {
     },
     /// All Roblox instances killed (count).
     Killed(usize),
+    /// Background tray cleanup completed.
+    TrayKilled,
+    /// Result of enabling multi-instance mode.
+    MultiInstanceEnabled,
+    /// Multi-instance could not be enabled after checking process state.
+    MultiInstanceEnableFailed(String),
+    /// Number of profiles removed by orphan cleanup.
+    OrphanedDataCleaned(usize),
+    /// MAC address rotation completed.
+    MacAddressRotated,
+    /// Windows startup registration completed.
+    StartupUpdated(bool),
+    /// Backend transient caches were cleared.
+    CachesCleared,
+    InstanceFocused {
+        pid: u32,
+    },
+    InstanceKilled {
+        pid: u32,
+    },
+    InstanceTitlesApplied(Vec<(u32, String)>),
     /// Progress update during a bulk launch (launched_so_far, total).
-    BulkLaunchProgress { launched: usize, total: usize },
+    BulkLaunchProgress {
+        launched: usize,
+        total: usize,
+    },
     /// Bulk launch completed.
-    BulkLaunchComplete { launched: usize, failed: usize },
+    BulkLaunchComplete {
+        launched: usize,
+        failed: usize,
+    },
     /// Account cookie revalidation result.
     AccountRevalidated {
         user_id: u64,
@@ -399,6 +485,8 @@ pub enum BackendEvent {
         /// Latest moderation snapshot, or `None` if no enforcement is active.
         moderation: Option<ram_core::models::ModerationInfo>,
     },
+    /// Marks the end of one revalidation batch so the UI can persist once.
+    RevalidationComplete,
     /// An error occurred during a background operation.
     Error(String),
     /// The result of a sweep. Sent whenever the map or the running count
@@ -412,7 +500,10 @@ pub enum BackendEvent {
     /// Windows were arranged.
     WindowsArranged,
     /// A newer version is available on GitLab.
-    UpdateAvailable { version: String, url: String },
+    UpdateAvailable {
+        version: String,
+        url: String,
+    },
     /// Place name resolved for a private server entry.
     PlaceResolved {
         index: usize,
@@ -489,7 +580,10 @@ pub enum BackendEvent {
     /// The grant failed. Kept separate from `Error` so the wording can say
     /// which universe, and so a wrong request shape cannot be mistaken for an
     /// upload problem.
-    AssetPermissionsFailed { universe_id: u64, message: String },
+    AssetPermissionsFailed {
+        universe_id: u64,
+        message: String,
+    },
     /// The universe picker's contents, and optionally the universe a pasted
     /// place ID resolved to.
     UniverseTargetsFetched {
@@ -622,11 +716,19 @@ async fn backend_loop(
     // same side of the channel that issues the launch, or a slow frame between
     // the two would let an unrelated client slip into the window.
     let registry: Registry = Arc::new(Mutex::new(InstanceState::default()));
+    // Prevent a burst of UI actions (or a slow network) from creating an
+    // unbounded number of runtime tasks. HTTP work is intentionally bounded,
+    // while serial persistence below remains ordered.
+    const MAX_BACKEND_CONCURRENCY: usize = 8;
+    let concurrency = Arc::new(Semaphore::new(MAX_BACKEND_CONCURRENCY));
+    let in_flight: Arc<Mutex<HashSet<&'static str>>> = Arc::new(Mutex::new(HashSet::new()));
 
     while let Some(cmd) = rx.recv().await {
         let client = client.clone();
         let tx = tx.clone();
         let registry = Arc::clone(&registry);
+        let concurrency = Arc::clone(&concurrency);
+        let in_flight = Arc::clone(&in_flight);
 
         // Account-store writes MUST run serially and in the order they were
         // enqueued. Spawning them (as we do for everything else) let two saves
@@ -649,8 +751,21 @@ async fn backend_loop(
             continue;
         }
 
+        let coalesce_key = cmd.coalesce_key();
+        if let Some(key) = coalesce_key {
+            let mut active = in_flight.lock().expect("backend in-flight lock poisoned");
+            if !active.insert(key) {
+                debug!(key, "coalescing duplicate backend refresh");
+                continue;
+            }
+        }
+
         // Every other command runs as its own spawned task for concurrency.
         tokio::spawn(async move {
+            let _permit = match concurrency.acquire_owned().await {
+                Ok(permit) => permit,
+                Err(_) => return,
+            };
             match handle_command(cmd, &client, &tx, &registry).await {
                 Ok(evt) => {
                     let _ = tx.send(evt);
@@ -660,8 +775,32 @@ async fn backend_loop(
                     let _ = tx.send(BackendEvent::Error(e.to_string()));
                 }
             }
+            if let Some(key) = coalesce_key {
+                in_flight
+                    .lock()
+                    .expect("backend in-flight lock poisoned")
+                    .remove(key);
+            }
         });
     }
+}
+
+async fn open_path(path: PathBuf) -> Result<(), CoreError> {
+    tokio::task::spawn_blocking(move || {
+        #[cfg(windows)]
+        let mut command = std::process::Command::new("explorer");
+        #[cfg(target_os = "macos")]
+        let mut command = std::process::Command::new("open");
+        #[cfg(all(not(windows), not(target_os = "macos")))]
+        let mut command = std::process::Command::new("xdg-open");
+        command
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| CoreError::Process(error.to_string()))
+    })
+    .await
+    .map_err(|error| CoreError::Process(format!("folder open task failed: {error}")))?
 }
 
 async fn handle_command(
@@ -812,6 +951,123 @@ async fn handle_command(
             let _ = crypto::credential_delete(user_id);
             Ok(BackendEvent::AccountRemoved { user_id })
         }
+        BackendCommand::KillTray => {
+            tokio::task::spawn_blocking(process::kill_tray_roblox)
+                .await
+                .map_err(|error| {
+                    CoreError::Process(format!("tray cleanup task failed: {error}"))
+                })?;
+            Ok(BackendEvent::TrayKilled)
+        }
+        BackendCommand::EnableMultiInstance => {
+            let result = tokio::task::spawn_blocking(|| {
+                process::kill_tray_roblox();
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                if process::is_roblox_running() {
+                    return Err(CoreError::Process(
+                        "Close all Roblox instances (including tray) before enabling multi-instance."
+                            .into(),
+                    ));
+                }
+                process::enable_multi_instance()
+            })
+            .await
+            .map_err(|error| CoreError::Process(format!("multi-instance task failed: {error}")))?;
+            match result {
+                Ok(()) => Ok(BackendEvent::MultiInstanceEnabled),
+                Err(error) => Ok(BackendEvent::MultiInstanceEnableFailed(error.to_string())),
+            }
+        }
+        BackendCommand::RotateMacAddress {
+            preserve_oui,
+            alternate_oui,
+        } => {
+            tokio::task::spawn_blocking(move || {
+                process::rotate_mac_address(preserve_oui, &alternate_oui)
+            })
+            .await
+            .map_err(|error| CoreError::Process(format!("MAC rotation task failed: {error}")))??;
+            Ok(BackendEvent::MacAddressRotated)
+        }
+        BackendCommand::SetStartupWithWindows(enabled) => {
+            tokio::task::spawn_blocking(move || crate::startup::set_enabled(enabled))
+                .await
+                .map_err(|error| CoreError::Process(format!("startup task failed: {error}")))?
+                .map_err(|error| CoreError::Process(error.to_string()))?;
+            Ok(BackendEvent::StartupUpdated(enabled))
+        }
+        BackendCommand::OpenDataFolder { path } => {
+            open_path(path).await?;
+            Ok(BackendEvent::StoreSaved)
+        }
+        BackendCommand::OpenPath { path } => {
+            open_path(path).await?;
+            Ok(BackendEvent::StoreSaved)
+        }
+        BackendCommand::CleanOrphanedData {
+            data_dir,
+            known_user_ids,
+        } => {
+            let count = tokio::task::spawn_blocking(move || {
+                crate::browser_login::clean_orphaned_browse_as_data(&data_dir, &known_user_ids)
+                    .map_err(CoreError::Process)
+            })
+            .await
+            .map_err(|error| {
+                CoreError::Process(format!("orphan cleanup task failed: {error}"))
+            })??;
+            Ok(BackendEvent::OrphanedDataCleaned(count))
+        }
+        BackendCommand::ClearCaches => Ok(BackendEvent::CachesCleared),
+        BackendCommand::FocusInstance { pid } => {
+            let focused = tokio::task::spawn_blocking(move || process::focus_instance(pid))
+                .await
+                .map_err(|error| CoreError::Process(format!("focus task failed: {error}")))?;
+            if focused {
+                Ok(BackendEvent::InstanceFocused { pid })
+            } else {
+                Err(CoreError::Process(format!(
+                    "Could not bring PID {pid} to the front"
+                )))
+            }
+        }
+        BackendCommand::KillInstance { pid, launchtime } => {
+            tokio::task::spawn_blocking(move || process::kill_verified_instance(pid, launchtime))
+                .await
+                .map_err(|error| CoreError::Process(format!("kill task failed: {error}")))??;
+            Ok(BackendEvent::InstanceKilled { pid })
+        }
+        BackendCommand::ShutdownCleanup {
+            original_titles,
+            privacy,
+        } => {
+            tokio::task::spawn_blocking(move || {
+                if !original_titles.is_empty() {
+                    process::restore_instance_titles(&original_titles);
+                }
+                if let Some(options) = privacy {
+                    if let Ok(cleanup) = process::prepare_privacy_cleanup(options) {
+                        if let Err(error) = cleanup.commit() {
+                            warn!(%error, "Could not finish privacy cleanup on exit");
+                        }
+                    }
+                }
+            })
+            .await
+            .map_err(|error| {
+                CoreError::Process(format!("shutdown cleanup task failed: {error}"))
+            })?;
+            Ok(BackendEvent::StoreSaved)
+        }
+        BackendCommand::ApplyInstanceTitles(titles) => {
+            let previous =
+                tokio::task::spawn_blocking(move || process::apply_instance_titles(&titles))
+                    .await
+                    .map_err(|error| {
+                        CoreError::Process(format!("window title task failed: {error}"))
+                    })?;
+            Ok(BackendEvent::InstanceTitlesApplied(previous))
+        }
         BackendCommand::LaunchGame {
             user_id,
             encrypted_cookie,
@@ -836,25 +1092,67 @@ async fn handle_command(
                 crypto::decrypt_cookie(&enc, &session)?
             };
             if multi_instance {
-                process::enable_multi_instance()?;
+                tokio::task::spawn_blocking(process::enable_multi_instance)
+                    .await
+                    .map_err(|error| {
+                        CoreError::Process(format!("multi-instance task failed: {error}"))
+                    })??;
             }
             if kill_background || multi_instance {
-                process::kill_tray_roblox();
+                tokio::task::spawn_blocking(process::kill_tray_roblox)
+                    .await
+                    .map_err(|error| {
+                        CoreError::Process(format!("tray cleanup task failed: {error}"))
+                    })?;
             }
             let ticket = client.generate_auth_ticket(&cookie).await?;
-            let cleanup = process::prepare_privacy_cleanup(privacy)?;
+            let cleanup =
+                tokio::task::spawn_blocking(move || process::prepare_privacy_cleanup(privacy))
+                    .await
+                    .map_err(|error| {
+                        CoreError::Process(format!("privacy cleanup task failed: {error}"))
+                    })??;
             let launchtime = note_launch(registry, user_id, place_id);
-            process::launch_game(
-                &ticket,
+            let launch_args = (
+                ticket,
                 place_id,
-                job_id.as_deref(),
-                link_code.as_deref(),
-                access_code.as_deref(),
-                data.as_deref(),
+                job_id,
+                link_code,
+                access_code,
+                data,
                 launchtime,
-                player_path.as_deref(),
-            )?;
-            cleanup.commit()?;
+                player_path,
+            );
+            let launch_result = tokio::task::spawn_blocking(move || {
+                let (
+                    ticket,
+                    place_id,
+                    job_id,
+                    link_code,
+                    access_code,
+                    data,
+                    launchtime,
+                    player_path,
+                ) = launch_args;
+                process::launch_game(
+                    &ticket,
+                    place_id,
+                    job_id.as_deref(),
+                    link_code.as_deref(),
+                    access_code.as_deref(),
+                    data.as_deref(),
+                    launchtime,
+                    player_path.as_deref(),
+                )
+            })
+            .await
+            .map_err(|error| CoreError::Process(format!("launch task failed: {error}")))?;
+            launch_result?;
+            tokio::task::spawn_blocking(move || cleanup.commit())
+                .await
+                .map_err(|error| {
+                    CoreError::Process(format!("privacy cleanup task failed: {error}"))
+                })??;
             Ok(BackendEvent::GameLaunched)
         }
         BackendCommand::SaveStore {
@@ -862,22 +1160,36 @@ async fn handle_command(
             path,
             session,
         } => {
-            crypto::save_store(&path, &store, &session)?;
+            tokio::task::spawn_blocking(move || crypto::save_store(&path, &store, &session))
+                .await
+                .map_err(|error| {
+                    CoreError::Process(format!("store save task failed: {error}"))
+                })??;
             Ok(BackendEvent::StoreSaved)
         }
-        BackendCommand::UnlockWithDevice { path } => match crypto::unlock_with_device(&path) {
-            Ok((store, session)) => Ok(BackendEvent::StoreUnlocked {
-                store: Box::new(store),
-                session: Box::new(session),
-                legacy: false,
-            }),
-            // Surfaced as its own event: a missing device key is not something
-            // the user can retype their way out of.
-            Err(CoreError::DeviceKeyMissing) => Ok(BackendEvent::DeviceKeyMissing),
-            Err(e) => Err(e),
-        },
+        BackendCommand::UnlockWithDevice { path } => {
+            match tokio::task::spawn_blocking(move || crypto::unlock_with_device(&path))
+                .await
+                .map_err(|error| CoreError::Process(format!("store unlock task failed: {error}")))?
+            {
+                Ok((store, session)) => Ok(BackendEvent::StoreUnlocked {
+                    store: Box::new(store),
+                    session: Box::new(session),
+                    legacy: false,
+                }),
+                // Surfaced as its own event: a missing device key is not something
+                // the user can retype their way out of.
+                Err(CoreError::DeviceKeyMissing) => Ok(BackendEvent::DeviceKeyMissing),
+                Err(e) => Err(e),
+            }
+        }
         BackendCommand::UnlockWithPassword { path, password } => {
-            let (store, session) = crypto::unlock_with_password(&path, &password)?;
+            let (store, session) =
+                tokio::task::spawn_blocking(move || crypto::unlock_with_password(&path, &password))
+                    .await
+                    .map_err(|error| {
+                        CoreError::Process(format!("store unlock task failed: {error}"))
+                    })??;
             let legacy = session.is_legacy();
             Ok(BackendEvent::StoreUnlocked {
                 store: Box::new(store),
@@ -892,27 +1204,35 @@ async fn handle_command(
             new_password,
             upgrade_legacy,
         } => {
-            let (store, session) = if upgrade_legacy {
-                // Rotates onto a fresh data key and re-encrypts every cookie.
-                // All-or-nothing: a failure here leaves the old file in place.
-                crypto::upgrade_v1(&store, &session, new_password.as_deref())?
-            } else {
-                (store, crypto::rewrap(&session, new_password.as_deref())?)
-            };
-            // Not `save_store`: that would leave a `.bak` readable under the
-            // key we just retired, which backup recovery would happily open.
-            crypto::save_rekeyed(&path, &store, &session)?;
+            let (store, session) = tokio::task::spawn_blocking(move || {
+                let (store, session) = if upgrade_legacy {
+                    // Rotates onto a fresh data key and re-encrypts every cookie.
+                    // All-or-nothing: a failure here leaves the old file in place.
+                    crypto::upgrade_v1(&store, &session, new_password.as_deref())?
+                } else {
+                    (store, crypto::rewrap(&session, new_password.as_deref())?)
+                };
+                // Not `save_store`: that would leave a `.bak` readable under the
+                // key we just retired, which backup recovery would happily open.
+                crypto::save_rekeyed(&path, &store, &session)?;
+                Ok::<_, CoreError>((store, session))
+            })
+            .await
+            .map_err(|error| CoreError::Process(format!("store re-key task failed: {error}")))??;
             Ok(BackendEvent::StoreRekeyed {
                 store: Box::new(store),
                 session: Box::new(session),
             })
         }
         BackendCommand::KillAll => {
-            let count = process::kill_all_roblox()?;
+            let count = tokio::task::spawn_blocking(process::kill_all_roblox)
+                .await
+                .map_err(|error| CoreError::Process(format!("kill task failed: {error}")))??;
             Ok(BackendEvent::Killed(count))
         }
         BackendCommand::RefreshAll {
             user_ids,
+            avatar_user_ids,
             first_user_id,
             encrypted_cookie,
             session,
@@ -930,7 +1250,7 @@ async fn handle_command(
             // aborted the whole command and left every account with a
             // placeholder image *and* a stale grey presence dot. Keep the
             // avatar leg self-contained so it can fail alone.
-            match api::fetch_avatars(client, &user_ids).await {
+            match api::fetch_avatars(client, &avatar_user_ids).await {
                 Ok(avatars) => {
                     let _ = tx.send(BackendEvent::AvatarsUpdated(avatars.clone()));
                     // Download actual image bytes (skips failures)
@@ -977,10 +1297,18 @@ async fn handle_command(
             launch_delay_secs,
         } => {
             if multi_instance {
-                process::enable_multi_instance()?;
+                tokio::task::spawn_blocking(process::enable_multi_instance)
+                    .await
+                    .map_err(|error| {
+                        CoreError::Process(format!("multi-instance task failed: {error}"))
+                    })??;
             }
             if kill_background || multi_instance {
-                process::kill_tray_roblox();
+                tokio::task::spawn_blocking(process::kill_tray_roblox)
+                    .await
+                    .map_err(|error| {
+                        CoreError::Process(format!("tray cleanup task failed: {error}"))
+                    })?;
             }
             // If no Job ID was provided and no link_code (private server), resolve
             // a public server so all accounts land in the same server.
@@ -1039,7 +1367,17 @@ async fn handle_command(
                     Ok(cookie) => {
                         match client.generate_auth_ticket(&cookie).await {
                             Ok(ticket) => {
-                                let cleanup = match process::prepare_privacy_cleanup(privacy) {
+                                let cleanup = match tokio::task::spawn_blocking(move || {
+                                    process::prepare_privacy_cleanup(privacy)
+                                })
+                                .await
+                                .map_err(|error| {
+                                    CoreError::Process(format!(
+                                        "privacy cleanup task failed: {error}"
+                                    ))
+                                })
+                                .and_then(|result| result)
+                                {
                                     Ok(cleanup) => cleanup,
                                     Err(error) => {
                                         error!(
@@ -1054,19 +1392,56 @@ async fn handle_command(
                                 // goes out, accounts one and two have clients
                                 // that must not look new.
                                 let launchtime = note_launch(registry, *user_id, place_id);
-                                match process::launch_game(
-                                    &ticket,
+                                let launch_args = (
+                                    ticket,
                                     place_id,
-                                    resolved_job_id.as_deref(),
-                                    link_code.as_deref(),
-                                    access_code.as_deref(),
-                                    data.as_deref(),
+                                    resolved_job_id.clone(),
+                                    link_code.clone(),
+                                    access_code.clone(),
+                                    data.clone(),
                                     launchtime,
-                                    player_path.as_deref(),
-                                ) {
+                                    player_path.clone(),
+                                );
+                                match tokio::task::spawn_blocking(move || {
+                                    let (
+                                        ticket,
+                                        place_id,
+                                        resolved_job_id,
+                                        link_code,
+                                        access_code,
+                                        data,
+                                        launchtime,
+                                        player_path,
+                                    ) = launch_args;
+                                    process::launch_game(
+                                        &ticket,
+                                        place_id,
+                                        resolved_job_id.as_deref(),
+                                        link_code.as_deref(),
+                                        access_code.as_deref(),
+                                        data.as_deref(),
+                                        launchtime,
+                                        player_path.as_deref(),
+                                    )
+                                })
+                                .await
+                                .map_err(|error| {
+                                    CoreError::Process(format!("launch task failed: {error}"))
+                                })
+                                .and_then(|result| result)
+                                {
                                     Ok(()) => {
                                         launched += 1;
-                                        if let Err(error) = cleanup.commit() {
+                                        let commit =
+                                            tokio::task::spawn_blocking(move || cleanup.commit())
+                                                .await
+                                                .map_err(|error| {
+                                                    CoreError::Process(format!(
+                                                        "privacy cleanup task failed: {error}"
+                                                    ))
+                                                })
+                                                .and_then(|result| result);
+                                        if let Err(error) = commit {
                                             error!(
                                                 "Bulk launch privacy backup cleanup failed for user {user_id}: {error}"
                                             );
@@ -1106,7 +1481,11 @@ async fn handle_command(
                         tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
                     }
                     if needs_tray_kill {
-                        process::kill_tray_roblox();
+                        let _ = tokio::task::spawn_blocking(process::kill_tray_roblox)
+                            .await
+                            .map_err(|error| {
+                                CoreError::Process(format!("tray cleanup task failed: {error}"))
+                            });
                     }
                 }
             }
@@ -1190,9 +1569,17 @@ async fn handle_command(
                     }
                 }
             }
+            // The UI persists the complete batch once, rather than issuing a
+            // store write for every account result.
+            let _ = tx.send(BackendEvent::RevalidationComplete);
             Ok(BackendEvent::StoreSaved)
         }
-        BackendCommand::SweepInstances => Ok(sweep_instances(registry)),
+        BackendCommand::SweepInstances => tokio::task::spawn_blocking({
+            let registry = Arc::clone(registry);
+            move || Ok::<_, CoreError>(sweep_instances(&registry))
+        })
+        .await
+        .map_err(|error| CoreError::Process(format!("instance sweep task failed: {error}")))?,
         BackendCommand::ArrangeWindows {
             options,
             delay_secs,
@@ -1200,7 +1587,11 @@ async fn handle_command(
             if delay_secs > 0 {
                 tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
             }
-            process::arrange_roblox_windows(&options);
+            tokio::task::spawn_blocking(move || process::arrange_roblox_windows(&options))
+                .await
+                .map_err(|error| {
+                    CoreError::Process(format!("window arrange task failed: {error}"))
+                })?;
             Ok(BackendEvent::WindowsArranged)
         }
         BackendCommand::CheckForUpdates { current_version } => {
@@ -2086,6 +2477,18 @@ mod tests {
             | C::AddAccountForced { .. }
             | C::RemoveAccount { .. }
             | C::LaunchGame { .. }
+            | C::KillTray
+            | C::EnableMultiInstance
+            | C::RotateMacAddress { .. }
+            | C::SetStartupWithWindows(_)
+            | C::OpenDataFolder { .. }
+            | C::OpenPath { .. }
+            | C::CleanOrphanedData { .. }
+            | C::ClearCaches
+            | C::FocusInstance { .. }
+            | C::KillInstance { .. }
+            | C::ShutdownCleanup { .. }
+            | C::ApplyInstanceTitles(_)
             | C::UnlockWithDevice { .. }
             | C::UnlockWithPassword { .. }
             | C::KillAll

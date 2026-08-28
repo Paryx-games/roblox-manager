@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.14.1
+
+### Changed
+
+- **Faster refreshes.** Backend work is bounded and duplicate refreshes are coalesced; avatar downloads run in a limited parallel batch.
+- **Lower idle overhead.** Derived account data and inventory results are reused where safe, persistence is batched during revalidation, and reactive repaints use the next scheduled timer.
+- **Safer background work.** Blocking process, tray, startup, and cleanup operations no longer run on the UI or async worker threads.
+
+### Added
+
+- **Clear application caches.** Development settings can clear avatars, thumbnails, metadata, and inventory caches without removing accounts or uploaded assets.
+
 ## v1.14.0
 
 ### Added

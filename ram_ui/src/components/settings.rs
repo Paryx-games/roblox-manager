@@ -25,6 +25,7 @@ pub enum SettingsAction {
     TileWindowsNow,
     OpenDataFolder,
     CleanOrphanedData,
+    ClearCaches,
 }
 
 /// Persistent state for the settings panel password change UI.
@@ -615,7 +616,7 @@ pub fn show(
         ui.set_min_width(ui.available_width());
         ui.strong("App and data");
         ui.add_space(4.0);
-        ui.strong("Optional tools");
+        ui.strong("Development");
         setting_row(ui, "utility_enabled", |ui| {
             ui.checkbox(&mut config.utility_enabled, "Show the Utility tab");
         });
@@ -634,6 +635,15 @@ pub fn show(
                 theme.warning,
                 "\u{26a0} Uploads are permanent and public. Every asset is moderated under the account that uploaded it.",
             );
+            if ui
+                .button("Clear application caches")
+                .on_hover_text(
+                    "Remove avatars, thumbnails, metadata, and inventory caches. Accounts and assets are kept.",
+                )
+                .clicked()
+            {
+                action = Some(SettingsAction::ClearCaches);
+            }
         }
         ui.add_space(6.0);
         ui.separator();

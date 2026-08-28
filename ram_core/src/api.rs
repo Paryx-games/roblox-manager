@@ -74,11 +74,33 @@ pub async fn download_avatar_images(
     client: &RobloxClient,
     avatars: &[(u64, String)],
 ) -> Vec<(u64, Vec<u8>)> {
-    let mut results = Vec::new();
+    // Keep CDN fan-out bounded.  A large account roster used to download
+    // thumbnails serially, making refreshes unnecessarily slow; unbounded
+    // spawning would instead create a burst of requests and sockets.
+    const MAX_PARALLEL_AVATAR_DOWNLOADS: usize = 4;
+    let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(MAX_PARALLEL_AVATAR_DOWNLOADS));
+    let mut tasks = tokio::task::JoinSet::new();
     for (id, url) in avatars {
-        match client.get_bytes(url, "").await {
-            Ok(bytes) => results.push((*id, bytes)),
-            Err(e) => tracing::warn!("Failed to download avatar for {id}: {e}"),
+        let permit = semaphore.clone().acquire_owned().await;
+        let Ok(permit) = permit else {
+            break;
+        };
+        let client = client.clone();
+        let id = *id;
+        let url = url.clone();
+        tasks.spawn(async move {
+            let result = client.get_bytes(&url, "").await;
+            drop(permit);
+            (id, result)
+        });
+    }
+
+    let mut results = Vec::with_capacity(avatars.len());
+    while let Some(result) = tasks.join_next().await {
+        match result {
+            Ok((id, Ok(bytes))) => results.push((id, bytes)),
+            Ok((id, Err(e))) => tracing::warn!("Failed to download avatar for {id}: {e}"),
+            Err(e) => tracing::warn!("Avatar download task failed: {e}"),
         }
     }
     results

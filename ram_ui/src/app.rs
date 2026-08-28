@@ -313,6 +313,7 @@ pub struct AppState {
     account_inventory_error: Option<String>,
     inventory_selected_accounts: HashSet<u64>,
     inventory_by_user: HashMap<u64, Vec<ram_core::assets_api::UserInventoryItem>>,
+    inventory_cached_at: HashMap<u64, Instant>,
     inventory_loading_users: HashSet<u64>,
     inventory_errors: HashMap<u64, String>,
     inventory_selected_items: HashSet<u64>,
@@ -439,7 +440,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(mut config: AppConfig, config_path: PathBuf) -> Self {
+    pub fn new(config: AppConfig, config_path: PathBuf) -> Self {
         let bridge = BackendBridge::spawn();
 
         // How the store on disk is locked decides whether the user sees
@@ -455,24 +456,6 @@ impl AppState {
         };
         let needs_unlock = store_mode.is_some();
         let unlock_silently = store_mode == Some(ram_core::crypto::StoreMode::Device);
-
-        // If multi-instance was previously enabled, run the same validation as
-        // the UI toggle: kill tray processes, wait, then only acquire the mutex
-        // if no Roblox instances remain.
-        if config.multi_instance_enabled {
-            ram_core::process::kill_tray_roblox();
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            if ram_core::process::is_roblox_running() {
-                tracing::warn!(
-                    "Roblox is running at startup — cannot acquire singleton mutex. \
-                     Disabling multi-instance until manually re-enabled."
-                );
-                config.multi_instance_enabled = false;
-            } else if let Err(e) = ram_core::process::enable_multi_instance() {
-                tracing::warn!("Failed to acquire singleton mutex at startup: {e}");
-                config.multi_instance_enabled = false;
-            }
-        }
 
         // Loaded regardless of `developer_options`: a user who uploads, hides
         // the tab, then reopens the app must not silently lose an upload that
@@ -535,6 +518,7 @@ impl AppState {
             account_inventory_error: None,
             inventory_selected_accounts: HashSet::new(),
             inventory_by_user: HashMap::new(),
+            inventory_cached_at: HashMap::new(),
             inventory_loading_users: HashSet::new(),
             inventory_errors: HashMap::new(),
             inventory_selected_items: HashSet::new(),
@@ -594,6 +578,9 @@ impl AppState {
             state.bridge.send(BackendCommand::UnlockWithDevice {
                 path: state.config.accounts_path.clone(),
             });
+        }
+        if state.config.multi_instance_enabled {
+            state.bridge.send(BackendCommand::EnableMultiInstance);
         }
 
         // Check for updates on startup
@@ -672,9 +659,8 @@ impl AppState {
         // Recording it on every rewrite (not just the first) is what keeps the
         // restore from putting back the "Roblox" placeholder shown while the
         // client was still loading.
-        for (pid, previous) in ram_core::process::apply_instance_titles(&titles) {
-            self.original_window_titles.insert(pid, previous);
-        }
+        self.bridge
+            .send(BackendCommand::ApplyInstanceTitles(titles));
     }
 
     /// Put every window RM renamed back the way Roblox had it.
@@ -692,7 +678,10 @@ impl AppState {
             .iter()
             .map(|(pid, title)| (*pid, title.clone()))
             .collect();
-        ram_core::process::restore_instance_titles(&originals);
+        self.bridge.send(BackendCommand::ShutdownCleanup {
+            original_titles: originals,
+            privacy: None,
+        });
         self.original_window_titles.clear();
     }
 
@@ -704,12 +693,7 @@ impl AppState {
     /// user just clicked a menu item in it. Handing the call to another thread
     /// via a channel would only widen the gap in which that stops being true.
     fn focus_instance(&mut self, pid: u32) {
-        if ram_core::process::focus_instance(pid) {
-            return;
-        }
-        self.toasts.push(Toast::error(format!(
-            "Could not bring PID {pid} to the front. Windows refused, or the client has no window yet."
-        )));
+        self.bridge.send(BackendCommand::FocusInstance { pid });
     }
 
     /// Kill one account's client, after `ram_core` re-verifies it is really
@@ -741,22 +725,10 @@ impl AppState {
             ));
             return;
         }
-        match ram_core::process::kill_verified_instance(pid, instance.launchtime) {
-            Ok(()) => {
-                let who = account_display_label(
-                    &self.store.accounts,
-                    instance.user_id,
-                    self.config.anonymize_names,
-                );
-                self.toasts
-                    .push(Toast::info(format!("Closed {who}'s client")));
-                // The sweep reaps the mapping within a couple of seconds, but
-                // dropping it now keeps the menu from offering a dead PID in
-                // the meantime.
-                self.tracked_instances.retain(|i| i.pid != pid);
-            }
-            Err(e) => self.toasts.push(Toast::error(e.to_string())),
-        }
+        self.bridge.send(BackendCommand::KillInstance {
+            pid,
+            launchtime: instance.launchtime,
+        });
     }
 
     /// Launch `user_id` into whatever server `target_user_id` is in.
@@ -1057,6 +1029,64 @@ impl AppState {
                     self.toasts
                         .push(Toast::info(format!("Killed {count} instance(s)")));
                 }
+                BackendEvent::TrayKilled => {}
+                BackendEvent::MultiInstanceEnabled => {
+                    self.config.multi_instance_enabled = true;
+                }
+                BackendEvent::MultiInstanceEnableFailed(message) => {
+                    self.config.multi_instance_enabled = false;
+                    self.toasts
+                        .push(Toast::error(format!("Multi-instance failed: {message}")));
+                }
+                BackendEvent::MacAddressRotated => {
+                    self.toasts.push(Toast::success("MAC address rotated"));
+                }
+                BackendEvent::StartupUpdated(enabled) => {
+                    self.toasts.push(Toast::success(if enabled {
+                        "RM will start with Windows"
+                    } else {
+                        "RM will not start with Windows"
+                    }));
+                }
+                BackendEvent::OrphanedDataCleaned(count) => {
+                    self.toasts.push(if count == 0 {
+                        Toast::info("No orphaned data found")
+                    } else {
+                        Toast::success(format!("Removed {count} orphaned browse-as profile(s)"))
+                    });
+                }
+                BackendEvent::CachesCleared => {
+                    self.avatar_bytes.clear();
+                    self.anonymized_avatar_bytes.clear();
+                    self.game_icon_bytes.clear();
+                    self.inventory_by_user.clear();
+                    self.inventory_cached_at.clear();
+                    self.inventory_errors.clear();
+                    self.inventory_loading_users.clear();
+                    self.account_inventory_items.clear();
+                    self.common_inventory_items.clear();
+                    self.remote_inventory = asset_manager::RemoteInventory::default();
+                    self.universe_targets.clear();
+                    self.universe_targets_user = None;
+                    self.publish_groups.clear();
+                    self.asset_thumbnails.clear();
+                    self.asset_thumbnails_inflight.clear();
+                    self.asset_thumbnails_retry_at.clear();
+                    self.last_avatar_refresh = None;
+                    self.toasts
+                        .push(Toast::success("Application caches cleared"));
+                }
+                BackendEvent::InstanceFocused { .. } => {}
+                BackendEvent::InstanceKilled { pid } => {
+                    self.tracked_instances
+                        .retain(|instance| instance.pid != pid);
+                    self.toasts.push(Toast::info("Roblox client closed"));
+                }
+                BackendEvent::InstanceTitlesApplied(previous) => {
+                    for (pid, title) in previous {
+                        self.original_window_titles.insert(pid, title);
+                    }
+                }
                 BackendEvent::WindowsArranged => {
                     // silent — arrangement complete
                 }
@@ -1127,7 +1157,6 @@ impl AppState {
                             (None, new) => new,
                         };
                     }
-                    self.auto_save();
                     // Toast on state transitions only, and never duplicate
                     // "cookie expired" with the moderation toast — for a
                     // terminated account the cookie revocation is implied
@@ -1164,6 +1193,9 @@ impl AppState {
                             }
                         }
                     }
+                }
+                BackendEvent::RevalidationComplete => {
+                    self.auto_save();
                 }
                 BackendEvent::Error(msg) => {
                     // A failed unlock or re-key must clear its in-flight flag,
@@ -1558,6 +1590,7 @@ impl AppState {
                     } else {
                         self.inventory_errors.remove(&user_id);
                         self.inventory_by_user.insert(user_id, items.clone());
+                        self.inventory_cached_at.insert(user_id, Instant::now());
                     }
                     if self.account_inventory_user_id != Some(user_id) {
                         continue;
@@ -1752,12 +1785,18 @@ impl AppState {
             return;
         };
         let user_ids: Vec<u64> = self.store.accounts.iter().map(|a| a.user_id).collect();
+        let avatar_user_ids: Vec<u64> = user_ids
+            .iter()
+            .filter(|user_id| !self.avatar_bytes.contains_key(user_id))
+            .copied()
+            .collect();
         if user_ids.is_empty() {
             return;
         }
         if let Some(first) = self.first_account_with_cookie() {
             self.bridge.send(BackendCommand::RefreshAll {
                 user_ids,
+                avatar_user_ids,
                 first_user_id: first.user_id,
                 encrypted_cookie: first.encrypted_cookie.clone(),
                 session: session.clone(),
@@ -1924,20 +1963,18 @@ impl eframe::App for AppState {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         // Hand the clients their own titles back. They outlive RM, so a rename
         // left behind sticks until the user restarts the client.
-        self.restore_roblox_window_titles();
-        if self.config.privacy_clean_on_exit {
-            match ram_core::process::prepare_privacy_cleanup(self.config.privacy_cleanup_options())
-            {
-                Ok(cleanup) => {
-                    if let Err(error) = cleanup.commit() {
-                        tracing::warn!(%error, "Could not finish privacy cleanup on exit");
-                    }
-                }
-                Err(error) => {
-                    tracing::warn!(%error, "Privacy cleanup on exit was skipped");
-                }
-            }
-        }
+        let titles = self
+            .original_window_titles
+            .iter()
+            .map(|(pid, title)| (*pid, title.clone()))
+            .collect();
+        self.bridge.send(BackendCommand::ShutdownCleanup {
+            original_titles: titles,
+            privacy: self
+                .config
+                .privacy_clean_on_exit
+                .then(|| self.config.privacy_cleanup_options()),
+        });
         if self.asset_index_dirty {
             self.save_asset_index();
         }
@@ -1945,11 +1982,25 @@ impl eframe::App for AppState {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.frame_count += 1;
-        // Schedule a repaint so background timers below tick even when the
-        // user isn't interacting. Without this, eframe's reactive mode means
-        // update() sleeps indefinitely and periodic work (tray-kill,
-        // presence refresh, etc.) never fires.
-        ctx.request_repaint_after(std::time::Duration::from_secs(2));
+        // Reactive mode should remain genuinely idle. Schedule the next frame
+        // for the earliest active timer rather than waking every two seconds.
+        let mut repaint_after = Duration::from_secs(30);
+        if self.add_dialog.browser_login_pending {
+            repaint_after = Duration::from_millis(200);
+        }
+        for (slot, interval) in [
+            (&self.last_instance_sweep, Duration::from_secs(2)),
+            (&self.last_tray_kill, Duration::from_secs(10)),
+            (&self.last_presence_poll, Duration::from_secs(10)),
+            (&self.last_avatar_refresh, Duration::from_secs(60)),
+            (&self.last_revalidation, Duration::from_secs(300)),
+        ] {
+            let until = slot
+                .map(|fired| interval.saturating_sub(fired.elapsed()))
+                .unwrap_or_default();
+            repaint_after = repaint_after.min(until);
+        }
+        ctx.request_repaint_after(repaint_after.max(Duration::from_millis(50)));
         // Ensure the bridge can wake the UI when async events arrive.
         self.bridge.set_repaint_ctx(ctx.clone());
         self.process_events();
@@ -2030,7 +2081,7 @@ impl eframe::App for AppState {
         if (self.config.kill_background_roblox || self.config.multi_instance_enabled)
             && interval_due(&mut self.last_tray_kill, Duration::from_secs(10))
         {
-            ram_core::process::kill_tray_roblox();
+            self.bridge.send(BackendCommand::KillTray);
         }
 
         // Periodically refresh presence for visible accounts (every 10s)
@@ -3004,18 +3055,7 @@ impl AppState {
                                 self.active_tab = Tab::Inventory;
                                 if self.account_inventory_items.is_empty() {
                                     tracing::debug!(user_id, "opening inventory tab");
-                                    if let Some(session) = self.session() {
-                                        self.account_inventory_loading = true;
-                                        self.account_inventory_error = None;
-                                        self.bridge.send(BackendCommand::FetchUserInventory {
-                                            user_id,
-                                            encrypted_cookie: account.encrypted_cookie.clone(),
-                                            session,
-                                            use_credential_manager: self
-                                                .config
-                                                .use_credential_manager,
-                                        });
-                                    }
+                                    self.request_inventory(user_id);
                                 }
                             }
                             main_panel::MainPanelAction::LaunchGame {
@@ -3311,9 +3351,9 @@ impl AppState {
                         .push(Toast::error(format!("Could not create folder: {e}")));
                     return;
                 }
-                let _ = std::process::Command::new("explorer")
-                    .arg(&self.presets_dir)
-                    .spawn();
+                self.bridge.send(BackendCommand::OpenPath {
+                    path: self.presets_dir.clone(),
+                });
             }
         }
     }
@@ -4256,9 +4296,9 @@ impl AppState {
             asset_manager::AssetManagerAction::RevealFile(path) => {
                 // `/select,` highlights the file rather than just opening its
                 // folder. Explorer wants a native separator here.
-                let _ = std::process::Command::new("explorer")
-                    .arg(format!("/select,{}", path.display()))
-                    .spawn();
+                self.bridge.send(BackendCommand::OpenPath {
+                    path: PathBuf::from(format!("/select,{}", path.display())),
+                });
             }
             asset_manager::AssetManagerAction::OpenGrantDialog => {
                 self.asset_manager_state.grant_open = true;
@@ -4272,6 +4312,20 @@ impl AppState {
     }
 
     fn request_inventory(&mut self, user_id: u64) {
+        const INVENTORY_CACHE_TTL: Duration = Duration::from_secs(300);
+        if self
+            .inventory_cached_at
+            .get(&user_id)
+            .is_some_and(|cached| cached.elapsed() < INVENTORY_CACHE_TTL)
+        {
+            if let Some(items) = self.inventory_by_user.get(&user_id) {
+                self.account_inventory_user_id = Some(user_id);
+                self.account_inventory_items = items.clone();
+                self.account_inventory_loading = false;
+                self.account_inventory_error = None;
+                return;
+            }
+        }
         let Some(session) = self.session() else {
             self.toasts.push(Toast::error(
                 "Unlock the account store before refreshing inventory.",
@@ -4741,77 +4795,31 @@ impl AppState {
             match action {
                 Some(settings::SettingsAction::SaveConfig) => {
                     if let Err(e) = self.config.save(&self.config_path) {
-                        self.toasts
-                            .push(Toast::error(format!("Save failed: {e}")));
+                        self.toasts.push(Toast::error(format!("Save failed: {e}")));
                     } else {
                         self.toasts.push(Toast::success("Settings saved"));
                     }
                 }
                 Some(settings::SettingsAction::SetStartupWithWindows(enabled)) => {
-                    match crate::startup::set_enabled(enabled) {
-                        Ok(()) => self.toasts.push(Toast::success(if enabled {
-                            "RM will start with Windows"
-                        } else {
-                            "RM will not start with Windows"
-                        })),
-                        Err(e) => {
-                            self.config.startup_with_windows = !enabled;
-                            self.toasts.push(Toast::error(format!(
-                                "Could not update Windows startup: {e}"
-                            )));
-                        }
-                    }
+                    self.bridge
+                        .send(BackendCommand::SetStartupWithWindows(enabled));
                 }
                 Some(settings::SettingsAction::RotateMacAddress) => {
-                    match ram_core::process::rotate_mac_address(
-                        self.config.mac_preserve_oui,
-                        &self.config.mac_alternate_oui,
-                    ) {
-                        Ok(()) => self.toasts.push(Toast::success("MAC address rotated")),
-                        Err(e) => self.toasts.push(Toast::error(format!("MAC rotation failed: {e}"))),
-                    }
+                    self.bridge.send(BackendCommand::RotateMacAddress {
+                        preserve_oui: self.config.mac_preserve_oui,
+                        alternate_oui: self.config.mac_alternate_oui.clone(),
+                    });
+                    self.toasts.push(Toast::info("Rotating MAC address..."));
                 }
                 Some(settings::SettingsAction::EnableMultiInstance) => {
-                    if self.roblox_running {
-                        // Kill tray processes first, then check again
-                        ram_core::process::kill_tray_roblox();
-                        // Brief wait for the OS to reap terminated processes
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                        // Re-check after killing tray processes
-                        let still_running = ram_core::process::is_roblox_running();
-                        if still_running {
-                            self.toasts.push(Toast::error(
-                                "Close all Roblox instances (including tray) before enabling multi-instance.",
-                            ));
-                            // Don't enable — the checkbox was toggled but we
-                            // leave config unchanged, so next frame it resets.
-                        } else {
-                            // Tray killed, nothing else running — safe to acquire
-                            match ram_core::process::enable_multi_instance() {
-                                Ok(()) => {
-                                    self.config.multi_instance_enabled = true;
-                                    self.toasts.push(Toast::success("Multi-instance enabled"));
-                                }
-                                Err(e) => {
-                                    self.toasts.push(Toast::error(format!("Failed: {e}")));
-                                }
-                            }
-                        }
-                    } else {
-                        match ram_core::process::enable_multi_instance() {
-                            Ok(()) => {
-                                self.config.multi_instance_enabled = true;
-                                self.toasts.push(Toast::success("Multi-instance enabled"));
-                            }
-                            Err(e) => {
-                                self.toasts.push(Toast::error(format!("Failed: {e}")));
-                            }
-                        }
-                    }
+                    self.bridge.send(BackendCommand::EnableMultiInstance);
+                    self.toasts.push(Toast::info("Enabling multi-instance..."));
                 }
                 Some(settings::SettingsAction::DisableMultiInstance) => {
                     self.config.multi_instance_enabled = false;
-                    self.toasts.push(Toast::info("Multi-instance disabled (takes effect after restart)"));
+                    self.toasts.push(Toast::info(
+                        "Multi-instance disabled (takes effect after restart)",
+                    ));
                 }
                 Some(settings::SettingsAction::ChangePassword { ref new_password }) => {
                     // Rewraps the data key under the new password. The old
@@ -4837,14 +4845,9 @@ impl AppState {
                     self.toasts.push(Toast::info("Tiling windows..."));
                 }
                 Some(settings::SettingsAction::OpenDataFolder) => {
-                    let data_dir = crate::data_dir();
-                    let result = std::process::Command::new("explorer")
-                        .arg(&data_dir)
-                        .spawn();
-                    if let Err(e) = result {
-                        self.toasts
-                            .push(Toast::error(format!("Could not open RM data folder: {e}")));
-                    }
+                    self.bridge.send(BackendCommand::OpenDataFolder {
+                        path: crate::data_dir(),
+                    });
                 }
                 Some(settings::SettingsAction::CleanOrphanedData) => {
                     let known_user_ids = self
@@ -4853,25 +4856,39 @@ impl AppState {
                         .iter()
                         .map(|account| account.user_id)
                         .collect();
-                    match crate::browser_login::clean_orphaned_browse_as_data(
-                        &crate::data_dir(),
-                        &known_user_ids,
-                    ) {
-                        Ok(0) => self.toasts.push(Toast::info("No orphaned data found")),
-                        Ok(count) => self.toasts.push(Toast::success(format!(
-                            "Removed {count} orphaned browse-as profile(s)"
-                        ))),
-                        Err(e) => self.toasts.push(Toast::error(format!(
-                            "Could not clean orphaned data: {e}"
-                        ))),
-                    }
+                    self.bridge.send(BackendCommand::CleanOrphanedData {
+                        data_dir: crate::data_dir(),
+                        known_user_ids,
+                    });
+                    self.toasts.push(Toast::info("Cleaning orphaned data..."));
+                }
+                Some(settings::SettingsAction::ClearCaches) => {
+                    self.bridge.send(BackendCommand::ClearCaches);
+                    self.avatar_bytes.clear();
+                    self.anonymized_avatar_bytes.clear();
+                    self.game_icon_bytes.clear();
+                    self.inventory_by_user.clear();
+                    self.inventory_cached_at.clear();
+                    self.inventory_errors.clear();
+                    self.inventory_loading_users.clear();
+                    self.account_inventory_items.clear();
+                    self.common_inventory_items.clear();
+                    self.remote_inventory = asset_manager::RemoteInventory::default();
+                    self.universe_targets.clear();
+                    self.universe_targets_user = None;
+                    self.publish_groups.clear();
+                    self.asset_thumbnails.clear();
+                    self.asset_thumbnails_inflight.clear();
+                    self.asset_thumbnails_retry_at.clear();
+                    self.last_avatar_refresh = None;
+                    self.toasts
+                        .push(Toast::info("Clearing application caches..."));
                 }
                 None => {}
             }
             if action.is_some() || changed {
                 if let Err(e) = self.config.save(&self.config_path) {
-                    self.toasts
-                        .push(Toast::error(format!("Save failed: {e}")));
+                    self.toasts.push(Toast::error(format!("Save failed: {e}")));
                 }
             }
         });
@@ -5925,18 +5942,9 @@ impl AppState {
         let Some(folder) = path.parent() else {
             return;
         };
-        #[cfg(windows)]
-        let result = std::process::Command::new("explorer").arg(folder).spawn();
-        #[cfg(target_os = "macos")]
-        let result = std::process::Command::new("open").arg(folder).spawn();
-        #[cfg(all(not(windows), not(target_os = "macos")))]
-        let result = std::process::Command::new("xdg-open").arg(folder).spawn();
-
-        if let Err(e) = result {
-            tracing::warn!("Could not open {}: {e}", folder.display());
-            self.toasts
-                .push(Toast::error(format!("Could not open {}", folder.display())));
-        }
+        self.bridge.send(BackendCommand::OpenPath {
+            path: folder.to_path_buf(),
+        });
     }
 
     /// Delete the account store, its backup and every credential RM owns, then
