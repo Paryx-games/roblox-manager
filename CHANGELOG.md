@@ -5,6 +5,9 @@
 ### Added
 
 - **Kill-all confirmation.** Settings can require confirmation before terminating every running Roblox instance.
+- **Last-used account sorting.** Accounts can be ordered by their most recent launch.
+- **Richer copied account info.** Copying account details includes a distinct display name when available and avoids redundant lines.
+- **Duplicate bulk-import protection.** Repeated cookies in a paste or imported file are queued only once.
 
 ### Fixed
 
