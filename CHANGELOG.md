@@ -14,6 +14,7 @@
 ### Fixed
 
 - **Account inventory loading.** Updated the user-inventory request to Roblox's current v2 endpoint after the retired v1 route began returning 404 errors.
+- **Asset browsing layout.** Inventory and uploaded assets now show preview icons, names, and asset IDs in a grid, with a side item list and a dedicated detailed popout.
 
 ### Changed
 

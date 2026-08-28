@@ -223,6 +223,15 @@ pub struct AssetManagerState {
     pub node: TreeNode,
     /// Layout of the asset list.
     pub view_mode: ViewMode,
+    /// Item currently shown in the inventory detail popout.
+    pub detail: Option<AssetDetail>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AssetDetail {
+    pub asset_id: u64,
+    pub name: String,
+    pub kind: AssetKind,
 }
 
 /// Something the panel wants the caller to do. The panel never touches
@@ -346,6 +355,10 @@ pub fn show(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>) -> AssetManagerResult {
         View::ImportQueue => queue_view(ui, cx, &mut result),
     }
 
+    if let Some(detail) = cx.state.detail.clone() {
+        detail_window(ui.ctx(), &detail, cx.thumbnails, &mut cx.state.detail);
+    }
+
     result.want_thumbnails.sort_unstable();
     result.want_thumbnails.dedup();
     result
@@ -416,6 +429,41 @@ pub fn show_tree(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>) -> Option<AssetManag
                 cx.state.node = node;
                 cx.state.selected.clear();
                 action = Some(AssetManagerAction::LoadInventory { node, filter });
+            }
+        }
+        if matches!(cx.state.node, TreeNode::Inventory(_)) {
+            if cx.remote.matches(cx.state.node, filter) && !cx.remote.items.is_empty() {
+                ui.add_space(10.0);
+                ui.strong("Items");
+                let needle = cx.state.search.trim().to_lowercase();
+                egui::ScrollArea::vertical()
+                    .id_salt("inventory_item_list")
+                    .max_height(260.0)
+                    .show(ui, |ui| {
+                        for item in &cx.remote.items {
+                            if !needle.is_empty()
+                                && !item.name.to_lowercase().contains(&needle)
+                                && !item.asset_id.to_string().contains(&needle)
+                            {
+                                continue;
+                            }
+                            let label = format!("{}  ·  {}", item.name, item.asset_id);
+                            if ui
+                                .selectable_label(
+                                    cx.state.selected.contains(&item.asset_id.to_string()),
+                                    label,
+                                )
+                                .on_hover_text("Select this item in the grid")
+                                .clicked()
+                            {
+                                apply_icon_click(
+                                    ui,
+                                    &mut cx.state.selected,
+                                    item.asset_id.to_string(),
+                                );
+                            }
+                        }
+                    });
             }
         }
         if cx.groups.is_empty() {
@@ -575,7 +623,7 @@ fn grid_columns(usable: f32, cell_width: f32, spacing: f32) -> usize {
 /// Draw cells as icons, either flowing list rows or a wrapping grid.
 ///
 /// Shared by the library and inventory views so the two never drift apart.
-/// Returns the key of a clicked cell.
+/// Returns the clicked cell key and, when requested, its detail-popout payload.
 fn icon_view(
     ui: &mut egui::Ui,
     cells: &[IconCell],
@@ -583,7 +631,7 @@ fn icon_view(
     selected: &mut HashSet<String>,
     thumbnails: &HashMap<u64, Vec<u8>>,
     result: &mut AssetManagerResult,
-) -> Option<String> {
+) -> (Option<String>, Option<AssetDetail>) {
     let icon = mode.icon_px().unwrap_or(48.0);
     let grid = mode.is_grid();
     // Grid tiles are square-ish with room for a caption; list rows are wide and
@@ -617,6 +665,7 @@ fn icon_view(
     ui.spacing_mut().item_spacing = egui::vec2(SPACING, SPACING);
 
     let mut clicked = None;
+    let mut detail = None;
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show_rows(ui, cell.y, rows, |ui, row_range| {
@@ -634,11 +683,14 @@ fn icon_view(
                             }
                         }
                         let is_selected = selected.contains(&entry.key);
-                        let response = ui
+                        let (response, requested_detail) = ui
                             .push_id(&entry.key, |ui| {
                                 draw_cell(ui, entry, cell, icon, grid, is_selected, thumbnails)
                             })
                             .inner;
+                        if requested_detail.is_some() {
+                            detail = requested_detail;
+                        }
                         if response.clicked() {
                             clicked = Some(entry.key.clone());
                         }
@@ -662,7 +714,7 @@ fn icon_view(
                 });
             }
         });
-    clicked
+    (clicked, detail)
 }
 
 fn draw_cell(
@@ -673,7 +725,7 @@ fn draw_cell(
     grid: bool,
     selected: bool,
     thumbnails: &HashMap<u64, Vec<u8>>,
-) -> egui::Response {
+) -> (egui::Response, Option<AssetDetail>) {
     let (rect, response) = ui.allocate_exact_size(cell, egui::Sense::click());
     if selected {
         ui.painter()
@@ -730,11 +782,76 @@ fn draw_cell(
             .truncate()
             .selectable(false),
     );
+    if let Some(asset_id) = entry.asset_id {
+        content.label(
+            egui::RichText::new(format!("ID {asset_id}"))
+                .small()
+                .color(content.visuals().weak_text_color()),
+        );
+    }
 
-    response.on_hover_text(match entry.asset_id {
+    let response = response.on_hover_text(match entry.asset_id {
         Some(id) => format!("{}\n{} - {id}", entry.name, entry.kind.as_api_str()),
         None => format!("{}\n{}", entry.name, entry.kind.as_api_str()),
-    })
+    });
+    let detail = entry
+        .asset_id
+        .filter(|_| {
+            content
+                .small_button("Open")
+                .on_hover_text("Open a detailed view")
+                .clicked()
+        })
+        .map(|asset_id| AssetDetail {
+            asset_id,
+            name: entry.name.clone(),
+            kind: entry.kind,
+        });
+    (response, detail)
+}
+
+fn detail_window(
+    ctx: &egui::Context,
+    detail: &AssetDetail,
+    thumbnails: &HashMap<u64, Vec<u8>>,
+    open: &mut Option<AssetDetail>,
+) {
+    let mut close = false;
+    egui::Window::new("Asset details")
+        .collapsible(false)
+        .resizable(false)
+        .default_width(320.0)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                if let Some(bytes) = thumbnails.get(&detail.asset_id) {
+                    ui.add(
+                        egui::Image::from_bytes(
+                            format!("bytes://asset_detail_{}", detail.asset_id),
+                            bytes.clone(),
+                        )
+                        .fit_to_exact_size(egui::vec2(112.0, 112.0))
+                        .rounding(6.0),
+                    );
+                } else {
+                    let (rect, _) =
+                        ui.allocate_exact_size(egui::vec2(112.0, 112.0), egui::Sense::hover());
+                    ui.painter()
+                        .rect_filled(rect, 6.0, ui.visuals().extreme_bg_color);
+                }
+                ui.vertical(|ui| {
+                    ui.heading(&detail.name);
+                    ui.label(format!("Asset ID  {}", detail.asset_id));
+                    ui.label(format!("Type  {}", detail.kind.as_api_str()));
+                });
+            });
+            ui.add_space(10.0);
+            if ui.button("Close").clicked() {
+                close = true;
+            }
+        });
+    if close {
+        *open = None;
+    }
 }
 
 /// Short tag drawn on a tile that has no thumbnail yet.
@@ -871,7 +988,7 @@ fn inventory_view(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetM
                 removable: false,
             })
             .collect();
-        let clicked = icon_view(
+        let (clicked, detail) = icon_view(
             ui,
             &cells,
             cx.state.view_mode,
@@ -879,6 +996,9 @@ fn inventory_view(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetM
             cx.thumbnails,
             result,
         );
+        if detail.is_some() {
+            cx.state.detail = detail;
+        }
         if let Some(key) = clicked {
             apply_icon_click(ui, &mut cx.state.selected, key);
         }
@@ -1169,14 +1289,18 @@ fn library_view(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetMan
                 removable: true,
             })
             .collect();
-        if let Some(key) = icon_view(
+        let (clicked, detail) = icon_view(
             ui,
             &cells,
             cx.state.view_mode,
             &mut cx.state.selected,
             cx.thumbnails,
             result,
-        ) {
+        );
+        if detail.is_some() {
+            cx.state.detail = detail;
+        }
+        if let Some(key) = clicked {
             apply_icon_click(ui, &mut cx.state.selected, key);
         }
         return;
