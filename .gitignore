@@ -1,6 +1,9 @@
 # rust
 /target/
 
+# local checklist
+TODO.md
+
 # local configuration
 config.toml
 config.json
