@@ -4252,7 +4252,7 @@ impl AppState {
     }
 
     fn show_inventory_tab(&mut self, ctx: &egui::Context) {
-        let Some(user_id) = self
+        let Some(default_user_id) = self
             .account_inventory_user_id
             .or_else(|| self.store.accounts.first().map(|account| account.user_id))
         else {
@@ -4262,6 +4262,30 @@ impl AppState {
             });
             return;
         };
+
+        let mut requested_user = None;
+        egui::SidePanel::left("inventory_accounts")
+            .default_width(210.0)
+            .width_range(170.0..=300.0)
+            .resizable(true)
+            .show(ctx, |ui| {
+                ui.add_space(4.0);
+                ui.strong("Accounts");
+                ui.add_space(4.0);
+                for account in &self.store.accounts {
+                    if ui
+                        .selectable_label(
+                            self.account_inventory_user_id == Some(account.user_id),
+                            account.label(),
+                        )
+                        .clicked()
+                    {
+                        requested_user = Some(account.user_id);
+                    }
+                }
+            });
+
+        let user_id = self.account_inventory_user_id.unwrap_or(default_user_id);
         let items = if self.account_inventory_user_id == Some(user_id) {
             self.account_inventory_items.clone()
         } else {
@@ -4274,97 +4298,123 @@ impl AppState {
         } else {
             None
         };
+        let account_label = self
+            .store
+            .find_by_id(user_id)
+            .map(|account| account.label().to_string())
+            .unwrap_or_else(|| format!("User {user_id}"));
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("Roblox inventory");
-                ui.label("Owned items");
-                if ui
-                    .add_enabled(!loading, egui::Button::new("Refresh"))
-                    .clicked()
-                {
-                    self.account_inventory_user_id = Some(user_id);
-                    self.account_inventory_items.clear();
-                    self.account_inventory_error = None;
-                    self.account_inventory_loading = true;
-                    if let Some(session) = self.session() {
-                        if let Some(account) = self.store.find_by_id(user_id) {
-                            self.bridge.send(BackendCommand::FetchUserInventory {
-                                user_id,
-                                encrypted_cookie: account.encrypted_cookie.clone(),
-                                session,
-                                use_credential_manager: self.config.use_credential_manager,
-                            });
-                        }
+                ui.label(egui::RichText::new(account_label).color(ui.visuals().weak_text_color()));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .add_enabled(!loading, egui::Button::new("Refresh"))
+                        .clicked()
+                    {
+                        requested_user = Some(user_id);
                     }
-                }
+                });
             });
             ui.separator();
             if loading {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label("Loading Roblox inventory...");
+                    ui.label("Loading inventory...");
                 });
                 return;
             }
-            if let Some(error) = error {
+            if let Some(error) = &error {
                 ui.colored_label(ui.theme().danger, error);
                 return;
             }
             if items.is_empty() {
-                ui.label("No inventory loaded yet. Press Refresh to fetch this account's items.");
+                ui.label("No items loaded yet. Use Refresh to fetch this account's inventory.");
                 return;
             }
-            ui.columns(2, |columns| {
-                columns[0].heading("Items");
-                egui::ScrollArea::vertical()
-                    .id_salt("full_inventory_item_list")
-                    .show(&mut columns[0], |ui| {
+
+            ui.horizontal(|ui| {
+                ui.label(format!("{} items", items.len()));
+                ui.label(
+                    egui::RichText::new("Select an item to copy its ID")
+                        .small()
+                        .color(ui.visuals().weak_text_color()),
+                );
+            });
+            ui.add_space(6.0);
+            egui::ScrollArea::vertical()
+                .id_salt("inventory_grid_scroll")
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
                         for item in &items {
-                            ui.label(format!("{}  ·  {}", item.name, item.asset_id));
-                        }
-                    });
-                columns[1].heading(format!("{} items", items.len()));
-                egui::Grid::new("full_inventory_grid")
-                    .num_columns(4)
-                    .spacing([12.0, 14.0])
-                    .show(&mut columns[1], |ui| {
-                        for (index, item) in items.iter().enumerate() {
-                            ui.vertical(|ui| {
-                                if let Some(bytes) = self.asset_thumbnails.get(&item.asset_id) {
-                                    ui.add(
-                                        egui::Image::from_bytes(
-                                            format!("bytes://inventory_page_{}", item.asset_id),
-                                            bytes.clone(),
-                                        )
-                                        .fit_to_exact_size(egui::vec2(96.0, 96.0))
-                                        .rounding(5.0),
-                                    );
-                                } else {
-                                    let (rect, _) = ui.allocate_exact_size(
-                                        egui::vec2(96.0, 96.0),
-                                        egui::Sense::hover(),
-                                    );
-                                    ui.painter().rect_filled(
-                                        rect,
-                                        5.0,
-                                        ui.visuals().extreme_bg_color,
-                                    );
-                                }
-                                ui.label(egui::RichText::new(&item.name).small().strong());
-                                ui.label(
-                                    egui::RichText::new(format!("ID {}", item.asset_id))
-                                        .small()
-                                        .color(ui.visuals().weak_text_color()),
+                            let (rect, response) = ui.allocate_exact_size(
+                                egui::vec2(156.0, 176.0),
+                                egui::Sense::click(),
+                            );
+                            if response.hovered() {
+                                ui.painter().rect_filled(
+                                    rect,
+                                    4.0,
+                                    ui.visuals().widgets.hovered.bg_fill,
                                 );
-                            });
-                            if (index + 1) % 4 == 0 {
-                                ui.end_row();
+                            }
+                            let mut tile = ui.new_child(
+                                egui::UiBuilder::new()
+                                    .max_rect(rect.shrink(6.0))
+                                    .layout(egui::Layout::top_down(egui::Align::Center)),
+                            );
+                            if let Some(bytes) = self.asset_thumbnails.get(&item.asset_id) {
+                                tile.add(
+                                    egui::Image::from_bytes(
+                                        format!("bytes://inventory_tile_{}", item.asset_id),
+                                        bytes.clone(),
+                                    )
+                                    .fit_to_exact_size(egui::vec2(112.0, 112.0))
+                                    .rounding(4.0),
+                                );
+                            } else {
+                                let (placeholder, _) = tile.allocate_exact_size(
+                                    egui::vec2(112.0, 112.0),
+                                    egui::Sense::hover(),
+                                );
+                                tile.painter().rect_filled(
+                                    placeholder,
+                                    4.0,
+                                    ui.visuals().extreme_bg_color,
+                                );
+                            }
+                            tile.label(egui::RichText::new(&item.name).small().strong());
+                            tile.label(
+                                egui::RichText::new(format!("ID {}", item.asset_id))
+                                    .small()
+                                    .color(ui.visuals().weak_text_color()),
+                            );
+                            if response.clicked() {
+                                ui.ctx().copy_text(item.asset_id.to_string());
                             }
                         }
                     });
-            });
+                });
         });
         self.request_asset_thumbnails(&items.iter().map(|item| item.asset_id).collect::<Vec<_>>());
+
+        if let Some(user_id) = requested_user {
+            self.account_inventory_user_id = Some(user_id);
+            self.account_inventory_items.clear();
+            self.account_inventory_error = None;
+            self.account_inventory_loading = true;
+            if let Some(session) = self.session() {
+                if let Some(account) = self.store.find_by_id(user_id) {
+                    self.bridge.send(BackendCommand::FetchUserInventory {
+                        user_id,
+                        encrypted_cookie: account.encrypted_cookie.clone(),
+                        session,
+                        use_credential_manager: self.config.use_credential_manager,
+                    });
+                }
+            }
+        }
     }
 
     /// Hash and queue a batch of files. Anything unsupported still gets a row,

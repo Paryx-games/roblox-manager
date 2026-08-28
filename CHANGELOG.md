@@ -19,6 +19,7 @@
 ### Changed
 
 - **Dedicated inventory tab.** Account pages now show only a short Roblox inventory preview with a clear Open inventory button; the full inventory browser is available beside Assets with a list-and-grid layout.
+- **Inventory tab polish.** Restored the Assets tab's original layout and moved the Roblox item list and preview grid into a dedicated, account-selectable Inventory tab with the same sidebar and toolbar structure.
 
 ### Changed
 
