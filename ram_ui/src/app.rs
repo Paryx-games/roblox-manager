@@ -4544,10 +4544,10 @@ impl AppState {
                                     .small()
                                     .color(ui.visuals().weak_text_color()),
                             );
-                            if response.clicked() {
-                                if !self.inventory_selected_items.remove(&item.asset_id) {
-                                    self.inventory_selected_items.insert(item.asset_id);
-                                }
+                            if response.clicked()
+                                && !self.inventory_selected_items.remove(&item.asset_id)
+                            {
+                                self.inventory_selected_items.insert(item.asset_id);
                             }
                         }
                     });
