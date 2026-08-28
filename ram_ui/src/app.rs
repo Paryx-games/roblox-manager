@@ -234,6 +234,14 @@ fn parse_bulk_cookies(input: &str) -> Vec<String> {
     cookies
 }
 
+fn escape_csv_field(value: &str) -> String {
+    if value.contains([',', '"', '\n', '\r']) {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_string()
+    }
+}
+
 /// Snapshot of an about-to-be-added account that the user must confirm because
 /// Roblox reports it as moderated.
 struct PendingModeratedAdd {
@@ -2282,6 +2290,13 @@ impl eframe::App for AppState {
                 {
                     self.show_changelog = true;
                 }
+                if ui
+                    .button("⇩ Export CSV")
+                    .on_hover_text("Export account metadata without cookies")
+                    .clicked()
+                {
+                    self.export_accounts_csv();
+                }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if let Some((ref version, ref url)) = self.update_available {
@@ -3191,6 +3206,42 @@ impl AppState {
                 self.confirm_remove = Some(uid);
             }
         });
+    }
+
+    fn export_accounts_csv(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .set_file_name("roblox-accounts.csv")
+            .add_filter("CSV", &["csv"])
+            .save_file()
+        else {
+            return;
+        };
+        let mut csv = String::from("username,display_name,user_id,alias,group,account_age,last_used\n");
+        for account in &self.store.accounts {
+            let age = account
+                .created_at
+                .map(crate::components::format_account_age)
+                .unwrap_or_else(|| "Unknown".to_string());
+            let last_used = account
+                .last_used
+                .map(|timestamp| timestamp.to_rfc3339())
+                .unwrap_or_default();
+            let row = [
+                account.username.as_str(),
+                account.display_name.as_str(),
+                &account.user_id.to_string(),
+                account.alias.as_str(),
+                account.group.as_str(),
+                age.as_str(),
+                last_used.as_str(),
+            ];
+            csv.push_str(&row.map(escape_csv_field).join(","));
+            csv.push('\n');
+        }
+        match std::fs::write(&path, csv) {
+            Ok(()) => self.toasts.push(Toast::success(format!("Exported {} account(s)", self.store.accounts.len()))),
+            Err(error) => self.toasts.push(Toast::error(format!("Could not export accounts: {error}"))),
+        }
     }
 
     fn show_private_servers_tab(&mut self, ctx: &egui::Context) {

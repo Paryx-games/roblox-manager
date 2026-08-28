@@ -8,6 +8,8 @@
 - **Last-used account sorting.** Accounts can be ordered by their most recent launch.
 - **Richer copied account info.** Copying account details includes a distinct display name when available and avoids redundant lines.
 - **Duplicate bulk-import protection.** Repeated cookies in a paste or imported file are queued only once.
+- **Accessible changelog viewer.** The current release notes can now be opened from the top bar at any time.
+- **Account CSV export.** Export usernames and account metadata without exporting cookies.
 
 ### Fixed
 
