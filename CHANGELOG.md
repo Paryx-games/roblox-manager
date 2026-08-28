@@ -6,6 +6,11 @@
 
 - **Windows startup option.** Settings can now add or remove RM from the current Windows user's startup applications.
 
+### Changed
+
+- **Cleaner settings guidance.** Removed info cards from straightforward monitor, layout, identity, utility, and data-folder controls while retaining guidance for risky or complex settings.
+- **Improved settings flow.** Reorganized settings headings and subgroups into clearer account, launching, window layout, privacy, app/data, installation, and encryption categories.
+
 ## v1.13.0
 
 ### Added
