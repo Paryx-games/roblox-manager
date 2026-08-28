@@ -4314,18 +4314,94 @@ impl AppState {
                 ui.add_space(4.0);
                 ui.strong("Accounts");
                 ui.label(
-                    egui::RichText::new("Select one or more accounts")
+                    egui::RichText::new("Hold Ctrl to select multiple")
                         .small()
                         .color(ui.visuals().weak_text_color()),
                 );
                 ui.add_space(4.0);
-                for account in &self.store.accounts {
-                    let mut selected = self.inventory_selected_accounts.contains(&account.user_id);
-                    if ui.checkbox(&mut selected, account.label()).changed() {
-                        if selected {
+                let mut accounts: Vec<&ram_core::models::Account> =
+                    self.store.accounts.iter().collect();
+                let name_cmp = |a: &ram_core::models::Account, b: &ram_core::models::Account| {
+                    a.label().to_lowercase().cmp(&b.label().to_lowercase())
+                };
+                accounts.sort_by(|a, b| {
+                    let group_cmp = if self.sidebar_state.sort_order == sidebar::SortOrder::Custom {
+                        self.config
+                            .groups
+                            .get(&a.group)
+                            .map(|group| group.sort_order)
+                            .unwrap_or(u32::MAX)
+                            .cmp(
+                                &self
+                                    .config
+                                    .groups
+                                    .get(&b.group)
+                                    .map(|group| group.sort_order)
+                                    .unwrap_or(u32::MAX),
+                            )
+                            .then_with(|| a.group.cmp(&b.group))
+                    } else {
+                        match (a.group.is_empty(), b.group.is_empty()) {
+                            (true, false) => std::cmp::Ordering::Greater,
+                            (false, true) => std::cmp::Ordering::Less,
+                            _ => a.group.cmp(&b.group),
+                        }
+                    };
+                    group_cmp.then_with(|| {
+                        let cmp = match self.sidebar_state.sort_order {
+                            sidebar::SortOrder::Name => name_cmp(a, b),
+                            sidebar::SortOrder::Status => b
+                                .last_presence
+                                .user_presence_type
+                                .cmp(&a.last_presence.user_presence_type)
+                                .then_with(|| name_cmp(a, b)),
+                            sidebar::SortOrder::AccountAge => {
+                                b.created_at.cmp(&a.created_at).then_with(|| name_cmp(a, b))
+                            }
+                            sidebar::SortOrder::Custom => {
+                                a.sort_order.cmp(&b.sort_order).then_with(|| name_cmp(a, b))
+                            }
+                        };
+                        let cmp = b.is_pinned.cmp(&a.is_pinned).then(cmp);
+                        if matches!(
+                            self.sidebar_state.sort_order,
+                            sidebar::SortOrder::Name | sidebar::SortOrder::AccountAge
+                        ) && self.sidebar_state.sort_direction
+                            == sidebar::SortDirection::Descending
+                        {
+                            cmp.reverse()
+                        } else {
+                            cmp
+                        }
+                    })
+                });
+                let mut current_group = None;
+                for account in accounts {
+                    let group = if account.group.is_empty() {
+                        "Ungrouped"
+                    } else {
+                        account.group.as_str()
+                    };
+                    if current_group != Some(group) {
+                        if current_group.is_some() {
+                            ui.add_space(6.0);
+                        }
+                        ui.label(egui::RichText::new(group).small().strong());
+                        current_group = Some(group);
+                    }
+                    let selected = self.inventory_selected_accounts.contains(&account.user_id);
+                    if ui.selectable_label(selected, account.label()).clicked() {
+                        let ctrl =
+                            ui.input(|input| input.modifiers.ctrl || input.modifiers.command);
+                        if ctrl {
+                            if selected && self.inventory_selected_accounts.len() > 1 {
+                                self.inventory_selected_accounts.remove(&account.user_id);
+                            } else if !selected {
+                                self.inventory_selected_accounts.insert(account.user_id);
+                            }
+                        } else {
+                            self.inventory_selected_accounts.clear();
                             self.inventory_selected_accounts.insert(account.user_id);
-                        } else if self.inventory_selected_accounts.len() > 1 {
-                            self.inventory_selected_accounts.remove(&account.user_id);
                         }
                     }
                 }

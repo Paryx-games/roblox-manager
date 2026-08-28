@@ -20,6 +20,7 @@
 - **Dedicated inventory tab.** Account pages now show only a short Roblox inventory preview with a clear Open inventory button; the full inventory browser is available beside Assets with a list-and-grid layout.
 - **Inventory tab polish.** Restored the Assets tab's original layout and moved the Roblox item list and preview grid into a dedicated, account-selectable Inventory tab with the same sidebar and toolbar structure.
 - **Multi-account inventory management.** Inventory now supports selecting several accounts, refreshing them together, filtering their combined items, selecting assets, copying IDs, and opening selected catalog pages on Roblox.
+- **Inventory account picker.** The Inventory tab now mirrors the Accounts sidebar's group and sort order without exposing group controls. Clicking selects one account; hold Ctrl while clicking to add or remove accounts from the multi-account selection.
 
 ### Changed
 
