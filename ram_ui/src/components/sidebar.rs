@@ -1049,7 +1049,7 @@ fn render_account_row(
         ),
         egui::vec2(button_size, button_size),
     );
-    let pin_icon = "📌";
+    let pin_icon = "Pin";
     let pin_color = if account.is_pinned {
         theme.accent_text
     } else {

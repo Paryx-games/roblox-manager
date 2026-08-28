@@ -224,7 +224,7 @@ pub fn show(
 
             if roblox_running {
                 if ui
-                    .button("🗔  Tile Windows")
+                    .button("Tile Windows")
                     .on_hover_text(
                         "Tile and arrange running Roblox windows according to your configured layout.",
                     )

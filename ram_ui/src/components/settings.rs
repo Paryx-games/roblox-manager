@@ -211,7 +211,7 @@ pub fn show(
         if config.multi_instance_enabled && !config.kill_background_roblox {
             ui.colored_label(
                 theme.warning,
-                "⚠ Recommended when multi-instance is enabled. Tray processes stack up.",
+                "Warning: recommended when multi-instance is enabled. Tray processes stack up.",
             );
         }
 
@@ -691,7 +691,7 @@ pub fn show(
 
     ui.add_space(12.0);
 
-    if ui.button("💾  Save Settings").clicked() {
+    if ui.button("Save Settings").clicked() {
         action = Some(SettingsAction::SaveConfig);
     }
 
@@ -769,9 +769,9 @@ pub fn show(
 
         ui.horizontal(|ui| {
             let label = if has_password {
-                "🔑  Change password"
+                "Change password"
             } else {
-                "🔑  Set password"
+                "Set password"
             };
             if ui
                 .add_enabled(passwords_match, egui::Button::new(label))
