@@ -14,12 +14,12 @@
 ### Fixed
 
 - **Account inventory loading.** Updated the user-inventory request to Roblox's current v2 endpoint after the retired v1 route began returning 404 errors.
-- **Asset browsing layout.** Inventory and uploaded assets now show preview icons, names, and asset IDs in a grid, with a side item list and a dedicated detailed popout.
 
 ### Changed
 
 - **Dedicated inventory tab.** Account pages now show only a short Roblox inventory preview with a clear Open inventory button; the full inventory browser is available beside Assets with a list-and-grid layout.
 - **Inventory tab polish.** Restored the Assets tab's original layout and moved the Roblox item list and preview grid into a dedicated, account-selectable Inventory tab with the same sidebar and toolbar structure.
+- **Multi-account inventory management.** Inventory now supports selecting several accounts, refreshing them together, filtering their combined items, selecting assets, copying IDs, and opening selected catalog pages on Roblox.
 
 ### Changed
 

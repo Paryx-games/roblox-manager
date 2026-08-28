@@ -311,6 +311,12 @@ pub struct AppState {
     account_inventory_items: Vec<ram_core::assets_api::UserInventoryItem>,
     account_inventory_loading: bool,
     account_inventory_error: Option<String>,
+    inventory_selected_accounts: HashSet<u64>,
+    inventory_by_user: HashMap<u64, Vec<ram_core::assets_api::UserInventoryItem>>,
+    inventory_loading_users: HashSet<u64>,
+    inventory_errors: HashMap<u64, String>,
+    inventory_selected_items: HashSet<u64>,
+    inventory_search: String,
     common_inventory_loading: bool,
     common_inventory_message: Option<String>,
     /// Thumbnail PNGs for the icon views, keyed by asset ID.
@@ -527,6 +533,12 @@ impl AppState {
             account_inventory_items: Vec::new(),
             account_inventory_loading: false,
             account_inventory_error: None,
+            inventory_selected_accounts: HashSet::new(),
+            inventory_by_user: HashMap::new(),
+            inventory_loading_users: HashSet::new(),
+            inventory_errors: HashMap::new(),
+            inventory_selected_items: HashSet::new(),
+            inventory_search: String::new(),
             common_inventory_loading: false,
             common_inventory_message: None,
             asset_thumbnails: HashMap::new(),
@@ -1540,6 +1552,13 @@ impl AppState {
                     items,
                     error,
                 } => {
+                    self.inventory_loading_users.remove(&user_id);
+                    if let Some(error) = &error {
+                        self.inventory_errors.insert(user_id, error.clone());
+                    } else {
+                        self.inventory_errors.remove(&user_id);
+                        self.inventory_by_user.insert(user_id, items.clone());
+                    }
                     if self.account_inventory_user_id != Some(user_id) {
                         continue;
                     }
@@ -2981,6 +3000,7 @@ impl AppState {
                             }
                             main_panel::MainPanelAction::OpenInventory(user_id) => {
                                 self.account_inventory_user_id = Some(user_id);
+                                self.inventory_selected_accounts.insert(user_id);
                                 self.active_tab = Tab::Inventory;
                                 if self.account_inventory_items.is_empty() {
                                     tracing::debug!(user_id, "opening inventory tab");
@@ -4251,10 +4271,28 @@ impl AppState {
         }
     }
 
+    fn request_inventory(&mut self, user_id: u64) {
+        let Some(session) = self.session() else {
+            self.toasts.push(Toast::error(
+                "Unlock the account store before refreshing inventory.",
+            ));
+            return;
+        };
+        let Some(account) = self.store.find_by_id(user_id) else {
+            return;
+        };
+        self.inventory_loading_users.insert(user_id);
+        self.inventory_errors.remove(&user_id);
+        self.bridge.send(BackendCommand::FetchUserInventory {
+            user_id,
+            encrypted_cookie: account.encrypted_cookie.clone(),
+            session,
+            use_credential_manager: self.config.use_credential_manager,
+        });
+    }
+
     fn show_inventory_tab(&mut self, ctx: &egui::Context) {
-        let Some(default_user_id) = self
-            .account_inventory_user_id
-            .or_else(|| self.store.accounts.first().map(|account| account.user_id))
+        let Some(default_user_id) = self.store.accounts.first().map(|account| account.user_id)
         else {
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.heading("Roblox inventory");
@@ -4262,97 +4300,137 @@ impl AppState {
             });
             return;
         };
+        if self.inventory_selected_accounts.is_empty() {
+            self.inventory_selected_accounts
+                .insert(self.account_inventory_user_id.unwrap_or(default_user_id));
+        }
 
-        let mut requested_user = None;
+        let mut refresh_ids = Vec::new();
         egui::SidePanel::left("inventory_accounts")
-            .default_width(210.0)
-            .width_range(170.0..=300.0)
+            .default_width(220.0)
+            .width_range(180.0..=320.0)
             .resizable(true)
             .show(ctx, |ui| {
                 ui.add_space(4.0);
                 ui.strong("Accounts");
-                ui.add_space(4.0);
-                for account in &self.store.accounts {
-                    if ui
-                        .selectable_label(
-                            self.account_inventory_user_id == Some(account.user_id),
-                            account.label(),
-                        )
-                        .clicked()
-                    {
-                        requested_user = Some(account.user_id);
-                    }
-                }
-            });
-
-        let user_id = self.account_inventory_user_id.unwrap_or(default_user_id);
-        let items = if self.account_inventory_user_id == Some(user_id) {
-            self.account_inventory_items.clone()
-        } else {
-            Vec::new()
-        };
-        let loading =
-            self.account_inventory_user_id == Some(user_id) && self.account_inventory_loading;
-        let error = if self.account_inventory_user_id == Some(user_id) {
-            self.account_inventory_error.clone()
-        } else {
-            None
-        };
-        let account_label = self
-            .store
-            .find_by_id(user_id)
-            .map(|account| account.label().to_string())
-            .unwrap_or_else(|| format!("User {user_id}"));
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("Roblox inventory");
-                ui.label(egui::RichText::new(account_label).color(ui.visuals().weak_text_color()));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .add_enabled(!loading, egui::Button::new("Refresh"))
-                        .clicked()
-                    {
-                        requested_user = Some(user_id);
-                    }
-                });
-            });
-            ui.separator();
-            if loading {
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label("Loading inventory...");
-                });
-                return;
-            }
-            if let Some(error) = &error {
-                ui.colored_label(ui.theme().danger, error);
-                return;
-            }
-            if items.is_empty() {
-                ui.label("No items loaded yet. Use Refresh to fetch this account's inventory.");
-                return;
-            }
-
-            ui.horizontal(|ui| {
-                ui.label(format!("{} items", items.len()));
                 ui.label(
-                    egui::RichText::new("Select an item to copy its ID")
+                    egui::RichText::new("Select one or more accounts")
                         .small()
                         .color(ui.visuals().weak_text_color()),
                 );
+                ui.add_space(4.0);
+                for account in &self.store.accounts {
+                    let mut selected = self.inventory_selected_accounts.contains(&account.user_id);
+                    if ui.checkbox(&mut selected, account.label()).changed() {
+                        if selected {
+                            self.inventory_selected_accounts.insert(account.user_id);
+                        } else if self.inventory_selected_accounts.len() > 1 {
+                            self.inventory_selected_accounts.remove(&account.user_id);
+                        }
+                    }
+                }
+                ui.separator();
+                if ui.button("Refresh selected").clicked() {
+                    refresh_ids.extend(self.inventory_selected_accounts.iter().copied());
+                }
+            });
+
+        let selected_ids: Vec<u64> = self.inventory_selected_accounts.iter().copied().collect();
+        let mut items = Vec::new();
+        for user_id in &selected_ids {
+            items.extend(
+                self.inventory_by_user
+                    .get(user_id)
+                    .into_iter()
+                    .flatten()
+                    .cloned(),
+            );
+        }
+        items.sort_by_key(|item| item.asset_id);
+        items.dedup_by_key(|item| item.asset_id);
+        let mut query = self.inventory_search.clone();
+        let mut select_all = false;
+        let mut clear_selection = false;
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.heading("Roblox inventory");
+                ui.label(format!(
+                    "{} account{}",
+                    selected_ids.len(),
+                    if selected_ids.len() == 1 { "" } else { "s" }
+                ));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut query)
+                            .desired_width(170.0)
+                            .hint_text("Search items"),
+                    );
+                });
+            });
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui.button("Select all").clicked() {
+                    select_all = true;
+                }
+                if ui.button("Clear selection").clicked() {
+                    clear_selection = true;
+                }
+                ui.label(format!("{} selected", self.inventory_selected_items.len()));
+                if ui.button("Copy selected IDs").clicked() {
+                    let ids = self
+                        .inventory_selected_items
+                        .iter()
+                        .map(u64::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    ui.ctx().copy_text(ids);
+                }
+                if ui.button("Open selected on Roblox").clicked() {
+                    for id in &self.inventory_selected_items {
+                        ui.ctx().open_url(egui::OpenUrl::new_tab(format!(
+                            "https://www.roblox.com/catalog/{id}"
+                        )));
+                    }
+                }
             });
             ui.add_space(6.0);
+            if selected_ids
+                .iter()
+                .any(|id| self.inventory_loading_users.contains(id))
+            {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label("Loading selected inventories...");
+                });
+            }
+            if items.is_empty() {
+                ui.label("Select an account and refresh to load its Roblox inventory.");
+                return;
+            }
+            let query = query.to_lowercase();
+            let visible: Vec<_> = items
+                .iter()
+                .filter(|item| {
+                    query.is_empty()
+                        || item.name.to_lowercase().contains(&query)
+                        || item.asset_id.to_string().contains(&query)
+                })
+                .collect();
+            ui.label(format!("{} items", visible.len()));
             egui::ScrollArea::vertical()
                 .id_salt("inventory_grid_scroll")
-                .auto_shrink([false, false])
                 .show(ui, |ui| {
                     ui.horizontal_wrapped(|ui| {
-                        for item in &items {
+                        for item in visible {
+                            let selected = self.inventory_selected_items.contains(&item.asset_id);
                             let (rect, response) = ui.allocate_exact_size(
                                 egui::vec2(156.0, 176.0),
                                 egui::Sense::click(),
                             );
-                            if response.hovered() {
+                            if selected {
+                                ui.painter()
+                                    .rect_filled(rect, 4.0, ui.visuals().selection.bg_fill);
+                            } else if response.hovered() {
                                 ui.painter().rect_filled(
                                     rect,
                                     4.0,
@@ -4391,29 +4469,26 @@ impl AppState {
                                     .color(ui.visuals().weak_text_color()),
                             );
                             if response.clicked() {
-                                ui.ctx().copy_text(item.asset_id.to_string());
+                                if !self.inventory_selected_items.remove(&item.asset_id) {
+                                    self.inventory_selected_items.insert(item.asset_id);
+                                }
                             }
                         }
                     });
                 });
         });
-        self.request_asset_thumbnails(&items.iter().map(|item| item.asset_id).collect::<Vec<_>>());
-
-        if let Some(user_id) = requested_user {
-            self.account_inventory_user_id = Some(user_id);
-            self.account_inventory_items.clear();
-            self.account_inventory_error = None;
-            self.account_inventory_loading = true;
-            if let Some(session) = self.session() {
-                if let Some(account) = self.store.find_by_id(user_id) {
-                    self.bridge.send(BackendCommand::FetchUserInventory {
-                        user_id,
-                        encrypted_cookie: account.encrypted_cookie.clone(),
-                        session,
-                        use_credential_manager: self.config.use_credential_manager,
-                    });
-                }
-            }
+        if select_all {
+            self.inventory_selected_items
+                .extend(items.iter().map(|item| item.asset_id));
+        }
+        if clear_selection {
+            self.inventory_selected_items.clear();
+        }
+        let ids: Vec<u64> = items.iter().map(|item| item.asset_id).collect();
+        self.inventory_search = query;
+        self.request_asset_thumbnails(&ids);
+        for user_id in refresh_ids {
+            self.request_inventory(user_id);
         }
     }
 
