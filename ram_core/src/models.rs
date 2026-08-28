@@ -203,6 +203,9 @@ pub struct AppConfig {
     /// Always active when multi-instance is enabled; can also be used standalone.
     #[serde(default)]
     pub kill_background_roblox: bool,
+    /// Ask for confirmation before terminating every Roblox client.
+    #[serde(default)]
+    pub confirm_kill_all: bool,
     /// Minimum seconds between successive account launches. Applied to both
     /// single launches (UI gates the click) and bulk launches (sleeps between
     /// iterations). 0 = no throttling. Roblox rate-limits aggressive launching
@@ -436,6 +439,7 @@ impl Default for AppConfig {
             multi_instance_enabled: false,
             startup_with_windows: false,
             kill_background_roblox: false,
+            confirm_kill_all: true,
             launch_delay_secs: 0,
             roblox_player_path: None,
             custom_player_paths: HashMap::new(),

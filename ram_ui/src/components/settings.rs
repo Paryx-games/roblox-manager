@@ -202,6 +202,12 @@ pub fn show(
                 "Kill Roblox tray/background processes automatically",
             );
         });
+        setting_row(ui, "confirm_kill_all", |ui| {
+            ui.checkbox(
+                &mut config.confirm_kill_all,
+                "Confirm before killing all Roblox instances",
+            );
+        });
         if config.multi_instance_enabled && !config.kill_background_roblox {
             ui.colored_label(
                 theme.warning,

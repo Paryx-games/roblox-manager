@@ -427,6 +427,7 @@ pub struct AppState {
 
     /// When set, shows a confirmation dialog before removing the account.
     confirm_remove: Option<u64>,
+    confirm_kill_all: bool,
     /// Place ID received when a browse-as window's Roblox launch was blocked.
     browse_launch_prompt: Option<u64>,
 
@@ -566,6 +567,7 @@ impl AppState {
             show_passwordless_offer: false,
             device_key_missing: false,
             confirm_remove: None,
+            confirm_kill_all: false,
             browse_launch_prompt: None,
             update_available: None,
             show_changelog: false,
@@ -2330,6 +2332,7 @@ impl eframe::App for AppState {
 
         // ---- Confirmation dialog for account removal ----
         self.show_confirm_remove_dialog(ctx);
+        self.show_confirm_kill_all_dialog(ctx);
 
         // ---- Blocked browser launch prompt ----
         self.show_browse_launch_prompt(ctx);
@@ -2960,7 +2963,11 @@ impl AppState {
                             self.toasts.push(Toast::info("Tiling windows..."));
                         }
                         group_panel::GroupPanelAction::KillAll => {
-                            self.bridge.send(BackendCommand::KillAll);
+                            if self.config.confirm_kill_all {
+                                self.confirm_kill_all = true;
+                            } else {
+                                self.bridge.send(BackendCommand::KillAll);
+                            }
                         }
                     }
                 }
@@ -3123,7 +3130,11 @@ impl AppState {
                                 }
                             }
                             main_panel::MainPanelAction::KillAll => {
-                                self.bridge.send(BackendCommand::KillAll);
+                                if self.config.confirm_kill_all {
+                                    self.confirm_kill_all = true;
+                                } else {
+                                    self.bridge.send(BackendCommand::KillAll);
+                                }
                             }
                             main_panel::MainPanelAction::OpenBrowserAs(uid) => {
                                 self.open_browser_as(uid);
@@ -5695,6 +5706,33 @@ impl AppState {
             });
         if !keep_open {
             self.confirm_remove = None;
+        }
+    }
+
+    fn show_confirm_kill_all_dialog(&mut self, ctx: &egui::Context) {
+        if !self.confirm_kill_all {
+            return;
+        }
+        let mut keep_open = true;
+        egui::Window::new("Confirm Kill All")
+            .resizable(false)
+            .collapsible(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.label("Terminate every running Roblox instance?");
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button("☠  Kill All").clicked() {
+                        self.bridge.send(BackendCommand::KillAll);
+                        keep_open = false;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        keep_open = false;
+                    }
+                });
+            });
+        if !keep_open {
+            self.confirm_kill_all = false;
         }
     }
 
