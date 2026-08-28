@@ -313,8 +313,9 @@ fn parse_universe_list(body: &serde_json::Value) -> Vec<UniverseTarget> {
 // ---------------------------------------------------------------------------
 
 /// Roblox's authenticated user-inventory service, separate from the Creator
-/// Dashboard creations service below.
-pub const USER_INVENTORY_BASE: &str = "https://inventory.roblox.com/v1";
+/// Dashboard creations service below. The v1 `/items/Asset` route was retired
+/// and now returns 404; v2 is the active inventory route.
+pub const USER_INVENTORY_BASE: &str = "https://inventory.roblox.com/v2";
 
 /// Public asset categories supported by the user inventory endpoint.
 pub const USER_INVENTORY_ASSET_TYPES: &[&str] = &[
@@ -343,7 +344,7 @@ pub struct UserInventoryItem {
 
 fn user_inventory_url(user_id: u64, asset_type: &str, cursor: Option<&str>) -> String {
     let mut url = format!(
-        "{USER_INVENTORY_BASE}/users/{user_id}/items/Asset?assetTypes={asset_type}&sortOrder=Desc&limit=100"
+        "{USER_INVENTORY_BASE}/users/{user_id}/inventory?assetTypes={asset_type}&sortOrder=Desc&limit=100"
     );
     if let Some(cursor) = cursor.filter(|cursor| !cursor.is_empty()) {
         url.push_str("&cursor=");
@@ -362,18 +363,26 @@ fn parse_user_inventory_items(
         .into_iter()
         .flatten()
         .filter_map(|entry| {
-            let asset_id = entry.get("id").and_then(json_u64)?;
+            let asset_id = entry
+                .get("assetId")
+                .or_else(|| entry.get("id"))
+                .and_then(json_u64)?;
+            let asset_type_value = entry.get("assetType");
             Some(UserInventoryItem {
                 asset_id,
                 name: entry
-                    .get("name")
+                    .get("assetName")
+                    .or_else(|| entry.get("name"))
                     .and_then(|value| value.as_str())
                     .unwrap_or("Untitled")
                     .to_string(),
-                asset_type: entry
-                    .get("assetType")
-                    .and_then(|value| value.get("name"))
+                asset_type: asset_type_value
                     .and_then(|value| value.as_str())
+                    .or_else(|| {
+                        asset_type_value
+                            .and_then(|value| value.get("name"))
+                            .and_then(|value| value.as_str())
+                    })
                     .unwrap_or(fallback_asset_type)
                     .to_string(),
             })
@@ -872,9 +881,9 @@ mod tests {
     fn user_inventory_items_parse_asset_type_names() {
         let body = serde_json::json!({
             "data": [{
-                "id": 123,
-                "name": "Cool Hat",
-                "assetType": { "id": 8, "name": "Hat" }
+                "assetId": 123,
+                "assetName": "Cool Hat",
+                "assetType": "Hat"
             }]
         });
         let (parsed, next_cursor) = parse_user_inventory_items(&body, "Hat");
@@ -887,7 +896,7 @@ mod tests {
         let url = user_inventory_url(123, "Hat", None);
         assert_eq!(
             url,
-            "https://inventory.roblox.com/v1/users/123/items/Asset?assetTypes=Hat&sortOrder=Desc&limit=100"
+            "https://inventory.roblox.com/v2/users/123/inventory?assetTypes=Hat&sortOrder=Desc&limit=100"
         );
     }
 

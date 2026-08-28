@@ -11,6 +11,10 @@
 - **Clearer inventory failures.** Individual inventory refreshes now report terminal request errors in the account panel and toast, with actionable guidance when Roblox rejects an account cookie. Additional debug logs identify request, account, asset type, timing, and result state without logging secrets.
 - **Roblox user inventory.** Account and bulk inventory now use Roblox's authenticated user-inventory service for owned hats, accessories, clothing, gear, and emotes instead of the Creator Dashboard creations endpoint. Private servers remain a separate place/game resource.
 
+### Fixed
+
+- **Account inventory loading.** Updated the user-inventory request to Roblox's current v2 endpoint after the retired v1 route began returning 404 errors.
+
 ### Changed
 
 - **Cleaner settings guidance.** Removed info cards from straightforward monitor, layout, identity, utility, and data-folder controls while retaining guidance for risky or complex settings.
