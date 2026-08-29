@@ -1,0 +1,20 @@
+{
+  "github-actions.workflows.pinned.workflows": [
+    ".github/workflows/release.yml"
+  ],
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  },
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.extraArgs": [
+    "--workspace",
+    "--all-targets",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "files.associations": {
+    "*.rs": "rust"
+  }
+}
