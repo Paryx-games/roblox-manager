@@ -2303,6 +2303,7 @@ impl eframe::App for AppState {
                     self.active_tab,
                     Tab::Utility | Tab::AssetManager | Tab::Inventory
                 );
+                icons::show(ui, "grid", 16.0);
                 let tools_response = ui.menu_button(
                     egui::RichText::new("Tools")
                         .color(if is_tools_active {
@@ -2312,25 +2313,35 @@ impl eframe::App for AppState {
                         }),
                     |ui| {
                         if self.config.utility_enabled
-                            && ui.selectable_label(self.active_tab == Tab::Utility, "Utility").clicked()
+                            && ui.horizontal(|ui| {
+                                icons::show(ui, "grid", 16.0);
+                                ui.selectable_label(self.active_tab == Tab::Utility, "Utility").clicked()
+                            }).inner
                         {
                             self.active_tab = Tab::Utility;
                             ui.close_menu();
                         }
                         if self.config.developer_options
-                            && ui.selectable_label(self.active_tab == Tab::AssetManager, "Assets").clicked()
+                            && ui.horizontal(|ui| {
+                                icons::show(ui, "package", 16.0);
+                                ui.selectable_label(self.active_tab == Tab::AssetManager, "Assets").clicked()
+                            }).inner
                         {
                             self.active_tab = Tab::AssetManager;
                             ui.close_menu();
                         }
                         if self.config.developer_options
-                            && ui.selectable_label(self.active_tab == Tab::Inventory, "Inventory").clicked()
+                            && ui.horizontal(|ui| {
+                                icons::show(ui, "inventory", 16.0);
+                                ui.selectable_label(self.active_tab == Tab::Inventory, "Inventory").clicked()
+                            }).inner
                         {
                             self.active_tab = Tab::Inventory;
                             ui.close_menu();
                         }
                     },
                 );
+                icons::show(ui, "chevron-down", 14.0);
                 tools_response.response.on_hover_text("Open utility and developer workspaces");
 
                 {

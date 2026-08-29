@@ -194,6 +194,24 @@ impl AccountStore {
 /// Global application configuration persisted to `config.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppConfig {
+    /// Open RM on the accounts workspace after startup.
+    #[serde(default = "default_true")]
+    pub start_on_accounts: bool,
+    /// Prefer icon-only action buttons when the available width is limited.
+    #[serde(default = "default_true")]
+    pub compact_actions: bool,
+    /// Refresh account status immediately after the store is unlocked.
+    #[serde(default)]
+    pub refresh_on_startup: bool,
+    /// Show the release update link in the top bar.
+    #[serde(default = "default_true")]
+    pub show_update_notifications: bool,
+    /// Keep the last selected account available after restarting RM.
+    #[serde(default)]
+    pub remember_selected_account: bool,
+    /// Include verbose launch and attribution diagnostics in the log.
+    #[serde(default)]
+    pub verbose_launch_diagnostics: bool,
     /// Path to the encrypted accounts file.
     pub accounts_path: PathBuf,
     /// Whether to use Windows Credential Manager instead of file-based encryption.
@@ -439,6 +457,12 @@ impl Default for AppConfig {
             .unwrap_or_else(|_| std::path::PathBuf::from("."));
         Self {
             accounts_path: data_dir.join("RM").join("accounts.dat"),
+            start_on_accounts: true,
+            compact_actions: true,
+            refresh_on_startup: false,
+            show_update_notifications: true,
+            remember_selected_account: false,
+            verbose_launch_diagnostics: false,
             use_credential_manager: false,
             multi_instance_enabled: false,
             startup_with_windows: false,

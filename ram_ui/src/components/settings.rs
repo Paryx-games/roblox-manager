@@ -33,6 +33,49 @@ pub enum SettingsAction {
 pub struct SettingsState {
     pub new_password_input: String,
     pub confirm_password_input: String,
+    pub selected_section: SettingsSection,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub enum SettingsSection {
+    #[default]
+    General,
+    AccountStorage,
+    Launching,
+    WindowLayout,
+    Privacy,
+    AppData,
+    Roblox,
+    Security,
+    Advanced,
+}
+
+impl SettingsSection {
+    const ALL: [Self; 9] = [
+        Self::General,
+        Self::AccountStorage,
+        Self::Launching,
+        Self::WindowLayout,
+        Self::Privacy,
+        Self::AppData,
+        Self::Roblox,
+        Self::Security,
+        Self::Advanced,
+    ];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::General => "General",
+            Self::AccountStorage => "Account storage",
+            Self::Launching => "Launching",
+            Self::WindowLayout => "Window layout",
+            Self::Privacy => "Privacy and identity",
+            Self::AppData => "App and data",
+            Self::Roblox => "Roblox installation",
+            Self::Security => "Security and encryption",
+            Self::Advanced => "Advanced",
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -117,6 +160,13 @@ fn setting_row<R>(
     .inner
 }
 
+fn section_anchor(ui: &mut egui::Ui, section: SettingsSection, selected: SettingsSection) {
+    let response = ui.allocate_response(egui::Vec2::ZERO, egui::Sense::hover());
+    if section == selected {
+        response.scroll_to_me(Some(egui::Align::Min));
+    }
+}
+
 /// Draw the settings UI. Returns `Some(SettingsAction)` when an action is triggered.
 pub fn show(
     ui: &mut egui::Ui,
@@ -128,7 +178,19 @@ pub fn show(
     let theme = ui.theme();
     let mut action: Option<SettingsAction> = None;
 
-    egui::ScrollArea::vertical().show(ui, |ui| {
+    ui.horizontal(|ui| {
+        ui.vertical(|ui| {
+            ui.set_width(170.0);
+            ui.strong("Settings");
+            ui.add_space(8.0);
+            for section in SettingsSection::ALL {
+                if ui.selectable_label(settings_state.selected_section == section, section.label()).clicked() {
+                    settings_state.selected_section = section;
+                }
+            }
+        });
+        ui.separator();
+        egui::ScrollArea::vertical().show(ui, |ui| {
 
     ui.heading("Settings");
     ui.separator();
@@ -139,8 +201,32 @@ pub fn show(
         .rounding(egui::Rounding::same(6.0))
         .fill(ui.visuals().extreme_bg_color);
 
+    section_frame.show(ui, |ui: &mut egui::Ui| {
+        section_anchor(ui, SettingsSection::General, settings_state.selected_section);
+        ui.set_min_width(ui.available_width());
+        ui.strong("General");
+        ui.add_space(4.0);
+        setting_row(ui, "start_on_accounts", |ui| {
+            ui.checkbox(&mut config.start_on_accounts, "Start on the Accounts workspace");
+        });
+        setting_row(ui, "compact_actions", |ui| {
+            ui.checkbox(&mut config.compact_actions, "Use compact action buttons when space is limited");
+        });
+        setting_row(ui, "refresh_on_startup", |ui| {
+            ui.checkbox(&mut config.refresh_on_startup, "Refresh account status after startup");
+        });
+        setting_row(ui, "show_update_notifications", |ui| {
+            ui.checkbox(&mut config.show_update_notifications, "Show update notifications");
+        });
+        setting_row(ui, "remember_selected_account", |ui| {
+            ui.checkbox(&mut config.remember_selected_account, "Remember the last selected account");
+        });
+    });
+    ui.add_space(6.0);
+
     // ---- Account storage ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
+        section_anchor(ui, SettingsSection::AccountStorage, settings_state.selected_section);
         ui.set_min_width(ui.available_width());
         ui.strong("Account storage");
         ui.add_space(4.0);
@@ -155,6 +241,7 @@ pub fn show(
 
     // ---- Launching ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
+        section_anchor(ui, SettingsSection::Launching, settings_state.selected_section);
         ui.set_min_width(ui.available_width());
         ui.strong("Launching");
         ui.add_space(4.0);
@@ -515,6 +602,7 @@ pub fn show(
 
     // ---- Privacy and identity ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
+        section_anchor(ui, SettingsSection::Privacy, settings_state.selected_section);
         ui.set_min_width(ui.available_width());
         ui.strong("Privacy and identity");
         ui.add_space(4.0);
@@ -619,6 +707,7 @@ pub fn show(
 
     // ---- App and data ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
+        section_anchor(ui, SettingsSection::AppData, settings_state.selected_section);
         ui.set_min_width(ui.available_width());
         ui.strong("App and data");
         ui.add_space(4.0);
@@ -666,6 +755,7 @@ pub fn show(
 
     // ---- Roblox installation ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
+        section_anchor(ui, SettingsSection::Roblox, settings_state.selected_section);
         ui.set_min_width(ui.available_width());
         ui.horizontal(|ui| {
             ui.strong("Roblox installation");
@@ -701,6 +791,7 @@ pub fn show(
 
     // ---- Account encryption ----
     section_frame.show(ui, |ui: &mut egui::Ui| {
+        section_anchor(ui, SettingsSection::Security, settings_state.selected_section);
         ui.set_min_width(ui.available_width());
         ui.strong("Account encryption");
         ui.add_space(4.0);
@@ -796,7 +887,20 @@ pub fn show(
         });
     });
 
-    }); // ScrollArea
+    ui.add_space(6.0);
+    section_frame.show(ui, |ui: &mut egui::Ui| {
+        section_anchor(ui, SettingsSection::Advanced, settings_state.selected_section);
+        ui.set_min_width(ui.available_width());
+        ui.strong("Advanced");
+        ui.add_space(4.0);
+        setting_row(ui, "verbose_launch_diagnostics", |ui| {
+            ui.checkbox(&mut config.verbose_launch_diagnostics, "Enable detailed launch and attribution diagnostics");
+        });
+        ui.colored_label(theme.text_muted, "Advanced options can increase log volume and expose more operational detail.");
+    });
+
+        }); // ScrollArea
+    });
 
     action
 }

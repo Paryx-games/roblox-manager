@@ -1067,6 +1067,14 @@ fn render_account_row(
 
     let pin_icon_rect = pin_button_rect.shrink(2.0);
     let pin_response = icons::show_at(ui, "pin", pin_icon_rect, pin_color);
+    if pin_response.hovered() {
+        ui.painter().rect_filled(
+            pin_button_rect,
+            egui::Rounding::same(4.0),
+            ui.visuals().selection.bg_fill,
+        );
+        icons::show_at(ui, "pin", pin_icon_rect, pin_color);
+    }
     if pin_response.clicked() {
         actions.push(SidebarAction::TogglePinAccount(account.user_id));
     }

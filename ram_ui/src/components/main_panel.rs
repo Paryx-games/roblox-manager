@@ -100,7 +100,7 @@ pub fn show(
             // -------------------------------------------------------------
             section_frame.show(ui, |ui: &mut egui::Ui| {
                 ui.set_min_width(ui.available_width());
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     draw_avatar(ui, account.user_id, avatar_bytes, 80.0, anonymize);
                     ui.add_space(8.0);
 
@@ -460,16 +460,19 @@ pub fn show(
 
             section_frame.show(ui, |ui: &mut egui::Ui| {
                 ui.set_min_width(ui.available_width());
+                let use_compact_actions = ui.available_width() < 680.0;
                 ui.horizontal(|ui| {
                     ui.heading("Roblox inventory");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if icons::button(ui, "inventory", "Open inventory")
+                        let open_label = if use_compact_actions { "" } else { "Open inventory" };
+                        if icons::button(ui, "inventory", open_label)
                             .on_hover_text("Open the full inventory browser")
                             .clicked()
                         {
                             action = Some(MainPanelAction::OpenInventory(account.user_id));
                         }
-                        if icons::enabled_button(ui, "refresh", "Refresh", !inventory_loading)
+                        let refresh_label = if use_compact_actions { "" } else { "Refresh" };
+                        if icons::enabled_button(ui, "refresh", refresh_label, !inventory_loading)
                             .on_hover_text("Fetch hats, accessories, clothing, gear, and emotes owned by this account")
                             .clicked()
                         {
@@ -497,9 +500,15 @@ pub fn show(
                 } else {
                     for item in inventory_items.iter().take(6) {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(item.name.clone()).strong());
+                            ui.add_sized(
+                                egui::vec2((ui.available_width() * 0.68).max(80.0), 20.0),
+                                egui::Label::new(egui::RichText::new(item.name.clone()).strong()).truncate(),
+                            );
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                ui.label(&item.asset_type);
+                                ui.add_sized(
+                                    egui::vec2((ui.available_width() * 0.28).max(60.0), 20.0),
+                                    egui::Label::new(&item.asset_type).truncate(),
+                                );
                             });
                         });
                     }
@@ -672,11 +681,7 @@ pub fn show_empty(ui: &mut egui::Ui) {
     ui.centered_and_justified(|ui| {
         ui.vertical_centered(|ui| {
             ui.add_space(60.0);
-            ui.label(
-                egui::RichText::new("Copy")
-                    .size(48.0)
-                    .color(ui.visuals().weak_text_color()),
-            );
+            crate::icons::show(ui, "accounts", 48.0);
             ui.add_space(8.0);
             ui.label(
                 egui::RichText::new("No account selected")

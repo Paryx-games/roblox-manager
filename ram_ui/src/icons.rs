@@ -23,6 +23,7 @@ fn svg_bytes(name: &str) -> Option<&'static [u8]> {
         "add" => Some(include_bytes!("../../assets/icons/add.svg")),
         "browser" => Some(include_bytes!("../../assets/icons/browser.svg")),
         "close" => Some(include_bytes!("../../assets/icons/close.svg")),
+        "chevron-down" => Some(include_bytes!("../../assets/icons/chevron-down.svg")),
         "copy" => Some(include_bytes!("../../assets/icons/copy.svg")),
         "delete" => Some(include_bytes!("../../assets/icons/delete.svg")),
         "edit" => Some(include_bytes!("../../assets/icons/edit.svg")),
