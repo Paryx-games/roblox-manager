@@ -25,9 +25,12 @@ jobs:
 
       - name: cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          # tags float on the same commit as their branch, cache key should track the lockfile not the ref
+          key: release
 
       - name: build
-        run: cargo build --release
+        run: cargo build --release --locked
 
       - name: upload executable
         uses: actions/upload-artifact@v4
@@ -35,6 +38,7 @@ jobs:
           name: ram_ui
           path: target/release/ram_ui.exe
           retention-days: 1
+          compression-level: 0
 
   release:
     name: release
@@ -128,8 +132,9 @@ jobs:
 
           Set-Content -Path github-release-notes.md -Value $notes.Trim()
 
-      # sha256 for the single release exe
-      - name: generate sha256 checksums
+      # rename the built exe to roblox-manager-vX.Y.Z-windows-x64.exe, arch detected from runner env
+      - name: rename executable
+        id: rename-exe
         shell: pwsh
         run: |
           $exePath = "release/ram_ui.exe"
@@ -138,6 +143,31 @@ jobs:
             throw "ram_ui.exe was not found in the release directory."
           }
 
+          $version = "${{ github.ref_name }}" -replace "^v", ""
+
+          $os = "windows"
+          $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
+            "AMD64"   { "x64" }
+            "ARM64"   { "arm64" }
+            "x86"     { "x86" }
+            default   { $env:PROCESSOR_ARCHITECTURE.ToLower() }
+          }
+
+          $newName = "roblox-manager-v$version-$os-$arch.exe"
+          $newPath = "release/$newName"
+
+          Rename-Item -Path $exePath -NewName $newName
+
+          "filename=$newName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "path=$newPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # sha256 for the single release exe
+      - name: generate sha256 checksums
+        shell: pwsh
+        run: |
+          $exePath = "${{ steps.rename-exe.outputs.path }}"
+          $exeName = "${{ steps.rename-exe.outputs.filename }}"
+
           $hash = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash.ToLower()
 
           $lines = @(
@@ -145,7 +175,7 @@ jobs:
             ""
             "Checksums for all executable files included in this release."
             ""
-            "- ``ram_ui.exe`` - ``$hash``"
+            "- ``$exeName`` - ``$hash``"
           )
 
           Set-Content -Path sha256.md -Value ($lines -join "`n")
@@ -214,5 +244,5 @@ jobs:
       - name: create release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/ram_ui.exe
+          files: ${{ steps.rename-exe.outputs.path }}
           body_path: final-release-notes.md
