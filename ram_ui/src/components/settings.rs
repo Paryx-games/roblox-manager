@@ -317,8 +317,9 @@ pub fn show(
         // Multi-monitor and custom layout configuration
         let monitors = ram_core::process::enumerate_monitors();
 
-        ui.indent("tiling_options_indent", |ui| {
-            ui.add_space(2.0);
+        ui.vertical(|ui| {
+            ui.indent("tiling_options_indent", |ui| {
+                ui.add_space(2.0);
 
             // 1. Target monitor selection
             setting_row(ui, "target_display", |ui| {
@@ -558,6 +559,7 @@ pub fn show(
             {
                 action = Some(SettingsAction::TileWindowsNow);
             }
+            });
         });
 
         ui.add_space(4.0);
@@ -613,31 +615,33 @@ pub fn show(
                 "Clean before launch",
             );
         });
-        ui.indent("privacy_cleanup_options", |ui| {
-            ui.add_enabled_ui(config.privacy_mode, |ui| {
-                setting_row(ui, "privacy_cookies", |ui| {
-                    ui.checkbox(
-                        &mut config.privacy_clean_cookies,
-                        "Clean cookies",
-                    );
-                });
-                setting_row(ui, "privacy_local_storage", |ui| {
-                    ui.checkbox(
-                        &mut config.privacy_clean_local_storage,
-                        "Clean cookies and LocalStorage",
-                    );
-                });
-                setting_row(ui, "privacy_full_profile", |ui| {
-                    ui.checkbox(
-                        &mut config.privacy_clean_full_profile,
-                        "Clean full Roblox cache/profile",
-                    );
-                });
-                setting_row(ui, "privacy_on_exit", |ui| {
-                    ui.checkbox(
-                        &mut config.privacy_clean_on_exit,
-                        "Clean selected privacy data on exit",
-                    );
+        ui.vertical(|ui| {
+            ui.indent("privacy_cleanup_options", |ui| {
+                ui.add_enabled_ui(config.privacy_mode, |ui| {
+                    setting_row(ui, "privacy_cookies", |ui| {
+                        ui.checkbox(
+                            &mut config.privacy_clean_cookies,
+                            "Clean cookies",
+                        );
+                    });
+                    setting_row(ui, "privacy_local_storage", |ui| {
+                        ui.checkbox(
+                            &mut config.privacy_clean_local_storage,
+                            "Clean cookies and LocalStorage",
+                        );
+                    });
+                    setting_row(ui, "privacy_full_profile", |ui| {
+                        ui.checkbox(
+                            &mut config.privacy_clean_full_profile,
+                            "Clean full Roblox cache/profile",
+                        );
+                    });
+                    setting_row(ui, "privacy_on_exit", |ui| {
+                        ui.checkbox(
+                            &mut config.privacy_clean_on_exit,
+                            "Clean selected privacy data on exit",
+                        );
+                    });
                 });
             });
         });
@@ -653,48 +657,50 @@ pub fn show(
             );
         });
         if config.mac_rotation_enabled {
-            ui.indent("mac_rotation_options", |ui| {
-                setting_row(ui, "mac_preserve_oui", |ui| {
-                    ui.checkbox(
-                        &mut config.mac_preserve_oui,
-                        "Keep this PC's adapter OUI",
+            ui.vertical(|ui| {
+                ui.indent("mac_rotation_options", |ui| {
+                    setting_row(ui, "mac_preserve_oui", |ui| {
+                        ui.checkbox(
+                            &mut config.mac_preserve_oui,
+                            "Keep this PC's adapter OUI",
+                        );
+                    });
+                    if !config.mac_preserve_oui {
+                        setting_row(ui, "mac_alternate_oui", |ui| {
+                            egui::ComboBox::from_id_salt("mac_alternate_oui")
+                                .selected_text(match config.mac_alternate_oui.as_str() {
+                                    "00:1B:21" => "Intel (00:1B:21)",
+                                    "00:E0:4C" => "Realtek (00:E0:4C)",
+                                    "3C:52:82" => "Microsoft (3C:52:82)",
+                                    _ => "Custom / saved OUI",
+                                })
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut config.mac_alternate_oui,
+                                        "00:1B:21".to_string(),
+                                        "Intel (00:1B:21)",
+                                    );
+                                    ui.selectable_value(
+                                        &mut config.mac_alternate_oui,
+                                        "00:E0:4C".to_string(),
+                                        "Realtek (00:E0:4C)",
+                                    );
+                                    ui.selectable_value(
+                                        &mut config.mac_alternate_oui,
+                                        "3C:52:82".to_string(),
+                                        "Microsoft (3C:52:82)",
+                                    );
+                                });
+                        });
+                    }
+                    if ui.button("Rotate MAC address now").clicked() {
+                        action = Some(SettingsAction::RotateMacAddress);
+                    }
+                    ui.colored_label(
+                        theme.text_muted,
+                        "The adapter briefly disconnects and Windows may request administrator permission.",
                     );
                 });
-                if !config.mac_preserve_oui {
-                    setting_row(ui, "mac_alternate_oui", |ui| {
-                        egui::ComboBox::from_id_salt("mac_alternate_oui")
-                            .selected_text(match config.mac_alternate_oui.as_str() {
-                                "00:1B:21" => "Intel (00:1B:21)",
-                                "00:E0:4C" => "Realtek (00:E0:4C)",
-                                "3C:52:82" => "Microsoft (3C:52:82)",
-                                _ => "Custom / saved OUI",
-                            })
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut config.mac_alternate_oui,
-                                    "00:1B:21".to_string(),
-                                    "Intel (00:1B:21)",
-                                );
-                                ui.selectable_value(
-                                    &mut config.mac_alternate_oui,
-                                    "00:E0:4C".to_string(),
-                                    "Realtek (00:E0:4C)",
-                                );
-                                ui.selectable_value(
-                                    &mut config.mac_alternate_oui,
-                                    "3C:52:82".to_string(),
-                                    "Microsoft (3C:52:82)",
-                                );
-                            });
-                    });
-                }
-                if ui.button("Rotate MAC address now").clicked() {
-                    action = Some(SettingsAction::RotateMacAddress);
-                }
-                ui.colored_label(
-                    theme.text_muted,
-                    "The adapter briefly disconnects and Windows may request administrator permission.",
-                );
             });
         }
         ui.add_space(4.0);
