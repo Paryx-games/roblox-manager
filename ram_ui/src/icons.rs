@@ -45,6 +45,7 @@ fn svg_bytes(name: &str) -> Option<&'static [u8]> {
         "settings" => Some(include_bytes!("../../assets/icons/settings.svg")),
         "star" => Some(include_bytes!("../../assets/icons/star.svg")),
         "update" => Some(include_bytes!("../../assets/icons/update.svg")),
+        "tools" => Some(include_bytes!("../../assets/icons/tools-menu.svg")),
         "more" => Some(include_bytes!("../../assets/icons/more.svg")),
         "refresh" => Some(include_bytes!("../../assets/icons/refresh.svg")),
         "remove-group" => Some(include_bytes!("../../assets/icons/remove-group.svg")),
@@ -149,6 +150,28 @@ pub fn tab_button(ui: &mut egui::Ui, name: &str, label: &str, selected: bool) ->
     .selected(selected)
     .min_size(egui::vec2(0.0, 24.0));
     ui.add(button)
+}
+
+/// Draw a menu button with a composite icon, useful when the control needs
+/// both a leading symbol and a trailing affordance.
+pub fn menu_button<R>(
+    ui: &mut egui::Ui,
+    name: &str,
+    label: &str,
+    selected: bool,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<Option<R>> {
+    let button = match texture(ui, name, 24.0) {
+        Some(texture) => egui::Button::image_and_text(
+            egui::Image::from_texture((texture.id(), egui::vec2(32.0, 24.0))),
+            label,
+        )
+        .image_tint_follows_text_color(true),
+        None => egui::Button::new(label),
+    }
+    .selected(selected)
+    .min_size(egui::vec2(0.0, 24.0));
+    egui::menu::menu_custom_button(ui, button, add_contents)
 }
 
 /// Add a compact icon-only navigation button for constrained toolbars.

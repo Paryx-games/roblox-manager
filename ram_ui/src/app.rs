@@ -2303,14 +2303,11 @@ impl eframe::App for AppState {
                     self.active_tab,
                     Tab::Utility | Tab::AssetManager | Tab::Inventory
                 );
-                icons::show(ui, "grid", 16.0);
-                let tools_response = ui.menu_button(
-                    egui::RichText::new("Tools")
-                        .color(if is_tools_active {
-                            ui.theme().accent_text
-                        } else {
-                            ui.visuals().text_color()
-                        }),
+                let tools_response = icons::menu_button(
+                    ui,
+                    "tools",
+                    "Tools",
+                    is_tools_active,
                     |ui| {
                         if self.config.utility_enabled
                             && ui.horizontal(|ui| {
@@ -2341,7 +2338,6 @@ impl eframe::App for AppState {
                         }
                     },
                 );
-                icons::show(ui, "chevron-down", 14.0);
                 tools_response.response.on_hover_text("Open utility and developer workspaces");
 
                 {
