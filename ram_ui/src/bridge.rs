@@ -979,7 +979,7 @@ async fn handle_command(
             Ok(BackendEvent::AccountRemoved { user_id })
         }
         BackendCommand::KillTray => {
-            info!("Executing kill tray Roblox processes command");
+            debug!("Executing kill tray Roblox processes command");
             tokio::task::spawn_blocking(process::kill_tray_roblox)
                 .await
                 .map_err(|error| {
