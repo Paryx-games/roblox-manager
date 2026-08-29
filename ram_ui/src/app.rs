@@ -2281,75 +2281,113 @@ impl eframe::App for AppState {
             let is_compact = ui.available_width() < 900.0;
             ui.set_min_height(30.0);
 
-            ui.horizontal_wrapped(|ui| {
-                let mut select_tab = |name: &str, label: &str, tab: Tab| {
-                    let response = if is_compact {
-                        icons::compact_tab_button(ui, name, label, self.active_tab == tab)
-                    } else {
-                        icons::tab_button(ui, name, label, self.active_tab == tab)
+            ui.horizontal(|ui| {
+                {
+                    let mut select_tab = |name: &str, label: &str, tab: Tab| {
+                        let response = if is_compact {
+                            icons::compact_tab_button(ui, name, label, self.active_tab == tab)
+                        } else {
+                            icons::tab_button(ui, name, label, self.active_tab == tab)
+                        };
+                        if response.clicked() {
+                            self.active_tab = tab;
+                        }
                     };
-                    if response.clicked() {
-                        self.active_tab = tab;
-                    }
-                };
-                select_tab("accounts", "Accounts", Tab::Accounts);
-                select_tab("groups", "Groups", Tab::Groups);
-                select_tab("lock", "Servers", Tab::PrivateServers);
-                select_tab("star", "Presets", Tab::Presets);
-                if self.config.utility_enabled {
-                    select_tab("grid", "Utility", Tab::Utility);
-                }
-                if self.config.developer_options {
-                    select_tab("package", "Assets", Tab::AssetManager);
-                    select_tab("inventory", "Inventory", Tab::Inventory);
-                }
-                select_tab("settings", "Settings", Tab::Settings);
-                if icons::button(ui, "update", if is_compact { "" } else { "What's new" })
-                    .on_hover_text("View the current release changelog")
-                    .clicked()
-                {
-                    self.show_changelog = true;
-                }
-                if icons::button(ui, "import", if is_compact { "" } else { "Export CSV" })
-                    .on_hover_text("Export account metadata without cookies")
-                    .clicked()
-                {
-                    self.export_accounts_csv();
-                }
-                if !self.store.accounts.is_empty()
-                    && icons::button(ui, "refresh", if is_compact { "" } else { "Refresh" })
-                        .on_hover_text(
-                            "Refresh all accounts: re-validate cookies, fetch moderation status, presence, and avatars",
-                        )
-                        .clicked()
-                {
-                    self.toasts.push(Toast::info("Refreshing all accounts..."));
-                    self.trigger_revalidation();
-                    self.trigger_refresh();
+                    select_tab("accounts", "Accounts", Tab::Accounts);
+                    select_tab("groups", "Groups", Tab::Groups);
+                    select_tab("lock", "Servers", Tab::PrivateServers);
+                    select_tab("star", "Presets", Tab::Presets);
                 }
 
-                ui.separator();
-                if let Some((ref version, ref url)) = self.update_available {
-                    let text = if is_compact {
-                        format!("v{version}")
-                    } else {
-                        format!("Update v{version} available")
+                let is_tools_active = matches!(
+                    self.active_tab,
+                    Tab::Utility | Tab::AssetManager | Tab::Inventory
+                );
+                let tools_response = ui.menu_button(
+                    egui::RichText::new("Tools")
+                        .color(if is_tools_active {
+                            ui.theme().accent_text
+                        } else {
+                            ui.visuals().text_color()
+                        }),
+                    |ui| {
+                        if self.config.utility_enabled
+                            && ui.selectable_label(self.active_tab == Tab::Utility, "Utility").clicked()
+                        {
+                            self.active_tab = Tab::Utility;
+                            ui.close_menu();
+                        }
+                        if self.config.developer_options
+                            && ui.selectable_label(self.active_tab == Tab::AssetManager, "Assets").clicked()
+                        {
+                            self.active_tab = Tab::AssetManager;
+                            ui.close_menu();
+                        }
+                        if self.config.developer_options
+                            && ui.selectable_label(self.active_tab == Tab::Inventory, "Inventory").clicked()
+                        {
+                            self.active_tab = Tab::Inventory;
+                            ui.close_menu();
+                        }
+                    },
+                );
+                tools_response.response.on_hover_text("Open utility and developer workspaces");
+
+                {
+                    let mut select_tab = |name: &str, label: &str, tab: Tab| {
+                        let response = if is_compact {
+                            icons::compact_tab_button(ui, name, label, self.active_tab == tab)
+                        } else {
+                            icons::tab_button(ui, name, label, self.active_tab == tab)
+                        };
+                        if response.clicked() {
+                            self.active_tab = tab;
+                        }
                     };
-                    if ui.link(text).on_hover_text("Click to open the GitHub release page").clicked() {
-                        ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
+                    select_tab("settings", "Settings", Tab::Settings);
+                }
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(format!("{} acct{}", self.store.accounts.len(), if self.store.accounts.len() == 1 { "" } else { "s" }));
+                    if self.selected_ids.len() > 1 {
+                        ui.colored_label(ui.theme().accent_text, format!("{} selected", self.selected_ids.len()));
                     }
-                }
-                if self.roblox_running {
-                    let count = self.roblox_instance_count;
-                    ui.colored_label(
-                        ui.theme().info,
-                        if count == 1 { "1 Roblox".to_string() } else { format!("{count} Roblox") },
-                    ).on_hover_text(self.instance_attribution_summary());
-                }
-                if self.selected_ids.len() > 1 {
-                    ui.colored_label(ui.theme().accent_text, format!("{} selected", self.selected_ids.len()));
-                }
-                ui.label(format!("{} acct{}", self.store.accounts.len(), if self.store.accounts.len() == 1 { "" } else { "s" }));
+                    if self.roblox_running {
+                        let count = self.roblox_instance_count;
+                        ui.colored_label(
+                            ui.theme().info,
+                            if count == 1 { "1 Roblox".to_string() } else { format!("{count} Roblox") },
+                        ).on_hover_text(self.instance_attribution_summary());
+                    }
+                    if let Some((ref version, ref url)) = self.update_available {
+                        let text = if is_compact { format!("v{version}") } else { format!("Update v{version} available") };
+                        if ui.link(text).on_hover_text("Click to open the GitHub release page").clicked() {
+                            ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
+                        }
+                    }
+                    ui.separator();
+                    if !self.store.accounts.is_empty()
+                        && icons::button(ui, "refresh", if is_compact { "" } else { "Refresh" })
+                            .on_hover_text("Refresh all accounts: re-validate cookies, fetch moderation status, presence, and avatars")
+                            .clicked()
+                    {
+                        self.toasts.push(Toast::info("Refreshing all accounts..."));
+                        self.trigger_revalidation();
+                        self.trigger_refresh();
+                    }
+                    if icons::button(ui, "import", if is_compact { "" } else { "Export CSV" })
+                        .on_hover_text("Export account metadata without cookies")
+                        .clicked()
+                    {
+                        self.export_accounts_csv();
+                    }
+                    if icons::button(ui, "update", if is_compact { "" } else { "What's new" })
+                        .on_hover_text("View the current release changelog")
+                        .clicked()
+                    {
+                        self.show_changelog = true;
+                    }
+                });
             });
         });
 

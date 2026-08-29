@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.16.0
+
+### Changed
+
+- **Grouped workspace navigation.** Reorganized the top bar around Accounts, Groups, Servers, Presets, Tools, and Settings to reduce clutter.
+- **Tools menu.** Moved Utility, Assets, and Inventory into a grouped Tools menu while preserving their existing visibility rules and deep-link behavior.
+- **Top-bar actions and status.** Moved What’s new, Export CSV, and Refresh into a separate right-side action area alongside Roblox, selection, account, and update status.
+
 ## v1.15.2
 
 ### Fixed
