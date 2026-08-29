@@ -7,6 +7,10 @@
 - **Developer log levels.** Developer options now includes a log-level dropdown with a safety warning; debug builds expose trace/debug only while release builds allow the full error-to-trace range.
 - **More logs.** Added way more logging than there used to be.
 
+### Changed
+
+- **Settings sections.** Reorganized settings with clear category headers, descriptive taglines, and proper visual hierarchy. Separated window layout settings into their own dedicated section instead of mixing them into Launching.
+
 ### Fixed
 
 - **Settings UI crash.** Fixed an egui panic caused by calling `ui.indent(...)` inside a horizontal layout in the Settings panel.
