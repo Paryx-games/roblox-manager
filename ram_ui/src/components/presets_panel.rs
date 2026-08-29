@@ -235,11 +235,7 @@ pub fn show(
                                         {
                                             action = Some(PresetsAction::Delete(path.clone()));
                                         }
-                                        if ui
-                                            .small_button("Edit")
-                                            .on_hover_text("Edit")
-                                            .clicked()
-                                        {
+                                        if ui.small_button("Edit").on_hover_text("Edit").clicked() {
                                             state.load_into_form(path.clone(), preset);
                                         }
                                     },

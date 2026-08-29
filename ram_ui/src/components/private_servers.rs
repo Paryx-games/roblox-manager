@@ -332,9 +332,7 @@ pub fn show(
                                                             if ui
                                                                 .add_enabled(
                                                                     has_selection,
-                                                                    egui::Button::new(
-                                                                        "Launch",
-                                                                    ),
+                                                                    egui::Button::new("Launch"),
                                                                 )
                                                                 .on_hover_text(if has_selection {
                                                                     "Launch selected account(s)"

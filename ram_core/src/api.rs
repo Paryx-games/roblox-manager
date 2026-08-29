@@ -42,11 +42,15 @@ pub async fn search_users(
         .collect::<String>();
     let url = format!("https://users.roblox.com/v1/users/search?keyword={keyword}&limit=10");
     let response: UserSearchResponse = client.get_json(&url, "").await?;
-    Ok(response.data.into_iter().map(|user| UserSearchResult {
-        user_id: user.id,
-        username: user.name,
-        display_name: user.display_name,
-    }).collect())
+    Ok(response
+        .data
+        .into_iter()
+        .map(|user| UserSearchResult {
+            user_id: user.id,
+            username: user.name,
+            display_name: user.display_name,
+        })
+        .collect())
 }
 
 /// Send a friend request to another user from the authenticated account.

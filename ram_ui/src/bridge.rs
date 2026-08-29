@@ -143,7 +143,9 @@ pub enum BackendCommand {
         use_credential_manager: bool,
     },
     /// Search Roblox users for connection actions.
-    SearchConnectionUsers { keyword: String },
+    SearchConnectionUsers {
+        keyword: String,
+    },
     /// Run the potentially blocking tray cleanup without stalling the runtime.
     KillTray,
     /// Validate the preconditions and acquire the singleton mutex off the UI thread.
@@ -1282,9 +1284,9 @@ async fn handle_command(
                 target_user_id,
             })
         }
-        BackendCommand::SearchConnectionUsers { keyword } => {
-            Ok(BackendEvent::ConnectionUsersFound(api::search_users(client, &keyword).await?))
-        }
+        BackendCommand::SearchConnectionUsers { keyword } => Ok(
+            BackendEvent::ConnectionUsersFound(api::search_users(client, &keyword).await?),
+        ),
         BackendCommand::RefreshAll {
             user_ids,
             avatar_user_ids,

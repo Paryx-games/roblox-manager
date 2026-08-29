@@ -9,8 +9,8 @@ use eframe::egui;
 use ram_core::instances::TrackedInstance;
 use ram_core::models::{Account, GroupMeta};
 
-use crate::theme::{Theme, ThemeUi};
 use crate::icons;
+use crate::theme::{Theme, ThemeUi};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
@@ -1140,10 +1140,7 @@ fn render_account_row(
                 } else {
                     String::new()
                 };
-                if ui
-                    .button(format!("Focus client{suffix}"))
-                    .clicked()
-                {
+                if ui.button(format!("Focus client{suffix}")).clicked() {
                     actions.push(SidebarAction::FocusInstance(instance.pid));
                     ui.close_menu();
                 }
@@ -1153,10 +1150,8 @@ fn render_account_row(
                 // disabled with the reason rather than offered and then
                 // refused, or worse, honoured on a guess.
                 let can_kill = instance.attribution.is_exact();
-                let kill = ui.add_enabled(
-                    can_kill,
-                    egui::Button::new(format!("Close client{suffix}")),
-                );
+                let kill =
+                    ui.add_enabled(can_kill, egui::Button::new(format!("Close client{suffix}")));
                 if !can_kill {
                     kill.on_disabled_hover_text(
                         "RM could not read this client's command line, so it cannot \
@@ -1209,7 +1204,7 @@ fn render_account_row(
                     ui.close_menu();
                 }
                 if let Some(pid) = account.last_presence.place_id {
-                if ui.button("Copy Place ID").clicked() {
+                    if ui.button("Copy Place ID").clicked() {
                         actions.push(SidebarAction::CopyJobId(pid.to_string()));
                         ui.close_menu();
                     }

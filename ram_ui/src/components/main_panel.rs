@@ -3,8 +3,8 @@
 use eframe::egui;
 use ram_core::models::{Account, LaunchPreset};
 
-use crate::theme::ThemeUi;
 use crate::icons;
+use crate::theme::ThemeUi;
 
 /// Actions the main panel can request.
 pub enum MainPanelAction {
