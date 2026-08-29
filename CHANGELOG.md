@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.16.0-beta.2
+
+### Added
+
+- **More logs.** Added way more logging than there used to be.
+
 ## v1.16.0-beta.1
 
 ### Changed
