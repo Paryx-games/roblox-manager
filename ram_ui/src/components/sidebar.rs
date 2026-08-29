@@ -1065,7 +1065,8 @@ fn render_account_row(
         theme.text_muted
     };
 
-    let pin_response = icons::show_at(ui, "pin", pin_button_rect, pin_color);
+    let pin_icon_rect = pin_button_rect.shrink(3.0);
+    let pin_response = icons::show_at(ui, "pin", pin_icon_rect, pin_color);
     if pin_response.clicked() {
         actions.push(SidebarAction::TogglePinAccount(account.user_id));
     }
