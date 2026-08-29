@@ -41,6 +41,7 @@ fn svg_bytes(name: &str) -> Option<&'static [u8]> {
         "package" => Some(include_bytes!("../../assets/icons/package.svg")),
         "password" => Some(include_bytes!("../../assets/icons/password.svg")),
         "pin" => Some(include_bytes!("../../assets/icons/pin.svg")),
+        "pinoff" => Some(include_bytes!("../../assets/icons/pin-off.svg")),
         "save" => Some(include_bytes!("../../assets/icons/save.svg")),
         "settings" => Some(include_bytes!("../../assets/icons/settings.svg")),
         "star" => Some(include_bytes!("../../assets/icons/star.svg")),
