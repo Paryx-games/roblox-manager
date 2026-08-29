@@ -83,6 +83,8 @@ $env:RUST_LOG="debug"; cargo run
 
 > [!TIP]
 > If you are developing RM, `cargo check` is the quickest way to catch compilation errors without producing a release build.
+>
+> We also allow AI development but please make sure it follows our [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md), otherwise the pull request will not be merged
 
 ## Usage
 
