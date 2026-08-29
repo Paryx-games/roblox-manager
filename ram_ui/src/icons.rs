@@ -152,26 +152,87 @@ pub fn tab_button(ui: &mut egui::Ui, name: &str, label: &str, selected: bool) ->
     ui.add(button)
 }
 
-/// Draw a menu button with a composite icon, useful when the control needs
-/// both a leading symbol and a trailing affordance.
+/// Draw a menu button: label, a thin divider, then a chevron - opens a dropdown on click.
 pub fn menu_button<R>(
     ui: &mut egui::Ui,
-    name: &str,
     label: &str,
     selected: bool,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::InnerResponse<Option<R>> {
-    let button = match texture(ui, name, 16.0) {
-        Some(texture) => egui::Button::image_and_text(
-            egui::Image::from_texture((texture.id(), egui::vec2(16.0, 16.0))),
-            label,
-        )
-        .image_tint_follows_text_color(true),
-        None => egui::Button::new(label),
+    // measure the label so we can size the whole button rect ourselves
+    let galley = ui.painter().layout_no_wrap(
+        label.to_string(),
+        egui::FontId::default(),
+        ui.visuals().text_color(),
+    );
+
+    let chevron_zone_w = 6.0 + 1.0 + 6.0 + 16.0 + 6.0; // gap + divider + gap + chevron + right pad
+    let total_w = 10.0 + galley.size().x + chevron_zone_w; // left pad + label + chevron zone
+    let total_h = 24.0_f32.max(galley.size().y + 8.0);
+
+    let desired_size = egui::vec2(total_w, total_h);
+    let (rect, mut response) = ui.allocate_exact_size(desired_size, egui::Sense::click());
+
+    if ui.is_rect_visible(rect) {
+        let visuals = ui.style().interact_selectable(&response, selected);
+        ui.painter()
+            .rect(rect, visuals.rounding, visuals.bg_fill, visuals.bg_stroke);
+
+        let x = rect.left() + 10.0;
+        ui.painter().galley(
+            egui::pos2(x, rect.center().y - galley.size().y / 2.0),
+            galley,
+            visuals.text_color(),
+        );
+
+        // divider, then chevron, both inside the same button rect
+        let divider_x = rect.right() - chevron_zone_w + 6.0;
+        ui.painter().vline(
+            divider_x,
+            rect.top() + 4.0..=rect.bottom() - 4.0,
+            visuals.bg_stroke,
+        );
+
+        if let Some(chevron_texture) = texture(ui, "chevron-down", 16.0) {
+            let chevron_rect = egui::Rect::from_min_size(
+                egui::pos2(rect.right() - 16.0 - 6.0, rect.center().y - 8.0),
+                egui::vec2(16.0, 16.0),
+            );
+            ui.painter().image(
+                chevron_texture.id(),
+                chevron_rect,
+                egui::Rect::from_min_max(egui::Pos2::ZERO, egui::Pos2::new(1.0, 1.0)),
+                visuals.text_color(),
+            );
+        }
     }
-    .selected(selected)
-    .min_size(egui::vec2(0.0, 24.0));
-    egui::menu::menu_custom_button(ui, button, add_contents)
+
+    let popup_id = ui.make_persistent_id(("rm_menu_button", label));
+    if response.clicked() {
+        ui.memory_mut(|mem| mem.toggle_popup(popup_id));
+    }
+
+    let mut inner = None;
+    if ui.memory(|mem| mem.is_popup_open(popup_id)) {
+        let area_response = egui::Area::new(popup_id)
+            .order(egui::Order::Foreground)
+            .fixed_pos(rect.left_bottom() + egui::vec2(0.0, 2.0))
+            .show(ui.ctx(), |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    inner = Some(add_contents(ui));
+                });
+            });
+
+        if ui.input(|i| i.pointer.any_click())
+            && !response.clicked()
+            && !area_response.response.contains_pointer()
+        {
+            ui.memory_mut(|mem| mem.close_popup());
+        }
+    }
+
+    response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
+    egui::InnerResponse::new(inner, response)
 }
 
 /// Add a compact icon-only navigation button for constrained toolbars.

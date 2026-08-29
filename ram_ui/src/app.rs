@@ -2303,9 +2303,9 @@ impl eframe::App for AppState {
                     self.active_tab,
                     Tab::Utility | Tab::AssetManager | Tab::Inventory
                 );
+
                 let tools_response = icons::menu_button(
                     ui,
-                    "tools",
                     "Tools",
                     is_tools_active,
                     |ui| {
@@ -2316,7 +2316,7 @@ impl eframe::App for AppState {
                             }).inner
                         {
                             self.active_tab = Tab::Utility;
-                            ui.close_menu();
+                            ui.memory_mut(|mem| mem.close_popup());
                         }
                         if self.config.developer_options
                             && ui.horizontal(|ui| {
@@ -2325,7 +2325,7 @@ impl eframe::App for AppState {
                             }).inner
                         {
                             self.active_tab = Tab::AssetManager;
-                            ui.close_menu();
+                            ui.memory_mut(|mem| mem.close_popup());
                         }
                         if self.config.developer_options
                             && ui.horizontal(|ui| {
@@ -2334,7 +2334,7 @@ impl eframe::App for AppState {
                             }).inner
                         {
                             self.active_tab = Tab::Inventory;
-                            ui.close_menu();
+                            ui.memory_mut(|mem| mem.close_popup());
                         }
                     },
                 );
