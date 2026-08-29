@@ -14,6 +14,7 @@ use crate::components::{
     asset_manager, group_panel, groups_panel, main_panel, presets_panel, private_servers, settings,
     sidebar, tutorial,
 };
+use crate::icons;
 use crate::theme::ThemeUi;
 use crate::toast::{Toast, Toasts};
 
@@ -2270,10 +2271,22 @@ impl eframe::App for AppState {
             ui.set_min_height(30.0);
 
             ui.horizontal_wrapped(|ui| {
-                ui.selectable_value(&mut self.active_tab, Tab::Accounts, "Accounts");
-                ui.selectable_value(&mut self.active_tab, Tab::Groups, "Groups");
-                ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "Servers");
-                ui.selectable_value(&mut self.active_tab, Tab::Presets, "Presets");
+                ui.horizontal(|ui| {
+                    icons::show(ui, "accounts", 16.0);
+                    ui.selectable_value(&mut self.active_tab, Tab::Accounts, "Accounts");
+                });
+                ui.horizontal(|ui| {
+                    icons::show(ui, "groups", 16.0);
+                    ui.selectable_value(&mut self.active_tab, Tab::Groups, "Groups");
+                });
+                ui.horizontal(|ui| {
+                    icons::show(ui, "lock", 16.0);
+                    ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "Servers");
+                });
+                ui.horizontal(|ui| {
+                    icons::show(ui, "star", 16.0);
+                    ui.selectable_value(&mut self.active_tab, Tab::Presets, "Presets");
+                });
                 if self.config.utility_enabled {
                     ui.selectable_value(
                         &mut self.active_tab,
@@ -2282,10 +2295,19 @@ impl eframe::App for AppState {
                     );
                 }
                 if self.config.developer_options {
-                    ui.selectable_value(&mut self.active_tab, Tab::AssetManager, "Assets");
-                    ui.selectable_value(&mut self.active_tab, Tab::Inventory, "Inventory");
+                    ui.horizontal(|ui| {
+                        icons::show(ui, "package", 16.0);
+                        ui.selectable_value(&mut self.active_tab, Tab::AssetManager, "Assets");
+                    });
+                    ui.horizontal(|ui| {
+                        icons::show(ui, "inventory", 16.0);
+                        ui.selectable_value(&mut self.active_tab, Tab::Inventory, "Inventory");
+                    });
                 }
-                ui.selectable_value(&mut self.active_tab, Tab::Settings, "Settings");
+                ui.horizontal(|ui| {
+                    icons::show(ui, "settings", 16.0);
+                    ui.selectable_value(&mut self.active_tab, Tab::Settings, "Settings");
+                });
                 if ui
                     .button("✦ What's new")
                     .on_hover_text("View the current release changelog")

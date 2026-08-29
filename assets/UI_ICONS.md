@@ -25,7 +25,7 @@ should be a transparent square SVG with a simple monochrome mark and a
 | window | `assets/icons/windows.svg` | Tile Windows action |
 | warning | `assets/icons/warning.svg` | Warnings and error labels |
 
-The current UI intentionally uses font-safe text labels until these assets
-are present. Rasterize them with `crate::icons::rasterize_svg`, cache the
-resulting textures, and keep the semantic label beside each icon rather than
-making the image the only control affordance.
+The top navigation currently uses these SVGs through the cached
+`crate::icons::show` helper. Rasterization and missing/invalid asset failures
+are reported through debug tracing. Keep the semantic label beside each icon
+rather than making the image the only control affordance.

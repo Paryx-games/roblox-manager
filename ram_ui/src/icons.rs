@@ -5,6 +5,81 @@
 //! emoji or SVG font installed.
 
 use eframe::egui;
+use std::collections::HashMap;
+
+fn icon_cache_id() -> egui::Id {
+    egui::Id::new("rm_svg_icon_cache")
+}
+
+#[derive(Clone, Default)]
+struct IconCache {
+    textures: HashMap<String, egui::TextureHandle>,
+}
+
+fn svg_bytes(name: &str) -> Option<&'static [u8]> {
+    match name {
+        "accounts" => Some(include_bytes!("../../assets/icons/accounts.svg")),
+        "browser" => Some(include_bytes!("../../assets/icons/browser.svg")),
+        "delete" => Some(include_bytes!("../../assets/icons/delete.svg")),
+        "folder" => Some(include_bytes!("../../assets/icons/folder.svg")),
+        "groups" => Some(include_bytes!("../../assets/icons/groups.svg")),
+        "import" => Some(include_bytes!("../../assets/icons/import.svg")),
+        "inventory" => Some(include_bytes!("../../assets/icons/inventory.svg")),
+        "kill" => Some(include_bytes!("../../assets/icons/kill.svg")),
+        "lock" => Some(include_bytes!("../../assets/icons/lock.svg")),
+        "package" => Some(include_bytes!("../../assets/icons/package.svg")),
+        "password" => Some(include_bytes!("../../assets/icons/password.svg")),
+        "pin" => Some(include_bytes!("../../assets/icons/pin.svg")),
+        "save" => Some(include_bytes!("../../assets/icons/save.svg")),
+        "settings" => Some(include_bytes!("../../assets/icons/settings.svg")),
+        "star" => Some(include_bytes!("../../assets/icons/star.svg")),
+        "update" => Some(include_bytes!("../../assets/icons/update.svg")),
+        "warning" => Some(include_bytes!("../../assets/icons/warning.svg")),
+        "windows" => Some(include_bytes!("../../assets/icons/windows.svg")),
+        _ => None,
+    }
+}
+
+/// Add one cached SVG icon to a UI. Returns false when the named asset could
+/// not be found or rasterized, allowing the text label to remain usable.
+pub fn show(ui: &mut egui::Ui, name: &str, size: f32) -> bool {
+    let Some(svg) = svg_bytes(name) else {
+        tracing::debug!(icon = name, "could not find UI SVG icon asset");
+        return false;
+    };
+    let texture = ui.ctx().data(|data| {
+        data.get_temp::<IconCache>(icon_cache_id())
+            .and_then(|cache| cache.textures.get(name).cloned())
+    });
+    let texture = texture.or_else(|| {
+        let image = match rasterize_svg(svg, size.ceil() as u32) {
+            Ok(image) => image,
+            Err(error) => {
+                tracing::debug!(icon = name, %error, "could not rasterize UI SVG icon");
+                return None;
+            }
+        };
+        let texture = ui.ctx().load_texture(
+            format!("rm-icon-{name}"),
+            image,
+            egui::TextureOptions::LINEAR,
+        );
+        ui.ctx().data_mut(|data| {
+            let cache = data.get_temp_mut_or_default::<IconCache>(icon_cache_id());
+            cache.textures.insert(name.to_string(), texture.clone());
+        });
+        Some(texture)
+    });
+    let Some(texture) = texture else {
+        return false;
+    };
+    ui.add(
+        egui::Image::from_texture(&texture)
+            .fit_to_exact_size(egui::vec2(size, size))
+            .tint(ui.visuals().text_color()),
+    );
+    true
+}
 
 /// Rasterize an SVG asset into an egui color image.
 #[allow(dead_code)]
