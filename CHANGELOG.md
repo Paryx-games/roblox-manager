@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.16.0
+## v1.16.0-beta.1
 
 ### Changed
 
@@ -351,7 +351,7 @@
 
 ### Fixed
 
-- **Spammy "Cookie expired" toast** — the notification only fires now when an account's cookie *just* went from valid to invalid, instead of every revalidation cycle (~5 minute interval) for every dead-cookie account.
+- **Spammy "Cookie expired" toast** — the notification only fires now when an account's cookie _just_ went from valid to invalid, instead of every revalidation cycle (~5 minute interval) for every dead-cookie account.
 - **Wrong wording for terminated accounts** — moderated/terminated accounts no longer get the "Cookie expired. Re-add with a fresh cookie." toast or banner. The moderation banner already covers it, and the "re-add" advice is incorrect when Roblox revoked the cookie as part of an enforcement action.
 
 ## v1.4.2
