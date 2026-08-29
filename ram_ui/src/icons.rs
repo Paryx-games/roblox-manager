@@ -114,18 +114,33 @@ pub fn tab_button(ui: &mut egui::Ui, name: &str, label: &str, selected: bool) ->
     ui.add(button)
 }
 
+/// Add a compact icon-only navigation button for constrained toolbars.
+pub fn compact_tab_button(
+    ui: &mut egui::Ui,
+    name: &str,
+    label: &str,
+    selected: bool,
+) -> egui::Response {
+    let button = match texture(ui, name, 16.0) {
+        Some(texture) => egui::Button::image(egui::Image::from_texture((
+            texture.id(),
+            egui::vec2(16.0, 16.0),
+        )))
+        .image_tint_follows_text_color(true),
+        None => egui::Button::new(label.chars().next().unwrap_or('?').to_string()),
+    }
+    .selected(selected)
+    .min_size(egui::vec2(30.0, 24.0));
+    ui.add(button).on_hover_text(label)
+}
+
 /// Add a compact button with a cached Lucide icon and visible text.
 pub fn button(ui: &mut egui::Ui, name: &str, label: &str) -> egui::Response {
     enabled_button(ui, name, label, true)
 }
 
 /// Add an optionally disabled compact button with a cached Lucide icon.
-pub fn enabled_button(
-    ui: &mut egui::Ui,
-    name: &str,
-    label: &str,
-    enabled: bool,
-) -> egui::Response {
+pub fn enabled_button(ui: &mut egui::Ui, name: &str, label: &str, enabled: bool) -> egui::Response {
     let button = match texture(ui, name, 16.0) {
         Some(texture) => egui::Button::image_and_text(
             egui::Image::from_texture((texture.id(), egui::vec2(16.0, 16.0))),

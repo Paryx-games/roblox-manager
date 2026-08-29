@@ -2278,95 +2278,78 @@ impl eframe::App for AppState {
         egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
             ui.spacing_mut().button_padding = egui::vec2(6.0, 3.0);
             ui.spacing_mut().item_spacing = egui::vec2(6.0, 4.0);
+            let is_compact = ui.available_width() < 900.0;
             ui.set_min_height(30.0);
 
             ui.horizontal_wrapped(|ui| {
-                if icons::tab_button(ui, "accounts", "Accounts", self.active_tab == Tab::Accounts).clicked() {
-                    self.active_tab = Tab::Accounts;
-                }
-                if icons::tab_button(ui, "groups", "Groups", self.active_tab == Tab::Groups).clicked() {
-                    self.active_tab = Tab::Groups;
-                }
-                if icons::tab_button(ui, "lock", "Servers", self.active_tab == Tab::PrivateServers).clicked() {
-                    self.active_tab = Tab::PrivateServers;
-                }
-                if icons::tab_button(ui, "star", "Presets", self.active_tab == Tab::Presets).clicked() {
-                    self.active_tab = Tab::Presets;
-                }
-                if self.config.utility_enabled {
-                    if icons::tab_button(ui, "grid", "Utility", self.active_tab == Tab::Utility).clicked() {
-                        self.active_tab = Tab::Utility;
+                let mut select_tab = |name: &str, label: &str, tab: Tab| {
+                    let response = if is_compact {
+                        icons::compact_tab_button(ui, name, label, self.active_tab == tab)
+                    } else {
+                        icons::tab_button(ui, name, label, self.active_tab == tab)
+                    };
+                    if response.clicked() {
+                        self.active_tab = tab;
                     }
+                };
+                select_tab("accounts", "Accounts", Tab::Accounts);
+                select_tab("groups", "Groups", Tab::Groups);
+                select_tab("lock", "Servers", Tab::PrivateServers);
+                select_tab("star", "Presets", Tab::Presets);
+                if self.config.utility_enabled {
+                    select_tab("grid", "Utility", Tab::Utility);
                 }
                 if self.config.developer_options {
-                    if icons::tab_button(ui, "package", "Assets", self.active_tab == Tab::AssetManager).clicked() {
-                        self.active_tab = Tab::AssetManager;
-                    }
-                    if icons::tab_button(ui, "inventory", "Inventory", self.active_tab == Tab::Inventory).clicked() {
-                        self.active_tab = Tab::Inventory;
-                    }
+                    select_tab("package", "Assets", Tab::AssetManager);
+                    select_tab("inventory", "Inventory", Tab::Inventory);
                 }
-                if icons::tab_button(ui, "settings", "Settings", self.active_tab == Tab::Settings).clicked() {
-                    self.active_tab = Tab::Settings;
-                }
-                if icons::button(ui, "update", "What's new")
+                select_tab("settings", "Settings", Tab::Settings);
+                if icons::button(ui, "update", if is_compact { "" } else { "What's new" })
                     .on_hover_text("View the current release changelog")
                     .clicked()
                 {
                     self.show_changelog = true;
                 }
-                if icons::button(ui, "import", "Export CSV")
+                if icons::button(ui, "import", if is_compact { "" } else { "Export CSV" })
                     .on_hover_text("Export account metadata without cookies")
                     .clicked()
                 {
                     self.export_accounts_csv();
                 }
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if let Some((ref version, ref url)) = self.update_available {
-                        let text = if ui.available_width() < 520.0 {
-                            format!("Update v{version}")
-                        } else {
-                            format!("Update v{version} available")
-                        };
-                        if ui.link(text).on_hover_text("Click to open the GitHub release page").clicked() {
-                            ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
-                        }
-                        ui.separator();
-                    }
-                    if !self.store.accounts.is_empty()
-                        && icons::button(ui, "refresh", "Refresh")
-                            .on_hover_text(
-                                "Refresh all accounts: re-validate cookies, fetch moderation status, presence, and avatars",
-                            )
-                            .clicked()
-                    {
-                        self.toasts.push(Toast::info("Refreshing all accounts..."));
-                        self.trigger_revalidation();
-                        self.trigger_refresh();
-                    }
-                    if self.roblox_running {
-                        let count = self.roblox_instance_count;
-                        ui.colored_label(
-                            ui.theme().info,
-                            if count == 1 {
-                                "1 Roblox".to_string()
-                            } else {
-                                format!("{count} Roblox")
-                            },
+                if !self.store.accounts.is_empty()
+                    && icons::button(ui, "refresh", if is_compact { "" } else { "Refresh" })
+                        .on_hover_text(
+                            "Refresh all accounts: re-validate cookies, fetch moderation status, presence, and avatars",
                         )
-                        .on_hover_text(self.instance_attribution_summary());
-                        ui.separator();
+                        .clicked()
+                {
+                    self.toasts.push(Toast::info("Refreshing all accounts..."));
+                    self.trigger_revalidation();
+                    self.trigger_refresh();
+                }
+
+                ui.separator();
+                if let Some((ref version, ref url)) = self.update_available {
+                    let text = if is_compact {
+                        format!("v{version}")
+                    } else {
+                        format!("Update v{version} available")
+                    };
+                    if ui.link(text).on_hover_text("Click to open the GitHub release page").clicked() {
+                        ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl::new_tab(url)));
                     }
-                    if self.selected_ids.len() > 1 {
-                        ui.colored_label(
-                            ui.theme().accent_text,
-                            format!("{} selected", self.selected_ids.len()),
-                        );
-                        ui.separator();
-                    }
-                    ui.label(format!("{} acct{}", self.store.accounts.len(), if self.store.accounts.len() == 1 { "" } else { "s" }));
-                });
+                }
+                if self.roblox_running {
+                    let count = self.roblox_instance_count;
+                    ui.colored_label(
+                        ui.theme().info,
+                        if count == 1 { "1 Roblox".to_string() } else { format!("{count} Roblox") },
+                    ).on_hover_text(self.instance_attribution_summary());
+                }
+                if self.selected_ids.len() > 1 {
+                    ui.colored_label(ui.theme().accent_text, format!("{} selected", self.selected_ids.len()));
+                }
+                ui.label(format!("{} acct{}", self.store.accounts.len(), if self.store.accounts.len() == 1 { "" } else { "s" }));
             });
         });
 
@@ -3204,7 +3187,8 @@ impl AppState {
                             }
                             main_panel::MainPanelAction::SearchConnectionUsers { keyword } => {
                                 self.connection_users.clear();
-                                self.bridge.send(BackendCommand::SearchConnectionUsers { keyword });
+                                self.bridge
+                                    .send(BackendCommand::SearchConnectionUsers { keyword });
                             }
                             main_panel::MainPanelAction::SendFriendRequest { target_user_id } => {
                                 if let Some(session) = self.session() {

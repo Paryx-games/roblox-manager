@@ -25,6 +25,7 @@
 ### Changed
 
 - **Lucide icons.** Swapped all icons in-app to Lucide icons.
+- **Responsive top bar.** The top bar stays on one row and switches secondary controls to compact icon buttons when the window is narrow.
 
 ## v1.14.1
 
