@@ -4,6 +4,7 @@
 #![cfg_attr(all(not(test), not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod icons;
 mod bridge;
 mod browser_login;
 mod components;
