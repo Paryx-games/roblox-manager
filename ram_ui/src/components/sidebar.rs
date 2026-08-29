@@ -1059,23 +1059,13 @@ fn render_account_row(
         ),
         egui::vec2(button_size, button_size),
     );
-    let pin_icon = "Pin";
     let pin_color = if account.is_pinned {
         theme.accent_text
     } else {
         theme.text_muted
     };
 
-    painter.text(
-        pin_button_rect.center(),
-        egui::Align2::CENTER_CENTER,
-        pin_icon,
-        egui::FontId::proportional(14.0),
-        pin_color,
-    );
-
-    // Detect clicks on the pin button
-    let pin_response = ui.allocate_rect(pin_button_rect, egui::Sense::click());
+    let pin_response = icons::show_at(ui, "pin", pin_button_rect, pin_color);
     if pin_response.clicked() {
         actions.push(SidebarAction::TogglePinAccount(account.user_id));
     }

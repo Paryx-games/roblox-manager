@@ -115,6 +115,25 @@ pub fn show(ui: &mut egui::Ui, name: &str, size: f32) -> bool {
     true
 }
 
+/// Draw an icon in a caller-owned rectangle and return its click response.
+pub fn show_at(
+    ui: &mut egui::Ui,
+    name: &str,
+    rect: egui::Rect,
+    tint: egui::Color32,
+) -> egui::Response {
+    let response = ui.allocate_rect(rect, egui::Sense::click());
+    if let Some(texture) = texture(ui, name, rect.width().min(rect.height())) {
+        ui.painter().image(
+            texture.id(),
+            rect,
+            egui::Rect::from_min_max(egui::Pos2::ZERO, egui::Pos2::new(1.0, 1.0)),
+            tint,
+        );
+    }
+    response
+}
+
 /// Add a selectable navigation button with a theme-tinted Lucide SVG icon.
 /// The icon is part of the button's hit target and inherits its padding.
 pub fn tab_button(ui: &mut egui::Ui, name: &str, label: &str, selected: bool) -> egui::Response {

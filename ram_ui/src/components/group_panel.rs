@@ -104,7 +104,7 @@ pub fn show(
             if ui.button("Open browsers").clicked() {
                 action = Some(GroupPanelAction::OpenBrowsers);
             }
-            if ui.button("Copy IDs").clicked() {
+            if icons::button(ui, "copy", "Copy IDs").clicked() {
                 action = Some(GroupPanelAction::CopyIds);
             }
             if ui
