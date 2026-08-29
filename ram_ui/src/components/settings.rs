@@ -1,7 +1,7 @@
 //! Settings panel — global config, encryption toggles, multi-instance control.
 
 use eframe::egui;
-use ram_core::models::AppConfig;
+use ram_core::models::{AppConfig, LogLevel};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -726,6 +726,40 @@ pub fn show(
             action = Some(SettingsAction::CleanOrphanedData);
         }
         if config.developer_options {
+            ui.add_space(8.0);
+            ui.strong("Logging");
+            setting_row(ui, "log_level", |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Log level:");
+                    egui::ComboBox::from_id_salt("developer_log_level")
+                        .selected_text(config.log_level.label())
+                        .show_ui(ui, |ui| {
+                            for level in [
+                                LogLevel::Error,
+                                LogLevel::Warn,
+                                LogLevel::Info,
+                                LogLevel::Debug,
+                                LogLevel::Trace,
+                            ] {
+                                let enabled = level.allowed_in_profile();
+                                ui.add_enabled_ui(enabled, |ui| {
+                                    ui.selectable_value(&mut config.log_level, level, level.label())
+                                });
+                            }
+                        });
+                });
+            });
+            if cfg!(debug_assertions) {
+                ui.colored_label(
+                    theme.text_muted,
+                    "Debug build: trace and debug are the only allowed log levels. Error, warn, and info stay available for reference but are disabled here.",
+                );
+            } else {
+                ui.colored_label(
+                    theme.warning,
+                    "Warning: release builds can log everything from error to trace. Only change this if you know what you're doing.",
+                );
+            }
             ui.colored_label(
                 theme.warning,
                 "Warning: Uploads are permanent and public. Every asset is moderated under the account that uploaded it.",

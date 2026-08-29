@@ -194,6 +194,10 @@ impl AccountStore {
 /// Global application configuration persisted to `config.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppConfig {
+    /// Logging verbosity for the trace subscriber. Debug builds are limited to
+    /// `debug`/`trace`; release builds allow the full range.
+    #[serde(default = "default_log_level")]
+    pub log_level: LogLevel,
     /// Open RM on the accounts workspace after startup.
     #[serde(default = "default_true")]
     pub start_on_accounts: bool,
@@ -330,6 +334,66 @@ pub struct AppConfig {
 }
 
 /// Filesystem cleanup selections used for a privacy-protected launch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl Default for LogLevel {
+    fn default() -> Self {
+        if cfg!(debug_assertions) {
+            Self::Debug
+        } else {
+            Self::Info
+        }
+    }
+}
+
+impl LogLevel {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Error => "Error",
+            Self::Warn => "Warn",
+            Self::Info => "Info",
+            Self::Debug => "Debug",
+            Self::Trace => "Trace",
+        }
+    }
+
+    pub fn filter_string(self) -> &'static str {
+        match self {
+            Self::Error => "error",
+            Self::Warn => "warn",
+            Self::Info => "info",
+            Self::Debug => "debug",
+            Self::Trace => "trace",
+        }
+    }
+
+    pub fn allowed_in_profile(self) -> bool {
+        if cfg!(debug_assertions) {
+            matches!(self, Self::Debug | Self::Trace)
+        } else {
+            matches!(self, Self::Error | Self::Warn | Self::Info | Self::Debug | Self::Trace)
+        }
+    }
+
+    pub fn clamp_for_profile(self) -> Self {
+        if self.allowed_in_profile() {
+            self
+        } else if cfg!(debug_assertions) {
+            Self::Debug
+        } else {
+            self
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PrivacyCleanupOptions {
     pub cookies: bool,
@@ -442,6 +506,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_log_level() -> LogLevel {
+    LogLevel::default()
+}
+
 fn default_mac_oui() -> String {
     "00:1B:21".to_string()
 }
@@ -456,6 +524,7 @@ impl Default for AppConfig {
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|_| std::path::PathBuf::from("."));
         Self {
+            log_level: LogLevel::default(),
             accounts_path: data_dir.join("RM").join("accounts.dat"),
             start_on_accounts: true,
             compact_actions: true,
@@ -530,7 +599,8 @@ impl AppConfig {
     pub fn load(path: &std::path::Path) -> Self {
         match std::fs::read_to_string(path) {
             Ok(s) => match serde_json::from_str::<Self>(&s) {
-                Ok(cfg) => {
+                Ok(mut cfg) => {
+                    cfg.log_level = cfg.log_level.clamp_for_profile();
                     tracing::debug!(path = %path.display(), "loaded application configuration");
                     cfg
                 }

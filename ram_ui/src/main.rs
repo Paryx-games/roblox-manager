@@ -179,6 +179,18 @@ pub fn data_dir() -> PathBuf {
     base.join("RM")
 }
 
+fn startup_log_level(data_dir: &std::path::Path) -> ram_core::models::LogLevel {
+    let legacy = PathBuf::from("config.json");
+    let config_path = if legacy.is_file() && !data_dir.join("config.json").is_file() {
+        legacy
+    } else {
+        data_dir.join("config.json")
+    };
+    let mut config = ram_core::AppConfig::load(&config_path);
+    config.log_level = config.log_level.clamp_for_profile();
+    config.log_level
+}
+
 /// One-time migration: turn each entry of `config.favorite_places` into a
 /// standalone preset file under `presets/`, then clear the list in config.
 /// Runs silently and is a no-op when there's nothing to migrate.
@@ -261,7 +273,8 @@ fn main() {
     let data_dir = data_dir();
     let _ = std::fs::create_dir_all(&data_dir);
 
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new(startup_log_level(&data_dir).filter_string()));
     let subscriber = tracing_subscriber::fmt().with_env_filter(filter);
 
     // Debug builds keep a console attached so `cargo run` shows the same

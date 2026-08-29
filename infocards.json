@@ -63,6 +63,10 @@
         "type": "warning",
         "text": "Adds the Assets tab to the Utility area. Asset uploads create permanent public Roblox assets and are moderated under the account that uploads them."
     },
+    "log_level": {
+        "type": "warning",
+        "text": "Sets the app's tracing verbosity for the current build. Only change this if you know what you're doing: debug and trace can generate a lot of log noise and slow down troubleshooting work."
+    },
     "roblox_player_path": {
         "type": "info",
         "text": "Optional path to RobloxPlayerBeta.exe, or to its containing folder. RM launches this executable directly; when empty, it searches installed versions under %LOCALAPPDATA%\\Roblox\\Versions."
