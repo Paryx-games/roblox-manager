@@ -168,11 +168,11 @@ jobs:
           }
 
           # blank line after </summary> is required for markdown inside <details> to render
-          $changelogBox = @"
+          $githubNotesBox = @"
           <details>
-          <summary>Changelog</summary>
+          <summary>GitHub-generated notes</summary>
 
-          $changelog
+          $githubNotes
 
           </details>
           "@
@@ -204,7 +204,7 @@ jobs:
           "@
           }
 
-          $parts = @($changelogBox.Trim(), $githubNotes, $sha256, $warning.Trim(), $prereleaseWarning.Trim()) |
+          $parts = @($changelog, $githubNotesBox.Trim(), $sha256, $warning.Trim(), $prereleaseWarning.Trim()) |
             Where-Object { $_ }
 
           $finalNotes = $parts -join "`n`n"
