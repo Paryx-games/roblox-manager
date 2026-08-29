@@ -18,6 +18,10 @@
 - **Windows emoji rendering.** Replaced unsupported emoji UI icons with font-safe text and symbols so controls no longer show missing glyph boxes.
 - **SVG icon support.** Added deterministic Lucide-compatible SVG rasterization for Windows-safe UI icons.
 
+### Changed
+
+- **Lucide icons.** Swapped all icons in-app to Lucide icons.
+
 ## v1.14.1
 
 ### Changed
