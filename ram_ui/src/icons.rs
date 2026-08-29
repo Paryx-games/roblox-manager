@@ -40,12 +40,10 @@ fn svg_bytes(name: &str) -> Option<&'static [u8]> {
     }
 }
 
-/// Add one cached SVG icon to a UI. Returns false when the named asset could
-/// not be found or rasterized, allowing the text label to remain usable.
-pub fn show(ui: &mut egui::Ui, name: &str, size: f32) -> bool {
+fn texture(ui: &mut egui::Ui, name: &str, size: f32) -> Option<egui::TextureHandle> {
     let Some(svg) = svg_bytes(name) else {
         tracing::debug!(icon = name, "could not find UI SVG icon asset");
-        return false;
+        return None;
     };
     let texture = ui.ctx().data(|data| {
         data.get_temp::<IconCache>(icon_cache_id())
@@ -70,15 +68,23 @@ pub fn show(ui: &mut egui::Ui, name: &str, size: f32) -> bool {
         });
         Some(texture)
     });
-    let Some(texture) = texture else {
-        return false;
-    };
-    ui.add(
-        egui::Image::from_texture(&texture)
-            .fit_to_exact_size(egui::vec2(size, size))
-            .tint(ui.visuals().text_color()),
-    );
-    true
+    texture
+}
+
+/// Add a selectable navigation button with a theme-tinted Lucide SVG icon.
+/// The icon is part of the button's hit target and inherits its padding.
+pub fn tab_button(ui: &mut egui::Ui, name: &str, label: &str, selected: bool) -> egui::Response {
+    let button = match texture(ui, name, 16.0) {
+        Some(texture) => egui::Button::image_and_text(
+            egui::Image::from_texture((texture.id(), egui::vec2(16.0, 16.0))),
+            label,
+        )
+        .image_tint_follows_text_color(true),
+        None => egui::Button::new(label),
+    }
+    .selected(selected)
+    .min_size(egui::vec2(0.0, 24.0));
+    ui.add(button)
 }
 
 /// Rasterize an SVG asset into an egui color image.
@@ -88,8 +94,11 @@ pub fn rasterize_svg(svg_bytes: &[u8], size: u32) -> Result<egui::ColorImage, St
         return Err("icon size must be greater than zero".to_string());
     }
 
+    let svg = std::str::from_utf8(svg_bytes)
+        .map_err(|error| format!("SVG icon is not UTF-8: {error}"))?
+        .replace("currentColor", "#ffffff");
     let options = resvg::usvg::Options::default();
-    let tree = resvg::usvg::Tree::from_data(svg_bytes, &options)
+    let tree = resvg::usvg::Tree::from_data(svg.as_bytes(), &options)
         .map_err(|error| format!("could not parse SVG icon: {error}"))?;
     let target_size = resvg::usvg::Size::from_wh(size as f32, size as f32)
         .ok_or_else(|| "could not create icon size".to_string())?;

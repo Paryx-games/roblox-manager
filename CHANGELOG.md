@@ -18,6 +18,7 @@
 - **Single window arranging.** Multi window only tiles when 2+ roblox applications are present.
 - **Windows emoji rendering.** Replaced unsupported emoji UI icons with font-safe text and symbols so controls no longer show missing glyph boxes.
 - **SVG icon support.** Added deterministic Lucide-compatible SVG rasterization for Windows-safe UI icons.
+- **SVG icon layout.** Navigation icons now inherit button tinting and padding instead of rendering as oversized black images outside their controls.
 
 ### Changed
 
