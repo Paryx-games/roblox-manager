@@ -5,7 +5,7 @@
 //! emoji or SVG font installed.
 
 use eframe::egui;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 fn icon_cache_id() -> egui::Id {
     egui::Id::new("rm_svg_icon_cache")
@@ -14,6 +14,7 @@ fn icon_cache_id() -> egui::Id {
 #[derive(Clone, Default)]
 struct IconCache {
     textures: HashMap<String, egui::TextureHandle>,
+    warned_icons: HashSet<String>,
 }
 
 fn svg_bytes(name: &str) -> Option<&'static [u8]> {
@@ -56,7 +57,7 @@ fn svg_bytes(name: &str) -> Option<&'static [u8]> {
 
 fn texture(ui: &mut egui::Ui, name: &str, size: f32) -> Option<egui::TextureHandle> {
     let Some(svg) = svg_bytes(name) else {
-        tracing::debug!(icon = name, "could not find UI SVG icon asset");
+        warn_once(ui, name, "could not find UI SVG icon asset");
         return None;
     };
     let texture = ui.ctx().data(|data| {
@@ -67,7 +68,11 @@ fn texture(ui: &mut egui::Ui, name: &str, size: f32) -> Option<egui::TextureHand
         let image = match rasterize_svg(svg, size.ceil() as u32) {
             Ok(image) => image,
             Err(error) => {
-                tracing::debug!(icon = name, %error, "could not rasterize UI SVG icon");
+                warn_once(
+                    ui,
+                    name,
+                    &format!("could not rasterize UI SVG icon: {error}"),
+                );
                 return None;
             }
         };
@@ -80,9 +85,21 @@ fn texture(ui: &mut egui::Ui, name: &str, size: f32) -> Option<egui::TextureHand
             let cache = data.get_temp_mut_or_default::<IconCache>(icon_cache_id());
             cache.textures.insert(name.to_string(), texture.clone());
         });
+        tracing::info!(icon = name, size, "loaded UI SVG icon");
         Some(texture)
     });
     texture
+}
+
+fn warn_once(ui: &egui::Ui, name: &str, message: &str) {
+    let should_warn = ui.ctx().data_mut(|data| {
+        data.get_temp_mut_or_default::<IconCache>(icon_cache_id())
+            .warned_icons
+            .insert(name.to_string())
+    });
+    if should_warn {
+        tracing::warn!(icon = name, "{message}");
+    }
 }
 
 /// Add a standalone SVG icon, retaining the caller's surrounding layout.
