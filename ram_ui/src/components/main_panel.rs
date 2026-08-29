@@ -463,15 +463,13 @@ pub fn show(
                 ui.horizontal(|ui| {
                     ui.heading("Roblox inventory");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .button("Open inventory")
+                        if icons::button(ui, "inventory", "Open inventory")
                             .on_hover_text("Open the full inventory browser")
                             .clicked()
                         {
                             action = Some(MainPanelAction::OpenInventory(account.user_id));
                         }
-                        if ui
-                            .add_enabled(!inventory_loading, egui::Button::new("Refresh"))
+                        if icons::enabled_button(ui, "refresh", "Refresh", !inventory_loading)
                             .on_hover_text("Fetch hats, accessories, clothing, gear, and emotes owned by this account")
                             .clicked()
                         {

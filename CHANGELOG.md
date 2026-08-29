@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.15.1
+
+### Fixed
+
+- **Missing action icons.** Restored SVG icons for the Launch, browser, save-preset, kill, copy, refresh, and inventory controls.
+- **Icon troubleshooting.** Added startup logging for successful SVG loads and one-time warnings for missing or invalid assets.
+
 ## v1.15.0
 
 ### Added

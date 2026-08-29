@@ -1199,12 +1199,12 @@ fn render_account_row(
         // Game session info
         if let Some(ref gid) = account.last_presence.game_id {
             if account.last_presence.user_presence_type == 2 {
-                if ui.button("Copy Job ID").clicked() {
+                if icons::button(ui, "copy", "Copy Job ID").clicked() {
                     actions.push(SidebarAction::CopyJobId(gid.clone()));
                     ui.close_menu();
                 }
                 if let Some(pid) = account.last_presence.place_id {
-                    if ui.button("Copy Place ID").clicked() {
+                    if icons::button(ui, "copy", "Copy Place ID").clicked() {
                         actions.push(SidebarAction::CopyJobId(pid.to_string()));
                         ui.close_menu();
                     }

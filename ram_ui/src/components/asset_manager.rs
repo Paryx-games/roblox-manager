@@ -19,6 +19,8 @@ use ram_core::assets::{AssetIndex, AssetKind, AssetState, Creator};
 use ram_core::assets_api::{CreationItem, GroupTarget, UniverseTarget};
 use ram_core::models::Account;
 
+use crate::icons;
+
 use crate::theme::ThemeUi;
 
 /// Which of the tab's two views is showing.
@@ -467,7 +469,7 @@ fn asset_context_menu(
         ui.set_min_width(190.0);
 
         if let Some(asset_id) = target.asset_id {
-            if ui.button("Copy asset ID").clicked() {
+            if icons::button(ui, "copy", "Copy asset ID").clicked() {
                 ui.ctx().copy_text(asset_id.to_string());
                 ui.close_menu();
             }
@@ -480,7 +482,7 @@ fn asset_context_menu(
                 ui.close_menu();
             }
         }
-        if ui.button("Copy name").clicked() {
+        if icons::button(ui, "copy", "Copy name").clicked() {
             ui.ctx().copy_text(target.name.to_string());
             ui.close_menu();
         }
@@ -511,7 +513,7 @@ fn asset_context_menu(
 
         if let Some(path) = target.file_path {
             ui.separator();
-            if ui.button("Copy file path").clicked() {
+            if icons::button(ui, "copy", "Copy file path").clicked() {
                 ui.ctx().copy_text(path.to_string_lossy().into_owned());
                 ui.close_menu();
             }
