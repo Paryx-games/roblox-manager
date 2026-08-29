@@ -307,20 +307,17 @@ pub fn show(
                     let kill_extra = if roblox_running { icon_w + 6.0 } else { 0.0 };
                     let primary_w = ((avail - icon_w - kill_extra - 12.0) / 2.0).max(120.0);
 
-                    let launch_btn = ui.add_enabled(
-                        can_launch,
-                        egui::Button::new(
-                            egui::RichText::new("Launch")
-                                .size(15.0)
-                                .strong()
-                                .color(theme.on_accent),
-                        )
-                        .min_size(egui::vec2(primary_w, primary_h))
-                        .fill(if can_launch {
+                    let launch_btn = icons::sized_button_enabled(
+                        ui,
+                        "launch",
+                        "Launch",
+                        egui::vec2(primary_w, primary_h),
+                        if can_launch {
                             theme.accent
                         } else {
                             ui.visuals().widgets.inactive.bg_fill
-                        }),
+                        },
+                        can_launch,
                     )
                     .on_hover_text(if account.moderation.as_ref().is_some_and(|info| info.is_active()) {
                         "Launching is blocked while this account is restricted by Roblox."
@@ -350,16 +347,13 @@ pub fn show(
                         );
                     }
 
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new("Open browser as")
-                                    .size(15.0)
-                                    .color(ui.visuals().strong_text_color()),
-                            )
-                            .min_size(egui::vec2(primary_w, primary_h))
-                            .fill(theme.surface_raised),
-                        )
+                    if icons::sized_button(
+                        ui,
+                        "browser",
+                        "Open browser as",
+                        egui::vec2(primary_w, primary_h),
+                        theme.surface_raised,
+                    )
                         .on_hover_text("Open a webview signed in as this account")
                         .clicked()
                     {
@@ -367,14 +361,14 @@ pub fn show(
                     }
 
                     // Save-as-preset icon button
-                    let save_resp = ui
-                        .add_enabled(
-                            place_valid,
-                            egui::Button::new(
-                                    egui::RichText::new("Save preset").size(15.0),
-                            )
-                            .min_size(egui::vec2(icon_w, primary_h)),
-                        )
+                    let save_resp = icons::sized_button_enabled(
+                        ui,
+                        "star",
+                        "Save preset",
+                        egui::vec2(icon_w, primary_h),
+                        ui.visuals().widgets.inactive.bg_fill,
+                        place_valid,
+                    )
                         .on_hover_text("Save these inputs as a launch preset");
                     if save_resp.clicked() {
                         state.show_save_form = !state.show_save_form;
@@ -385,12 +379,12 @@ pub fn show(
                     }
 
                     if roblox_running
-                        && ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new("Kill").size(15.0),
-                                )
-                                .min_size(egui::vec2(icon_w, primary_h)),
+                        && icons::sized_button(
+                                ui,
+                                "kill",
+                                "Kill",
+                                egui::vec2(icon_w, primary_h),
+                                ui.visuals().widgets.inactive.bg_fill,
                             )
                             .on_hover_text("Kill all running Roblox instances")
                             .clicked()

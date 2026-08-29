@@ -169,6 +169,45 @@ pub fn enabled_button(ui: &mut egui::Ui, name: &str, label: &str, enabled: bool)
     ui.add_enabled(enabled, button)
 }
 
+/// Add an icon button with a fixed minimum size and background.
+pub fn sized_button(
+    ui: &mut egui::Ui,
+    name: &str,
+    label: &str,
+    min_size: egui::Vec2,
+    fill: egui::Color32,
+) -> egui::Response {
+    let button = match texture(ui, name, 16.0) {
+        Some(texture) => egui::Button::image_and_text(
+            egui::Image::from_texture((texture.id(), egui::vec2(16.0, 16.0))),
+            label,
+        )
+        .image_tint_follows_text_color(true),
+        None => egui::Button::new(label),
+    };
+    ui.add(button.min_size(min_size).fill(fill))
+}
+
+/// Add a sized icon button that can be disabled without losing its icon.
+pub fn sized_button_enabled(
+    ui: &mut egui::Ui,
+    name: &str,
+    label: &str,
+    min_size: egui::Vec2,
+    fill: egui::Color32,
+    is_enabled: bool,
+) -> egui::Response {
+    let button = match texture(ui, name, 16.0) {
+        Some(texture) => egui::Button::image_and_text(
+            egui::Image::from_texture((texture.id(), egui::vec2(16.0, 16.0))),
+            label,
+        )
+        .image_tint_follows_text_color(true),
+        None => egui::Button::new(label),
+    };
+    ui.add_enabled(is_enabled, button.min_size(min_size).fill(fill))
+}
+
 /// Rasterize an SVG asset into an egui color image.
 #[allow(dead_code)]
 pub fn rasterize_svg(svg_bytes: &[u8], size: u32) -> Result<egui::ColorImage, String> {

@@ -23,6 +23,7 @@
 - **SVG icon layout.** Navigation icons now inherit button tinting and padding instead of rendering as oversized black images outside their controls.
 - **Complete Lucide icon refactor.** Replaced remaining Unicode UI glyphs with font-safe labels and wired the available Lucide SVG assets into shared themed controls.
 - **Icon loading diagnostics.** Successful SVG loads are logged, while missing or invalid icons emit one-time warnings for easier troubleshooting.
+- **Launch control icons.** Wired the main Launch, browser, save-preset, and kill controls through the shared SVG icon renderer.
 
 ### Changed
 
