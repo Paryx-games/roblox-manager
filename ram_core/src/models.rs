@@ -528,10 +528,22 @@ impl AppConfig {
 
     /// Load from a JSON file, falling back to defaults.
     pub fn load(path: &std::path::Path) -> Self {
-        std::fs::read_to_string(path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+        match std::fs::read_to_string(path) {
+            Ok(s) => match serde_json::from_str::<Self>(&s) {
+                Ok(cfg) => {
+                    tracing::debug!(path = %path.display(), "loaded application configuration");
+                    cfg
+                }
+                Err(e) => {
+                    tracing::warn!(path = %path.display(), error = %e, "failed to parse config JSON; falling back to defaults");
+                    Self::default()
+                }
+            },
+            Err(e) => {
+                tracing::debug!(path = %path.display(), error = %e, "config file not readable; using defaults");
+                Self::default()
+            }
+        }
     }
 
     /// Persist to a JSON file via an atomic write (temp + fsync + rename) so a
@@ -539,6 +551,7 @@ impl AppConfig {
     pub fn save(&self, path: &std::path::Path) -> Result<(), crate::CoreError> {
         let json = serde_json::to_string_pretty(self)?;
         crate::storage::atomic_write(path, json.as_bytes())?;
+        tracing::debug!(path = %path.display(), "persisted application configuration");
         Ok(())
     }
 }

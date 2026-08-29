@@ -52,6 +52,12 @@ pub fn atomic_swap(path: &Path, bytes: &[u8]) -> Result<(), CoreError> {
     }
 
     let tmp = temp_path(path);
+    tracing::debug!(
+        path = %path.display(),
+        tmp = %tmp.display(),
+        bytes = bytes.len(),
+        "atomic_swap: writing temp file"
+    );
     {
         let mut f = std::fs::File::create(&tmp)?;
         f.write_all(bytes)?;
@@ -63,9 +69,16 @@ pub fn atomic_swap(path: &Path, bytes: &[u8]) -> Result<(), CoreError> {
 
     // Atomic swap. On failure leave the original untouched and clean up.
     if let Err(e) = std::fs::rename(&tmp, path) {
+        tracing::warn!(
+            path = %path.display(),
+            tmp = %tmp.display(),
+            error = %e,
+            "atomic_swap: rename failed, cleaning up temp file"
+        );
         let _ = std::fs::remove_file(&tmp);
         return Err(e.into());
     }
+    tracing::debug!(path = %path.display(), "atomic_swap: write committed");
     Ok(())
 }
 
@@ -76,7 +89,21 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), CoreError> {
     // Preserve the previous good copy before swapping. Best-effort: a missing or
     // locked backup must never block the primary save.
     if path.exists() {
-        let _ = std::fs::copy(path, backup_path(path));
+        let bak = backup_path(path);
+        if let Err(e) = std::fs::copy(path, &bak) {
+            tracing::warn!(
+                path = %path.display(),
+                backup = %bak.display(),
+                error = %e,
+                "atomic_write: failed to update backup copy"
+            );
+        } else {
+            tracing::debug!(
+                path = %path.display(),
+                backup = %bak.display(),
+                "atomic_write: created backup before write"
+            );
+        }
     }
     atomic_swap(path, bytes)
 }

@@ -97,11 +97,13 @@ pub fn clean_orphaned_browse_as_data(
             continue;
         };
         if !known_user_ids.contains(&user_id) {
+            tracing::info!(user_id, "Removing orphaned browse-as profile directory");
             std::fs::remove_dir_all(&path)
                 .map_err(|e| format!("remove orphaned profile {user_id}: {e}"))?;
             removed += 1;
         }
     }
+    tracing::debug!(removed, "Orphaned browse-as profiles cleanup complete");
     Ok(removed)
 }
 

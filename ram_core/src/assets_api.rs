@@ -73,6 +73,14 @@ pub async fn create_asset(
         message,
     })?;
 
+    tracing::info!(
+        kind = ?request.kind,
+        name = %request.display_name,
+        bytes = request.bytes.len(),
+        creator = ?request.creator,
+        "Uploading asset to Roblox"
+    );
+
     let metadata = assets::build_create_request_json(
         request.kind,
         &request.display_name,
@@ -111,13 +119,22 @@ pub async fn create_asset(
 
     let status = response.status();
     if !status.is_success() {
-        return Err(upload_error(status, response.text().await.ok()));
+        let err = upload_error(status, response.text().await.ok());
+        tracing::warn!(name = %request.display_name, error = %err, "Asset upload rejected by Roblox");
+        return Err(err);
     }
 
     let json: serde_json::Value = response.json().await?;
+    let op_id = operation_id(&json).map(str::to_string);
+    let outcome = assets::parse_operation_response(&json);
+    tracing::info!(
+        name = %request.display_name,
+        operation = ?op_id,
+        "Asset upload accepted"
+    );
     Ok(CreateResult {
-        operation: operation_id(&json).map(str::to_string),
-        outcome: assets::parse_operation_response(&json),
+        operation: op_id,
+        outcome,
     })
 }
 
@@ -132,6 +149,7 @@ pub async fn poll_operation(
     cookie: &str,
     operation: &str,
 ) -> Result<OperationOutcome, CoreError> {
+    tracing::debug!(operation, "Polling asset operation status");
     let url = format!("{ASSETS_BASE}/operations/{operation}");
     // Deliberately the raw `request`, not `get_json`: a 404 here is an expected
     // outcome (an aged-out operation), not an error to propagate.
@@ -139,6 +157,7 @@ pub async fn poll_operation(
     let status = response.status();
 
     if status == StatusCode::NOT_FOUND {
+        tracing::debug!(operation, "Asset operation not found (aged out)");
         return Ok(OperationOutcome::Failed {
             message: "Roblox no longer recognises this upload. It may still have been published."
                 .to_string(),
@@ -150,7 +169,9 @@ pub async fn poll_operation(
     }
 
     let json: serde_json::Value = response.json().await?;
-    Ok(assets::parse_operation_response(&json))
+    let outcome = assets::parse_operation_response(&json);
+    tracing::debug!(operation, outcome = ?outcome, "Asset operation polled");
+    Ok(outcome)
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +201,7 @@ pub async fn fetch_moderation_statuses(
     if asset_ids.is_empty() {
         return Ok(Vec::new());
     }
+    tracing::debug!(count = asset_ids.len(), "Fetching moderation statuses for asset batch");
     let mut out = Vec::with_capacity(asset_ids.len());
     for chunk in asset_ids.chunks(MAX_MODERATION_IDS) {
         let ids: Vec<String> = chunk.iter().map(u64::to_string).collect();
@@ -189,6 +211,7 @@ pub async fn fetch_moderation_statuses(
     }
     // Never report on something the caller did not ask about.
     out.retain(|(id, _)| asset_ids.contains(id));
+    tracing::debug!(resolved = out.len(), "Moderation statuses resolved");
     Ok(out)
 }
 
@@ -212,6 +235,7 @@ pub async fn grant_use_permission(
     universe_id: u64,
     asset_ids: &[u64],
 ) -> Result<assets::GrantOutcome, CoreError> {
+    tracing::info!(universe_id, count = asset_ids.len(), "Granting asset use permissions to universe");
     let url = format!("{PERMISSIONS_BASE}/assets/permissions");
     let mut outcome = assets::GrantOutcome::default();
 
@@ -222,7 +246,9 @@ pub async fn grant_use_permission(
             .await?;
         let status = response.status();
         if !status.is_success() {
-            return Err(upload_error(status, response.text().await.ok()));
+            let err = upload_error(status, response.text().await.ok());
+            tracing::warn!(universe_id, error = %err, "Asset permission grant request failed");
+            return Err(err);
         }
 
         let json: serde_json::Value = response.json().await?;
@@ -239,6 +265,12 @@ pub async fn grant_use_permission(
             outcome.failures.extend(chunk_outcome.failures);
         }
     }
+    tracing::info!(
+        universe_id,
+        granted = outcome.granted.len(),
+        failures = outcome.failures.len(),
+        "Asset permissions grant batch completed"
+    );
     Ok(outcome)
 }
 
@@ -259,14 +291,17 @@ pub async fn resolve_place_universe(
     cookie: &str,
     place_id: u64,
 ) -> Result<u64, CoreError> {
+    tracing::debug!(place_id, "Resolving universe ID for place");
     let url = format!("{UNIVERSES_BASE}/places/{place_id}/universe");
     let body: serde_json::Value = client.get_json(&url, cookie).await?;
-    body.get("universeId")
+    let universe_id = body.get("universeId")
         .and_then(|v| v.as_u64())
         .ok_or_else(|| CoreError::RobloxApi {
             status: 404,
             message: format!("Roblox did not return a universe for place {place_id}"),
-        })
+        })?;
+    tracing::debug!(place_id, universe_id, "Resolved place universe");
+    Ok(universe_id)
 }
 
 /// Universes the account can manage.
@@ -280,9 +315,12 @@ pub async fn list_manageable_universes(
     client: &RobloxClient,
     cookie: &str,
 ) -> Result<Vec<UniverseTarget>, CoreError> {
+    tracing::debug!("Listing manageable universes for account");
     let url = format!("{DEVELOP_BASE}/user/universes?limit=50&sortOrder=Asc");
     let body: serde_json::Value = client.get_json(&url, cookie).await?;
-    Ok(parse_universe_list(&body))
+    let targets = parse_universe_list(&body);
+    tracing::debug!(count = targets.len(), "Manageable universes listed");
+    Ok(targets)
 }
 
 fn parse_universe_list(body: &serde_json::Value) -> Vec<UniverseTarget> {
@@ -403,6 +441,7 @@ pub async fn list_user_inventory(
     user_id: u64,
     asset_type: &str,
 ) -> Result<Vec<UserInventoryItem>, CoreError> {
+    tracing::debug!(user_id, asset_type, "Listing user inventory");
     let mut items = Vec::new();
     let mut cursor = None;
     loop {
@@ -426,6 +465,7 @@ pub async fn list_user_inventory(
             break;
         }
     }
+    tracing::debug!(user_id, asset_type, count = items.len(), "Finished listing user inventory");
     Ok(items)
 }
 
@@ -560,6 +600,7 @@ pub async fn list_creations(
     kind: AssetKind,
     cursor: Option<&str>,
 ) -> Result<CreationPage, CoreError> {
+    tracing::debug!(?creator, ?kind, has_cursor = cursor.is_some(), "Listing creator creations");
     assets::reject_unuploadable(kind).map_err(|message| CoreError::RobloxApi {
         status: 400,
         message,
@@ -586,6 +627,7 @@ pub async fn list_creations(
         }
         Err(e) => tracing::info!("creation timestamps unavailable: {e}"),
     }
+    tracing::debug!(?creator, count = page.items.len(), has_next = page.next_cursor.is_some(), "Fetched creations page");
     Ok(page)
 }
 
@@ -700,9 +742,12 @@ pub async fn list_publishable_groups(
     client: &RobloxClient,
     cookie: &str,
 ) -> Result<Vec<GroupTarget>, CoreError> {
+    tracing::debug!("Listing publishable groups for account");
     let url = format!("{DEVELOP_BASE}/user/groups/canmanage");
     let body: serde_json::Value = client.get_json(&url, cookie).await?;
-    Ok(parse_group_list(&body))
+    let groups = parse_group_list(&body);
+    tracing::debug!(count = groups.len(), "Publishable groups listed");
+    Ok(groups)
 }
 
 fn parse_group_list(body: &serde_json::Value) -> Vec<GroupTarget> {
@@ -758,6 +803,7 @@ pub async fn fetch_asset_thumbnails(
     if asset_ids.is_empty() {
         return Ok(Vec::new());
     }
+    tracing::debug!(count = asset_ids.len(), "Fetching asset thumbnails");
     let ids: Vec<String> = asset_ids.iter().map(u64::to_string).collect();
     let url = format!(
         "https://thumbnails.roblox.com/v1/assets?assetIds={}&returnPolicy=PlaceHolder&size={THUMBNAIL_SIZE}&format=Png&isCircular=false",
@@ -772,6 +818,7 @@ pub async fn fetch_asset_thumbnails(
             Err(e) => tracing::warn!("thumbnail download failed for {asset_id}: {e}"),
         }
     }
+    tracing::debug!(downloaded = out.len(), requested = asset_ids.len(), "Asset thumbnails download complete");
     Ok(out)
 }
 

@@ -973,11 +973,13 @@ async fn handle_command(
             })
         }
         BackendCommand::RemoveAccount { user_id } => {
+            info!(user_id, "Removing account");
             // Best-effort delete from credential manager
             let _ = crypto::credential_delete(user_id);
             Ok(BackendEvent::AccountRemoved { user_id })
         }
         BackendCommand::KillTray => {
+            info!("Executing kill tray Roblox processes command");
             tokio::task::spawn_blocking(process::kill_tray_roblox)
                 .await
                 .map_err(|error| {
@@ -986,6 +988,7 @@ async fn handle_command(
             Ok(BackendEvent::TrayKilled)
         }
         BackendCommand::EnableMultiInstance => {
+            info!("Enabling multi-instance mode");
             let result = tokio::task::spawn_blocking(|| {
                 process::kill_tray_roblox();
                 std::thread::sleep(std::time::Duration::from_millis(500));
@@ -1008,6 +1011,7 @@ async fn handle_command(
             preserve_oui,
             alternate_oui,
         } => {
+            info!(preserve_oui, ?alternate_oui, "Rotating MAC address");
             tokio::task::spawn_blocking(move || {
                 process::rotate_mac_address(preserve_oui, &alternate_oui)
             })
@@ -1016,6 +1020,7 @@ async fn handle_command(
             Ok(BackendEvent::MacAddressRotated)
         }
         BackendCommand::SetStartupWithWindows(enabled) => {
+            info!(enabled, "Updating startup with Windows configuration");
             tokio::task::spawn_blocking(move || crate::startup::set_enabled(enabled))
                 .await
                 .map_err(|error| CoreError::Process(format!("startup task failed: {error}")))?
@@ -1023,10 +1028,12 @@ async fn handle_command(
             Ok(BackendEvent::StartupUpdated(enabled))
         }
         BackendCommand::OpenDataFolder { path } => {
+            info!(path = %path.display(), "Opening data folder in file explorer");
             open_path(path).await?;
             Ok(BackendEvent::StoreSaved)
         }
         BackendCommand::OpenPath { path } => {
+            info!(path = %path.display(), "Opening path in system viewer");
             open_path(path).await?;
             Ok(BackendEvent::StoreSaved)
         }
@@ -1034,6 +1041,7 @@ async fn handle_command(
             data_dir,
             known_user_ids,
         } => {
+            info!(data_dir = %data_dir.display(), "Cleaning orphaned browse-as data");
             let count = tokio::task::spawn_blocking(move || {
                 crate::browser_login::clean_orphaned_browse_as_data(&data_dir, &known_user_ids)
                     .map_err(CoreError::Process)
@@ -1044,8 +1052,12 @@ async fn handle_command(
             })??;
             Ok(BackendEvent::OrphanedDataCleaned(count))
         }
-        BackendCommand::ClearCaches => Ok(BackendEvent::CachesCleared),
+        BackendCommand::ClearCaches => {
+            info!("Clearing app caches");
+            Ok(BackendEvent::CachesCleared)
+        }
         BackendCommand::FocusInstance { pid } => {
+            debug!(pid, "Bringing Roblox instance to front");
             let focused = tokio::task::spawn_blocking(move || process::focus_instance(pid))
                 .await
                 .map_err(|error| CoreError::Process(format!("focus task failed: {error}")))?;
@@ -1058,6 +1070,7 @@ async fn handle_command(
             }
         }
         BackendCommand::KillInstance { pid, launchtime } => {
+            info!(pid, launchtime, "Killing verified Roblox instance");
             tokio::task::spawn_blocking(move || process::kill_verified_instance(pid, launchtime))
                 .await
                 .map_err(|error| CoreError::Process(format!("kill task failed: {error}")))??;
@@ -1067,6 +1080,7 @@ async fn handle_command(
             original_titles,
             privacy,
         } => {
+            info!("Executing shutdown cleanup");
             tokio::task::spawn_blocking(move || {
                 if !original_titles.is_empty() {
                     process::restore_instance_titles(&original_titles);
@@ -1086,6 +1100,7 @@ async fn handle_command(
             Ok(BackendEvent::StoreSaved)
         }
         BackendCommand::ApplyInstanceTitles(titles) => {
+            debug!(count = titles.len(), "Applying custom instance window titles");
             let previous =
                 tokio::task::spawn_blocking(move || process::apply_instance_titles(&titles))
                     .await
@@ -1109,6 +1124,7 @@ async fn handle_command(
             kill_background,
             privacy,
         } => {
+            info!(user_id, place_id, ?job_id, multi_instance, "Launching game for account");
             let cookie = if use_credential_manager {
                 crypto::credential_load(user_id)?
             } else {
@@ -1186,6 +1202,7 @@ async fn handle_command(
             path,
             session,
         } => {
+            debug!(path = %path.display(), accounts = store.accounts.len(), "Saving store to disk");
             tokio::task::spawn_blocking(move || crypto::save_store(&path, &store, &session))
                 .await
                 .map_err(|error| {
@@ -1194,22 +1211,30 @@ async fn handle_command(
             Ok(BackendEvent::StoreSaved)
         }
         BackendCommand::UnlockWithDevice { path } => {
+            info!(path = %path.display(), "Unlocking store with device credentials");
             match tokio::task::spawn_blocking(move || crypto::unlock_with_device(&path))
                 .await
                 .map_err(|error| CoreError::Process(format!("store unlock task failed: {error}")))?
             {
-                Ok((store, session)) => Ok(BackendEvent::StoreUnlocked {
-                    store: Box::new(store),
-                    session: Box::new(session),
-                    legacy: false,
-                }),
+                Ok((store, session)) => {
+                    info!(accounts = store.accounts.len(), "Store unlocked with device credentials successfully");
+                    Ok(BackendEvent::StoreUnlocked {
+                        store: Box::new(store),
+                        session: Box::new(session),
+                        legacy: false,
+                    })
+                }
                 // Surfaced as its own event: a missing device key is not something
                 // the user can retype their way out of.
-                Err(CoreError::DeviceKeyMissing) => Ok(BackendEvent::DeviceKeyMissing),
+                Err(CoreError::DeviceKeyMissing) => {
+                    warn!("Device key missing from OS credential store");
+                    Ok(BackendEvent::DeviceKeyMissing)
+                }
                 Err(e) => Err(e),
             }
         }
         BackendCommand::UnlockWithPassword { path, password } => {
+            info!(path = %path.display(), "Unlocking store with password");
             let (store, session) =
                 tokio::task::spawn_blocking(move || crypto::unlock_with_password(&path, &password))
                     .await
@@ -1217,6 +1242,7 @@ async fn handle_command(
                         CoreError::Process(format!("store unlock task failed: {error}"))
                     })??;
             let legacy = session.is_legacy();
+            info!(accounts = store.accounts.len(), legacy, "Store unlocked with password successfully");
             Ok(BackendEvent::StoreUnlocked {
                 store: Box::new(store),
                 session: Box::new(session),
@@ -1230,6 +1256,7 @@ async fn handle_command(
             new_password,
             upgrade_legacy,
         } => {
+            info!(path = %path.display(), upgrade_legacy, has_new_pw = new_password.is_some(), "Rekeying account store");
             let (store, session) = tokio::task::spawn_blocking(move || {
                 let (store, session) = if upgrade_legacy {
                     // Rotates onto a fresh data key and re-encrypts every cookie.
@@ -1245,15 +1272,18 @@ async fn handle_command(
             })
             .await
             .map_err(|error| CoreError::Process(format!("store re-key task failed: {error}")))??;
+            info!("Store rekeyed successfully");
             Ok(BackendEvent::StoreRekeyed {
                 store: Box::new(store),
                 session: Box::new(session),
             })
         }
         BackendCommand::KillAll => {
+            info!("Terminating all Roblox instances");
             let count = tokio::task::spawn_blocking(process::kill_all_roblox)
                 .await
                 .map_err(|error| CoreError::Process(format!("kill task failed: {error}")))??;
+            info!(count, "Finished terminating Roblox instances");
             Ok(BackendEvent::Killed(count))
         }
         BackendCommand::SendFriendRequest {
@@ -1263,6 +1293,7 @@ async fn handle_command(
             session,
             use_credential_manager,
         } => {
+            info!(user_id, target_user_id, "Sending friend request");
             let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             api::send_friend_request(client, &cookie, target_user_id).await?;
             Ok(BackendEvent::ConnectionActionCompleted {
@@ -1277,6 +1308,7 @@ async fn handle_command(
             session,
             use_credential_manager,
         } => {
+            info!(user_id, target_user_id, "Blocking user");
             let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             api::block_user(client, &cookie, target_user_id).await?;
             Ok(BackendEvent::ConnectionActionCompleted {
@@ -1284,9 +1316,10 @@ async fn handle_command(
                 target_user_id,
             })
         }
-        BackendCommand::SearchConnectionUsers { keyword } => Ok(
-            BackendEvent::ConnectionUsersFound(api::search_users(client, &keyword).await?),
-        ),
+        BackendCommand::SearchConnectionUsers { keyword } => {
+            debug!(keyword, "Searching connection users");
+            Ok(BackendEvent::ConnectionUsersFound(api::search_users(client, &keyword).await?))
+        }
         BackendCommand::RefreshAll {
             user_ids,
             avatar_user_ids,
@@ -1295,6 +1328,7 @@ async fn handle_command(
             session,
             use_credential_manager,
         } => {
+            debug!(count = user_ids.len(), "Refreshing avatars and presence");
             let cookie = if use_credential_manager {
                 crypto::credential_load(first_user_id)?
             } else {
@@ -1328,6 +1362,7 @@ async fn handle_command(
             session,
             use_credential_manager,
         } => {
+            debug!(count = user_ids.len(), "Refreshing presence only");
             let cookie = if use_credential_manager {
                 crypto::credential_load(first_user_id)?
             } else {
@@ -1353,6 +1388,7 @@ async fn handle_command(
             player_path,
             launch_delay_secs,
         } => {
+            info!(count = accounts.len(), place_id, ?job_id, multi_instance, "Executing bulk game launch");
             if multi_instance {
                 tokio::task::spawn_blocking(process::enable_multi_instance)
                     .await
@@ -1546,6 +1582,7 @@ async fn handle_command(
                     }
                 }
             }
+            info!(launched, failed, "Bulk launch sequence complete");
             Ok(BackendEvent::BulkLaunchComplete { launched, failed })
         }
         BackendCommand::RevalidateAll {
@@ -1553,6 +1590,7 @@ async fn handle_command(
             session,
             use_credential_manager,
         } => {
+            info!(count = accounts.len(), "Revalidating all accounts");
             for (user_id, encrypted_cookie) in &accounts {
                 let cookie_result = if use_credential_manager {
                     crypto::credential_load(*user_id)
@@ -1629,18 +1667,23 @@ async fn handle_command(
             // The UI persists the complete batch once, rather than issuing a
             // store write for every account result.
             let _ = tx.send(BackendEvent::RevalidationComplete);
+            info!("Account revalidation complete");
             Ok(BackendEvent::StoreSaved)
         }
-        BackendCommand::SweepInstances => tokio::task::spawn_blocking({
-            let registry = Arc::clone(registry);
-            move || Ok::<_, CoreError>(sweep_instances(&registry))
-        })
-        .await
-        .map_err(|error| CoreError::Process(format!("instance sweep task failed: {error}")))?,
+        BackendCommand::SweepInstances => {
+            debug!("Executing instance sweep");
+            tokio::task::spawn_blocking({
+                let registry = Arc::clone(registry);
+                move || Ok::<_, CoreError>(sweep_instances(&registry))
+            })
+            .await
+            .map_err(|error| CoreError::Process(format!("instance sweep task failed: {error}")))?
+        }
         BackendCommand::ArrangeWindows {
             options,
             delay_secs,
         } => {
+            info!(delay_secs, "Arranging Roblox client windows");
             if delay_secs > 0 {
                 tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
             }
@@ -1652,8 +1695,12 @@ async fn handle_command(
             Ok(BackendEvent::WindowsArranged)
         }
         BackendCommand::CheckForUpdates { current_version } => {
+            debug!(current_version, "Checking for updates");
             match api::check_for_updates(&current_version).await {
-                Ok(Some((version, url))) => Ok(BackendEvent::UpdateAvailable { version, url }),
+                Ok(Some((version, url))) => {
+                    info!(version, url, "Update found");
+                    Ok(BackendEvent::UpdateAvailable { version, url })
+                }
                 Ok(None) => Ok(BackendEvent::StoreSaved), // no-op event
                 Err(e) => {
                     info!("Update check failed (non-fatal): {e}");
@@ -1666,6 +1713,7 @@ async fn handle_command(
             universe_id,
             index,
         } => {
+            debug!(place_id, ?universe_id, "Resolving place details");
             // Both the game name and icon endpoints work without auth when we
             // have a universe_id. If we don't, we can't resolve without auth.
             if let Some(uid) = universe_id {
@@ -1710,6 +1758,7 @@ async fn handle_command(
             label,
             destination_url,
         } => {
+            info!(user_id, label, ?destination_url, "Spawning browse-as webview window");
             let cookie = if use_credential_manager {
                 crypto::credential_load(user_id)?
             } else {
@@ -1730,6 +1779,7 @@ async fn handle_command(
             session,
             use_credential_manager,
         } => {
+            info!(share_code, "Resolving share link code");
             let cookie = if use_credential_manager {
                 crypto::credential_load(first_user_id)?
             } else {
@@ -1740,6 +1790,7 @@ async fn handle_command(
             };
             match api::resolve_share_link(client, &cookie, &share_code).await {
                 Ok((place_id, universe_id, link_code, access_code)) => {
+                    info!(place_id, "Resolved share link successfully");
                     Ok(BackendEvent::ShareLinkResolved {
                         server_name,
                         place_id,
@@ -1754,7 +1805,10 @@ async fn handle_command(
                 }
             }
         }
-        BackendCommand::UploadAsset(job) => Ok(upload_asset(*job, client, tx).await),
+        BackendCommand::UploadAsset(job) => {
+            info!(row_id = %job.row_id, name = %job.display_name, "Uploading asset to Roblox");
+            Ok(upload_asset(*job, client, tx).await)
+        }
         BackendCommand::PollAssetOperations {
             user_id,
             encrypted_cookie,
@@ -1762,6 +1816,7 @@ async fn handle_command(
             use_credential_manager,
             operations,
         } => {
+            debug!(user_id, count = operations.len(), "Polling asset operations");
             let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             poll_asset_operations(client, &cookie, &operations, tx).await;
             Ok(BackendEvent::AssetPollBatchDone)
@@ -1773,6 +1828,7 @@ async fn handle_command(
             use_credential_manager,
             assets,
         } => {
+            debug!(user_id, count = assets.len(), "Polling asset moderation statuses");
             let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             poll_asset_moderation(client, &cookie, &assets, tx).await;
             Ok(BackendEvent::AssetPollBatchDone)
@@ -1786,6 +1842,7 @@ async fn handle_command(
             asset_ids,
             row_assets,
         } => {
+            info!(user_id, universe_id, count = asset_ids.len(), "Granting asset permissions to universe");
             let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             match assets_api::grant_use_permission(client, &cookie, universe_id, &asset_ids).await {
                 Ok(outcome) => {
@@ -1803,6 +1860,7 @@ async fn handle_command(
                         .filter(|(_, asset_id)| outcome.granted.contains(asset_id))
                         .map(|(row_id, _)| row_id)
                         .collect();
+                    info!(granted = outcome.granted.len(), refused = outcome.failures.len(), "Asset permissions granted result");
                     Ok(BackendEvent::AssetPermissionsGranted {
                         universe_id,
                         row_ids: granted_rows,
@@ -1812,10 +1870,13 @@ async fn handle_command(
                 }
                 // Reported against the grant, not as a generic error: a wrong
                 // request shape here must not read as an upload failure.
-                Err(e) => Ok(BackendEvent::AssetPermissionsFailed {
-                    universe_id,
-                    message: e.to_string(),
-                }),
+                Err(e) => {
+                    warn!("Grant asset permissions failed: {e}");
+                    Ok(BackendEvent::AssetPermissionsFailed {
+                        universe_id,
+                        message: e.to_string(),
+                    })
+                }
             }
         }
         BackendCommand::FetchUniverseTargets {
@@ -1825,6 +1886,7 @@ async fn handle_command(
             use_credential_manager,
             place_id,
         } => {
+            debug!(user_id, ?place_id, "Fetching universe targets");
             let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             // The listing is provisional, so a failure must not take the place
             // resolution down with it. Both legs degrade independently.
@@ -1854,6 +1916,7 @@ async fn handle_command(
             session,
             use_credential_manager,
         } => {
+            debug!(user_id, "Fetching publishable groups");
             let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             let groups = match assets_api::list_publishable_groups(client, &cookie).await {
                 Ok(groups) => groups,
@@ -1865,6 +1928,7 @@ async fn handle_command(
             Ok(BackendEvent::PublishGroupsFetched { user_id, groups })
         }
         BackendCommand::FetchGroup { group_id, user_ids } => {
+            debug!(group_id, count = user_ids.len(), "Fetching group details");
             let group = group_api::fetch_group(client, group_id).await?;
             let icon_bytes = group_api::fetch_group_icon(client, group_id)
                 .await
@@ -1890,6 +1954,7 @@ async fn handle_command(
             })
         }
         BackendCommand::SearchGroups { keyword } => {
+            debug!(keyword, "Searching Roblox groups");
             let groups = group_api::search_groups(client, &keyword).await?;
             Ok(BackendEvent::GroupsSearched(groups))
         }
@@ -1900,6 +1965,7 @@ async fn handle_command(
             session,
             use_credential_manager,
         } => {
+            info!(group_id, join, count = accounts.len(), "Changing group membership for accounts");
             for (user_id, encrypted_cookie) in accounts {
                 let result = match decrypt_for(
                     user_id,

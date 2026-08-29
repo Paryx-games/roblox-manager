@@ -33,6 +33,7 @@ pub async fn search_users(
     client: &RobloxClient,
     keyword: &str,
 ) -> Result<Vec<UserSearchResult>, CoreError> {
+    tracing::debug!(keyword, "Searching Roblox users");
     let keyword = keyword
         .bytes()
         .flat_map(|byte| match byte {
@@ -42,7 +43,7 @@ pub async fn search_users(
         .collect::<String>();
     let url = format!("https://users.roblox.com/v1/users/search?keyword={keyword}&limit=10");
     let response: UserSearchResponse = client.get_json(&url, "").await?;
-    Ok(response
+    let results: Vec<_> = response
         .data
         .into_iter()
         .map(|user| UserSearchResult {
@@ -50,7 +51,9 @@ pub async fn search_users(
             username: user.name,
             display_name: user.display_name,
         })
-        .collect())
+        .collect();
+    tracing::debug!(count = results.len(), "Roblox user search completed");
+    Ok(results)
 }
 
 /// Send a friend request to another user from the authenticated account.
@@ -59,6 +62,7 @@ pub async fn send_friend_request(
     cookie: &str,
     target_user_id: u64,
 ) -> Result<(), CoreError> {
+    tracing::info!(target_user_id, "Sending friend request");
     perform_connection_action(
         client,
         cookie,
@@ -74,6 +78,7 @@ pub async fn block_user(
     cookie: &str,
     target_user_id: u64,
 ) -> Result<(), CoreError> {
+    tracing::info!(target_user_id, "Blocking user");
     perform_connection_action(
         client,
         cookie,
@@ -137,6 +142,7 @@ pub async fn fetch_avatars(
     if user_ids.is_empty() {
         return Ok(vec![]);
     }
+    tracing::debug!(count = user_ids.len(), "Fetching avatar thumbnails for user batch");
     let ids: Vec<String> = user_ids.iter().map(|id| id.to_string()).collect();
     let ids_param = ids.join(",");
     let url = format!(
@@ -145,7 +151,9 @@ pub async fn fetch_avatars(
     );
 
     let resp: ThumbnailResponse = client.get_json(&url, "").await?;
-    Ok(pair_thumbnails(user_ids, resp.data))
+    let paired = pair_thumbnails(user_ids, resp.data);
+    tracing::debug!(resolved = paired.len(), "Resolved avatar thumbnail URLs");
+    Ok(paired)
 }
 
 /// Pair thumbnail entries back to the IDs that asked for them.
@@ -202,6 +210,7 @@ pub async fn download_avatar_images(
             Err(e) => tracing::warn!("Avatar download task failed: {e}"),
         }
     }
+    tracing::debug!(downloaded = results.len(), requested = avatars.len(), "Avatar images download complete");
     results
 }
 
@@ -233,6 +242,7 @@ pub async fn fetch_presences(
     if user_ids.is_empty() {
         return Ok(vec![]);
     }
+    tracing::debug!(count = user_ids.len(), "Fetching presences for user batch");
     let body = serde_json::json!({ "userIds": user_ids });
     let resp: PresenceResponse = client
         .post_json(
@@ -242,7 +252,7 @@ pub async fn fetch_presences(
         )
         .await?;
 
-    Ok(user_ids
+    let presences: Vec<_> = user_ids
         .iter()
         .zip(resp.user_presences.iter())
         .map(|(id, p)| {
@@ -256,7 +266,9 @@ pub async fn fetch_presences(
                 },
             )
         })
-        .collect())
+        .collect();
+    tracing::debug!(count = presences.len(), "Fetched presences successfully");
+    Ok(presences)
 }
 
 // ---------------------------------------------------------------------------
@@ -279,16 +291,19 @@ pub async fn resolve_universe_name(
     client: &RobloxClient,
     universe_id: u64,
 ) -> Result<String, CoreError> {
+    tracing::debug!(universe_id, "Resolving universe name");
     let url = format!("https://games.roblox.com/v1/games?universeIds={universe_id}");
     let resp: UniverseResponse = client.get_json(&url, "").await?;
-    resp.data
+    let name = resp.data
         .into_iter()
         .next()
         .map(|d| d.name)
         .ok_or_else(|| CoreError::RobloxApi {
             status: 404,
             message: format!("universe {universe_id} not found"),
-        })
+        })?;
+    tracing::debug!(universe_id, name = %name, "Resolved universe name");
+    Ok(name)
 }
 
 /// Fetch game icon thumbnail URLs for a batch of universe IDs.
@@ -301,6 +316,7 @@ pub async fn fetch_game_icons(
     if universe_ids.is_empty() {
         return Ok(vec![]);
     }
+    tracing::debug!(count = universe_ids.len(), "Fetching game icons for universe batch");
     let ids: Vec<String> = universe_ids.iter().map(|id| id.to_string()).collect();
     let ids_param = ids.join(",");
     let url = format!(
@@ -309,7 +325,9 @@ pub async fn fetch_game_icons(
     );
 
     let resp: ThumbnailResponse = client.get_json(&url, "").await?;
-    Ok(pair_thumbnails(universe_ids, resp.data))
+    let paired = pair_thumbnails(universe_ids, resp.data);
+    tracing::debug!(resolved = paired.len(), "Resolved game icons");
+    Ok(paired)
 }
 
 // ---------------------------------------------------------------------------
@@ -340,12 +358,14 @@ pub async fn fetch_servers(
     place_id: u64,
     cursor: Option<&str>,
 ) -> Result<(Vec<GameServer>, Option<String>), CoreError> {
+    tracing::debug!(place_id, has_cursor = cursor.is_some(), "Fetching servers for place");
     let mut url =
         format!("https://games.roblox.com/v1/games/{place_id}/servers/0?sortOrder=Asc&limit=25");
     if let Some(c) = cursor {
         url.push_str(&format!("&cursor={c}"));
     }
     let resp: ServerListResponse = client.get_json(&url, cookie).await?;
+    tracing::debug!(place_id, count = resp.data.len(), has_next = resp.next_page_cursor.is_some(), "Fetched servers for place");
     Ok((resp.data, resp.next_page_cursor))
 }
 
@@ -500,8 +520,10 @@ pub async fn fetch_public_ban_status(
     client: &RobloxClient,
     user_id: u64,
 ) -> Result<bool, CoreError> {
+    tracing::debug!(user_id, "Checking public ban status");
     let url = format!("https://users.roblox.com/v1/users/{user_id}");
     let resp: PublicUserResponse = client.get_json(&url, "").await?;
+    tracing::debug!(user_id, is_banned = resp.is_banned, "Public ban status received");
     Ok(resp.is_banned)
 }
 
@@ -510,8 +532,10 @@ pub async fn fetch_public_created_at(
     client: &RobloxClient,
     user_id: u64,
 ) -> Result<Option<DateTime<Utc>>, CoreError> {
+    tracing::debug!(user_id, "Fetching public account creation date");
     let url = format!("https://users.roblox.com/v1/users/{user_id}");
     let resp: PublicUserResponse = client.get_json(&url, "").await?;
+    tracing::debug!(user_id, has_created = resp.created.is_some(), "Public creation date received");
     Ok(resp.created)
 }
 
@@ -536,6 +560,7 @@ pub async fn lookup_username(
     client: &RobloxClient,
     username: &str,
 ) -> Result<Option<(u64, String, String)>, CoreError> {
+    tracing::debug!(username, "Looking up user by username");
     let body = serde_json::json!({
         "usernames": [username],
         "excludeBannedUsers": false,
@@ -547,11 +572,13 @@ pub async fn lookup_username(
             Some(&body),
         )
         .await?;
-    Ok(resp
+    let found = resp
         .data
         .into_iter()
         .next()
-        .map(|e| (e.id, e.name, e.display_name)))
+        .map(|e| (e.id, e.name, e.display_name));
+    tracing::debug!(username, found = found.is_some(), "User lookup completed");
+    Ok(found)
 }
 
 /// v1 payload from `usermoderation.roblox.com/v1/not-approved`. Carries the
@@ -595,6 +622,7 @@ pub async fn fetch_moderation_message(
     client: &RobloxClient,
     cookie: &str,
 ) -> Option<(String, Option<chrono::DateTime<chrono::Utc>>)> {
+    tracing::debug!("Probing usermoderation endpoints for enforcement message");
     let v1: Option<NotApprovedV1> = client
         .get_json("https://usermoderation.roblox.com/v1/not-approved", cookie)
         .await
@@ -644,6 +672,7 @@ pub async fn fetch_moderation_message(
                 }
             })
         });
+    tracing::info!(has_expires = expires_at.is_some(), "Scraped active moderation message from Roblox");
     Some((reason, expires_at))
 }
 
@@ -654,6 +683,7 @@ pub async fn fetch_moderation_status(
     user_id: u64,
     cookie: &str,
 ) -> Result<Option<ModerationInfo>, CoreError> {
+    tracing::debug!(user_id, "Fetching moderation status for user");
     let is_banned = fetch_public_ban_status(client, user_id)
         .await
         .unwrap_or(false);
@@ -667,6 +697,8 @@ pub async fn fetch_moderation_status(
         Some((r, e)) => (Some(r), e),
         None => (None, None),
     };
+
+    tracing::info!(user_id, is_banned, has_reason = reason.is_some(), "Detected moderation enforcement for user");
 
     Ok(Some(ModerationInfo {
         is_banned,

@@ -291,8 +291,14 @@ pub fn device_key_or_create() -> Result<StoreKey, CoreError> {
 /// store it protected is being destroyed too.
 pub fn delete_device_key() -> Result<(), CoreError> {
     match device_key_entry()?.delete_credential() {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
+        Ok(()) => {
+            tracing::info!("Deleted device key from the OS credential store");
+            Ok(())
+        }
+        Err(keyring::Error::NoEntry) => {
+            tracing::debug!("Device key was already absent from the OS credential store");
+            Ok(())
+        }
         Err(e) => Err(CoreError::Keyring(e.to_string())),
     }
 }
@@ -462,6 +468,7 @@ pub fn create_device_session() -> Result<StoreSession, CoreError> {
     let wrapping = device_key_or_create()?;
     let data_key = StoreKey::random();
     let header = build_header(MODE_DEVICE, None, &wrapping, &data_key)?;
+    tracing::debug!("Created new device store session");
     Ok(StoreSession {
         key: data_key,
         header,
@@ -475,6 +482,7 @@ pub fn create_password_session(password: &str) -> Result<StoreSession, CoreError
     let wrapping = derive_wrapping_key(password, &salt)?;
     let data_key = StoreKey::random();
     let header = build_header(MODE_PASSWORD, Some(&salt), &wrapping, &data_key)?;
+    tracing::debug!("Created new password store session");
     Ok(StoreSession {
         key: data_key,
         header,
@@ -498,6 +506,7 @@ pub fn rewrap(session: &StoreSession, password: Option<&str>) -> Result<StoreSes
             build_header(MODE_DEVICE, None, &wrapping, &session.key)?
         }
     };
+    tracing::info!("Rewrapped store session under new key material");
     Ok(StoreSession {
         key: session.key.clone(),
         header,
@@ -508,7 +517,9 @@ pub fn rewrap(session: &StoreSession, password: Option<&str>) -> Result<StoreSes
 pub fn unlock_with_device(path: &Path) -> Result<(AccountStore, StoreSession), CoreError> {
     let data = std::fs::read(path)?;
     let wrapping = device_key()?.ok_or(CoreError::DeviceKeyMissing)?;
-    with_backup_recovery(path, &data, |bytes| open_device(bytes, &wrapping))
+    let res = with_backup_recovery(path, &data, |bytes| open_device(bytes, &wrapping))?;
+    tracing::info!(path = %path.display(), accounts = res.0.accounts.len(), "Unlocked device-mode account store");
+    Ok(res)
 }
 
 /// Open a password-mode store, transparently handling both the envelope format
@@ -518,7 +529,9 @@ pub fn unlock_with_password(
     password: &str,
 ) -> Result<(AccountStore, StoreSession), CoreError> {
     let data = std::fs::read(path)?;
-    with_backup_recovery(path, &data, |bytes| open_password(bytes, password))
+    let res = with_backup_recovery(path, &data, |bytes| open_password(bytes, password))?;
+    tracing::info!(path = %path.display(), accounts = res.0.accounts.len(), "Unlocked password-mode account store");
+    Ok(res)
 }
 
 /// Try `open` on the primary bytes, then on the sibling backup, and self-heal
@@ -665,6 +678,7 @@ pub fn upgrade_v1(
     legacy: &StoreSession,
     password: Option<&str>,
 ) -> Result<(AccountStore, StoreSession), CoreError> {
+    tracing::info!(accounts = store.accounts.len(), "Upgrading legacy v1 store to envelope format");
     let session = match password {
         Some(pw) => create_password_session(pw)?,
         None => create_device_session()?,
@@ -700,6 +714,7 @@ pub fn save_store(
     }
     let bytes = encrypt_body(&session.header, store, &session.key)?;
     crate::storage::atomic_write(path, &bytes)?;
+    tracing::debug!(path = %path.display(), accounts = store.accounts.len(), "Saved encrypted account store");
     Ok(())
 }
 
@@ -723,6 +738,7 @@ pub fn save_rekeyed(
     let backup = crate::storage::backup_path(path);
     let bytes = encrypt_body(&session.header, store, &session.key)?;
     crate::storage::atomic_swap(&backup, &bytes)?;
+    tracing::info!(path = %path.display(), "Saved rekeyed account store and refreshed backup");
     Ok(())
 }
 
@@ -737,6 +753,7 @@ pub fn credential_store(user_id: u64, cookie: &str) -> Result<(), CoreError> {
     entry
         .set_password(cookie)
         .map_err(|e| CoreError::Keyring(e.to_string()))?;
+    tracing::debug!(user_id, "Stored cookie in OS credential store");
     Ok(())
 }
 
@@ -744,9 +761,11 @@ pub fn credential_store(user_id: u64, cookie: &str) -> Result<(), CoreError> {
 pub fn credential_load(user_id: u64) -> Result<String, CoreError> {
     let entry = keyring::Entry::new(SERVICE_NAME, &user_id.to_string())
         .map_err(|e| CoreError::Keyring(e.to_string()))?;
-    entry
+    let cookie = entry
         .get_password()
-        .map_err(|e| CoreError::Keyring(e.to_string()))
+        .map_err(|e| CoreError::Keyring(e.to_string()))?;
+    tracing::debug!(user_id, "Retrieved cookie from OS credential store");
+    Ok(cookie)
 }
 
 /// Delete a cookie from the OS credential store. Absent entries are not an
@@ -755,8 +774,14 @@ pub fn credential_delete(user_id: u64) -> Result<(), CoreError> {
     let entry = keyring::Entry::new(SERVICE_NAME, &user_id.to_string())
         .map_err(|e| CoreError::Keyring(e.to_string()))?;
     match entry.delete_credential() {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
+        Ok(()) => {
+            tracing::debug!(user_id, "Deleted cookie from OS credential store");
+            Ok(())
+        }
+        Err(keyring::Error::NoEntry) => {
+            tracing::debug!(user_id, "Cookie was already absent from OS credential store");
+            Ok(())
+        }
         Err(e) => Err(CoreError::Keyring(e.to_string())),
     }
 }

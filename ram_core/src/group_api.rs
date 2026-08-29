@@ -82,10 +82,11 @@ pub struct GroupMembership {
 }
 
 pub async fn fetch_group(client: &RobloxClient, group_id: u64) -> Result<GroupInfo, CoreError> {
+    tracing::debug!(group_id, "Fetching Roblox group details");
     let url = format!("https://groups.roblox.com/v1/groups/{group_id}");
     let value = get_value(client, &url).await?;
     let owner = value.get("owner").and_then(parse_owner);
-    Ok(GroupInfo {
+    let info = GroupInfo {
         id: value_u64(&value, "id").unwrap_or(group_id),
         name: value_string(&value, "name").unwrap_or_else(|| format!("Group {group_id}")),
         description: value_string(&value, "description").unwrap_or_default(),
@@ -100,13 +101,16 @@ pub async fn fetch_group(client: &RobloxClient, group_id: u64) -> Result<GroupIn
         created: parse_date(value.get("created")),
         shout: value.get("shout").and_then(parse_shout),
         owner,
-    })
+    };
+    tracing::debug!(group_id, name = %info.name, members = info.member_count, "Fetched group info");
+    Ok(info)
 }
 
 pub async fn search_groups(
     client: &RobloxClient,
     keyword: &str,
 ) -> Result<Vec<GroupSearchResult>, CoreError> {
+    tracing::debug!(keyword, "Searching Roblox groups");
     let mut url =
         reqwest::Url::parse("https://groups.roblox.com/v1/groups/search").map_err(|error| {
             CoreError::RobloxApi {
@@ -118,7 +122,7 @@ pub async fn search_groups(
         .append_pair("keyword", keyword.trim())
         .append_pair("limit", "10");
     let value = get_value(client, url.as_str()).await?;
-    Ok(value
+    let results: Vec<GroupSearchResult> = value
         .get("data")
         .and_then(Value::as_array)
         .map(|items| {
@@ -135,13 +139,16 @@ pub async fn search_groups(
                 })
                 .collect()
         })
-        .unwrap_or_default())
+        .unwrap_or_default();
+    tracing::debug!(keyword, count = results.len(), "Group search completed");
+    Ok(results)
 }
 
 pub async fn fetch_group_icon(
     client: &RobloxClient,
     group_id: u64,
 ) -> Result<Option<Vec<u8>>, CoreError> {
+    tracing::debug!(group_id, "Fetching group icon bytes");
     let url = format!(
         "https://thumbnails.roblox.com/v1/groups/icons?groupIds={group_id}&size=150x150&format=Png&isCircular=false"
     );
@@ -159,22 +166,27 @@ pub async fn fetch_group_icon(
     else {
         return Ok(None);
     };
-    Ok(Some(client.get_bytes(&url, "").await?))
+    let bytes = client.get_bytes(&url, "").await?;
+    tracing::debug!(group_id, bytes = bytes.len(), "Downloaded group icon");
+    Ok(Some(bytes))
 }
 
 pub async fn fetch_group_announcements(
     client: &RobloxClient,
     group_id: u64,
 ) -> Result<Vec<GroupAnnouncement>, CoreError> {
+    tracing::debug!(group_id, "Fetching group announcements / wall posts");
     let url = format!(
         "https://groups.roblox.com/v2/groups/{group_id}/wall/posts?sortOrder=Desc&limit=10"
     );
     let value = get_value(client, &url).await?;
-    Ok(value
+    let posts: Vec<GroupAnnouncement> = value
         .get("data")
         .and_then(Value::as_array)
         .map(|items| items.iter().filter_map(parse_announcement).collect())
-        .unwrap_or_default())
+        .unwrap_or_default();
+    tracing::debug!(group_id, count = posts.len(), "Fetched group wall posts");
+    Ok(posts)
 }
 
 pub async fn fetch_membership(
@@ -182,6 +194,7 @@ pub async fn fetch_membership(
     group_id: u64,
     user_id: u64,
 ) -> Result<GroupMembership, CoreError> {
+    tracing::debug!(group_id, user_id, "Fetching group membership role for user");
     let url = format!("https://groups.roblox.com/v2/users/{user_id}/groups/roles");
     let value = get_value(client, &url).await?;
     let role = value
@@ -194,12 +207,14 @@ pub async fn fetch_membership(
             })
         })
         .flatten();
-    Ok(GroupMembership {
+    let membership = GroupMembership {
         user_id,
         joined: role.is_some(),
         role_name: role.and_then(|value| value_string(value, "name")),
         role_rank: role.and_then(|value| value_u64(value, "rank")).unwrap_or(0) as u16,
-    })
+    };
+    tracing::debug!(group_id, user_id, joined = membership.joined, "Fetched group membership");
+    Ok(membership)
 }
 
 pub async fn change_membership(
@@ -209,6 +224,7 @@ pub async fn change_membership(
     user_id: u64,
     join: bool,
 ) -> Result<(), CoreError> {
+    tracing::info!(group_id, user_id, join, "Requesting group membership change");
     let method = if join { Method::POST } else { Method::DELETE };
     let url = if join {
         format!("https://groups.roblox.com/v1/groups/{group_id}/users")
@@ -218,10 +234,12 @@ pub async fn change_membership(
     let body = serde_json::json!({});
     let response = client.request(method, &url, cookie, Some(&body)).await?;
     if response.status().is_success() {
+        tracing::info!(group_id, user_id, join, "Group membership change succeeded");
         Ok(())
     } else {
         let status = response.status();
         let message = response.text().await.unwrap_or_default();
+        tracing::warn!(group_id, user_id, join, status = status.as_u16(), message = %message, "Group membership change rejected");
         Err(CoreError::RobloxApi {
             status: status.as_u16(),
             message,

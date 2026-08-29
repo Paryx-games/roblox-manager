@@ -72,6 +72,7 @@ fn unique_path(dir: &Path, name: &str) -> PathBuf {
 pub fn load_all(data_dir: &Path) -> Result<LoadedPresets, CoreError> {
     let dir = presets_dir(data_dir);
     if !dir.exists() {
+        tracing::debug!(dir = %dir.display(), "presets directory does not exist; returning empty list");
         return Ok((Vec::new(), Vec::new()));
     }
     let mut presets = Vec::new();
@@ -86,12 +87,19 @@ pub fn load_all(data_dir: &Path) -> Result<LoadedPresets, CoreError> {
             .map_err(CoreError::Io)
             .and_then(|s| serde_json::from_str::<LaunchPreset>(&s).map_err(CoreError::Json))
         {
-            Ok(p) => presets.push((path, p)),
-            Err(_) => skipped.push(path),
+            Ok(p) => {
+                tracing::debug!(path = %path.display(), name = %p.name, place_id = p.place_id, "loaded preset");
+                presets.push((path, p));
+            }
+            Err(e) => {
+                tracing::warn!(path = %path.display(), error = %e, "skipped corrupt or unreadable preset file");
+                skipped.push(path);
+            }
         }
     }
     // Sort by preset name (case-insensitive) so the UI order is stable.
     presets.sort_by_key(|(_, p)| p.name.to_lowercase());
+    tracing::info!(loaded = presets.len(), skipped = skipped.len(), "finished loading presets");
     Ok((presets, skipped))
 }
 
@@ -112,14 +120,29 @@ pub fn save(
     };
     let json = serde_json::to_string_pretty(preset)?;
     crate::storage::atomic_write(&target, json.as_bytes())?;
+    tracing::info!(
+        name = %preset.name,
+        place_id = preset.place_id,
+        path = %target.display(),
+        "saved preset"
+    );
     Ok(target)
 }
 
 /// Delete a preset file. No-op if the file is already gone.
 pub fn delete(path: &Path) -> Result<(), CoreError> {
     match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(CoreError::Io(e)),
+        Ok(()) => {
+            tracing::info!(path = %path.display(), "deleted preset file");
+            Ok(())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            tracing::debug!(path = %path.display(), "preset file was already deleted");
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!(path = %path.display(), error = %e, "failed to delete preset file");
+            Err(CoreError::Io(e))
+        }
     }
 }

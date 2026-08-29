@@ -1065,6 +1065,7 @@ impl AppState {
                     self.config.multi_instance_enabled = true;
                 }
                 BackendEvent::MultiInstanceEnableFailed(message) => {
+                    tracing::warn!(%message, "Multi-instance enable failed");
                     self.config.multi_instance_enabled = false;
                     self.toasts
                         .push(Toast::error(format!("Multi-instance failed: {message}")));
@@ -1200,6 +1201,7 @@ impl AppState {
                             } else {
                                 acc.label().to_string()
                             };
+                            tracing::warn!(user_id, "Account moderated: {label}");
                             self.toasts.push(Toast::error(format!(
                                 "{label} has been moderated. See the account panel for details."
                             )));
@@ -1218,6 +1220,7 @@ impl AppState {
                                 } else {
                                     acc.label().to_string()
                                 };
+                                tracing::warn!(user_id, "Cookie expired for account: {label}");
                                 self.toasts.push(Toast::error(format!(
                                     "Cookie expired for {label}. Re-add with a fresh cookie."
                                 )));
@@ -1229,6 +1232,7 @@ impl AppState {
                     self.auto_save();
                 }
                 BackendEvent::Error(msg) => {
+                    tracing::error!(%msg, "Backend error received");
                     // A failed unlock or re-key must clear its in-flight flag,
                     // or the unlock screen sits on a spinner with no way back.
                     self.unlocking = false;
@@ -1302,6 +1306,7 @@ impl AppState {
                         .push(Toast::success("Share link resolved, private server added"));
                 }
                 BackendEvent::ShareLinkFailed(msg) => {
+                    tracing::warn!(%msg, "Share link resolution failed");
                     self.toasts
                         .push(Toast::error(format!("Failed to resolve share link: {msg}")));
                 }
@@ -1338,6 +1343,7 @@ impl AppState {
                     cookie,
                     moderation_message,
                 } => {
+                    tracing::warn!("Account authentication failed during add dialog");
                     if self.add_dialog.bulk_running {
                         // Rejected cookie in a batch — count it and move on.
                         // The user can re-run individual paths for failures.
