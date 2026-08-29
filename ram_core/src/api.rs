@@ -1,8 +1,8 @@
 //! Roblox REST API wrappers — avatar thumbnails, presence, place resolution.
 
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
 use reqwest::Method;
+use serde::Deserialize;
 
 use crate::auth::RobloxClient;
 use crate::error::CoreError;
@@ -52,7 +52,11 @@ async fn perform_connection_action(
         let message = response.text().await.unwrap_or_default();
         Err(CoreError::RobloxApi {
             status: status.as_u16(),
-            message: if message.is_empty() { status.to_string() } else { message },
+            message: if message.is_empty() {
+                status.to_string()
+            } else {
+                message
+            },
         })
     }
 }
