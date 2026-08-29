@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- **Build and lint compatibility.** Covered connection-user searches in bridge classification and resolved current Clippy warnings.
 - **Single window arranging.** Multi window only tiles when 2+ roblox applications are present.
 - **Windows emoji rendering.** Replaced unsupported emoji UI icons with font-safe text and symbols so controls no longer show missing glyph boxes.
 - **SVG icon support.** Added deterministic Lucide-compatible SVG rasterization for Windows-safe UI icons.
