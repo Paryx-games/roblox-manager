@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.15.2
+
+### Fixed
+
+- **Pinned account icon sizing.** Made the tilted pin icon slightly larger and thicker for better visibility.
+
 ## v1.15.1
 
 ### Fixed
