@@ -180,12 +180,50 @@ jobs:
 
           Set-Content -Path sha256.md -Value ($lines -join "`n")
 
+      # builds the download table from whatever exes are actually in release/, so
+      # adding a new arch job later just adds a row here for free, no edits needed
+      - name: build download table
+        shell: pwsh
+        run: |
+          $archDescriptions = @{
+            "windows-x64"   = "For a normal Intel or AMD Windows PC"
+            "windows-arm64" = "For a Windows PC with an ARM processor"
+            "windows-x86"   = "For a 32-bit Windows PC"
+          }
+
+          $files = Get-ChildItem -Path release -Filter "*.exe" | Sort-Object Name
+
+          $rows = foreach ($file in $files) {
+            if ($file.Name -match "^roblox-manager-v[\d.]+(?:-[\w.]+)?-(?<platform>[a-z]+-[a-z0-9]+)\.exe$") {
+              $platform = $Matches.platform
+              $description = $archDescriptions[$platform]
+              if (-not $description) {
+                $description = "Platform: $platform"
+              }
+              "| $($file.Name) | $description |"
+            }
+          }
+
+          $lines = @(
+            "<details>"
+            "<summary>Which download do I want?</summary>"
+            ""
+            "| File | Use case |"
+            "| --- | --- |"
+          ) + $rows + @(
+            ""
+            "</details>"
+          )
+
+          Set-Content -Path downloads-table.md -Value ($lines -join "`n")
+
       - name: assemble release notes
         shell: pwsh
         run: |
           $currentTag = "${{ github.ref_name }}"
 
           $changelog = (Get-Content -Path release-notes.md -Raw).Trim()
+          $downloadsTable = (Get-Content -Path downloads-table.md -Raw).Trim()
           $githubNotes = (Get-Content -Path github-release-notes.md -Raw).Trim()
           $sha256 = (Get-Content -Path sha256.md -Raw).Trim()
 
@@ -234,7 +272,7 @@ jobs:
           "@
           }
 
-          $parts = @($changelog, $githubNotesBox.Trim(), $sha256, $warning.Trim(), $prereleaseWarning.Trim()) |
+          $parts = @($changelog, $downloadsTable, $githubNotesBox.Trim(), $sha256, $warning.Trim(), $prereleaseWarning.Trim()) |
             Where-Object { $_ }
 
           $finalNotes = $parts -join "`n`n"
