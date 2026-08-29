@@ -278,8 +278,19 @@ jobs:
 
           Set-Content -Path final-release-notes.md -Value $finalNotes
 
+      - name: determine release type
+        id: release-type
+        shell: pwsh
+        run: |
+          $currentTag = "${{ github.ref_name }}"
+          $isPrerelease = $currentTag -match "-(alpha|beta|rc)"
+
+          "prerelease=$($isPrerelease.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
       - name: create release
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.rename-exe.outputs.path }}
           body_path: final-release-notes.md
+          prerelease: ${{ steps.release-type.outputs.prerelease }}
+          make_latest: "true"
