@@ -7,6 +7,7 @@
 - **Missing action icons.** Restored SVG icons for the Launch, browser, save-preset, kill, copy, refresh, and inventory controls.
 - **Icon troubleshooting.** Added startup logging for successful SVG loads and one-time warnings for missing or invalid assets.
 - **Sidebar and group icons.** Restored the visible pin and copy icons, including account-row pins and bulk account ID copying.
+- **Pinned account icon styling.** Made the pin slightly larger and thicker while preserving its padding and tilt.
 
 ## v1.15.0
 
