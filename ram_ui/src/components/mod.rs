@@ -122,7 +122,7 @@ fn chips_ui(
             let truncated = preset.name.chars().count() > CHIP_NAME_MAX_CHARS;
             let chip_text = if truncated {
                 let head: String = preset.name.chars().take(CHIP_NAME_MAX_CHARS).collect();
-                format!("{head}\u{2026}")
+                format!("{head}...")
             } else {
                 preset.name.clone()
             };

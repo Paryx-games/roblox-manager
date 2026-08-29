@@ -2294,11 +2294,9 @@ impl eframe::App for AppState {
                     self.active_tab = Tab::Presets;
                 }
                 if self.config.utility_enabled {
-                    ui.selectable_value(
-                        &mut self.active_tab,
-                        Tab::Utility,
-                        "▦ Utility",
-                    );
+                    if icons::tab_button(ui, "grid", "Utility", self.active_tab == Tab::Utility).clicked() {
+                        self.active_tab = Tab::Utility;
+                    }
                 }
                 if self.config.developer_options {
                     if icons::tab_button(ui, "package", "Assets", self.active_tab == Tab::AssetManager).clicked() {
@@ -2311,15 +2309,13 @@ impl eframe::App for AppState {
                 if icons::tab_button(ui, "settings", "Settings", self.active_tab == Tab::Settings).clicked() {
                     self.active_tab = Tab::Settings;
                 }
-                if ui
-                    .button("✦ What's new")
+                if icons::button(ui, "update", "What's new")
                     .on_hover_text("View the current release changelog")
                     .clicked()
                 {
                     self.show_changelog = true;
                 }
-                if ui
-                    .button("⇩ Export CSV")
+                if icons::button(ui, "import", "Export CSV")
                     .on_hover_text("Export account metadata without cookies")
                     .clicked()
                 {
@@ -2339,8 +2335,7 @@ impl eframe::App for AppState {
                         ui.separator();
                     }
                     if !self.store.accounts.is_empty()
-                        && ui
-                            .button("\u{1f504}")
+                        && icons::button(ui, "refresh", "Refresh")
                             .on_hover_text(
                                 "Refresh all accounts: re-validate cookies, fetch moderation status, presence, and avatars",
                             )
@@ -2355,9 +2350,9 @@ impl eframe::App for AppState {
                         ui.colored_label(
                             ui.theme().info,
                             if count == 1 {
-                                "● 1 Roblox".to_string()
+                                "1 Roblox".to_string()
                             } else {
-                                format!("● {count} Roblox")
+                                format!("{count} Roblox")
                             },
                         )
                         .on_hover_text(self.instance_attribution_summary());
@@ -5132,9 +5127,9 @@ impl AppState {
                     ui.colored_label(
                         title_color,
                         egui::RichText::new(if banned {
-                            "\u{26a0} This account is terminated."
+                            "Warning: This account is terminated."
                         } else {
-                            "\u{26a0} This account is currently moderated."
+                            "Warning: This account is currently moderated."
                         })
                         .strong()
                         .size(15.0),
@@ -5178,7 +5173,7 @@ impl AppState {
                     ui.add_space(12.0);
                     ui.horizontal(|ui| {
                         if ui
-                            .button("\u{1f310} Open browser as")
+                            .button("Open browser as")
                             .on_hover_text(
                                 "Sign in via webview to view the full moderation message or appeal",
                             )
@@ -5423,7 +5418,7 @@ impl AppState {
                         } else {
                             ui.label("Sign-in canceled.");
                             ui.add_space(6.0);
-                            if ui.button("\u{1f310} Try again").clicked() {
+                            if ui.button("Try again").clicked() {
                                 let (tx, rx) = std::sync::mpsc::channel();
                                 let profile_dir = crate::data_dir().join("webview_profile");
                                 let _ = std::fs::remove_dir_all(&profile_dir);
@@ -5521,7 +5516,7 @@ impl AppState {
                             );
                             ui.add_space(4.0);
                             if ui
-                                .button("\u{1f4c2}  Browse file...")
+                                .button("Browse file...")
                                 .on_hover_text(
                                     "Load cookies from a .txt or .csv file",
                                 )
@@ -5670,7 +5665,7 @@ impl AppState {
                         // without leaving the app.
                         if self.add_dialog.rejected_cookie.is_some()
                             && ui
-                                .button("\u{1f310} Open browser as")
+                                .button("Open browser as")
                                 .on_hover_text(
                                     "Open a webview signed in with this cookie to see why it was rejected",
                                 )

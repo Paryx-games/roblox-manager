@@ -185,7 +185,7 @@ pub fn show(
         if config.multi_instance_enabled {
             ui.colored_label(
                 theme.warning,
-                "\u{26a0} This interacts with Hyperion anti-cheat and may carry ban risk.",
+                "Warning: This interacts with Hyperion anti-cheat and may carry ban risk.",
             );
         }
         if !config.multi_instance_enabled && roblox_running {
@@ -465,7 +465,7 @@ pub fn show(
 
             ui.add_space(6.0);
             if ui
-                .button("▦ Tile Windows Now")
+                .button("Tile Windows Now")
                 .on_hover_text("Immediately arrange all open Roblox windows using these settings.")
                 .clicked()
             {
@@ -639,7 +639,7 @@ pub fn show(
         if config.developer_options {
             ui.colored_label(
                 theme.warning,
-                "\u{26a0} Uploads are permanent and public. Every asset is moderated under the account that uploaded it.",
+                "Warning: Uploads are permanent and public. Every asset is moderated under the account that uploaded it.",
             );
             if ui
                 .button("Clear application caches")

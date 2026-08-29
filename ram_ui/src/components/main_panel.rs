@@ -4,6 +4,7 @@ use eframe::egui;
 use ram_core::models::{Account, LaunchPreset};
 
 use crate::theme::ThemeUi;
+use crate::icons;
 
 /// Actions the main panel can request.
 pub enum MainPanelAction {
@@ -128,12 +129,7 @@ pub fn show(
                         |ui| {
                             egui::menu::menu_button(ui, "...", |ui| {
                                 ui.set_min_width(160.0);
-                                if ui
-                                    .button(
-                                        egui::RichText::new("\u{1f5d1}  Remove account")
-                                            .color(theme.danger_text),
-                                    )
-                                    .clicked()
+                                if icons::button(ui, "delete", "Remove account").clicked()
                                 {
                                     action = Some(MainPanelAction::RemoveAccount(account.user_id));
                                     ui.close_menu();
@@ -180,9 +176,9 @@ pub fn show(
                             ui.colored_label(
                                 fg,
                                 egui::RichText::new(if banned {
-                                    "\u{26a0} Account terminated"
+                            "Warning: Account terminated"
                                 } else {
-                                    "\u{26a0} Account moderated"
+                            "Warning: Account moderated"
                                 })
                                 .strong()
                                 .size(15.0),
@@ -190,8 +186,7 @@ pub fn show(
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    if ui
-                                        .button("\u{1f310} Open browser as")
+                                    if icons::button(ui, "browser", "Open browser as")
                                         .on_hover_text(
                                             "Sign in via webview to view the full moderation message or appeal",
                                         )
@@ -315,7 +310,7 @@ pub fn show(
                     let launch_btn = ui.add_enabled(
                         can_launch,
                         egui::Button::new(
-                            egui::RichText::new("\u{1f680}  Launch")
+                            egui::RichText::new("Launch")
                                 .size(15.0)
                                 .strong()
                                 .color(theme.on_accent),
@@ -358,7 +353,7 @@ pub fn show(
                     if ui
                         .add(
                             egui::Button::new(
-                                egui::RichText::new("\u{1f310}  Open browser as")
+                                egui::RichText::new("Open browser as")
                                     .size(15.0)
                                     .color(ui.visuals().strong_text_color()),
                             )
@@ -376,7 +371,7 @@ pub fn show(
                         .add_enabled(
                             place_valid,
                             egui::Button::new(
-                                egui::RichText::new("\u{2b50}").size(15.0),
+                                    egui::RichText::new("Save preset").size(15.0),
                             )
                             .min_size(egui::vec2(icon_w, primary_h)),
                         )
@@ -393,7 +388,7 @@ pub fn show(
                         && ui
                             .add(
                                 egui::Button::new(
-                                    egui::RichText::new("\u{2620}").size(15.0),
+                                    egui::RichText::new("Kill").size(15.0),
                                 )
                                 .min_size(egui::vec2(icon_w, primary_h)),
                             )
@@ -499,7 +494,7 @@ pub fn show(
                 } else if let Some(message) = inventory_error {
                     ui.colored_label(
                         theme.danger,
-                        egui::RichText::new(format!("\u{26a0} {message}"))
+                        egui::RichText::new(format!("Warning: {message}"))
                             .strong(),
                     );
                 } else if inventory_items.is_empty() {
@@ -630,7 +625,7 @@ pub fn show(
                         .show(ui, |ui| {
                             ui.colored_label(
                                 theme.danger_text,
-                                "\u{26a0} Cookie expired. Remove and re-add this account with a fresh cookie.",
+                                "Warning: Cookie expired. Remove and re-add this account with a fresh cookie.",
                             );
                         });
                 }
@@ -686,7 +681,7 @@ pub fn show_empty(ui: &mut egui::Ui) {
         ui.vertical_centered(|ui| {
             ui.add_space(60.0);
             ui.label(
-                egui::RichText::new("\u{1f4cb}")
+                egui::RichText::new("Copy")
                     .size(48.0)
                     .color(ui.visuals().weak_text_color()),
             );

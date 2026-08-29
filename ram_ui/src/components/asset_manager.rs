@@ -159,9 +159,9 @@ fn sort_header(
 ) -> bool {
     let caret = if active == key {
         if ascending {
-            " \u{2b06}"
+            " Ascending"
         } else {
-            " \u{2b07}"
+            " Descending"
         }
     } else {
         ""
@@ -314,7 +314,7 @@ pub fn show(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>) -> AssetManagerResult {
     if cx.read_only {
         ui.colored_label(
             ui.theme().warning,
-            "\u{26a0} This asset list was written by a newer version of RM, or could not be read. \
+            "Warning: This asset list was written by a newer version of RM, or could not be read. \
              Changes will not be saved.",
         );
         ui.add_space(4.0);
@@ -1095,7 +1095,7 @@ fn toolbar(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetManagerR
         ui.selectable_value(&mut cx.state.view, View::ImportQueue, queue_label);
 
         ui.separator();
-        ui.label("\u{1f50d}");
+        ui.label("Search");
         ui.add(
             egui::TextEdit::singleline(&mut cx.state.search)
                 .desired_width(160.0)
@@ -1412,7 +1412,7 @@ fn queue_view(ui: &mut egui::Ui, cx: &mut AssetsCtx<'_>, result: &mut AssetManag
                     if ui
                         .add_enabled(
                             !record.state.is_active(),
-                            egui::Button::new("\u{1f5d1}").frame(false),
+                            egui::Button::new("Delete").frame(false),
                         )
                         .on_hover_text("Remove from the queue")
                         .clicked()

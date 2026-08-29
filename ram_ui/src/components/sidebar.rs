@@ -10,6 +10,7 @@ use ram_core::instances::TrackedInstance;
 use ram_core::models::{Account, GroupMeta};
 
 use crate::theme::{Theme, ThemeUi};
+use crate::icons;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
@@ -263,7 +264,7 @@ pub fn show(
 
         // Search bar
         ui.horizontal(|ui| {
-            ui.label("\u{1f50d}");
+            icons::show(ui, "search", 16.0);
             ui.text_edit_singleline(&mut state.search_query);
         });
 
@@ -327,7 +328,7 @@ pub fn show(
         ui.add_space(4.0);
 
         // Add account button
-        let add_btn_resp = ui.button("\u{2795}  Add Account");
+        let add_btn_resp = icons::button(ui, "add", "Add Account");
         if add_btn_resp.clicked() {
             actions.push(SidebarAction::AddAccountDialog);
         }
@@ -695,7 +696,7 @@ pub fn show(
 
                             // Group header context menu
                             response.context_menu(|ui: &mut egui::Ui| {
-                                if ui.button("\u{270f}  Edit Group").clicked() {
+                                if icons::button(ui, "edit", "Edit Group").clicked() {
                                     state.editing_group = Some(GroupEditorState {
                                         name: group_name.to_string(),
                                         color,
@@ -704,7 +705,7 @@ pub fn show(
                                     });
                                     ui.close_menu();
                                 }
-                                if ui.button("\u{1f5d1}  Delete Group").clicked() {
+                                if icons::button(ui, "delete", "Delete Group").clicked() {
                                     actions
                                         .push(SidebarAction::DeleteGroup(group_name.to_string()));
                                     ui.close_menu();
@@ -773,7 +774,7 @@ pub fn show(
                             label.clone()
                         }
                     }
-                    DragPayload::Group { name } => format!("\u{1f4c1} {}", name),
+                    DragPayload::Group { name } => format!("Group: {}", name),
                 };
                 let theme = ui.theme();
                 let galley =
@@ -1111,13 +1112,13 @@ fn render_account_row(
 
     // Right-click context menu
     response.context_menu(|ui| {
-        if ui.button("\u{1f310}  Open browser as").clicked() {
+        if icons::button(ui, "browser", "Open browser as").clicked() {
             actions.push(SidebarAction::OpenBrowserAs(account.user_id));
             ui.close_menu();
         }
         ui.separator();
 
-        if ui.button("\u{1f4cb}  Copy account info").clicked() {
+        if icons::button(ui, "copy", "Copy account info").clicked() {
             actions.push(SidebarAction::CopyAccountInfo(
                 crate::components::format_account_info(account),
             ));
@@ -1140,7 +1141,7 @@ fn render_account_row(
                     String::new()
                 };
                 if ui
-                    .button(format!("\u{1f5b5}  Focus client{suffix}"))
+                    .button(format!("Focus client{suffix}"))
                     .clicked()
                 {
                     actions.push(SidebarAction::FocusInstance(instance.pid));
@@ -1154,7 +1155,7 @@ fn render_account_row(
                 let can_kill = instance.attribution.is_exact();
                 let kill = ui.add_enabled(
                     can_kill,
-                    egui::Button::new(format!("\u{2716}  Close client{suffix}")),
+                    egui::Button::new(format!("Close client{suffix}")),
                 );
                 if !can_kill {
                     kill.on_disabled_hover_text(
@@ -1181,7 +1182,7 @@ fn render_account_row(
             })
             .collect();
         if !joinable.is_empty() {
-            ui.menu_button("\u{1f517}  Join server of", |ui| {
+            ui.menu_button("Join server of", |ui| {
                 for other in &joinable {
                     let name = if anonymize {
                         format!("Account #{}", anon_tag(other.user_id))
@@ -1203,12 +1204,12 @@ fn render_account_row(
         // Game session info
         if let Some(ref gid) = account.last_presence.game_id {
             if account.last_presence.user_presence_type == 2 {
-                if ui.button("\u{1f4cb}  Copy Job ID").clicked() {
+                if ui.button("Copy Job ID").clicked() {
                     actions.push(SidebarAction::CopyJobId(gid.clone()));
                     ui.close_menu();
                 }
                 if let Some(pid) = account.last_presence.place_id {
-                    if ui.button("\u{1f4cb}  Copy Place ID").clicked() {
+                if ui.button("Copy Place ID").clicked() {
                         actions.push(SidebarAction::CopyJobId(pid.to_string()));
                         ui.close_menu();
                     }
@@ -1219,7 +1220,7 @@ fn render_account_row(
 
         // Remove from group option
         if !account.group.is_empty() {
-            if ui.button("\u{2934}  Remove from Group").clicked() {
+            if ui.button("Remove from Group").clicked() {
                 actions.push(SidebarAction::AssignGroup {
                     user_ids: vec![account.user_id],
                     group: String::new(),

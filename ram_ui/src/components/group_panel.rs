@@ -5,6 +5,7 @@ use eframe::egui;
 use ram_core::models::{Account, LaunchPreset};
 
 use crate::theme::ThemeUi;
+use crate::icons;
 
 /// Actions the group panel can request.
 pub enum GroupPanelAction {
@@ -198,9 +199,11 @@ pub fn show(
 
         ui.horizontal(|ui| {
             let place_valid = place_id_input.parse::<u64>().is_ok();
-            let btn = ui.add_enabled(
+            let btn = icons::enabled_button(
+                ui,
+                "launch",
+                &format!("Launch {count} Accounts"),
                 place_valid && invalid_data_message.is_none(),
-                egui::Button::new(format!("\u{1f680}  Launch {count} Accounts")),
             );
             if btn.clicked() {
                 if let Ok(place_id) = place_id_input.parse::<u64>() {
@@ -232,7 +235,7 @@ pub fn show(
                 {
                     action = Some(GroupPanelAction::TileWindows);
                 }
-                if ui.button("\u{2620}  Kill All Instances").clicked() {
+                if icons::button(ui, "kill", "Kill All Instances").clicked() {
                     action = Some(GroupPanelAction::KillAll);
                 }
             }

@@ -79,7 +79,7 @@ pub fn show(
                 ui.heading(if is_edit { "Edit Preset" } else { "New Preset" });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
-                        .small_button("\u{1f4c2}  Open folder")
+                        .small_button("Open folder")
                         .on_hover_text("Reveal the presets folder in Explorer")
                         .clicked()
                     {
@@ -229,14 +229,14 @@ pub fn show(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
                                         if ui
-                                            .small_button("\u{1f5d1}")
+                                            .small_button("Delete")
                                             .on_hover_text("Delete")
                                             .clicked()
                                         {
                                             action = Some(PresetsAction::Delete(path.clone()));
                                         }
                                         if ui
-                                            .small_button("\u{270f}")
+                                            .small_button("Edit")
                                             .on_hover_text("Edit")
                                             .clicked()
                                         {

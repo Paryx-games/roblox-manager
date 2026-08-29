@@ -19,13 +19,22 @@ struct IconCache {
 fn svg_bytes(name: &str) -> Option<&'static [u8]> {
     match name {
         "accounts" => Some(include_bytes!("../../assets/icons/accounts.svg")),
+        "add" => Some(include_bytes!("../../assets/icons/add.svg")),
         "browser" => Some(include_bytes!("../../assets/icons/browser.svg")),
+        "close" => Some(include_bytes!("../../assets/icons/close.svg")),
+        "copy" => Some(include_bytes!("../../assets/icons/copy.svg")),
         "delete" => Some(include_bytes!("../../assets/icons/delete.svg")),
+        "edit" => Some(include_bytes!("../../assets/icons/edit.svg")),
         "folder" => Some(include_bytes!("../../assets/icons/folder.svg")),
+        "focus" => Some(include_bytes!("../../assets/icons/focus.svg")),
+        "game" => Some(include_bytes!("../../assets/icons/game.svg")),
+        "grid" => Some(include_bytes!("../../assets/icons/grid.svg")),
         "groups" => Some(include_bytes!("../../assets/icons/groups.svg")),
         "import" => Some(include_bytes!("../../assets/icons/import.svg")),
         "inventory" => Some(include_bytes!("../../assets/icons/inventory.svg")),
         "kill" => Some(include_bytes!("../../assets/icons/kill.svg")),
+        "launch" => Some(include_bytes!("../../assets/icons/launch.svg")),
+        "link" => Some(include_bytes!("../../assets/icons/link.svg")),
         "lock" => Some(include_bytes!("../../assets/icons/lock.svg")),
         "package" => Some(include_bytes!("../../assets/icons/package.svg")),
         "password" => Some(include_bytes!("../../assets/icons/password.svg")),
@@ -34,6 +43,11 @@ fn svg_bytes(name: &str) -> Option<&'static [u8]> {
         "settings" => Some(include_bytes!("../../assets/icons/settings.svg")),
         "star" => Some(include_bytes!("../../assets/icons/star.svg")),
         "update" => Some(include_bytes!("../../assets/icons/update.svg")),
+        "more" => Some(include_bytes!("../../assets/icons/more.svg")),
+        "refresh" => Some(include_bytes!("../../assets/icons/refresh.svg")),
+        "remove-group" => Some(include_bytes!("../../assets/icons/remove-group.svg")),
+        "search" => Some(include_bytes!("../../assets/icons/search.svg")),
+        "upload" => Some(include_bytes!("../../assets/icons/upload.svg")),
         "warning" => Some(include_bytes!("../../assets/icons/warning.svg")),
         "windows" => Some(include_bytes!("../../assets/icons/windows.svg")),
         _ => None,
@@ -71,6 +85,19 @@ fn texture(ui: &mut egui::Ui, name: &str, size: f32) -> Option<egui::TextureHand
     texture
 }
 
+/// Add a standalone SVG icon, retaining the caller's surrounding layout.
+pub fn show(ui: &mut egui::Ui, name: &str, size: f32) -> bool {
+    let Some(texture) = texture(ui, name, size) else {
+        return false;
+    };
+    ui.add(
+        egui::Image::from_texture(&texture)
+            .fit_to_exact_size(egui::vec2(size, size))
+            .tint(ui.visuals().text_color()),
+    );
+    true
+}
+
 /// Add a selectable navigation button with a theme-tinted Lucide SVG icon.
 /// The icon is part of the button's hit target and inherits its padding.
 pub fn tab_button(ui: &mut egui::Ui, name: &str, label: &str, selected: bool) -> egui::Response {
@@ -85,6 +112,29 @@ pub fn tab_button(ui: &mut egui::Ui, name: &str, label: &str, selected: bool) ->
     .selected(selected)
     .min_size(egui::vec2(0.0, 24.0));
     ui.add(button)
+}
+
+/// Add a compact button with a cached Lucide icon and visible text.
+pub fn button(ui: &mut egui::Ui, name: &str, label: &str) -> egui::Response {
+    enabled_button(ui, name, label, true)
+}
+
+/// Add an optionally disabled compact button with a cached Lucide icon.
+pub fn enabled_button(
+    ui: &mut egui::Ui,
+    name: &str,
+    label: &str,
+    enabled: bool,
+) -> egui::Response {
+    let button = match texture(ui, name, 16.0) {
+        Some(texture) => egui::Button::image_and_text(
+            egui::Image::from_texture((texture.id(), egui::vec2(16.0, 16.0))),
+            label,
+        )
+        .image_tint_follows_text_color(true),
+        None => egui::Button::new(label),
+    };
+    ui.add_enabled(enabled, button)
 }
 
 /// Rasterize an SVG asset into an egui color image.

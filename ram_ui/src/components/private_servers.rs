@@ -271,7 +271,7 @@ pub fn show(
                                         ui.painter().text(
                                             rect.center(),
                                             egui::Align2::CENTER_CENTER,
-                                            "\u{1f3ae}",
+                                            "Game",
                                             egui::FontId::proportional(20.0),
                                             ui.visuals().text_color(),
                                         );
@@ -313,7 +313,7 @@ pub fn show(
                                                         ),
                                                         |ui| {
                                                             if ui
-                                                                .small_button("\u{1f5d1}")
+                                                                .small_button("Delete")
                                                                 .on_hover_text("Remove")
                                                                 .clicked()
                                                             {
@@ -321,7 +321,7 @@ pub fn show(
                                                             }
                                                             if server.place_name.is_empty()
                                                                 && ui
-                                                                    .small_button("\u{1f504}")
+                                                                    .small_button("Refresh")
                                                                     .on_hover_text(
                                                                         "Resolve place name",
                                                                     )
@@ -333,7 +333,7 @@ pub fn show(
                                                                 .add_enabled(
                                                                     has_selection,
                                                                     egui::Button::new(
-                                                                        "\u{1f680} Launch",
+                                                                        "Launch",
                                                                     ),
                                                                 )
                                                                 .on_hover_text(if has_selection {
