@@ -168,8 +168,8 @@ pub fn rasterize_svg(svg_bytes: &[u8], size: u32) -> Result<egui::ColorImage, St
     let target_size = resvg::usvg::Size::from_wh(size as f32, size as f32)
         .ok_or_else(|| "could not create icon size".to_string())?;
     let transform = resvg::tiny_skia::Transform::from_scale(
-        target_size.width() as f32 / tree.size().width() as f32,
-        target_size.height() as f32 / tree.size().height() as f32,
+        target_size.width() / tree.size().width(),
+        target_size.height() / tree.size().height(),
     );
     let mut pixmap = resvg::tiny_skia::Pixmap::new(size, size)
         .ok_or_else(|| "could not allocate SVG icon surface".to_string())?;

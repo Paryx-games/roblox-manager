@@ -2573,7 +2573,8 @@ mod tests {
             | C::FetchCreations { .. }
             | C::FetchUserInventory { .. }
             | C::FetchBulkCreations { .. }
-            | C::FetchAssetThumbnails { .. } => false,
+            | C::FetchAssetThumbnails { .. }
+            | C::SearchConnectionUsers { .. } => false,
         }
     }
 
