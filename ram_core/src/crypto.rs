@@ -678,7 +678,10 @@ pub fn upgrade_v1(
     legacy: &StoreSession,
     password: Option<&str>,
 ) -> Result<(AccountStore, StoreSession), CoreError> {
-    tracing::info!(accounts = store.accounts.len(), "Upgrading legacy v1 store to envelope format");
+    tracing::info!(
+        accounts = store.accounts.len(),
+        "Upgrading legacy v1 store to envelope format"
+    );
     let session = match password {
         Some(pw) => create_password_session(pw)?,
         None => create_device_session()?,
@@ -779,7 +782,10 @@ pub fn credential_delete(user_id: u64) -> Result<(), CoreError> {
             Ok(())
         }
         Err(keyring::Error::NoEntry) => {
-            tracing::debug!(user_id, "Cookie was already absent from OS credential store");
+            tracing::debug!(
+                user_id,
+                "Cookie was already absent from OS credential store"
+            );
             Ok(())
         }
         Err(e) => Err(CoreError::Keyring(e.to_string())),

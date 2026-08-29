@@ -201,7 +201,10 @@ pub async fn fetch_moderation_statuses(
     if asset_ids.is_empty() {
         return Ok(Vec::new());
     }
-    tracing::debug!(count = asset_ids.len(), "Fetching moderation statuses for asset batch");
+    tracing::debug!(
+        count = asset_ids.len(),
+        "Fetching moderation statuses for asset batch"
+    );
     let mut out = Vec::with_capacity(asset_ids.len());
     for chunk in asset_ids.chunks(MAX_MODERATION_IDS) {
         let ids: Vec<String> = chunk.iter().map(u64::to_string).collect();
@@ -235,7 +238,11 @@ pub async fn grant_use_permission(
     universe_id: u64,
     asset_ids: &[u64],
 ) -> Result<assets::GrantOutcome, CoreError> {
-    tracing::info!(universe_id, count = asset_ids.len(), "Granting asset use permissions to universe");
+    tracing::info!(
+        universe_id,
+        count = asset_ids.len(),
+        "Granting asset use permissions to universe"
+    );
     let url = format!("{PERMISSIONS_BASE}/assets/permissions");
     let mut outcome = assets::GrantOutcome::default();
 
@@ -294,7 +301,8 @@ pub async fn resolve_place_universe(
     tracing::debug!(place_id, "Resolving universe ID for place");
     let url = format!("{UNIVERSES_BASE}/places/{place_id}/universe");
     let body: serde_json::Value = client.get_json(&url, cookie).await?;
-    let universe_id = body.get("universeId")
+    let universe_id = body
+        .get("universeId")
         .and_then(|v| v.as_u64())
         .ok_or_else(|| CoreError::RobloxApi {
             status: 404,
@@ -465,7 +473,12 @@ pub async fn list_user_inventory(
             break;
         }
     }
-    tracing::debug!(user_id, asset_type, count = items.len(), "Finished listing user inventory");
+    tracing::debug!(
+        user_id,
+        asset_type,
+        count = items.len(),
+        "Finished listing user inventory"
+    );
     Ok(items)
 }
 
@@ -600,7 +613,12 @@ pub async fn list_creations(
     kind: AssetKind,
     cursor: Option<&str>,
 ) -> Result<CreationPage, CoreError> {
-    tracing::debug!(?creator, ?kind, has_cursor = cursor.is_some(), "Listing creator creations");
+    tracing::debug!(
+        ?creator,
+        ?kind,
+        has_cursor = cursor.is_some(),
+        "Listing creator creations"
+    );
     assets::reject_unuploadable(kind).map_err(|message| CoreError::RobloxApi {
         status: 400,
         message,
@@ -627,7 +645,12 @@ pub async fn list_creations(
         }
         Err(e) => tracing::info!("creation timestamps unavailable: {e}"),
     }
-    tracing::debug!(?creator, count = page.items.len(), has_next = page.next_cursor.is_some(), "Fetched creations page");
+    tracing::debug!(
+        ?creator,
+        count = page.items.len(),
+        has_next = page.next_cursor.is_some(),
+        "Fetched creations page"
+    );
     Ok(page)
 }
 
@@ -818,7 +841,11 @@ pub async fn fetch_asset_thumbnails(
             Err(e) => tracing::warn!("thumbnail download failed for {asset_id}: {e}"),
         }
     }
-    tracing::debug!(downloaded = out.len(), requested = asset_ids.len(), "Asset thumbnails download complete");
+    tracing::debug!(
+        downloaded = out.len(),
+        requested = asset_ids.len(),
+        "Asset thumbnails download complete"
+    );
     Ok(out)
 }
 

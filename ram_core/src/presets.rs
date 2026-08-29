@@ -99,7 +99,11 @@ pub fn load_all(data_dir: &Path) -> Result<LoadedPresets, CoreError> {
     }
     // Sort by preset name (case-insensitive) so the UI order is stable.
     presets.sort_by_key(|(_, p)| p.name.to_lowercase());
-    tracing::info!(loaded = presets.len(), skipped = skipped.len(), "finished loading presets");
+    tracing::info!(
+        loaded = presets.len(),
+        skipped = skipped.len(),
+        "finished loading presets"
+    );
     Ok((presets, skipped))
 }
 

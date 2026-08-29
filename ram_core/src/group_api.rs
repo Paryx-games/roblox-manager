@@ -213,7 +213,12 @@ pub async fn fetch_membership(
         role_name: role.and_then(|value| value_string(value, "name")),
         role_rank: role.and_then(|value| value_u64(value, "rank")).unwrap_or(0) as u16,
     };
-    tracing::debug!(group_id, user_id, joined = membership.joined, "Fetched group membership");
+    tracing::debug!(
+        group_id,
+        user_id,
+        joined = membership.joined,
+        "Fetched group membership"
+    );
     Ok(membership)
 }
 
@@ -224,7 +229,12 @@ pub async fn change_membership(
     user_id: u64,
     join: bool,
 ) -> Result<(), CoreError> {
-    tracing::info!(group_id, user_id, join, "Requesting group membership change");
+    tracing::info!(
+        group_id,
+        user_id,
+        join,
+        "Requesting group membership change"
+    );
     let method = if join { Method::POST } else { Method::DELETE };
     let url = if join {
         format!("https://groups.roblox.com/v1/groups/{group_id}/users")

@@ -1100,7 +1100,10 @@ async fn handle_command(
             Ok(BackendEvent::StoreSaved)
         }
         BackendCommand::ApplyInstanceTitles(titles) => {
-            debug!(count = titles.len(), "Applying custom instance window titles");
+            debug!(
+                count = titles.len(),
+                "Applying custom instance window titles"
+            );
             let previous =
                 tokio::task::spawn_blocking(move || process::apply_instance_titles(&titles))
                     .await
@@ -1124,7 +1127,13 @@ async fn handle_command(
             kill_background,
             privacy,
         } => {
-            info!(user_id, place_id, ?job_id, multi_instance, "Launching game for account");
+            info!(
+                user_id,
+                place_id,
+                ?job_id,
+                multi_instance,
+                "Launching game for account"
+            );
             let cookie = if use_credential_manager {
                 crypto::credential_load(user_id)?
             } else {
@@ -1217,7 +1226,10 @@ async fn handle_command(
                 .map_err(|error| CoreError::Process(format!("store unlock task failed: {error}")))?
             {
                 Ok((store, session)) => {
-                    info!(accounts = store.accounts.len(), "Store unlocked with device credentials successfully");
+                    info!(
+                        accounts = store.accounts.len(),
+                        "Store unlocked with device credentials successfully"
+                    );
                     Ok(BackendEvent::StoreUnlocked {
                         store: Box::new(store),
                         session: Box::new(session),
@@ -1242,7 +1254,10 @@ async fn handle_command(
                         CoreError::Process(format!("store unlock task failed: {error}"))
                     })??;
             let legacy = session.is_legacy();
-            info!(accounts = store.accounts.len(), legacy, "Store unlocked with password successfully");
+            info!(
+                accounts = store.accounts.len(),
+                legacy, "Store unlocked with password successfully"
+            );
             Ok(BackendEvent::StoreUnlocked {
                 store: Box::new(store),
                 session: Box::new(session),
@@ -1318,7 +1333,9 @@ async fn handle_command(
         }
         BackendCommand::SearchConnectionUsers { keyword } => {
             debug!(keyword, "Searching connection users");
-            Ok(BackendEvent::ConnectionUsersFound(api::search_users(client, &keyword).await?))
+            Ok(BackendEvent::ConnectionUsersFound(
+                api::search_users(client, &keyword).await?,
+            ))
         }
         BackendCommand::RefreshAll {
             user_ids,
@@ -1388,7 +1405,13 @@ async fn handle_command(
             player_path,
             launch_delay_secs,
         } => {
-            info!(count = accounts.len(), place_id, ?job_id, multi_instance, "Executing bulk game launch");
+            info!(
+                count = accounts.len(),
+                place_id,
+                ?job_id,
+                multi_instance,
+                "Executing bulk game launch"
+            );
             if multi_instance {
                 tokio::task::spawn_blocking(process::enable_multi_instance)
                     .await
@@ -1758,7 +1781,12 @@ async fn handle_command(
             label,
             destination_url,
         } => {
-            info!(user_id, label, ?destination_url, "Spawning browse-as webview window");
+            info!(
+                user_id,
+                label,
+                ?destination_url,
+                "Spawning browse-as webview window"
+            );
             let cookie = if use_credential_manager {
                 crypto::credential_load(user_id)?
             } else {
@@ -1816,7 +1844,11 @@ async fn handle_command(
             use_credential_manager,
             operations,
         } => {
-            debug!(user_id, count = operations.len(), "Polling asset operations");
+            debug!(
+                user_id,
+                count = operations.len(),
+                "Polling asset operations"
+            );
             let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             poll_asset_operations(client, &cookie, &operations, tx).await;
             Ok(BackendEvent::AssetPollBatchDone)
@@ -1828,7 +1860,11 @@ async fn handle_command(
             use_credential_manager,
             assets,
         } => {
-            debug!(user_id, count = assets.len(), "Polling asset moderation statuses");
+            debug!(
+                user_id,
+                count = assets.len(),
+                "Polling asset moderation statuses"
+            );
             let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             poll_asset_moderation(client, &cookie, &assets, tx).await;
             Ok(BackendEvent::AssetPollBatchDone)
@@ -1842,7 +1878,12 @@ async fn handle_command(
             asset_ids,
             row_assets,
         } => {
-            info!(user_id, universe_id, count = asset_ids.len(), "Granting asset permissions to universe");
+            info!(
+                user_id,
+                universe_id,
+                count = asset_ids.len(),
+                "Granting asset permissions to universe"
+            );
             let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
             match assets_api::grant_use_permission(client, &cookie, universe_id, &asset_ids).await {
                 Ok(outcome) => {
@@ -1860,7 +1901,11 @@ async fn handle_command(
                         .filter(|(_, asset_id)| outcome.granted.contains(asset_id))
                         .map(|(row_id, _)| row_id)
                         .collect();
-                    info!(granted = outcome.granted.len(), refused = outcome.failures.len(), "Asset permissions granted result");
+                    info!(
+                        granted = outcome.granted.len(),
+                        refused = outcome.failures.len(),
+                        "Asset permissions granted result"
+                    );
                     Ok(BackendEvent::AssetPermissionsGranted {
                         universe_id,
                         row_ids: granted_rows,
@@ -1965,7 +2010,12 @@ async fn handle_command(
             session,
             use_credential_manager,
         } => {
-            info!(group_id, join, count = accounts.len(), "Changing group membership for accounts");
+            info!(
+                group_id,
+                join,
+                count = accounts.len(),
+                "Changing group membership for accounts"
+            );
             for (user_id, encrypted_cookie) in accounts {
                 let result = match decrypt_for(
                     user_id,

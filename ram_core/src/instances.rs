@@ -259,7 +259,12 @@ impl InstanceRegistry {
         live_now: &[LiveClient],
         now: DateTime<Utc>,
     ) {
-        tracing::debug!(user_id, place_id, launchtime, "Noted pending launch for instance tracking");
+        tracing::debug!(
+            user_id,
+            place_id,
+            launchtime,
+            "Noted pending launch for instance tracking"
+        );
         self.known.extend(live_now.iter().map(LiveClient::key));
         self.pending.push_back(PendingLaunch {
             user_id,
@@ -286,7 +291,11 @@ impl InstanceRegistry {
         for launch in self.pending.iter_mut() {
             if !launch.fifo_expired && now - launch.launched_at > fifo_ttl {
                 launch.fifo_expired = true;
-                tracing::warn!(user_id = launch.user_id, launchtime = launch.launchtime, "Pending launch expired without client appearance");
+                tracing::warn!(
+                    user_id = launch.user_id,
+                    launchtime = launch.launchtime,
+                    "Pending launch expired without client appearance"
+                );
                 outcome.abandoned.push(launch.clone());
             }
         }
@@ -365,7 +374,11 @@ impl InstanceRegistry {
             });
             if confirmed {
                 instance.attribution = Attribution::Exact;
-                tracing::info!(pid = instance.pid, user_id = instance.user_id, "Upgraded Roblox instance attribution from Inferred to Exact");
+                tracing::info!(
+                    pid = instance.pid,
+                    user_id = instance.user_id,
+                    "Upgraded Roblox instance attribution from Inferred to Exact"
+                );
                 outcome.upgraded.push(instance.clone());
             }
         }
@@ -381,7 +394,11 @@ impl InstanceRegistry {
             if live_keys.contains(&(instance.pid, instance.start_time)) {
                 still_alive.push(instance);
             } else {
-                tracing::debug!(pid = instance.pid, user_id = instance.user_id, "Tracked Roblox instance exited");
+                tracing::debug!(
+                    pid = instance.pid,
+                    user_id = instance.user_id,
+                    "Tracked Roblox instance exited"
+                );
                 outcome.exited.push(instance);
             }
         }

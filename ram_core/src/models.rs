@@ -379,7 +379,10 @@ impl LogLevel {
         if cfg!(debug_assertions) {
             matches!(self, Self::Debug | Self::Trace)
         } else {
-            matches!(self, Self::Error | Self::Warn | Self::Info | Self::Debug | Self::Trace)
+            matches!(
+                self,
+                Self::Error | Self::Warn | Self::Info | Self::Debug | Self::Trace
+            )
         }
     }
 
