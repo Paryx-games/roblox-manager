@@ -161,9 +161,9 @@ pub fn menu_button<R>(
     selected: bool,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::InnerResponse<Option<R>> {
-    let button = match texture(ui, name, 24.0) {
+    let button = match texture(ui, name, 16.0) {
         Some(texture) => egui::Button::image_and_text(
-            egui::Image::from_texture((texture.id(), egui::vec2(32.0, 24.0))),
+            egui::Image::from_texture((texture.id(), egui::vec2(32.0, 16.0))),
             label,
         )
         .image_tint_follows_text_color(true),
