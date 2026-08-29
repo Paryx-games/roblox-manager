@@ -12,6 +12,7 @@
 - **Account CSV export.** Export usernames and account metadata without exporting cookies.
 - **Friend and block actions.** Send a friend request or block a target user from the selected account.
 - **Connection picker.** Friend and block actions now have a dedicated section with autocomplete for managed usernames, display names, and user IDs.
+- **Roblox user search.** Connection autocomplete now searches Roblox’s public Users API instead of the local account list.
 
 ### Fixed
 

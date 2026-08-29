@@ -8,6 +8,47 @@ use crate::auth::RobloxClient;
 use crate::error::CoreError;
 use crate::models::{ModerationInfo, Presence};
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UserSearchResult {
+    pub user_id: u64,
+    pub username: String,
+    pub display_name: String,
+}
+
+#[derive(Deserialize)]
+struct UserSearchResponse {
+    data: Vec<UserSearchResultEntry>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UserSearchResultEntry {
+    id: u64,
+    name: String,
+    display_name: String,
+}
+
+/// Search public Roblox users by username or display name.
+pub async fn search_users(
+    client: &RobloxClient,
+    keyword: &str,
+) -> Result<Vec<UserSearchResult>, CoreError> {
+    let keyword = keyword
+        .bytes()
+        .flat_map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' => vec![byte as char],
+            _ => format!("%{byte:02X}").chars().collect(),
+        })
+        .collect::<String>();
+    let url = format!("https://users.roblox.com/v1/users/search?keyword={keyword}&limit=10");
+    let response: UserSearchResponse = client.get_json(&url, "").await?;
+    Ok(response.data.into_iter().map(|user| UserSearchResult {
+        user_id: user.id,
+        username: user.name,
+        display_name: user.display_name,
+    }).collect())
+}
+
 /// Send a friend request to another user from the authenticated account.
 pub async fn send_friend_request(
     client: &RobloxClient,

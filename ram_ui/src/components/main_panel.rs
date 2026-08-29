@@ -2,7 +2,6 @@
 
 use eframe::egui;
 use ram_core::models::{Account, LaunchPreset};
-use std::collections::HashMap;
 
 use crate::theme::ThemeUi;
 
@@ -37,6 +36,9 @@ pub enum MainPanelAction {
     },
     BlockUser {
         target_user_id: u64,
+    },
+    SearchConnectionUsers {
+        keyword: String,
     },
 }
 
@@ -79,8 +81,7 @@ pub fn show(
     inventory_items: &[ram_core::assets_api::UserInventoryItem],
     inventory_loading: bool,
     inventory_error: Option<&str>,
-    candidate_accounts: &[Account],
-    candidate_avatars: &HashMap<u64, Vec<u8>>,
+    connection_users: &[ram_core::api::UserSearchResult],
 ) -> MainPanelResult {
     let theme = ui.theme();
     let mut action: Option<MainPanelAction> = None;
@@ -642,19 +643,21 @@ pub fn show(
                 ui.label("Search a managed username or user ID, then choose an action.");
                 ui.text_edit_singleline(&mut state.connection_target_input);
                 let query = state.connection_target_input.trim().to_ascii_lowercase();
-                let target = candidate_accounts.iter().find(|candidate| {
+                let target = connection_users.iter().find(|candidate| {
                     candidate.user_id.to_string() == query
                         || candidate.username.to_ascii_lowercase() == query
                         || candidate.display_name.to_ascii_lowercase() == query
                 });
+                if ui.button("Search Roblox").clicked() && !query.is_empty() {
+                    action = Some(MainPanelAction::SearchConnectionUsers { keyword: state.connection_target_input.trim().to_string() });
+                }
                 if !query.is_empty() {
-                    for candidate in candidate_accounts.iter().filter(|candidate| {
+                    for candidate in connection_users.iter().filter(|candidate| {
                         candidate.user_id.to_string().contains(&query)
                             || candidate.username.to_ascii_lowercase().contains(&query)
                             || candidate.display_name.to_ascii_lowercase().contains(&query)
                     }).take(5) {
-                        let avatar = candidate_avatars.contains_key(&candidate.user_id);
-                        let label = format!("{} (@{}) · ID {}{}", candidate.display_name, candidate.username, candidate.user_id, if avatar { " · avatar loaded" } else { "" });
+                        let label = format!("{} (@{}) · ID {}", candidate.display_name, candidate.username, candidate.user_id);
                         if ui.selectable_label(target.is_some_and(|selected| selected.user_id == candidate.user_id), label).clicked() {
                             state.connection_target_input = candidate.user_id.to_string();
                         }

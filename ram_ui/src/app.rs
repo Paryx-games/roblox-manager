@@ -290,6 +290,7 @@ pub struct AppState {
 
     /// Downloaded avatar image bytes, keyed by user ID.
     avatar_bytes: HashMap<u64, Vec<u8>>,
+    connection_users: Vec<ram_core::api::UserSearchResult>,
 
     /// Blurred variants of `avatar_bytes` for anonymize mode. Computed lazily
     /// each update() so each avatar is blurred at most once. Invalidated when
@@ -517,6 +518,7 @@ impl AppState {
             presets: Vec::new(),
             presets_dir: ram_core::presets::presets_dir(&crate::data_dir()),
             avatar_bytes: HashMap::new(),
+            connection_users: Vec::new(),
             anonymized_avatar_bytes: HashMap::new(),
             game_icon_bytes: HashMap::new(),
             asset_index,
@@ -917,6 +919,9 @@ impl AppState {
                             acc.avatar_url = url;
                         }
                     }
+                }
+                BackendEvent::ConnectionUsersFound(users) => {
+                    self.connection_users = users;
                 }
                 BackendEvent::AvatarImagesReady(images) => {
                     for (id, bytes) in images {
@@ -3079,8 +3084,7 @@ impl AppState {
                         &inventory_items,
                         inventory_loading,
                         inventory_error,
-                        &self.store.accounts,
-                        &self.avatar_bytes,
+                        &self.connection_users,
                     );
                     self.tutorial.launch_btn_rect = result.launch_btn_rect;
                     if let Some(a) = result.action {
@@ -3202,6 +3206,10 @@ impl AppState {
                             }
                             main_panel::MainPanelAction::OpenBrowserAs(uid) => {
                                 self.open_browser_as(uid);
+                            }
+                            main_panel::MainPanelAction::SearchConnectionUsers { keyword } => {
+                                self.connection_users.clear();
+                                self.bridge.send(BackendCommand::SearchConnectionUsers { keyword });
                             }
                             main_panel::MainPanelAction::SendFriendRequest { target_user_id } => {
                                 if let Some(session) = self.session() {

@@ -142,6 +142,8 @@ pub enum BackendCommand {
         session: crypto::StoreSession,
         use_credential_manager: bool,
     },
+    /// Search Roblox users for connection actions.
+    SearchConnectionUsers { keyword: String },
     /// Run the potentially blocking tray cleanup without stalling the runtime.
     KillTray,
     /// Validate the preconditions and acquire the singleton mutex off the UI thread.
@@ -510,6 +512,7 @@ pub enum BackendEvent {
         action: String,
         target_user_id: u64,
     },
+    ConnectionUsersFound(Vec<ram_core::api::UserSearchResult>),
     /// The result of a sweep. Sent whenever the map or the running count
     /// changed, so the UI can render per-account instance state without
     /// enumerating processes on the paint thread.
@@ -1278,6 +1281,9 @@ async fn handle_command(
                 action: "User blocked".into(),
                 target_user_id,
             })
+        }
+        BackendCommand::SearchConnectionUsers { keyword } => {
+            Ok(BackendEvent::ConnectionUsersFound(api::search_users(client, &keyword).await?))
         }
         BackendCommand::RefreshAll {
             user_ids,
