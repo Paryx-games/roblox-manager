@@ -26,7 +26,7 @@ The version lives once in the root `Cargo.toml` and both crates inherit it — d
 
 ## Publishing a release
 
-Releases are built and published by `.github/workflows/release.yml`, which only runs on tags matching `v*`.
+Releases are built and published by `.github/workflows/release.yml`, which only runs on pushes of tags matching `v*`. Nothing publishes on a normal push to `main` or any other branch.
 
 1. Bump the version in the root `Cargo.toml`.
 2. Add a `## vX.Y.Z` entry to `CHANGELOG.md` for the new version, above the previous entry.
@@ -34,18 +34,47 @@ Releases are built and published by `.github/workflows/release.yml`, which only 
    > [!WARNING]
    > The release workflow reads this section directly and **fails the release** if it can't find a `## vX.Y.Z` heading matching the tag exactly.
 
-3. Commit those changes.
-4. Tag the commit and push the tag:
+3. If `Cargo.lock` is out of sync with `Cargo.toml` (new/updated deps), sync it before committing:
 
+   ```powershell
+   cargo build
+   git diff Cargo.lock
    ```
+
+   Check the diff looks sane, then include `Cargo.lock` in the commit below. The workflow builds with `--locked`, which fails outright if the lockfile is stale — see [If GitHub is being stubborn](#if-github-is-being-stubborn) if this bites you after the tag's already pushed.
+
+4. Commit those changes:
+
+   ```powershell
+   git add Cargo.toml Cargo.lock CHANGELOG.md
+   git commit -m "chore: bump version to vX.Y.Z"
+   ```
+
+5. Tag the commit and push the tag:
+
+   ```powershell
    git tag vX.Y.Z
    git push origin vX.Y.Z
    ```
 
-   > [!TIP]
-   > Pushing the tag is what triggers the workflow — nothing publishes on a normal push to `main`.
+   Pushing the tag is what triggers the workflow.
 
-5. The workflow builds `ram_ui.exe`, generates release notes from the changelog entry plus GitHub's auto-generated notes, adds a SHA256 checksum, and publishes the GitHub release automatically. No manual steps after pushing the tag are needed unless the run fails.
+6. The workflow builds and renames the executable to `roblox-manager-vX.Y.Z-windows-x64.exe`, generates release notes from the changelog entry plus GitHub's auto-generated notes, adds a downloads table and SHA256 checksum, and publishes the GitHub release automatically. No manual steps after pushing the tag are needed unless the run fails.
 
-> [!TIP]
-> If a release run gets stuck, it can be re-triggered manually via `workflow_dispatch` from the Actions tab.
+## If GitHub is being stubborn
+
+The release workflow currently has **no `workflow_dispatch` trigger** — it only runs on a tag push. So if a run fails or you need to rebuild the same version (e.g. after fixing a stale `Cargo.lock`), re-running the job from the Actions tab won't help if the fix lives in a newer commit than the one the tag points to. In that case, move the tag instead:
+
+```powershell
+git tag -d vX.Y.Z
+git push origin :refs/tags/vX.Y.Z
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+This deletes the tag locally and on GitHub, recreates it pointing at your latest commit, and pushes it — which re-triggers the workflow against the fixed commit.
+
+> [!WARNING]
+> Only do this for a tag that hasn't been relied on yet (no one's grabbed the exe, no downstream automation pinned to it). If the release is already public and in use, bump to a new version instead of moving the tag out from under people.
+
+If the commit the tag already points to is fine and the run just failed transiently (flaky runner, GitHub API hiccup on the notes-generation step, etc.), you can re-run that exact commit without moving anything: open the failed run under the **Actions** tab and use **Re-run all jobs**.
