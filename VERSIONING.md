@@ -8,19 +8,17 @@ RM follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
 ## Pre-releases
 
-RM has no 0.x or beta phase. Every release is a stable `MAJOR.MINOR.PATCH` version.
+RM has no 0.x or beta phase for the project as a whole - every version line still ships as a stable `MAJOR.MINOR.PATCH`. Pre-release identifiers (`-alpha.N`, `-beta.N`, `-rc.N`) are used to stage testing of an _upcoming_ version before that version's plain tag goes out.
 
-Pre-release identifiers (`-beta.N`, `-rc.N`) are not currently used. If they're introduced in the future:
-
-- **`-beta.N`** (e.g. `v2.0.0-beta.1`) — an early build of an upcoming version, published for testing before it's considered feature-complete or stable. Expect bugs.
 - **`-alpha.N`** (e.g. `v2.0.0-alpha.1`) — an early, unfinished build published well before feature-complete. Expect breakage.
+- **`-beta.N`** (e.g. `v2.0.0-beta.1`) — an early build of an upcoming version, published for testing before it's considered feature-complete or stable. Expect bugs.
 - **`-rc.N`** ("release candidate", e.g. `v2.0.0-rc.1`) — a build believed ready to ship, published for a final round of testing before the real tag goes out. If no issues turn up, the next tag is the plain version with no suffix.
 
 > [!IMPORTANT]
 > `-rc.N` can only be used for a version that has already had a `-beta` or `-alpha` pre-release. A version can't jump straight to `-rc.N` without going through beta or alpha testing first — if there's no earlier `-beta`/`-alpha` tag for that version, skip straight to the plain release instead.
 
 > [!NOTE]
-> Under SemVer, a pre-release version sorts *before* the plain version it leads up to (`v2.0.0-rc.1` < `v2.0.0`), and tooling generally should not treat a pre-release as the "latest" stable version.
+> Under SemVer, a pre-release version sorts _before_ the plain version it leads up to (`v2.0.0-rc.1` < `v2.0.0`), and tooling generally should not treat a pre-release as the "latest" stable version.
 
 ## Where the version lives
 
