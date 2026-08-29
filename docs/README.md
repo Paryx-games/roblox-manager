@@ -36,6 +36,7 @@ Never share your `.ROBLOSECURITY` cookie. It provides access to your Roblox acco
 * [Save private servers](guides/private-servers.md)
 * [Use the asset manager](guides/asset-manager.md)
 * [Read the privacy and security guidance](security/privacy-and-security.md)
+* [Frequently asked questions](faq.md)
 
 ## Developer docs
 
