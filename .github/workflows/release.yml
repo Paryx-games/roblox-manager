@@ -191,6 +191,9 @@ jobs:
             "windows-x86"   = "For a 32-bit Windows PC"
           }
 
+          $repository = "${{ github.repository }}"
+          $tag = "${{ github.ref_name }}"
+
           $files = Get-ChildItem -Path release -Filter "*.exe" | Sort-Object Name
 
           $rows = foreach ($file in $files) {
@@ -200,7 +203,8 @@ jobs:
               if (-not $description) {
                 $description = "Platform: $platform"
               }
-              "| $($file.Name) | $description |"
+              $downloadUrl = "https://github.com/$repository/releases/download/$tag/$($file.Name)"
+              "| [``$($file.Name)``]($downloadUrl) | $description |"
             }
           }
 
