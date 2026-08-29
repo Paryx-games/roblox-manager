@@ -14,6 +14,7 @@
 ### Fixed
 
 - **Settings UI crash.** Fixed an egui panic caused by calling `ui.indent(...)` inside a horizontal layout in the Settings panel.
+- **Settings section rendering.** Fixed the selected sidebar section so the main settings pane now shows only the chosen section instead of rendering the entire vertical stack at once.
 
 ## v1.16.0-beta.1
 
