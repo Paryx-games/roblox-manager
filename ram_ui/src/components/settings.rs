@@ -161,10 +161,16 @@ fn setting_row<R>(
 }
 
 fn section_anchor(ui: &mut egui::Ui, section: SettingsSection, selected: SettingsSection) {
-    let response = ui.allocate_response(egui::Vec2::ZERO, egui::Sense::hover());
-    if section == selected {
-        response.scroll_to_me(Some(egui::Align::Center));
+    if section != selected {
+        return;
     }
+
+    let rect = egui::Rect::from_min_size(
+        ui.cursor().min,
+        egui::vec2(ui.available_width().max(160.0), 18.0),
+    );
+    let response = ui.allocate_rect(rect, egui::Sense::hover());
+    response.scroll_to_me(Some(egui::Align::Center));
 }
 
 fn section_header(ui: &mut egui::Ui, title: &str, description: Option<&str>) {
@@ -188,28 +194,46 @@ pub fn show(
 ) -> Option<SettingsAction> {
     let theme = ui.theme();
     let mut action: Option<SettingsAction> = None;
+    let sidebar_width = 180.0;
 
     ui.horizontal(|ui| {
-        ui.vertical(|ui| {
-            ui.set_width(170.0);
-            ui.strong("Settings");
-            ui.add_space(8.0);
-            for section in SettingsSection::ALL {
-                if ui.selectable_label(settings_state.selected_section == section, section.label()).clicked() {
-                    settings_state.selected_section = section;
-                }
-            }
+        ui.allocate_ui(egui::vec2(sidebar_width, ui.available_height()), |ui| {
+            ui.set_min_width(sidebar_width);
+            ui.vertical(|ui| {
+                ui.strong("Settings");
+                ui.add_space(8.0);
+                egui::ScrollArea::vertical()
+                    .id_salt("settings_sidebar_scroll")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        for section in SettingsSection::ALL {
+                            if ui.selectable_label(settings_state.selected_section == section, section.label()).clicked() {
+                                settings_state.selected_section = section;
+                            }
+                        }
+                    });
+            });
         });
-        ui.separator();
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            ui.heading("Settings");
-            ui.separator();
-            ui.add_space(8.0);
 
-            let section_frame = egui::Frame::default()
-                .inner_margin(egui::Margin::same(10.0))
-                .rounding(egui::Rounding::same(6.0))
-                .fill(ui.visuals().extreme_bg_color);
+        ui.add_space(10.0);
+        ui.separator();
+
+        ui.allocate_ui(
+            egui::vec2(ui.available_width().max(280.0) - sidebar_width - 18.0, ui.available_height()),
+            |ui| {
+                ui.set_min_width(280.0);
+                egui::ScrollArea::vertical()
+                    .id_salt("settings_content_scroll")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.heading("Settings");
+                        ui.separator();
+                        ui.add_space(8.0);
+
+                        let section_frame = egui::Frame::default()
+                            .inner_margin(egui::Margin::same(10.0))
+                            .rounding(egui::Rounding::same(6.0))
+                            .fill(ui.visuals().extreme_bg_color);
 
             match settings_state.selected_section {
                 SettingsSection::General => {
@@ -790,15 +814,17 @@ pub fn show(
                 }
             }
 
-            ui.add_space(12.0);
-            if ui.button("Save Settings").clicked() {
-                action = Some(SettingsAction::SaveConfig);
-            }
+                        ui.add_space(12.0);
+                        if ui.button("Save Settings").clicked() {
+                            action = Some(SettingsAction::SaveConfig);
+                        }
 
-            ui.add_space(12.0);
-            ui.separator();
-            ui.add_space(8.0);
-        });
+                        ui.add_space(12.0);
+                        ui.separator();
+                        ui.add_space(8.0);
+                    });
+            },
+        );
     });
 
     action

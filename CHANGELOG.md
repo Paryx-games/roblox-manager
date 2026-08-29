@@ -10,6 +10,7 @@
 ### Changed
 
 - **Settings sections.** Reorganized settings with clear category headers, descriptive taglines, and proper visual hierarchy. Separated window layout settings into their own dedicated section instead of mixing them into Launching.
+- **Settings panel redesign.** Reworked the settings screen into a proper sidebar + scrollable content layout and fixed the section-jump behavior so each settings category stays in view and easy to navigate.
 
 ### Fixed
 
