@@ -965,8 +965,13 @@ impl AppState {
                 BackendEvent::StoreSaved => {
                     // silent
                 }
-                BackendEvent::ConnectionActionCompleted { action, target_user_id } => {
-                    self.toasts.push(Toast::success(format!("{action} for user {target_user_id}")));
+                BackendEvent::ConnectionActionCompleted {
+                    action,
+                    target_user_id,
+                } => {
+                    self.toasts.push(Toast::success(format!(
+                        "{action} for user {target_user_id}"
+                    )));
                 }
                 BackendEvent::StoreUnlocked {
                     store,
@@ -2271,22 +2276,18 @@ impl eframe::App for AppState {
             ui.set_min_height(30.0);
 
             ui.horizontal_wrapped(|ui| {
-                ui.horizontal(|ui| {
-                    icons::show(ui, "accounts", 16.0);
-                    ui.selectable_value(&mut self.active_tab, Tab::Accounts, "Accounts");
-                });
-                ui.horizontal(|ui| {
-                    icons::show(ui, "groups", 16.0);
-                    ui.selectable_value(&mut self.active_tab, Tab::Groups, "Groups");
-                });
-                ui.horizontal(|ui| {
-                    icons::show(ui, "lock", 16.0);
-                    ui.selectable_value(&mut self.active_tab, Tab::PrivateServers, "Servers");
-                });
-                ui.horizontal(|ui| {
-                    icons::show(ui, "star", 16.0);
-                    ui.selectable_value(&mut self.active_tab, Tab::Presets, "Presets");
-                });
+                if icons::tab_button(ui, "accounts", "Accounts", self.active_tab == Tab::Accounts).clicked() {
+                    self.active_tab = Tab::Accounts;
+                }
+                if icons::tab_button(ui, "groups", "Groups", self.active_tab == Tab::Groups).clicked() {
+                    self.active_tab = Tab::Groups;
+                }
+                if icons::tab_button(ui, "lock", "Servers", self.active_tab == Tab::PrivateServers).clicked() {
+                    self.active_tab = Tab::PrivateServers;
+                }
+                if icons::tab_button(ui, "star", "Presets", self.active_tab == Tab::Presets).clicked() {
+                    self.active_tab = Tab::Presets;
+                }
                 if self.config.utility_enabled {
                     ui.selectable_value(
                         &mut self.active_tab,
@@ -2295,19 +2296,16 @@ impl eframe::App for AppState {
                     );
                 }
                 if self.config.developer_options {
-                    ui.horizontal(|ui| {
-                        icons::show(ui, "package", 16.0);
-                        ui.selectable_value(&mut self.active_tab, Tab::AssetManager, "Assets");
-                    });
-                    ui.horizontal(|ui| {
-                        icons::show(ui, "inventory", 16.0);
-                        ui.selectable_value(&mut self.active_tab, Tab::Inventory, "Inventory");
-                    });
+                    if icons::tab_button(ui, "package", "Assets", self.active_tab == Tab::AssetManager).clicked() {
+                        self.active_tab = Tab::AssetManager;
+                    }
+                    if icons::tab_button(ui, "inventory", "Inventory", self.active_tab == Tab::Inventory).clicked() {
+                        self.active_tab = Tab::Inventory;
+                    }
                 }
-                ui.horizontal(|ui| {
-                    icons::show(ui, "settings", 16.0);
-                    ui.selectable_value(&mut self.active_tab, Tab::Settings, "Settings");
-                });
+                if icons::tab_button(ui, "settings", "Settings", self.active_tab == Tab::Settings).clicked() {
+                    self.active_tab = Tab::Settings;
+                }
                 if ui
                     .button("✦ What's new")
                     .on_hover_text("View the current release changelog")
@@ -3081,6 +3079,8 @@ impl AppState {
                         &inventory_items,
                         inventory_loading,
                         inventory_error,
+                        &self.store.accounts,
+                        &self.avatar_bytes,
                     );
                     self.tutorial.launch_btn_rect = result.launch_btn_rect;
                     if let Some(a) = result.action {
@@ -3135,7 +3135,9 @@ impl AppState {
                                 let ready =
                                     self.session().filter(|_| self.try_consume_launch_slot());
                                 if let Some(session) = ready {
-                                    if let Some(account) = self.store.find_by_id_mut(account.user_id) {
+                                    if let Some(account) =
+                                        self.store.find_by_id_mut(account.user_id)
+                                    {
                                         account.last_used = Some(chrono::Utc::now());
                                     }
                                     self.bridge.send(BackendCommand::LaunchGame {
@@ -3263,7 +3265,8 @@ impl AppState {
         else {
             return;
         };
-        let mut csv = String::from("username,display_name,user_id,alias,group,account_age,last_used\n");
+        let mut csv =
+            String::from("username,display_name,user_id,alias,group,account_age,last_used\n");
         for account in &self.store.accounts {
             let age = account
                 .created_at
@@ -3286,8 +3289,13 @@ impl AppState {
             csv.push('\n');
         }
         match std::fs::write(&path, csv) {
-            Ok(()) => self.toasts.push(Toast::success(format!("Exported {} account(s)", self.store.accounts.len()))),
-            Err(error) => self.toasts.push(Toast::error(format!("Could not export accounts: {error}"))),
+            Ok(()) => self.toasts.push(Toast::success(format!(
+                "Exported {} account(s)",
+                self.store.accounts.len()
+            ))),
+            Err(error) => self
+                .toasts
+                .push(Toast::error(format!("Could not export accounts: {error}"))),
         }
     }
 

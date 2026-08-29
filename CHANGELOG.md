@@ -11,6 +11,7 @@
 - **Accessible changelog viewer.** The current release notes can now be opened from the top bar at any time.
 - **Account CSV export.** Export usernames and account metadata without exporting cookies.
 - **Friend and block actions.** Send a friend request or block a target user from the selected account.
+- **Connection picker.** Friend and block actions now have a dedicated section with autocomplete for managed usernames, display names, and user IDs.
 
 ### Fixed
 

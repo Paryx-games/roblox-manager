@@ -2,6 +2,7 @@
 
 use eframe::egui;
 use ram_core::models::{Account, LaunchPreset};
+use std::collections::HashMap;
 
 use crate::theme::ThemeUi;
 
@@ -31,8 +32,12 @@ pub enum MainPanelAction {
     KillAll,
     /// Open a webview pre-logged in as this account.
     OpenBrowserAs(u64),
-    SendFriendRequest { target_user_id: u64 },
-    BlockUser { target_user_id: u64 },
+    SendFriendRequest {
+        target_user_id: u64,
+    },
+    BlockUser {
+        target_user_id: u64,
+    },
 }
 
 /// Persistent input state for the main panel.
@@ -74,6 +79,8 @@ pub fn show(
     inventory_items: &[ram_core::assets_api::UserInventoryItem],
     inventory_loading: bool,
     inventory_error: Option<&str>,
+    candidate_accounts: &[Account],
+    candidate_avatars: &HashMap<u64, Vec<u8>>,
 ) -> MainPanelResult {
     let theme = ui.theme();
     let mut action: Option<MainPanelAction> = None;
@@ -548,19 +555,6 @@ pub fn show(
                         }
                         ui.end_row();
 
-                        ui.label("Friend / block user ID");
-                        ui.horizontal(|ui| {
-                            ui.text_edit_singleline(&mut state.connection_target_input);
-                            let target = state.connection_target_input.trim().parse::<u64>().ok();
-                            if ui.add_enabled(target.is_some(), egui::Button::new("Friend")).clicked() {
-                                action = Some(MainPanelAction::SendFriendRequest { target_user_id: target.unwrap_or_default() });
-                            }
-                            if ui.add_enabled(target.is_some(), egui::Button::new("Block")).clicked() {
-                                action = Some(MainPanelAction::BlockUser { target_user_id: target.unwrap_or_default() });
-                            }
-                        });
-                        ui.end_row();
-
                         if !account.group.is_empty() {
                             ui.label(
                                 egui::RichText::new("Group")
@@ -639,8 +633,42 @@ pub fn show(
                             );
                         });
                 }
+                });
             });
-        });
+            ui.add_space(8.0);
+            egui::Frame::default().inner_margin(egui::Margin::same(10.0)).show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.strong("Connections");
+                ui.label("Search a managed username or user ID, then choose an action.");
+                ui.text_edit_singleline(&mut state.connection_target_input);
+                let query = state.connection_target_input.trim().to_ascii_lowercase();
+                let target = candidate_accounts.iter().find(|candidate| {
+                    candidate.user_id.to_string() == query
+                        || candidate.username.to_ascii_lowercase() == query
+                        || candidate.display_name.to_ascii_lowercase() == query
+                });
+                if !query.is_empty() {
+                    for candidate in candidate_accounts.iter().filter(|candidate| {
+                        candidate.user_id.to_string().contains(&query)
+                            || candidate.username.to_ascii_lowercase().contains(&query)
+                            || candidate.display_name.to_ascii_lowercase().contains(&query)
+                    }).take(5) {
+                        let avatar = candidate_avatars.contains_key(&candidate.user_id);
+                        let label = format!("{} (@{}) · ID {}{}", candidate.display_name, candidate.username, candidate.user_id, if avatar { " · avatar loaded" } else { "" });
+                        if ui.selectable_label(target.is_some_and(|selected| selected.user_id == candidate.user_id), label).clicked() {
+                            state.connection_target_input = candidate.user_id.to_string();
+                        }
+                    }
+                }
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(target.is_some(), egui::Button::new("Send friend request")).clicked() {
+                        action = Some(MainPanelAction::SendFriendRequest { target_user_id: target.unwrap().user_id });
+                    }
+                    if ui.add_enabled(target.is_some(), egui::Button::new("Block user")).clicked() {
+                        action = Some(MainPanelAction::BlockUser { target_user_id: target.unwrap().user_id });
+                    }
+                });
+            });
     });
 
     MainPanelResult {
