@@ -657,12 +657,13 @@ pub fn show(
                         if response.clicked() && enabled {
                             selected_log_level = level;
                             settings_state.log_level_pending = Some(level);
+                            settings_state.log_level_warning_open = true;
                         }
                     }
                 });
         });
         if let Some(pending) = settings_state.log_level_pending.filter(|level| *level != config.log_level) {
-            let mut warning_open = settings_state.log_level_warning_open;
+            let mut warning_open = settings_state.log_level_warning_open || settings_state.log_level_pending.is_some();
             let mut should_apply = false;
             let mut should_cancel = false;
 
