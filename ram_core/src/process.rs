@@ -1234,12 +1234,23 @@ fn window_title(hwnd: windows_sys::Win32::Foundation::HWND) -> String {
 // Multi-instance mutex patching (Windows-only, opt-in)
 // ---------------------------------------------------------------------------
 
+/// Roblox's singleton lock names have changed across client versions. Some
+/// builds create `ROBLOX_singletonMutex`, while others expose the legacy
+/// `ROBLOX_singletonEvent` name. We need to claim both to reliably suppress the
+/// single-instance gate.
+#[cfg(windows)]
+pub fn roblox_singleton_names() -> Vec<&'static str> {
+    vec!["ROBLOX_singletonEvent", "ROBLOX_singletonMutex"]
+}
+
 /// Hold the Roblox singleton mutex in RM's own process so that Roblox cannot
 /// acquire it exclusively. This allows multiple Roblox clients to coexist.
 ///
 /// The original Roblox Account Manager uses the same technique: it creates
 /// `ROBLOX_singletonMutex` before any Roblox client launches, pre-empting the
-/// exclusive lock.
+/// exclusive lock. Some Roblox builds also check the legacy
+/// `ROBLOX_singletonEvent` object, so we reserve both names for the life of the
+/// process.
 ///
 /// **This technique interacts with Hyperion (Byfron) and carries ban risk.**
 /// It is gated behind `AppConfig::multi_instance_enabled` (default: off).
@@ -1251,7 +1262,7 @@ mod multi_instance {
     use windows_sys::Win32::System::Threading::CreateMutexW;
 
     /// Hold the singleton mutex handle for the lifetime of the program.
-    static HELD_MUTEX: OnceLock<MutexHandle> = OnceLock::new();
+    static HELD_MUTEXES: OnceLock<Vec<MutexHandle>> = OnceLock::new();
 
     /// Wrapper so we can store a HANDLE in a static (HANDLE is *mut c_void, not
     /// Send/Sync by default, but we never dereference it across threads).
@@ -1259,21 +1270,30 @@ mod multi_instance {
     unsafe impl Send for MutexHandle {}
     unsafe impl Sync for MutexHandle {}
 
-    /// Acquire the `ROBLOX_singletonMutex` and hold it for the process lifetime.
-    /// Subsequent calls are no-ops (already held). Returns `true` if successfully
-    /// acquired (or already held).
+    /// Acquire the Roblox singleton objects and hold them for the process
+    /// lifetime. Subsequent calls are no-ops (already held). Returns `true` if
+    /// successfully acquired (or already held).
     pub fn acquire_singleton_mutex() -> bool {
-        HELD_MUTEX.get_or_init(|| {
-            let name: Vec<u16> = "ROBLOX_singletonMutex\0".encode_utf16().collect();
-            let handle = unsafe { CreateMutexW(std::ptr::null(), 1, name.as_ptr()) };
-            if handle.is_null() {
-                info!("Failed to create ROBLOX_singletonMutex");
-            } else {
-                info!("Acquired ROBLOX_singletonMutex — multi-instance enabled");
+        HELD_MUTEXES.get_or_init(|| {
+            let mut handles = Vec::new();
+            for name in crate::process::roblox_singleton_names() {
+                let raw_name: Vec<u16> = format!("{name}\0").encode_utf16().collect();
+                let handle = unsafe { CreateMutexW(std::ptr::null(), 1, raw_name.as_ptr()) };
+                if handle.is_null() {
+                    info!(name, "Failed to create Roblox singleton mutex");
+                } else {
+                    info!(
+                        name,
+                        "Acquired Roblox singleton mutex — multi-instance enabled"
+                    );
+                }
+                handles.push(MutexHandle(handle));
             }
-            MutexHandle(handle)
+            handles
         });
-        HELD_MUTEX.get().is_some_and(|h| !h.0.is_null())
+        HELD_MUTEXES
+            .get()
+            .is_some_and(|handles| handles.iter().all(|h| !h.0.is_null()))
     }
 }
 
@@ -1283,7 +1303,7 @@ pub fn enable_multi_instance() -> Result<(), CoreError> {
         Ok(())
     } else {
         Err(CoreError::Process(
-            "failed to acquire ROBLOX_singletonMutex".into(),
+            "failed to acquire Roblox singleton mutexes".into(),
         ))
     }
 }
@@ -1758,6 +1778,13 @@ mod tests {
         // Within a second either way of the wall clock. Other tests in this
         // module may have nudged the counter past `now` by a few units.
         assert!((token - now).abs() < 1_000, "token {token} vs now {now}");
+    }
+
+    #[test]
+    fn roblox_singleton_names_include_legacy_and_current_objects() {
+        let names = roblox_singleton_names();
+        assert!(names.contains(&"ROBLOX_singletonEvent"));
+        assert!(names.contains(&"ROBLOX_singletonMutex"));
     }
 
     // -----------------------------------------------------------------------

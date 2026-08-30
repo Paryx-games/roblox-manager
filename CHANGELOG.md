@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- **Multi-instance singleton fix.** Restored the regression where Roblox multi-instance relied on the legacy singleton name; RM now reserves both the legacy `ROBLOX_singletonEvent` and current `ROBLOX_singletonMutex` objects so multi-instance continues working across Roblox client versions.
 - **Bulk launch privacy fallback.** Later accounts in a bulk launch no longer fail just because an earlier Roblox client is still active; the app skips that launch's privacy cleanup instead of aborting the entire batch.
 - **Reverted settings menu back to the original.** The new settings menu was fully broken, so it has been reverted to the original version.
 - **Settings UI crash.** Fixed an egui panic caused by calling `ui.indent(...)` inside a horizontal layout in the Settings panel.
