@@ -16,7 +16,7 @@
 
 ### Added
 
-- **Developer log levels.** Developer options now includes a log-level dropdown with a safety warning; debug builds expose trace/debug only while release builds allow the full error-to-trace range.
+- ~~**Developer log levels.** Developer options now includes a log-level dropdown with a safety warning; debug builds expose trace/debug only while release builds allow the full error-to-trace range.~~ Broke - see later release
 - **More logs.** Added way more logging than there used to be.
 
 ### Changed
