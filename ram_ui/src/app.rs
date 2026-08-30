@@ -2282,27 +2282,30 @@ impl eframe::App for AppState {
 
         // ---- Top bar ----
         egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
-            ui.spacing_mut().button_padding = egui::vec2(6.0, 3.0);
-            ui.spacing_mut().item_spacing = egui::vec2(6.0, 4.0);
             let is_compact = ui.available_width() < 1000.0;
             ui.set_min_height(34.0);
 
             ui.horizontal(|ui| {
-                let mut select_tab = |name: &str, label: &str, tab: Tab| {
-                    let response = if is_compact {
-                        icons::compact_tab_button(ui, name, label, self.active_tab == tab)
-                    } else {
-                        icons::tab_button(ui, name, label, self.active_tab == tab)
-                    };
-                    if response.clicked() {
-                        self.active_tab = tab;
-                    }
-                };
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().button_padding = egui::vec2(6.0, 3.0);
+                    ui.spacing_mut().item_spacing = egui::vec2(6.0, 4.0);
 
-                select_tab("accounts", "Accounts", Tab::Accounts);
-                select_tab("groups", "Groups", Tab::Groups);
-                select_tab("lock", "Servers", Tab::PrivateServers);
-                select_tab("star", "Presets", Tab::Presets);
+                    let mut select_tab = |name: &str, label: &str, tab: Tab| {
+                        let response = if is_compact {
+                            icons::compact_tab_button(ui, name, label, self.active_tab == tab)
+                        } else {
+                            icons::tab_button(ui, name, label, self.active_tab == tab)
+                        };
+                        if response.clicked() {
+                            self.active_tab = tab;
+                        }
+                    };
+
+                    select_tab("accounts", "Accounts", Tab::Accounts);
+                    select_tab("groups", "Groups", Tab::Groups);
+                    select_tab("lock", "Servers", Tab::PrivateServers);
+                    select_tab("star", "Presets", Tab::Presets);
+                });
 
                 ui.add_space(6.0);
                 ui.separator();
