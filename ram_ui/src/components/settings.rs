@@ -677,7 +677,13 @@ pub fn show(
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ui.ctx(), |ui| {
                     ui.label(format!("Switch log level from {current} to {target}?"));
-                    ui.label("Lower log levels omit details that can help diagnose future issues. Higher log levels include more detail but can be more spammy. We recommend info.");
+                    ui.label(
+                        if cfg!(debug_assertions) {
+                            "Lower log levels omit details that can help diagnose future issues. Higher log levels include more detail but can be more spammy. We recommend debug on debug builds."
+                        } else {
+                            "Lower log levels omit details that can help diagnose future issues. Higher log levels include more detail but can be more spammy. We recommend info on release builds."
+                        },
+                    );
                     ui.label("The app will restart once you confirm.");
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
