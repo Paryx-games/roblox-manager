@@ -19,7 +19,7 @@ uuid = { workspace = true }
 chrono = "0.4"
 
 eframe = "0.30"
-egui_extras = { version = "0.30", features = ["image", "http"] }
+egui_extras = { version = "0.36", features = ["image", "http"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 resvg = "0.45"
 rfd = "0.15"
