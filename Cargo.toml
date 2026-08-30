@@ -3,7 +3,7 @@ members = ["ram_core", "ram_ui"]
 resolver = "2"
 
 [workspace.package]
-version = "1.16.0-beta.2"
+version = "1.16.0-rc.1"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/Paryx-games/roblox-manager"
