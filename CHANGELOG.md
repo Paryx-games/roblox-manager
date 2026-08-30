@@ -2,6 +2,12 @@
 
 ## v1.16.0
 
+### Changed
+
+- **Tightened spacing on dividers.** Dividers in the topbar are now tighter spaced.
+
+## v1.16.0-rc.2
+
 ### Added
 
 - **Discord webhook logging.** Discord webhooks can be used to log actions in-app
