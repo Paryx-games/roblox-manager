@@ -371,24 +371,14 @@ pub struct AppConfig {
 }
 
 /// Filesystem cleanup selections used for a privacy-protected launch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LogLevel {
     Error,
     Warn,
+    #[default]
     Info,
     Debug,
     Trace,
-}
-
-impl Default for LogLevel {
-    fn default() -> Self {
-        if cfg!(debug_assertions) {
-            Self::Info
-        } else {
-            Self::Info
-        }
-    }
 }
 
 impl LogLevel {
@@ -426,8 +416,6 @@ impl LogLevel {
     pub fn clamp_for_profile(self) -> Self {
         if self.allowed_in_profile() {
             self
-        } else if cfg!(debug_assertions) {
-            Self::Info
         } else {
             Self::Info
         }
