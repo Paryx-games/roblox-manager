@@ -30,6 +30,8 @@ wry = "0.56"
 tao = "0.35"
 webview2-com = "0.38.2"
 windows-core = "0.61.2"
+base64 = "0.23.1"
+reqwest = { workspace = true, features = ["json", "cookies"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

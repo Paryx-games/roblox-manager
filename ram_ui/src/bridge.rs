@@ -4,6 +4,7 @@
 //! as [`BackendCommand`] messages to a background `tokio` runtime. Results come
 //! back as [`BackendEvent`] through an mpsc channel polled each frame.
 
+use base64::Engine;
 use eframe::egui;
 use ram_core::assets::{AssetKind, Creator, ModerationStatus, OperationOutcome};
 use ram_core::auth::RobloxClient;
@@ -157,6 +158,10 @@ pub enum BackendCommand {
     },
     /// Update the Windows startup registration off the UI thread.
     SetStartupWithWindows(bool),
+    /// Apply RM branding to a Discord webhook and send a test message.
+    TestDiscordWebhook {
+        url: String,
+    },
     /// Open a folder using the platform shell.
     OpenDataFolder {
         path: PathBuf,
@@ -476,6 +481,8 @@ pub enum BackendEvent {
     MacAddressRotated,
     /// Windows startup registration completed.
     StartupUpdated(bool),
+    /// Discord accepted the webhook branding and test message.
+    DiscordWebhookTested,
     /// Backend transient caches were cleared.
     CachesCleared,
     InstanceFocused {
@@ -829,6 +836,23 @@ async fn open_path(path: PathBuf) -> Result<(), CoreError> {
     .map_err(|error| CoreError::Process(format!("folder open task failed: {error}")))?
 }
 
+fn is_valid_discord_webhook_url(url: &str) -> bool {
+    let Some(path) = url.strip_prefix("https://discord.com/api/webhooks/") else {
+        return false;
+    };
+    let Some((webhook_id, token)) = path.split_once('/') else {
+        return false;
+    };
+    webhook_id.len() >= 18
+        && webhook_id
+            .chars()
+            .all(|character| character.is_ascii_digit())
+        && !token.is_empty()
+        && token
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
+}
+
 async fn handle_command(
     cmd: BackendCommand,
     client: &RobloxClient,
@@ -1026,6 +1050,47 @@ async fn handle_command(
                 .map_err(|error| CoreError::Process(format!("startup task failed: {error}")))?
                 .map_err(|error| CoreError::Process(error.to_string()))?;
             Ok(BackendEvent::StartupUpdated(enabled))
+        }
+        BackendCommand::TestDiscordWebhook { url } => {
+            if !is_valid_discord_webhook_url(&url) {
+                return Err(CoreError::AuthFailed(
+                    "invalid Discord webhook URL".to_string(),
+                ));
+            }
+            let avatar = base64::engine::general_purpose::STANDARD
+                .encode(include_bytes!("../../assets/Logo.png"));
+            let http = reqwest::Client::new();
+            let response = http
+                .patch(&url)
+                .json(&serde_json::json!({
+                    "name": "Roblox Manager",
+                    "avatar": format!("data:image/png;base64,{avatar}"),
+                }))
+                .send()
+                .await
+                .map_err(|_| CoreError::AuthFailed("Discord webhook request failed".to_string()))?;
+            if !response.status().is_success() {
+                return Err(CoreError::AuthFailed(format!(
+                    "Discord webhook rejected branding (HTTP {})",
+                    response.status().as_u16()
+                )));
+            }
+            let response = http
+                .post(&url)
+                .json(&serde_json::json!({
+                    "username": "Roblox Manager",
+                    "content": "Roblox Manager webhook connected successfully.",
+                }))
+                .send()
+                .await
+                .map_err(|_| CoreError::AuthFailed("Discord webhook request failed".to_string()))?;
+            if !response.status().is_success() {
+                return Err(CoreError::AuthFailed(format!(
+                    "Discord webhook rejected test message (HTTP {})",
+                    response.status().as_u16()
+                )));
+            }
+            Ok(BackendEvent::DiscordWebhookTested)
         }
         BackendCommand::OpenDataFolder { path } => {
             info!(path = %path.display(), "Opening data folder in file explorer");

@@ -99,6 +99,12 @@ fn rules() -> &'static [Rule] {
             ),
             // The Windows account name embedded in every local path we log.
             mk(r#"(?i)([a-z]:[\\/]users[\\/])([^\\/\s"']+)"#, user_path),
+            // Discord webhook URLs: https://discord.com/api/webhooks/{id}/{token}
+            // Keep the domain but redact the sensitive token part.
+            mk(
+                r#"(?i)(https://discord\.com/api/webhooks/\d+/)([^\s"']+)"#,
+                keep_label,
+            ),
         ]
     })
 }

@@ -7,6 +7,7 @@ pub mod private_servers;
 pub mod settings;
 pub mod sidebar;
 pub mod tutorial;
+pub mod discord_webhook;
 
 use eframe::egui;
 use ram_core::models::{Account, LaunchPreset};

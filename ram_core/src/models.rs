@@ -363,6 +363,11 @@ pub struct AppConfig {
     /// correct for users upgrading from a release that predates it.
     #[serde(default)]
     pub offered_passwordless: bool,
+    /// Discord webhook URL for notifications on launches and moderation events.
+    /// Must match the pattern: https://discord.com/api/webhooks/{id}/{token}
+    /// Stored encrypted; never logged in plaintext.
+    #[serde(default)]
+    pub discord_webhook_url: String,
 }
 
 /// Filesystem cleanup selections used for a privacy-protected launch.
@@ -609,6 +614,7 @@ impl Default for AppConfig {
             // A fresh install is passwordless from the start, so there is
             // nothing to offer to switch away from.
             offered_passwordless: true,
+            discord_webhook_url: String::new(),
         }
     }
 }

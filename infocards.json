@@ -119,4 +119,9 @@
     "type": "caution",
     "text": "Automatically launch a selected account when RM starts. This is an attack surface; only enable if RM runs in a restricted or monitored environment."
   }
+  },
+  "discord_webhook": {
+    "type": "info",
+    "text": "Sends notifications to a private Discord channel when you launch games or accounts are moderated. You control the webhook URL; rotate it anytime from your Discord server settings. RM never shares webhook URLs or moderation data outside this channel."
+  }
 }

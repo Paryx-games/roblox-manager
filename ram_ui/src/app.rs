@@ -11,8 +11,8 @@ use ram_core::assets::{AssetKind, AssetState, ModerationStatus, OperationOutcome
 
 use crate::bridge::{BackendBridge, BackendCommand, BackendEvent, UploadJob};
 use crate::components::{
-    asset_manager, group_panel, groups_panel, main_panel, presets_panel, private_servers, settings,
-    sidebar, tutorial,
+    asset_manager, discord_webhook, group_panel, groups_panel, main_panel, presets_panel,
+    private_servers, settings, sidebar, tutorial,
 };
 use crate::icons;
 use crate::theme::ThemeUi;
@@ -282,6 +282,7 @@ pub struct AppState {
     settings_state: settings::SettingsState,
     utility_warning_visible: bool,
     add_dialog: AddAccountDialog,
+    discord_webhook_state: discord_webhook::DiscordWebhookState,
 
     /// Cached preset list (loaded from disk on startup + after each edit).
     presets: Vec<(PathBuf, ram_core::models::LaunchPreset)>,
@@ -590,6 +591,7 @@ impl AppState {
             update_available: None,
             show_changelog: false,
             tutorial: tutorial::TutorialState::default(),
+            discord_webhook_state: discord_webhook::DiscordWebhookState::default(),
         };
 
         // A device-locked store needs no interaction: open it now so the first
@@ -1231,8 +1233,18 @@ impl AppState {
                 BackendEvent::RevalidationComplete => {
                     self.auto_save();
                 }
+                BackendEvent::DiscordWebhookTested => {
+                    self.discord_webhook_state.test_message_sent = true;
+                    self.discord_webhook_state.test_error = None;
+                    self.toasts
+                        .push(Toast::success("Discord webhook test passed"));
+                }
                 BackendEvent::Error(msg) => {
                     tracing::error!(%msg, "Backend error received");
+                    if self.discord_webhook_state.modal_open {
+                        self.discord_webhook_state.test_message_sent = false;
+                        self.discord_webhook_state.test_error = Some(msg.clone());
+                    }
                     // A failed unlock or re-key must clear its in-flight flag,
                     // or the unlock screen sits on a spinner with no way back.
                     self.unlocking = false;
@@ -4990,7 +5002,28 @@ impl AppState {
                 has_password,
                 &mut self.settings_state,
                 self.roblox_running,
+                &mut self.discord_webhook_state,
             );
+            let webhook_open = self.discord_webhook_state.modal_open;
+            let webhook_action =
+                discord_webhook::show_modal(ui, &mut self.discord_webhook_state, webhook_open);
+            if let Some(webhook_action) = webhook_action {
+                match webhook_action {
+                    discord_webhook::DiscordWebhookAction::SaveWebhook { url } => {
+                        self.config.discord_webhook_url = url;
+                        if let Err(error) = self.config.save(&self.config_path) {
+                            self.toasts
+                                .push(Toast::error(format!("Save failed: {error}")));
+                        } else {
+                            self.toasts.push(Toast::success("Discord webhook saved"));
+                        }
+                    }
+                    discord_webhook::DiscordWebhookAction::TestWebhook { url } => {
+                        self.bridge.send(BackendCommand::TestDiscordWebhook { url });
+                        self.toasts.push(Toast::info("Testing Discord webhook..."));
+                    }
+                }
+            }
             let changed = self.config != before;
             match action {
                 Some(settings::SettingsAction::SaveConfig) => {

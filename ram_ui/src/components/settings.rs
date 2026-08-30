@@ -6,6 +6,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use super::discord_webhook::DiscordWebhookState;
 use crate::theme::ThemeUi;
 
 const INFO_WHITE_PNG: &[u8] = include_bytes!("../../../assets/info_white.png");
@@ -127,6 +128,7 @@ pub fn show(
     has_password: bool,
     settings_state: &mut SettingsState,
     roblox_running: bool,
+    webhook_state: &mut DiscordWebhookState,
 ) -> Option<SettingsAction> {
     let theme = ui.theme();
     let mut action: Option<SettingsAction> = None;
@@ -837,6 +839,39 @@ pub fn show(
         ui.colored_label(
             theme.text_muted,
             "Experimental Roblox ClientSettings toggles; written before launch",
+        );
+    });
+
+    ui.add_space(12.0);
+
+    // ---- Integrations ----
+    section_frame.show(ui, |ui: &mut egui::Ui| {
+        ui.set_min_width(ui.available_width());
+        ui.strong("Integrations");
+        ui.add_space(4.0);
+
+        ui.strong("Discord Notifications");
+        ui.add_space(2.0);
+        setting_row(ui, "discord_webhook", |ui| {
+            if config.discord_webhook_url.is_empty() {
+                if ui.button("Add Discord Webhook").clicked() {
+                    webhook_state.modal_open = true;
+                }
+            } else {
+                ui.label("✓ Webhook configured");
+                if ui.button("Change").clicked() {
+                    webhook_state.input_url = config.discord_webhook_url.clone();
+                    webhook_state.modal_open = true;
+                }
+                if ui.button("Remove").clicked() {
+                    config.discord_webhook_url.clear();
+                }
+            }
+        });
+        ui.add_space(2.0);
+        ui.colored_label(
+            theme.text_muted,
+            "Get notifications for launches and account moderation events.",
         );
     });
 
