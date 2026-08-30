@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.16.0-rc.2
+## v1.16.0
 
 ### Added
 

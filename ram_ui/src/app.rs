@@ -2308,6 +2308,8 @@ impl eframe::App for AppState {
         egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
             let is_compact = ui.available_width() < 1000.0;
             ui.set_min_height(34.0);
+            ui.spacing_mut().item_spacing.x = if is_compact { 4.0 } else { 5.0 };
+            ui.spacing_mut().button_padding = egui::vec2(7.0, 4.0);
 
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
@@ -2328,9 +2330,9 @@ impl eframe::App for AppState {
                     select_tab("star", "Presets", Tab::Presets);
                 });
 
-                ui.add_space(1.0);
+                ui.add_space(0.5);
                 ui.separator();
-                ui.add_space(1.0);
+                ui.add_space(0.5);
 
                 let is_tools_active = matches!(
                     self.active_tab,
@@ -2372,9 +2374,9 @@ impl eframe::App for AppState {
                 );
                 tools_response.response.on_hover_text("Open utility and developer workspaces");
 
-                ui.add_space(1.0);
+                ui.add_space(0.5);
                 ui.separator();
-                ui.add_space(1.0);
+                ui.add_space(0.5);
 
                 let settings_response = if is_compact {
                     icons::compact_tab_button(ui, "settings", "Settings", self.active_tab == Tab::Settings)
