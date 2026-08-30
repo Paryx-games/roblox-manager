@@ -30,7 +30,7 @@ jobs:
           key: release
 
       - name: build
-        run: cargo build --release --locked
+        run: cargo build --release
 
       - name: upload executable
         uses: actions/upload-artifact@v4
