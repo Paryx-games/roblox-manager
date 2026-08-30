@@ -107,6 +107,23 @@ mod tests {
         });
         assert!(!account.can_launch());
     }
+
+    #[test]
+    fn log_level_profile_rules_match_build_mode() {
+        if cfg!(debug_assertions) {
+            assert!(LogLevel::Info.allowed_in_profile());
+            assert!(LogLevel::Debug.allowed_in_profile());
+            assert!(LogLevel::Trace.allowed_in_profile());
+            assert!(!LogLevel::Error.allowed_in_profile());
+            assert!(!LogLevel::Warn.allowed_in_profile());
+        } else {
+            assert!(LogLevel::Error.allowed_in_profile());
+            assert!(LogLevel::Warn.allowed_in_profile());
+            assert!(LogLevel::Info.allowed_in_profile());
+            assert!(LogLevel::Debug.allowed_in_profile());
+            assert!(LogLevel::Trace.allowed_in_profile());
+        }
+    }
 }
 
 /// Moderation / enforcement state on a Roblox account.

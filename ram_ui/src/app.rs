@@ -2286,10 +2286,7 @@ impl eframe::App for AppState {
             ui.set_min_height(34.0);
 
             ui.horizontal(|ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().button_padding = egui::vec2(6.0, 3.0);
-                    ui.spacing_mut().item_spacing = egui::vec2(6.0, 4.0);
-
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     let mut select_tab = |name: &str, label: &str, tab: Tab| {
                         let response = if is_compact {
                             icons::compact_tab_button(ui, name, label, self.active_tab == tab)
@@ -2307,9 +2304,9 @@ impl eframe::App for AppState {
                     select_tab("star", "Presets", Tab::Presets);
                 });
 
-                ui.add_space(6.0);
+                ui.add_space(1.0);
                 ui.separator();
-                ui.add_space(6.0);
+                ui.add_space(1.0);
 
                 let is_tools_active = matches!(
                     self.active_tab,
@@ -2351,9 +2348,9 @@ impl eframe::App for AppState {
                 );
                 tools_response.response.on_hover_text("Open utility and developer workspaces");
 
-                ui.add_space(6.0);
+                ui.add_space(1.0);
                 ui.separator();
-                ui.add_space(6.0);
+                ui.add_space(1.0);
 
                 let settings_response = if is_compact {
                     icons::compact_tab_button(ui, "settings", "Settings", self.active_tab == Tab::Settings)
@@ -2384,24 +2381,43 @@ impl eframe::App for AppState {
                     }
                     ui.separator();
                     if !self.store.accounts.is_empty()
-                        && icons::button(ui, "refresh", if is_compact { "" } else { "Refresh" })
-                            .on_hover_text("Refresh all accounts: re-validate cookies, fetch moderation status, presence, and avatars")
-                            .clicked()
+                        && {
+                            let button = if is_compact {
+                                icons::compact_tab_button(ui, "refresh", "Refresh", false)
+                            } else {
+                                icons::tab_button(ui, "refresh", "Refresh", false)
+                            };
+                            button
+                                .on_hover_text("Refresh all accounts: re-validate cookies, fetch moderation status, presence, and avatars")
+                                .clicked()
+                        }
                     {
                         self.toasts.push(Toast::info("Refreshing all accounts..."));
                         self.trigger_revalidation();
                         self.trigger_refresh();
                     }
-                    if icons::button(ui, "import", if is_compact { "" } else { "Export CSV" })
-                        .on_hover_text("Export account metadata without cookies")
-                        .clicked()
-                    {
+                    if {
+                        let button = if is_compact {
+                            icons::compact_tab_button(ui, "import", "Export CSV", false)
+                        } else {
+                            icons::tab_button(ui, "import", "Export CSV", false)
+                        };
+                        button
+                            .on_hover_text("Export account metadata without cookies")
+                            .clicked()
+                    } {
                         self.export_accounts_csv();
                     }
-                    if icons::button(ui, "update", if is_compact { "" } else { "What's new" })
-                        .on_hover_text("View the current release changelog")
-                        .clicked()
-                    {
+                    if {
+                        let button = if is_compact {
+                            icons::compact_tab_button(ui, "update", "What's new", false)
+                        } else {
+                            icons::tab_button(ui, "update", "What's new", false)
+                        };
+                        button
+                            .on_hover_text("View the current release changelog")
+                            .clicked()
+                    } {
                         self.show_changelog = true;
                     }
                 });
@@ -4988,6 +5004,16 @@ impl AppState {
                         self.toasts.push(Toast::success("Settings saved"));
                     }
                 }
+                Some(settings::SettingsAction::ApplyLogLevel { level }) => {
+                    self.config.log_level = level;
+                    if let Err(e) = self.config.save(&self.config_path) {
+                        self.toasts.push(Toast::error(format!("Save failed: {e}")));
+                    } else {
+                        self.toasts
+                            .push(Toast::success("Log level updated. Restarting RM..."));
+                        self.restart_app();
+                    }
+                }
                 Some(settings::SettingsAction::SetStartupWithWindows(enabled)) => {
                     self.bridge
                         .send(BackendCommand::SetStartupWithWindows(enabled));
@@ -5845,6 +5871,20 @@ impl AppState {
                 }
             });
         self.add_dialog.open = open;
+    }
+
+    fn restart_app(&self) {
+        let Ok(exe) = std::env::current_exe() else {
+            tracing::error!("Could not find the running RM binary for restart");
+            return;
+        };
+        let mut command = std::process::Command::new(exe);
+        command.args(std::env::args_os().skip(1));
+        if let Err(err) = command.spawn() {
+            tracing::error!("Could not launch replacement RM process: {err}");
+            return;
+        }
+        std::process::exit(0);
     }
 
     fn show_confirm_remove_dialog(&mut self, ctx: &egui::Context) {

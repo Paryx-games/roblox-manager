@@ -11,6 +11,7 @@
 
 - **Desktop sizing.** The minimum app window size is now a comfortable 1280x720 so the top bar remains readable instead of compressing too aggressively.
 - **Settings organization.** Developer-only controls are grouped more cleanly under the main Settings page so the log-level warning and related options are easier to find.
+- **Log-level safety flow.** Changing the log level now opens a clear approval popup and automatically restarts RM so the new logging level takes effect immediately.
 
 ## v1.16.0-beta.2
 

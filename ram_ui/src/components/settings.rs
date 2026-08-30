@@ -16,6 +16,7 @@ const INFO_BLACK_PNG: &[u8] = include_bytes!("../../../assets/info_black.png");
 #[allow(dead_code)]
 pub enum SettingsAction {
     SaveConfig,
+    ApplyLogLevel { level: LogLevel },
     SetStartupWithWindows(bool),
     RotateMacAddress,
     ChangePassword { new_password: String },
@@ -34,6 +35,7 @@ pub struct SettingsState {
     pub new_password_input: String,
     pub confirm_password_input: String,
     pub log_level_pending: Option<LogLevel>,
+    pub log_level_warning_open: bool,
 }
 
 #[derive(Deserialize)]
@@ -660,20 +662,38 @@ pub fn show(
                 });
         });
         if let Some(pending) = settings_state.log_level_pending.filter(|level| *level != config.log_level) {
-            ui.add_space(4.0);
-            ui.colored_label(
-                theme.warning,
-                "Only change this if you know what you're doing. It can make future bug reports and troubleshooting harder.",
-            );
-            ui.horizontal(|ui| {
-                if ui.button("Apply log level").clicked() {
-                    config.log_level = pending;
-                    settings_state.log_level_pending = None;
-                }
-                if ui.button("Cancel").clicked() {
-                    settings_state.log_level_pending = None;
-                }
-            });
+            let mut warning_open = settings_state.log_level_warning_open;
+            let mut should_apply = false;
+            let mut should_cancel = false;
+
+            egui::Window::new("Change log level?")
+                .open(&mut warning_open)
+                .resizable(false)
+                .collapsible(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ui.ctx(), |ui| {
+                    ui.label("Only proceed if you know what you're doing.");
+                    ui.label("This can make future bug reports and troubleshooting harder.");
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("Proceed").clicked() {
+                            should_apply = true;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            should_cancel = true;
+                        }
+                    });
+                });
+
+            settings_state.log_level_warning_open = warning_open;
+            if should_apply {
+                action = Some(SettingsAction::ApplyLogLevel { level: pending });
+                settings_state.log_level_pending = None;
+                settings_state.log_level_warning_open = false;
+            } else if should_cancel || !warning_open {
+                settings_state.log_level_pending = None;
+                settings_state.log_level_warning_open = false;
+            }
         }
         if ui
             .button("Clean orphaned data")
