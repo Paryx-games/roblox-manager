@@ -172,6 +172,33 @@ pub fn show(
             action = Some(SettingsAction::SetStartupWithWindows(wants_startup));
         }
 
+        ui.add_space(4.0);
+        setting_row(ui, "refresh_on_startup", |ui| {
+            ui.checkbox(
+                &mut config.refresh_on_startup,
+                "Revalidate accounts on startup",
+            )
+        });
+
+        ui.add_space(4.0);
+        setting_row(ui, "auto_launch_on_startup", |ui| {
+            let mut wants_auto = config.auto_launch_on_startup;
+            if ui.checkbox(&mut wants_auto, "Auto-launch on startup").changed() {
+                config.auto_launch_on_startup = wants_auto;
+            }
+            if wants_auto {
+                ui.horizontal(|ui| {
+                    ui.label("Account ID:");
+                    let mut id_str = config.auto_launch_account_id
+                        .map(|id| id.to_string())
+                        .unwrap_or_default();
+                    if ui.text_edit_singleline(&mut id_str).changed() {
+                        config.auto_launch_account_id = id_str.trim().parse().ok();
+                    }
+                });
+            }
+        });
+
         ui.add_space(6.0);
         ui.strong("Launch safeguards");
         let mut wants_multi = config.multi_instance_enabled;
@@ -554,6 +581,12 @@ pub fn show(
                         "Clean selected privacy data on exit",
                     );
                 });
+                setting_row(ui, "privacy_clear_clipboard", |ui| {
+                    ui.checkbox(
+                        &mut config.privacy_clear_clipboard,
+                        "Clear clipboard after launch",
+                    );
+                });
             });
         });
         ui.add_space(8.0);
@@ -766,6 +799,45 @@ pub fn show(
                 Some(std::path::PathBuf::from(path_str))
             };
         }
+    });
+    ui.add_space(6.0);
+
+    // ---- Advanced ----
+    section_frame.show(ui, |ui: &mut egui::Ui| {
+        ui.set_min_width(ui.available_width());
+        ui.strong("Advanced");
+        ui.add_space(4.0);
+
+        ui.strong("Launch arguments");
+        ui.add_space(2.0);
+        setting_row(ui, "custom_game_args", |ui| {
+            ui.label("Custom Roblox args:");
+            ui.text_edit_singleline(&mut config.custom_game_args)
+        });
+        ui.colored_label(
+            theme.text_muted,
+            "Examples: -a 3 -t username=... (passed directly to RobloxPlayerBeta.exe)",
+        );
+
+        ui.add_space(6.0);
+        ui.strong("Fast flags");
+        ui.add_space(2.0);
+        setting_row(ui, "roblox_fast_flags", |ui| {
+            if config.roblox_fast_flags.is_empty() {
+                ui.label("(empty)");
+            } else {
+                ui.vertical(|ui| {
+                    for (key, value) in config.roblox_fast_flags.iter() {
+                        ui.label(format!("{} = {}", key, value));
+                    }
+                });
+            }
+            false
+        });
+        ui.colored_label(
+            theme.text_muted,
+            "Experimental Roblox ClientSettings toggles; written before launch",
+        );
     });
 
     ui.add_space(12.0);

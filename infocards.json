@@ -1,78 +1,122 @@
 {
-    "credential_manager": {
-        "type": "info",
-        "text": "Keeps the device key in Windows Credential Manager and stores account cookies in per-account credential entries. The account file remains encrypted and can unlock automatically on this Windows user profile; clearing or losing the credentials can make the store unavailable."
-    },
-    "multi_instance": {
-        "type": "caution",
-        "text": "Releases Roblox's singleton mutex so RM can launch more than one RobloxPlayerBeta.exe process. This interacts with Hyperion anti-cheat behavior and may carry account or ban risk."
-    },
-    "kill_background_roblox": {
-        "type": "info",
-        "text": "Periodically finds RobloxPlayerBeta.exe processes started with --launch-to-tray and attempts to close them. RM also runs this cleanup before launches; normal game clients are not targeted."
-    },
-    "auto_arrange_windows": {
-        "type": "info",
-        "text": "After a launch burst, waits for the clients to appear and arranges attributed Roblox windows using the selected monitor target, layout mode, and padding."
-    },
-    "grid_layout": {
-        "type": "info",
-        "text": "Selects automatic square-like tiling, a fixed column count, a fixed row count, an explicit column-by-row grid, one row, or one column."
-    },
-    "rename_windows": {
-        "type": "caution",
-        "text": "Changes each attributed Roblox window title to its account alias, or username when no alias is set. Titles are visible to other programs and in screenshots or streams; RM restores the original titles when renaming is disabled or the app exits."
-    },
-    "launch_delay": {
-        "type": "warning",
-        "text": "Sets the minimum pause between successive account launches, including bulk launches. It can be 0-300 seconds and may help when Roblox rate-limits rapid launches from an IP address."
-    },
-    "privacy_mode": {
-        "type": "info",
-        "text": "Enables the selected privacy cleanup before each launch. Cleanup is refused while a Roblox client is running; this does not guarantee full account isolation."
-    },
-    "privacy_cookies": {
-        "type": "info",
-        "text": "Moves %LOCALAPPDATA%\\Roblox\\LocalStorage\\RobloxCookies.dat into a temporary backup before each launch, then removes the backup after a successful launch. Cookies are enabled by default."
-    },
-    "privacy_local_storage": {
-        "type": "warning",
-        "text": "Moves the Roblox LocalStorage directory into a temporary backup before launch. It may remove additional local session state and can be restored automatically if launching fails."
-    },
-    "privacy_full_profile": {
-        "type": "warning",
-        "text": "Moves Roblox user-state directories such as LocalStorage, logs, Downloads, and ClientSettings into a temporary backup. Roblox must be closed before cleanup and the backup is removed after a successful launch."
-    },
-    "privacy_on_exit": {
-        "type": "info",
-        "text": "Repeats the selected cleanup when RM exits, but refuses to touch privacy data while a Roblox client is running."
-    },
-    "mac_rotation": {
-        "type": "warning",
-        "text": "Changes the active Windows network adapter's MAC address using PowerShell. The adapter briefly disconnects, administrator permission may be required, and networks may identify or block a changed address."
-    },
-    "mac_preserve_oui": {
-        "type": "info",
-        "text": "Keeps the first three bytes (the manufacturer's OUI) from this PC's active adapter and randomizes only the device portion of the MAC address."
-    },
-    "mac_alternate_oui": {
-        "type": "info",
-        "text": "Selects a well-known vendor OUI for the rotated address when preserving this PC's OUI is disabled."
-    },
-    "developer_options": {
-        "type": "warning",
-        "text": "Adds the Assets tab to the Utility area. Asset uploads create permanent public Roblox assets and are moderated under the account that uploads them."
-    },
-    "log_level": {
-        "type": "warning",
-        "text": "Sets the app's tracing verbosity for the current build. Only change this if you know what you're doing: debug and trace can generate a lot of log noise and slow down troubleshooting work."
-    },
-    "roblox_player_path": {
-        "type": "info",
-        "text": "Optional path to RobloxPlayerBeta.exe, or to its containing folder. RM launches this executable directly; when empty, it searches installed versions under %LOCALAPPDATA%\\Roblox\\Versions."
-    },
-    "encryption_password": {
-        "type": "caution",
-        "text": "Switches the account store to password mode. RM derives its wrapping key with Argon2id and asks for this password at startup; forgetting it prevents the encrypted store from being unlocked. Changing it rewraps the store's data key."
-    }
+  "credential_manager": {
+    "type": "info",
+    "text": "Keeps the device key in Windows Credential Manager and stores account cookies in per-account credential entries. The account file remains encrypted and can unlock automatically on this Windows user profile; clearing or losing the credentials can make the store unavailable."
+  },
+  "multi_instance": {
+    "type": "caution",
+    "text": "Releases Roblox's singleton mutex so RM can launch more than one RobloxPlayerBeta.exe process. This interacts with Hyperion anti-cheat behavior and may carry account or ban risk."
+  },
+  "kill_background_roblox": {
+    "type": "info",
+    "text": "Periodically finds RobloxPlayerBeta.exe processes started with --launch-to-tray and attempts to close them. RM also runs this cleanup before launches; normal game clients are not targeted."
+  },
+  "auto_arrange_windows": {
+    "type": "info",
+    "text": "After a launch burst, waits for the clients to appear and arranges attributed Roblox windows using the selected monitor target, layout mode, and padding."
+  },
+  "grid_layout": {
+    "type": "info",
+    "text": "Selects automatic square-like tiling, a fixed column count, a fixed row count, an explicit column-by-row grid, one row, or one column."
+  },
+  "rename_windows": {
+    "type": "caution",
+    "text": "Changes each attributed Roblox window title to its account alias, or username when no alias is set. Titles are visible to other programs and in screenshots or streams; RM restores the original titles when renaming is disabled or the app exits."
+  },
+  "launch_delay": {
+    "type": "warning",
+    "text": "Sets the minimum pause between successive account launches, including bulk launches. It can be 0-300 seconds and may help when Roblox rate-limits rapid launches from an IP address."
+  },
+  "privacy_mode": {
+    "type": "info",
+    "text": "Enables the selected privacy cleanup before each launch. Cleanup is refused while a Roblox client is running; this does not guarantee full account isolation."
+  },
+  "privacy_cookies": {
+    "type": "info",
+    "text": "Moves %LOCALAPPDATA%\\Roblox\\LocalStorage\\RobloxCookies.dat into a temporary backup before each launch, then removes the backup after a successful launch. Cookies are enabled by default."
+  },
+  "privacy_local_storage": {
+    "type": "warning",
+    "text": "Moves the Roblox LocalStorage directory into a temporary backup before launch. It may remove additional local session state and can be restored automatically if launching fails."
+  },
+  "privacy_full_profile": {
+    "type": "warning",
+    "text": "Moves Roblox user-state directories such as LocalStorage, logs, Downloads, and ClientSettings into a temporary backup. Roblox must be closed before cleanup and the backup is removed after a successful launch."
+  },
+  "privacy_on_exit": {
+    "type": "info",
+    "text": "Repeats the selected cleanup when RM exits, but refuses to touch privacy data while a Roblox client is running."
+  },
+  "mac_rotation": {
+    "type": "warning",
+    "text": "Changes the active Windows network adapter's MAC address using PowerShell. The adapter briefly disconnects, administrator permission may be required, and networks may identify or block a changed address."
+  },
+  "mac_preserve_oui": {
+    "type": "info",
+    "text": "Keeps the first three bytes (the manufacturer's OUI) from this PC's active adapter and randomizes only the device portion of the MAC address."
+  },
+  "mac_alternate_oui": {
+    "type": "info",
+    "text": "Selects a well-known vendor OUI for the rotated address when preserving this PC's OUI is disabled."
+  },
+  "developer_options": {
+    "type": "warning",
+    "text": "Adds the Assets tab to the Utility area. Asset uploads create permanent public Roblox assets and are moderated under the account that uploads them."
+  },
+  "log_level": {
+    "type": "warning",
+    "text": "Sets the app's tracing verbosity for the current build. Only change this if you know what you're doing: debug and trace can generate a lot of log noise and slow down troubleshooting work."
+  },
+  "roblox_player_path": {
+    "type": "info",
+    "text": "Optional path to RobloxPlayerBeta.exe, or to its containing folder. RM launches this executable directly; when empty, it searches installed versions under %LOCALAPPDATA%\\Roblox\\Versions."
+  },
+  "encryption_password": {
+    "type": "caution",
+    "text": "Switches the account store to password mode. RM derives its wrapping key with Argon2id and asks for this password at startup; forgetting it prevents the encrypted store from being unlocked. Changing it rewraps the store's data key."
+  },
+  "confirm_kill_all": {
+    "type": "info",
+    "text": "Require confirmation before terminating all running Roblox instances. Prevents accidental mass-closure of game clients."
+  },
+  "refresh_on_startup": {
+    "type": "info",
+    "text": "Automatically revalidate all accounts (check online status, moderation state, presence) immediately after the store is unlocked on startup."
+  },
+  "remember_selected_account": {
+    "type": "info",
+    "text": "Restore the previously selected account in the sidebar when RM reopens, instead of defaulting to the first account."
+  },
+  "compact_actions": {
+    "type": "info",
+    "text": "Use icon-only buttons for primary actions when available screen width is limited, instead of showing full text labels."
+  },
+  "show_update_notifications": {
+    "type": "info",
+    "text": "Display release update link in the top bar when a new version is available."
+  },
+  "verbose_launch_diagnostics": {
+    "type": "warning",
+    "text": "Include detailed launch and process attribution diagnostics in the application log. Useful for troubleshooting launch issues, but can generate extra log noise."
+  },
+  "data_folder": {
+    "type": "info",
+    "text": "RM stores your encrypted accounts, configuration, presets, and cached metadata in this folder. Clearing or modifying files here can break the app; backups are recommended."
+  },
+  "privacy_clear_clipboard": {
+    "type": "info",
+    "text": "Clear the Windows clipboard after each successful launch to prevent join history and other sensitive data from lingering in clipboard history."
+  },
+  "custom_game_args": {
+    "type": "warning",
+    "text": "Pass custom command-line arguments directly to RobloxPlayerBeta.exe. Unsupported arguments may trigger Hyperion anti-cheat warnings; only use if you know what you are doing."
+  },
+  "roblox_fast_flags": {
+    "type": "warning",
+    "text": "Roblox feature toggles written to ClientSettings before launch. These are experimental Roblox flags and may break games or trigger anti-cheat detection; use at your own risk."
+  },
+  "auto_launch_on_startup": {
+    "type": "caution",
+    "text": "Automatically launch a selected account when RM starts. This is an attack surface; only enable if RM runs in a restricted or monitored environment."
+  }
 }

@@ -255,11 +255,23 @@ pub struct AppConfig {
     /// from some IPs, so users on those IPs set this to a safe interval.
     #[serde(default)]
     pub launch_delay_secs: u32,
+    /// Automatically launch a selected account when RM starts. Off by default: auto-start is an attack surface.
+    #[serde(default)]
+    pub auto_launch_on_startup: bool,
+    /// Account ID to auto-launch when RM starts, if auto_launch_on_startup is enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_launch_account_id: Option<u64>,
+    /// Custom command-line arguments passed to RobloxPlayerBeta.exe during launch.
+    #[serde(default)]
+    pub custom_game_args: String,
     /// Custom Roblox player install path override.
     pub roblox_player_path: Option<PathBuf>,
     /// Per-account Roblox player install path overrides, stored in plain config.
     #[serde(default)]
     pub custom_player_paths: HashMap<u64, PathBuf>,
+    /// Roblox fast flags (feature toggles) written to ClientSettings before launch.
+    #[serde(default)]
+    pub roblox_fast_flags: HashMap<String, String>,
     /// Saved window dimensions.
     pub window_width: f32,
     pub window_height: f32,
@@ -284,6 +296,9 @@ pub struct AppConfig {
     /// Apply the selected privacy cleanup when RM exits, if no Roblox client is running.
     #[serde(default)]
     pub privacy_clean_on_exit: bool,
+    /// Clear the Windows clipboard after a successful launch to prevent join history from lingering.
+    #[serde(default)]
+    pub privacy_clear_clipboard: bool,
     /// Enable the built-in MAC address rotation action.
     #[serde(default)]
     pub mac_rotation_enabled: bool,
@@ -558,8 +573,12 @@ impl Default for AppConfig {
             kill_background_roblox: false,
             confirm_kill_all: true,
             launch_delay_secs: 0,
+            auto_launch_on_startup: false,
+            auto_launch_account_id: None,
+            custom_game_args: String::new(),
             roblox_player_path: None,
             custom_player_paths: HashMap::new(),
+            roblox_fast_flags: HashMap::new(),
             window_width: 1280.0,
             window_height: 720.0,
             groups: HashMap::new(),
@@ -569,6 +588,7 @@ impl Default for AppConfig {
             privacy_clean_local_storage: false,
             privacy_clean_full_profile: false,
             privacy_clean_on_exit: false,
+            privacy_clear_clipboard: false,
             mac_rotation_enabled: false,
             mac_preserve_oui: true,
             mac_alternate_oui: default_mac_oui(),
