@@ -1,7 +1,7 @@
 //! Settings panel — global config, encryption toggles, multi-instance control.
 
 use eframe::egui;
-use ram_core::models::AppConfig;
+use ram_core::models::{AppConfig, LogLevel};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -33,6 +33,7 @@ pub enum SettingsAction {
 pub struct SettingsState {
     pub new_password_input: String,
     pub confirm_password_input: String,
+    pub log_level_pending: Option<LogLevel>,
 }
 
 #[derive(Deserialize)]
@@ -629,6 +630,51 @@ pub fn show(
         setting_row(ui, "developer_options", |ui| {
             ui.checkbox(&mut config.developer_options, "Show the Assets tab in Utility");
         });
+        ui.add_space(4.0);
+        ui.strong("Logging");
+        let mut selected_log_level = settings_state
+            .log_level_pending
+            .unwrap_or(config.log_level);
+        ui.horizontal(|ui| {
+            ui.label("Log level");
+            egui::ComboBox::from_id_salt("rm_log_level_combo")
+                .selected_text(selected_log_level.label())
+                .show_ui(ui, |ui| {
+                    for level in [
+                        LogLevel::Error,
+                        LogLevel::Warn,
+                        LogLevel::Info,
+                        LogLevel::Debug,
+                        LogLevel::Trace,
+                    ] {
+                        let enabled = level.allowed_in_profile();
+                        let response = ui.add_enabled(
+                            enabled,
+                            egui::SelectableLabel::new(selected_log_level == level, level.label()),
+                        );
+                        if response.clicked() && enabled {
+                            selected_log_level = level;
+                            settings_state.log_level_pending = Some(level);
+                        }
+                    }
+                });
+        });
+        if let Some(pending) = settings_state.log_level_pending.filter(|level| *level != config.log_level) {
+            ui.add_space(4.0);
+            ui.colored_label(
+                theme.warning,
+                "Only change this if you know what you're doing. It can make future bug reports and troubleshooting harder.",
+            );
+            ui.horizontal(|ui| {
+                if ui.button("Apply log level").clicked() {
+                    config.log_level = pending;
+                    settings_state.log_level_pending = None;
+                }
+                if ui.button("Cancel").clicked() {
+                    settings_state.log_level_pending = None;
+                }
+            });
+        }
         if ui
             .button("Clean orphaned data")
             .on_hover_text("Remove browse-as profiles for accounts no longer in RM")

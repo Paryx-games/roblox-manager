@@ -382,10 +382,12 @@ fn main() {
         }
     };
 
+    let window_width = config.window_width.max(1280.0);
+    let window_height = config.window_height.max(720.0);
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_inner_size([config.window_width, config.window_height])
-            .with_min_inner_size([640.0, 400.0])
+            .with_inner_size([window_width, window_height])
+            .with_min_inner_size([1280.0, 720.0])
             .with_title(format!(
                 "RM | Roblox Manager v{}",
                 env!("CARGO_PKG_VERSION")

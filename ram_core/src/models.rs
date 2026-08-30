@@ -347,7 +347,7 @@ pub enum LogLevel {
 impl Default for LogLevel {
     fn default() -> Self {
         if cfg!(debug_assertions) {
-            Self::Debug
+            Self::Info
         } else {
             Self::Info
         }
@@ -377,7 +377,7 @@ impl LogLevel {
 
     pub fn allowed_in_profile(self) -> bool {
         if cfg!(debug_assertions) {
-            matches!(self, Self::Debug | Self::Trace)
+            matches!(self, Self::Info | Self::Debug | Self::Trace)
         } else {
             matches!(
                 self,
@@ -390,7 +390,7 @@ impl LogLevel {
         if self.allowed_in_profile() {
             self
         } else if cfg!(debug_assertions) {
-            Self::Debug
+            Self::Info
         } else {
             self
         }
@@ -543,8 +543,8 @@ impl Default for AppConfig {
             launch_delay_secs: 0,
             roblox_player_path: None,
             custom_player_paths: HashMap::new(),
-            window_width: 960.0,
-            window_height: 640.0,
+            window_width: 1280.0,
+            window_height: 720.0,
             groups: HashMap::new(),
             favorite_places: Vec::new(),
             privacy_mode: true,

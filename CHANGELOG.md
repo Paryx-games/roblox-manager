@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Developer log-level selector.** The Settings screen now includes a log-level control for advanced debugging; release builds show the full range with a warning before changing it, while debug builds expose only Info, Debug, and Trace.
+- **Top-bar responsiveness.** The main navigation now keeps the primary left-side tabs and settings in a cleaner layout, with compact icon-first behavior when the window gets narrow.
+
+### Changed
+
+- **Desktop sizing.** The minimum app window size is now a comfortable 1280x720 so the top bar remains readable instead of compressing too aggressively.
+- **Settings organization.** Developer-only controls are grouped more cleanly under the main Settings page so the log-level warning and related options are easier to find.
+
 ## v1.16.0-beta.2
 
 ### Added
