@@ -366,7 +366,7 @@ pub struct AppConfig {
     /// Discord webhook URL for notifications on launches and moderation events.
     /// Must match the pattern: https://discord.com/api/webhooks/{id}/{token}
     /// Stored encrypted; never logged in plaintext.
-    #[serde(default)]
+    #[serde(default, skip_serializing)]
     pub discord_webhook_url: String,
 }
 

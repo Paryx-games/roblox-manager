@@ -459,6 +459,18 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(config: AppConfig, config_path: PathBuf) -> Self {
+        let mut config = config;
+        match ram_core::crypto::discord_webhook() {
+            Ok(Some(url)) => config.discord_webhook_url = url,
+            Ok(None) if !config.discord_webhook_url.is_empty() => {
+                let legacy_url = std::mem::take(&mut config.discord_webhook_url);
+                if ram_core::crypto::set_discord_webhook(&legacy_url).is_err() {
+                    config.discord_webhook_url = legacy_url;
+                }
+            }
+            Ok(None) => {}
+            Err(_) => {}
+        }
         let bridge = BackendBridge::spawn();
 
         // How the store on disk is locked decides whether the user sees
@@ -5010,11 +5022,12 @@ impl AppState {
             if let Some(webhook_action) = webhook_action {
                 match webhook_action {
                     discord_webhook::DiscordWebhookAction::SaveWebhook { url } => {
-                        self.config.discord_webhook_url = url;
-                        if let Err(error) = self.config.save(&self.config_path) {
+                        let result = ram_core::crypto::set_discord_webhook(&url);
+                        if let Err(error) = result {
                             self.toasts
                                 .push(Toast::error(format!("Save failed: {error}")));
                         } else {
+                            self.config.discord_webhook_url = url;
                             self.toasts.push(Toast::success("Discord webhook saved"));
                         }
                     }
@@ -5025,6 +5038,15 @@ impl AppState {
                 }
             }
             let changed = self.config != before;
+            if changed
+                && !before.discord_webhook_url.is_empty()
+                && self.config.discord_webhook_url.is_empty()
+            {
+                if let Err(error) = ram_core::crypto::delete_discord_webhook() {
+                    self.toasts
+                        .push(Toast::error(format!("Remove failed: {error}")));
+                }
+            }
             match action {
                 Some(settings::SettingsAction::SaveConfig) => {
                     if let Some(level) = self.settings_state.log_level_pending {

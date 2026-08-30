@@ -214,10 +214,40 @@ const SERVICE_NAME: &str = "RM-Rust";
 /// Credential entry holding the device wrapping key. Cannot collide with the
 /// per-account entries, which are named by numeric Roblox user ID.
 const DEVICE_KEY_ENTRY: &str = "device-key";
+const DISCORD_WEBHOOK_ENTRY: &str = "discord-webhook";
 
 fn device_key_entry() -> Result<keyring::Entry, CoreError> {
     keyring::Entry::new(SERVICE_NAME, DEVICE_KEY_ENTRY)
         .map_err(|e| CoreError::Keyring(e.to_string()))
+}
+
+fn discord_webhook_entry() -> Result<keyring::Entry, CoreError> {
+    keyring::Entry::new(SERVICE_NAME, DISCORD_WEBHOOK_ENTRY)
+        .map_err(|e| CoreError::Keyring(e.to_string()))
+}
+
+/// Read the Discord webhook URL from the OS credential store.
+pub fn discord_webhook() -> Result<Option<String>, CoreError> {
+    match discord_webhook_entry()?.get_password() {
+        Ok(url) => Ok(Some(url)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(CoreError::Keyring(e.to_string())),
+    }
+}
+
+/// Store the Discord webhook URL in the OS credential store.
+pub fn set_discord_webhook(url: &str) -> Result<(), CoreError> {
+    discord_webhook_entry()?
+        .set_password(url)
+        .map_err(|e| CoreError::Keyring(e.to_string()))
+}
+
+/// Remove the Discord webhook URL from the OS credential store.
+pub fn delete_discord_webhook() -> Result<(), CoreError> {
+    match discord_webhook_entry()?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(CoreError::Keyring(e.to_string())),
+    }
 }
 
 /// Read the device wrapping key, or `Ok(None)` if this device has never had

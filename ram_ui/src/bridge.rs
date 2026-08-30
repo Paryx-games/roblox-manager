@@ -2755,7 +2755,8 @@ mod tests {
             | C::FetchUserInventory { .. }
             | C::FetchBulkCreations { .. }
             | C::FetchAssetThumbnails { .. }
-            | C::SearchConnectionUsers { .. } => false,
+            | C::SearchConnectionUsers { .. }
+            | C::TestDiscordWebhook { .. } => false,
         }
     }
 

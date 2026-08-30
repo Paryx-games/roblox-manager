@@ -38,11 +38,14 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 - **Multi-Instance** - Launch multiple Roblox clients simultaneously
 - **Bulk Launch** - Launch selected accounts into the same server sequentially
 - **Privacy Mode** - Clears tracking cookies before each launch
+- **Discord Webhooks** - Sends optional notifications through a protected Discord webhook
 - **Auto Window Tiling** - Arranges Roblox windows in a grid after launch
 - **Live Presence** - Real-time Online / In Game / In Studio / Offline indicators
 
 > [!IMPORTANT]
 > RM stores Roblox authentication cookies in encrypted form. Never share your `.ROBLOSECURITY` cookie with anyone, and treat it like a password.
+>
+> Discord webhook URLs are sensitive bearer credentials. RM keeps them out of `config.json` and stores them in Windows Credential Manager, alongside the device key. Never share a webhook URL publicly; rotate it in Discord if it is exposed.
 >
 > If you are planning to contribute, please read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) before opening a pull request. Changes involving cookie handling, encryption, storage, or process control require additional review and should be explicitly mentioned in the PR description.
 >

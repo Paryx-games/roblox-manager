@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Discord webhook security.** Webhook URLs are no longer written to `config.json`; they are stored in Windows Credential Manager and excluded from logs and user-facing errors.
+
 ## v1.16.0-rc.1
 
 ### Added

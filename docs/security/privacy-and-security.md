@@ -17,21 +17,32 @@ Your `.ROBLOSECURITY` cookie can access your Roblox account. Never share it with
 
 {% columns %}
 {% column %}
+
 #### <i class="fa-lock">:lock:</i>
 
-* `.ROBLOSECURITY` cookies
-* Encryption keys
-* Authentication tokens
-{% endcolumn %}
+- `.ROBLOSECURITY` cookies
+- Discord webhook URLs
+- Encryption keys
+- Authentication tokens
+  {% endcolumn %}
 
 {% column %}
+
 #### <i class="fa-eye-slash">:eye-slash:</i>
 
-* Screenshots showing cookies
-* Logs containing credentials
-* Credentials in issues or chat
-{% endcolumn %}
-{% endcolumns %}
+- Screenshots showing cookies
+- Logs containing credentials
+- Credentials in issues or chat
+  {% endcolumn %}
+  {% endcolumns %}
+
+### Protect Discord webhooks
+
+Discord webhook URLs are bearer credentials. Anyone who has a URL can post to its channel, so treat it like a password.
+
+Roblox Manager keeps the webhook URL out of `config.json` and stores it in Windows Credential Manager under the protected `RM-Rust` service. The URL is validated before use, and it is never written to logs or included in errors. The test flow applies the `Roblox Manager` name and bundled logo before sending a confirmation message.
+
+If a webhook URL is exposed, delete or rotate it immediately from the Discord channel's Integrations settings. Never put a real webhook URL in a screenshot, issue, commit, or chat message.
 
 ### Protect your account cookie
 
@@ -43,18 +54,21 @@ Do not put a real cookie in GitHub issues, commits, pull requests, screenshots, 
 
 {% stepper %}
 {% step %}
+
 ### Revoke the exposed cookie
 
 Treat the cookie as compromised. Revoke it through Roblox as soon as possible.
 {% endstep %}
 
 {% step %}
+
 ### Remove the old account entry
 
 Remove the affected account from Roblox Manager.
 {% endstep %}
 
 {% step %}
+
 ### Add the account again
 
 Sign in again and add a fresh cookie only after revocation.
@@ -73,9 +87,9 @@ Roblox Manager encrypts account data before storing it. Cookies are not stored a
 
 <summary>View storage protections</summary>
 
-* **AES-256-GCM** encrypts stored account data.
-* **Windows Credential Manager** can protect machine-backed keys.
-* **Argon2id** supports the optional master password mode.
+- **AES-256-GCM** encrypts stored account data.
+- **Windows Credential Manager** can protect machine-backed keys.
+- **Argon2id** supports the optional master password mode.
 
 </details>
 
