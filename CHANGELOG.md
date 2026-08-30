@@ -4,7 +4,7 @@
 
 ### Added
 
-- **Developer log-level selector.** The Settings screen now includes a log-level control for advanced debugging; release builds show the full range with a warning before changing it, while debug builds expose only Info, Debug, and Trace.
+- **Developer log-level selector.** The Settings screen now includes a log-level control for advanced debugging; debug builds allow the full Error-to-Trace range, while release builds keep it to Error, Warn, and Info with a confirmation warning before changing it.
 - **Top-bar responsiveness.** The main navigation now keeps the primary left-side tabs and settings in a cleaner layout, with compact icon-first behavior when the window gets narrow.
 
 ### Changed
