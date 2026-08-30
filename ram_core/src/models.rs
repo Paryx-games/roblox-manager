@@ -394,7 +394,10 @@ impl LogLevel {
 
     pub fn allowed_in_profile(self) -> bool {
         if cfg!(debug_assertions) {
-            matches!(self, Self::Error | Self::Warn | Self::Info | Self::Debug | Self::Trace)
+            matches!(
+                self,
+                Self::Error | Self::Warn | Self::Info | Self::Debug | Self::Trace
+            )
         } else {
             matches!(self, Self::Error | Self::Warn | Self::Info)
         }
