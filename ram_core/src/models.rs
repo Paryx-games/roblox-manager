@@ -111,17 +111,17 @@ mod tests {
     #[test]
     fn log_level_profile_rules_match_build_mode() {
         if cfg!(debug_assertions) {
-            assert!(LogLevel::Info.allowed_in_profile());
-            assert!(LogLevel::Debug.allowed_in_profile());
-            assert!(LogLevel::Trace.allowed_in_profile());
-            assert!(!LogLevel::Error.allowed_in_profile());
-            assert!(!LogLevel::Warn.allowed_in_profile());
-        } else {
             assert!(LogLevel::Error.allowed_in_profile());
             assert!(LogLevel::Warn.allowed_in_profile());
             assert!(LogLevel::Info.allowed_in_profile());
             assert!(LogLevel::Debug.allowed_in_profile());
             assert!(LogLevel::Trace.allowed_in_profile());
+        } else {
+            assert!(LogLevel::Error.allowed_in_profile());
+            assert!(LogLevel::Warn.allowed_in_profile());
+            assert!(LogLevel::Info.allowed_in_profile());
+            assert!(!LogLevel::Debug.allowed_in_profile());
+            assert!(!LogLevel::Trace.allowed_in_profile());
         }
     }
 }
@@ -394,12 +394,9 @@ impl LogLevel {
 
     pub fn allowed_in_profile(self) -> bool {
         if cfg!(debug_assertions) {
-            matches!(self, Self::Info | Self::Debug | Self::Trace)
+            matches!(self, Self::Error | Self::Warn | Self::Info | Self::Debug | Self::Trace)
         } else {
-            matches!(
-                self,
-                Self::Error | Self::Warn | Self::Info | Self::Debug | Self::Trace
-            )
+            matches!(self, Self::Error | Self::Warn | Self::Info)
         }
     }
 
@@ -409,7 +406,7 @@ impl LogLevel {
         } else if cfg!(debug_assertions) {
             Self::Info
         } else {
-            self
+            Self::Info
         }
     }
 }
