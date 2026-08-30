@@ -1,0 +1,15 @@
+#!/bin/sh
+
+echo "Running clippy..."
+if ! cargo clippy --workspace --all-targets --all-features --locked -- -D warnings; then
+    echo "Clippy failed - push aborted."
+    exit 1
+fi
+echo "Clippy passed."
+
+echo "Running tests..."
+if ! cargo test --workspace --all-features --locked; then
+    echo "Tests failed - push aborted."
+    exit 1
+fi
+echo "Tests passed."
