@@ -10,9 +10,12 @@
 ### Changed
 
 - **Settings sections.** Reorganized settings with clear category headers, descriptive taglines, and proper visual hierarchy. Separated window layout settings into their own dedicated section instead of mixing them into Launching.
+- **Settings panel redesign.** Reworked the settings screen into a proper sidebar + scrollable content layout and fixed the section-jump behavior so each settings category stays in view and easy to navigate.
 
 ### Fixed
 
+- **Bulk launch privacy fallback.** Later accounts in a bulk launch no longer fail just because an earlier Roblox client is still active; the app skips that launch's privacy cleanup instead of aborting the entire batch.
+- **Reverted settings menu back to the original.** The new settings menu was fully broken, so it has been reverted to the original version.
 - **Settings UI crash.** Fixed an egui panic caused by calling `ui.indent(...)` inside a horizontal layout in the Settings panel.
 - **Settings section rendering.** Fixed the selected sidebar section so the main settings pane now shows only the chosen section instead of rendering the entire vertical stack at once.
 
@@ -95,6 +98,7 @@
 
 ### Fixed
 
+- **Bulk launch privacy fallback.** Later accounts in a bulk launch no longer fail just because an earlier Roblox client is still active; the app skips that launch's privacy cleanup instead of aborting the entire batch.
 - **Account inventory loading.** Updated the user-inventory request to Roblox's current v2 endpoint after the retired v1 route began returning 404 errors.
 
 ### Changed
