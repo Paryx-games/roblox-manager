@@ -186,12 +186,14 @@ pub fn menu_button<R>(
             visuals.text_color(),
         );
 
-        // divider, then chevron, both inside the same button rect
+        // Divider and chevron need to remain visible against the button fill
+        // instead of inheriting the same stroke color as the backdrop.
         let divider_x = rect.right() - chevron_zone_w + 6.0;
+        let divider_color = ui.visuals().widgets.noninteractive.fg_stroke.color;
         ui.painter().vline(
             divider_x,
-            rect.top() + 4.0..=rect.bottom() - 4.0,
-            visuals.bg_stroke,
+            rect.top() + 5.0..=rect.bottom() - 5.0,
+            egui::Stroke::new(1.0_f32, divider_color),
         );
 
         if let Some(chevron_texture) = texture(ui, "chevron-down", 16.0) {

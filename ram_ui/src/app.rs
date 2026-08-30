@@ -2284,33 +2284,34 @@ impl eframe::App for AppState {
         egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
             ui.spacing_mut().button_padding = egui::vec2(6.0, 3.0);
             ui.spacing_mut().item_spacing = egui::vec2(6.0, 4.0);
-            let is_compact = ui.available_width() < 1100.0;
+            let is_compact = ui.available_width() < 1000.0;
             ui.set_min_height(34.0);
 
             ui.horizontal(|ui| {
-                let nav_group = ui.horizontal(|ui| {
-                    let mut select_tab = |name: &str, label: &str, tab: Tab| {
-                        let response = if is_compact {
-                            icons::compact_tab_button(ui, name, label, self.active_tab == tab)
-                        } else {
-                            icons::tab_button(ui, name, label, self.active_tab == tab)
-                        };
-                        if response.clicked() {
-                            self.active_tab = tab;
-                        }
+                let mut select_tab = |name: &str, label: &str, tab: Tab| {
+                    let response = if is_compact {
+                        icons::compact_tab_button(ui, name, label, self.active_tab == tab)
+                    } else {
+                        icons::tab_button(ui, name, label, self.active_tab == tab)
                     };
-                    select_tab("accounts", "Accounts", Tab::Accounts);
-                    select_tab("groups", "Groups", Tab::Groups);
-                    select_tab("lock", "Servers", Tab::PrivateServers);
-                    select_tab("star", "Presets", Tab::Presets);
-                });
-                let _ = nav_group;
+                    if response.clicked() {
+                        self.active_tab = tab;
+                    }
+                };
+
+                select_tab("accounts", "Accounts", Tab::Accounts);
+                select_tab("groups", "Groups", Tab::Groups);
+                select_tab("lock", "Servers", Tab::PrivateServers);
+                select_tab("star", "Presets", Tab::Presets);
+
+                ui.add_space(6.0);
+                ui.separator();
+                ui.add_space(6.0);
 
                 let is_tools_active = matches!(
                     self.active_tab,
                     Tab::Utility | Tab::AssetManager | Tab::Inventory
                 );
-
                 let tools_response = icons::menu_button(
                     ui,
                     "Tools",
@@ -2346,6 +2347,10 @@ impl eframe::App for AppState {
                     },
                 );
                 tools_response.response.on_hover_text("Open utility and developer workspaces");
+
+                ui.add_space(6.0);
+                ui.separator();
+                ui.add_space(6.0);
 
                 let settings_response = if is_compact {
                     icons::compact_tab_button(ui, "settings", "Settings", self.active_tab == Tab::Settings)
