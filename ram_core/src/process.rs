@@ -91,10 +91,21 @@ impl Drop for PrivacyCleanup {
     }
 }
 
+/// Decide whether a launch should skip privacy cleanup instead of aborting.
+///
+/// The cleanup step cannot safely mutate state while a Roblox client is active,
+/// but a launch that already started should not fail just because another client
+/// remains in the process list. In that case we skip the cleanup for the current
+/// launch and continue, rather than leaving the batch half-complete.
+pub fn should_skip_privacy_cleanup(options: PrivacyCleanupOptions, roblox_running: bool) -> bool {
+    !options.is_empty() && roblox_running
+}
+
 /// Move selected Roblox user state into a temporary backup before launching.
 ///
-/// Cleanup is refused while any Roblox process is running because the client
-/// can recreate or overwrite the state during the transaction.
+/// Cleanup is skipped while any Roblox process is running because the client can
+/// recreate or overwrite the state during the transaction. The launch itself is
+/// still allowed to proceed without the privacy cleanup for that account.
 pub fn prepare_privacy_cleanup(
     options: PrivacyCleanupOptions,
 ) -> Result<PrivacyCleanup, CoreError> {
@@ -105,10 +116,15 @@ pub fn prepare_privacy_cleanup(
             committed: false,
         });
     }
-    if is_roblox_running() {
-        return Err(CoreError::Process(
-            "privacy cleanup refused while a Roblox client is running".into(),
-        ));
+    if should_skip_privacy_cleanup(options, is_roblox_running()) {
+        warn!(
+            "Privacy cleanup skipped while a Roblox client is running; continuing launch without cleanup"
+        );
+        return Ok(PrivacyCleanup {
+            entries: Vec::new(),
+            backup_root: None,
+            committed: false,
+        });
     }
 
     let local_app_data = std::env::var("LOCALAPPDATA").map_err(|_| {
@@ -1760,6 +1776,34 @@ mod tests {
         assert!(query.contains("%26isPlayTogetherGame%3Dfalse"), "{query}");
         assert!(!query.contains("gameId"), "{query}");
         assert!(!query.contains("joinAttemptId"), "{query}");
+    }
+
+    #[test]
+    fn bulk_launch_privacy_cleanup_skips_without_aborting_launch() {
+        assert!(should_skip_privacy_cleanup(
+            PrivacyCleanupOptions {
+                cookies: true,
+                local_storage: false,
+                full_profile: false,
+            },
+            true,
+        ));
+        assert!(!should_skip_privacy_cleanup(
+            PrivacyCleanupOptions {
+                cookies: true,
+                local_storage: false,
+                full_profile: false,
+            },
+            false,
+        ));
+        assert!(!should_skip_privacy_cleanup(
+            PrivacyCleanupOptions {
+                cookies: false,
+                local_storage: false,
+                full_profile: false,
+            },
+            true,
+        ));
     }
 
     /// Joining a specific server uses `RequestGameJob`, which is what the
