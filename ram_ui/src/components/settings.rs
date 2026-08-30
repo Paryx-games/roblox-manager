@@ -667,14 +667,18 @@ pub fn show(
             let mut should_apply = false;
             let mut should_cancel = false;
 
+            let current = config.log_level.label();
+            let target = pending.label();
+
             egui::Window::new("Change log level?")
                 .open(&mut warning_open)
                 .resizable(false)
                 .collapsible(false)
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ui.ctx(), |ui| {
-                    ui.label("Only proceed if you know what you're doing.");
-                    ui.label("This can make future bug reports and troubleshooting harder.");
+                    ui.label(format!("Switch log level from {current} to {target}?"));
+                    ui.label("Lower log levels omit details that can help diagnose future issues.");
+                    ui.label("The app will restart once you confirm.");
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         if ui.button("Proceed").clicked() {
