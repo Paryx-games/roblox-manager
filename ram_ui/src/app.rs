@@ -2420,7 +2420,7 @@ impl eframe::App for AppState {
                         self.trigger_revalidation();
                         self.trigger_refresh();
                     }
-                    if {
+                    let export_csv_clicked = {
                         let button = if is_compact {
                             icons::compact_tab_button(ui, "import", "Export CSV", false)
                         } else {
@@ -2429,10 +2429,12 @@ impl eframe::App for AppState {
                         button
                             .on_hover_text("Export account metadata without cookies")
                             .clicked()
-                    } {
+                    };
+
+                    if export_csv_clicked {
                         self.export_accounts_csv();
                     }
-                    if {
+                    let whats_new_clicked = {
                         let button = if is_compact {
                             icons::compact_tab_button(ui, "update", "What's new", false)
                         } else {
@@ -2441,7 +2443,9 @@ impl eframe::App for AppState {
                         button
                             .on_hover_text("View the current release changelog")
                             .clicked()
-                    } {
+                    };
+
+                    if whats_new_clicked {
                         self.show_changelog = true;
                     }
                 });
