@@ -85,16 +85,18 @@ pub fn show_modal(
     }
 
     let mut action = None;
+    let screen_rect = ui.ctx().screen_rect();
+    let modal_width = 500.0;
+    let modal_pos = screen_rect.center() - egui::vec2(modal_width / 2.0, 180.0);
 
     egui::Area::new("discord_webhook_modal".into())
         .movable(false)
         .enabled(true)
+        .fixed_pos(modal_pos)
         .show(ui.ctx(), |ui| {
-            let screen_rect = ui.ctx().screen_rect();
             ui.painter()
                 .rect_filled(screen_rect, 0.0, egui::Color32::from_black_alpha(160));
 
-            let modal_width = 500.0;
             egui::Frame::default()
                 .fill(ui.visuals().window_fill)
                 .stroke(egui::Stroke::new(1.0_f32, ui.visuals().window_stroke.color))
@@ -166,8 +168,8 @@ pub fn show_modal(
                         }
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let save_enabled = state.validation == WebhookValidation::Valid
-                                && state.test_message_sent;
+                            let valid_url = state.validation == WebhookValidation::Valid;
+                            let save_enabled = valid_url && state.test_message_sent;
                             if ui
                                 .add_enabled(save_enabled, egui::Button::new("Save Webhook"))
                                 .clicked()
@@ -183,7 +185,7 @@ pub fn show_modal(
                             }
 
                             if ui
-                                .add_enabled(save_enabled, egui::Button::new("Test"))
+                                .add_enabled(valid_url, egui::Button::new("Test"))
                                 .clicked()
                             {
                                 action = Some(DiscordWebhookAction::TestWebhook {
