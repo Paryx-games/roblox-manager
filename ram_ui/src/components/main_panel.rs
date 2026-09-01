@@ -476,7 +476,7 @@ pub fn show(
             egui::Frame::default()
                 .inner_margin(egui::Margin::same(10.0))
                 .rounding(egui::Rounding::same(6.0))
-                .fill(ui.visuals().faint_bg_color)
+                .fill(ui.visuals().extreme_bg_color)
                 .show(ui, |ui| {
                     ui.set_min_width(ui.available_width());
                     ui.horizontal(|ui| {
@@ -608,7 +608,8 @@ pub fn show(
                         let selected_id = target.map(|target| target.user_id);
                         let friend_btn = ui.add_enabled(
                             selected_id.is_some(),
-                            egui::Button::new("Friend request").fill(ui.theme().accent),
+                            egui::Button::new("Friend request")
+                                .fill(ui.visuals().widgets.inactive.bg_fill),
                         );
                         if friend_btn.clicked() {
                             action = Some(MainPanelAction::SendFriendRequest {
@@ -618,7 +619,8 @@ pub fn show(
 
                         let follow_btn = ui.add_enabled(
                             selected_id.is_some(),
-                            egui::Button::new("Follow").fill(ui.theme().accent),
+                            egui::Button::new("Follow")
+                                .fill(ui.visuals().widgets.inactive.bg_fill),
                         );
                         if follow_btn.clicked() {
                             action = Some(MainPanelAction::FollowUser {
@@ -628,7 +630,8 @@ pub fn show(
 
                         let unfollow_btn = ui.add_enabled(
                             selected_id.is_some(),
-                            egui::Button::new("Unfollow").fill(ui.visuals().widgets.noninteractive.bg_fill),
+                            egui::Button::new("Unfollow")
+                                .fill(ui.visuals().widgets.inactive.bg_fill),
                         );
                         if unfollow_btn.clicked() {
                             action = Some(MainPanelAction::UnfollowUser {
@@ -638,7 +641,8 @@ pub fn show(
 
                         let join_btn = ui.add_enabled(
                             selected_id.is_some(),
-                            egui::Button::new("Join their game").fill(ui.theme().accent),
+                            egui::Button::new("Join their game")
+                                .fill(ui.visuals().widgets.inactive.bg_fill),
                         );
                         if join_btn.clicked() {
                             action = Some(MainPanelAction::JoinUserGame {
@@ -648,7 +652,8 @@ pub fn show(
 
                         let block_btn = ui.add_enabled(
                             selected_id.is_some(),
-                            egui::Button::new("Block user").fill(ui.theme().danger_surface),
+                            egui::Button::new("Block user")
+                                .fill(ui.visuals().widgets.inactive.bg_fill),
                         );
                         if block_btn.clicked() {
                             action = Some(MainPanelAction::BlockUser {
