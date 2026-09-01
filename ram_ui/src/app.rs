@@ -937,6 +937,11 @@ impl AppState {
                 BackendEvent::ConnectionUsersFound(users) => {
                     self.connection_users = users;
                 }
+                BackendEvent::FriendsCacheUpdated { user_id, friends } => {
+                    if let Some(account) = self.store.find_by_id_mut(user_id) {
+                        account.friends_cache = friends.into_iter().collect();
+                    }
+                }
                 BackendEvent::AvatarImagesReady(images) => {
                     for (id, bytes) in images {
                         self.avatar_bytes.insert(id, bytes);
@@ -1028,6 +1033,8 @@ impl AppState {
                             self.toasts.push(Toast::success("Account store unlocked"));
                         }
                         self.offer_passwordless_if_due();
+
+                        self.refresh_friend_cache();
 
                         // Held back during an upgrade: the backend re-keys a
                         // clone of the store taken just above, so anything a
@@ -1996,6 +2003,28 @@ impl AppState {
             .map(|a| (a.user_id, a.encrypted_cookie.clone()))
             .collect();
         self.bridge.send(BackendCommand::RevalidateAll {
+            accounts,
+            session: session.clone(),
+            use_credential_manager: self.config.use_credential_manager,
+        });
+    }
+
+    /// Rebuild the cached friend sets for each managed account so friends-only
+    /// joins can skip the slower public lookup path on large account lists.
+    fn refresh_friend_cache(&self) {
+        let Some(session) = self.session() else {
+            return;
+        };
+        if self.store.accounts.is_empty() {
+            return;
+        }
+        let accounts: Vec<(u64, Option<String>)> = self
+            .store
+            .accounts
+            .iter()
+            .map(|a| (a.user_id, a.encrypted_cookie.clone()))
+            .collect();
+        self.bridge.send(BackendCommand::RefreshFriendsCache {
             accounts,
             session: session.clone(),
             use_credential_manager: self.config.use_credential_manager,
@@ -3294,6 +3323,39 @@ impl AppState {
                             main_panel::MainPanelAction::SendFriendRequest { target_user_id } => {
                                 if let Some(session) = self.session() {
                                     self.bridge.send(BackendCommand::SendFriendRequest {
+                                        user_id: account.user_id,
+                                        target_user_id,
+                                        encrypted_cookie: account.encrypted_cookie.clone(),
+                                        session,
+                                        use_credential_manager: self.config.use_credential_manager,
+                                    });
+                                }
+                            }
+                            main_panel::MainPanelAction::FollowUser { target_user_id } => {
+                                if let Some(session) = self.session() {
+                                    self.bridge.send(BackendCommand::FollowUser {
+                                        user_id: account.user_id,
+                                        target_user_id,
+                                        encrypted_cookie: account.encrypted_cookie.clone(),
+                                        session,
+                                        use_credential_manager: self.config.use_credential_manager,
+                                    });
+                                }
+                            }
+                            main_panel::MainPanelAction::UnfollowUser { target_user_id } => {
+                                if let Some(session) = self.session() {
+                                    self.bridge.send(BackendCommand::UnfollowUser {
+                                        user_id: account.user_id,
+                                        target_user_id,
+                                        encrypted_cookie: account.encrypted_cookie.clone(),
+                                        session,
+                                        use_credential_manager: self.config.use_credential_manager,
+                                    });
+                                }
+                            }
+                            main_panel::MainPanelAction::JoinUserGame { target_user_id } => {
+                                if let Some(session) = self.session() {
+                                    self.bridge.send(BackendCommand::JoinUserGame {
                                         user_id: account.user_id,
                                         target_user_id,
                                         encrypted_cookie: account.encrypted_cookie.clone(),

@@ -35,6 +35,15 @@ pub enum MainPanelAction {
     SendFriendRequest {
         target_user_id: u64,
     },
+    FollowUser {
+        target_user_id: u64,
+    },
+    UnfollowUser {
+        target_user_id: u64,
+    },
+    JoinUserGame {
+        target_user_id: u64,
+    },
     BlockUser {
         target_user_id: u64,
     },
@@ -662,6 +671,15 @@ pub fn show(
                 ui.horizontal(|ui| {
                     if ui.add_enabled(target.is_some(), egui::Button::new("Send friend request")).clicked() {
                         action = Some(MainPanelAction::SendFriendRequest { target_user_id: target.unwrap().user_id });
+                    }
+                    if ui.add_enabled(target.is_some(), egui::Button::new("Follow")).clicked() {
+                        action = Some(MainPanelAction::FollowUser { target_user_id: target.unwrap().user_id });
+                    }
+                    if ui.add_enabled(target.is_some(), egui::Button::new("Unfollow")).clicked() {
+                        action = Some(MainPanelAction::UnfollowUser { target_user_id: target.unwrap().user_id });
+                    }
+                    if ui.add_enabled(target.is_some(), egui::Button::new("Join their game")).clicked() {
+                        action = Some(MainPanelAction::JoinUserGame { target_user_id: target.unwrap().user_id });
                     }
                     if ui.add_enabled(target.is_some(), egui::Button::new("Block user")).clicked() {
                         action = Some(MainPanelAction::BlockUser { target_user_id: target.unwrap().user_id });

@@ -56,6 +56,79 @@ pub async fn search_users(
     Ok(results)
 }
 
+/// Fetch the authenticated user's friend IDs. Results are cached per account so
+/// friends-only joins can be filtered without re-requesting the friend list every
+/// time the user clicks a join action.
+pub async fn fetch_friends(
+    client: &RobloxClient,
+    cookie: &str,
+    user_id: u64,
+) -> Result<Vec<u64>, CoreError> {
+    let mut friends = Vec::new();
+    let mut cursor = None;
+    loop {
+        let mut url = format!("https://friends.roblox.com/v1/users/{user_id}/friends");
+        if let Some(next_cursor) = cursor.as_deref() {
+            url.push_str(&format!("?cursor={next_cursor}"));
+        }
+        #[derive(Deserialize)]
+        struct FriendsPage {
+            data: Vec<FriendEntry>,
+            next_page_cursor: Option<String>,
+        }
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct FriendEntry {
+            id: u64,
+        }
+
+        let page: FriendsPage = client.get_json(&url, cookie).await?;
+        let ids: Vec<u64> = page.data.into_iter().map(|entry| entry.id).collect();
+        if ids.is_empty() {
+            break;
+        }
+        friends.extend(ids.iter().copied());
+        match page.next_page_cursor {
+            Some(next) if !next.is_empty() => cursor = Some(next),
+            _ => break,
+        }
+    }
+    tracing::debug!(user_id, count = friends.len(), "Fetched friend cache");
+    Ok(friends)
+}
+
+/// Follow another user from the authenticated account.
+pub async fn follow_user(
+    client: &RobloxClient,
+    cookie: &str,
+    target_user_id: u64,
+) -> Result<(), CoreError> {
+    tracing::info!(target_user_id, "Following user");
+    perform_connection_action(
+        client,
+        cookie,
+        Method::POST,
+        &format!("https://friends.roblox.com/v1/users/{target_user_id}/follow"),
+    )
+    .await
+}
+
+/// Unfollow another user from the authenticated account.
+pub async fn unfollow_user(
+    client: &RobloxClient,
+    cookie: &str,
+    target_user_id: u64,
+) -> Result<(), CoreError> {
+    tracing::info!(target_user_id, "Unfollowing user");
+    perform_connection_action(
+        client,
+        cookie,
+        Method::POST,
+        &format!("https://friends.roblox.com/v1/users/{target_user_id}/unfollow"),
+    )
+    .await
+}
+
 /// Send a friend request to another user from the authenticated account.
 pub async fn send_friend_request(
     client: &RobloxClient,

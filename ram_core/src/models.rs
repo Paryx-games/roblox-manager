@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 /// A single Roblox account managed by RM.
@@ -48,6 +48,11 @@ pub struct Account {
     /// Whether this account is pinned (always shows at the top).
     #[serde(default)]
     pub is_pinned: bool,
+    /// Cached Roblox friend user IDs for this account. Small and cheap to keep
+    /// in memory, and fast enough to use as a membership check before firing
+    /// off a friends-only join attempt.
+    #[serde(default)]
+    pub friends_cache: HashSet<u64>,
 }
 
 impl Account {
@@ -68,6 +73,7 @@ impl Account {
             moderation: None,
             sort_order: u32::MAX,
             is_pinned: false,
+            friends_cache: HashSet::new(),
         }
     }
 

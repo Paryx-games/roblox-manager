@@ -135,6 +135,30 @@ pub enum BackendCommand {
         session: crypto::StoreSession,
         use_credential_manager: bool,
     },
+    /// Follow a user from one managed account.
+    FollowUser {
+        user_id: u64,
+        target_user_id: u64,
+        encrypted_cookie: Option<String>,
+        session: crypto::StoreSession,
+        use_credential_manager: bool,
+    },
+    /// Unfollow a user from one managed account.
+    UnfollowUser {
+        user_id: u64,
+        target_user_id: u64,
+        encrypted_cookie: Option<String>,
+        session: crypto::StoreSession,
+        use_credential_manager: bool,
+    },
+    /// Join whichever server a user is currently in.
+    JoinUserGame {
+        user_id: u64,
+        target_user_id: u64,
+        encrypted_cookie: Option<String>,
+        session: crypto::StoreSession,
+        use_credential_manager: bool,
+    },
     /// Block a user from one managed account.
     BlockUser {
         user_id: u64,
@@ -146,6 +170,12 @@ pub enum BackendCommand {
     /// Search Roblox users for connection actions.
     SearchConnectionUsers {
         keyword: String,
+    },
+    /// Refresh cached friend sets for a batch of accounts to support friends-only join checks.
+    RefreshFriendsCache {
+        accounts: Vec<(u64, Option<String>)>,
+        session: crypto::StoreSession,
+        use_credential_manager: bool,
     },
     /// Run the potentially blocking tray cleanup without stalling the runtime.
     KillTray,
@@ -522,6 +552,10 @@ pub enum BackendEvent {
         target_user_id: u64,
     },
     ConnectionUsersFound(Vec<ram_core::api::UserSearchResult>),
+    FriendsCacheUpdated {
+        user_id: u64,
+        friends: Vec<u64>,
+    },
     /// The result of a sweep. Sent whenever the map or the running count
     /// changed, so the UI can render per-account instance state without
     /// enumerating processes on the paint thread.
@@ -1381,6 +1415,80 @@ async fn handle_command(
                 target_user_id,
             })
         }
+        BackendCommand::FollowUser {
+            user_id,
+            target_user_id,
+            encrypted_cookie,
+            session,
+            use_credential_manager,
+        } => {
+            info!(user_id, target_user_id, "Following user");
+            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
+            api::follow_user(client, &cookie, target_user_id).await?;
+            Ok(BackendEvent::ConnectionActionCompleted {
+                action: "User followed".into(),
+                target_user_id,
+            })
+        }
+        BackendCommand::UnfollowUser {
+            user_id,
+            target_user_id,
+            encrypted_cookie,
+            session,
+            use_credential_manager,
+        } => {
+            info!(user_id, target_user_id, "Unfollowing user");
+            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
+            api::unfollow_user(client, &cookie, target_user_id).await?;
+            Ok(BackendEvent::ConnectionActionCompleted {
+                action: "User unfollowed".into(),
+                target_user_id,
+            })
+        }
+        BackendCommand::JoinUserGame {
+            user_id,
+            target_user_id,
+            encrypted_cookie,
+            session,
+            use_credential_manager,
+        } => {
+            info!(user_id, target_user_id, "Joining target user's game");
+            let cookie = decrypt_for(user_id, encrypted_cookie, &session, use_credential_manager)?;
+            let presences = api::fetch_presences(client, &cookie, &[target_user_id]).await?;
+            let Some(presence) = presences.into_iter().next() else {
+                return Err(CoreError::RobloxApi {
+                    status: 404,
+                    message: "Target user is not reporting a live presence right now.".into(),
+                });
+            };
+            let (Some(place_id), Some(job_id)) = (presence.1.place_id, presence.1.game_id.clone()) else {
+                return Err(CoreError::RobloxApi {
+                    status: 403,
+                    message: "Roblox is not exposing the server details for that user yet.".into(),
+                });
+            };
+            let launch_token = process::next_launchtime();
+            let ticket = client.generate_auth_ticket(&cookie).await?;
+            let player_path: Option<std::path::PathBuf> = None;
+            tokio::task::spawn_blocking(move || {
+                process::launch_game(
+                    &ticket,
+                    place_id,
+                    Some(job_id.as_str()).filter(|s| !s.is_empty()),
+                    None,
+                    None,
+                    None,
+                    launch_token,
+                    player_path.as_deref(),
+                )
+            })
+            .await
+            .map_err(|error| CoreError::Process(format!("join-user launch task failed: {error}")))??;
+            Ok(BackendEvent::ConnectionActionCompleted {
+                action: "Joined user's game".into(),
+                target_user_id,
+            })
+        }
         BackendCommand::BlockUser {
             user_id,
             target_user_id,
@@ -1401,6 +1509,33 @@ async fn handle_command(
             Ok(BackendEvent::ConnectionUsersFound(
                 api::search_users(client, &keyword).await?,
             ))
+        }
+        BackendCommand::RefreshFriendsCache {
+            accounts,
+            session,
+            use_credential_manager,
+        } => {
+            debug!(count = accounts.len(), "Refreshing cached friend sets");
+            for (user_id, encrypted_cookie) in accounts {
+                let cookie = match decrypt_for(
+                    user_id,
+                    encrypted_cookie,
+                    &session,
+                    use_credential_manager,
+                ) {
+                    Ok(cookie) => cookie,
+                    Err(e) => {
+                        info!(user_id, "friend cache refresh skipped: {e}");
+                        continue;
+                    }
+                };
+                let friends = api::fetch_friends(client, &cookie, user_id).await.unwrap_or_default();
+                let _ = tx.send(BackendEvent::FriendsCacheUpdated {
+                    user_id,
+                    friends,
+                });
+            }
+            Ok(BackendEvent::StoreSaved)
         }
         BackendCommand::RefreshAll {
             user_ids,
@@ -2731,6 +2866,9 @@ mod tests {
             | C::UnlockWithPassword { .. }
             | C::KillAll
             | C::SendFriendRequest { .. }
+            | C::FollowUser { .. }
+            | C::UnfollowUser { .. }
+            | C::JoinUserGame { .. }
             | C::BlockUser { .. }
             | C::RefreshAll { .. }
             | C::RefreshPresenceOnly { .. }
@@ -2756,6 +2894,7 @@ mod tests {
             | C::FetchBulkCreations { .. }
             | C::FetchAssetThumbnails { .. }
             | C::SearchConnectionUsers { .. }
+            | C::RefreshFriendsCache { .. }
             | C::TestDiscordWebhook { .. } => false,
         }
     }
@@ -2799,6 +2938,11 @@ mod tests {
             },
             BackendCommand::SweepInstances,
             BackendCommand::KillAll,
+            BackendCommand::RefreshFriendsCache {
+                accounts: vec![],
+                session: s.clone(),
+                use_credential_manager: false,
+            },
             BackendCommand::ArrangeWindows {
                 options: ram_core::models::TilingOptions::default(),
                 delay_secs: 0,
