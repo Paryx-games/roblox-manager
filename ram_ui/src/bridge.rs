@@ -1461,7 +1461,8 @@ async fn handle_command(
                     message: "Target user is not reporting a live presence right now.".into(),
                 });
             };
-            let (Some(place_id), Some(job_id)) = (presence.1.place_id, presence.1.game_id.clone()) else {
+            let (Some(place_id), Some(job_id)) = (presence.1.place_id, presence.1.game_id.clone())
+            else {
                 return Err(CoreError::RobloxApi {
                     status: 403,
                     message: "Roblox is not exposing the server details for that user yet.".into(),
@@ -1483,7 +1484,9 @@ async fn handle_command(
                 )
             })
             .await
-            .map_err(|error| CoreError::Process(format!("join-user launch task failed: {error}")))??;
+            .map_err(|error| {
+                CoreError::Process(format!("join-user launch task failed: {error}"))
+            })??;
             Ok(BackendEvent::ConnectionActionCompleted {
                 action: "Joined user's game".into(),
                 target_user_id,
@@ -1529,11 +1532,10 @@ async fn handle_command(
                         continue;
                     }
                 };
-                let friends = api::fetch_friends(client, &cookie, user_id).await.unwrap_or_default();
-                let _ = tx.send(BackendEvent::FriendsCacheUpdated {
-                    user_id,
-                    friends,
-                });
+                let friends = api::fetch_friends(client, &cookie, user_id)
+                    .await
+                    .unwrap_or_default();
+                let _ = tx.send(BackendEvent::FriendsCacheUpdated { user_id, friends });
             }
             Ok(BackendEvent::StoreSaved)
         }
