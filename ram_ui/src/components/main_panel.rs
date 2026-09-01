@@ -68,6 +68,12 @@ pub struct MainPanelState {
     /// Set the frame the save popover opens so we request focus exactly once.
     save_form_needs_focus: bool,
     pub connection_target_input: String,
+    /// Last keyword we already dispatched to Roblox; avoids spamming requests
+    /// while the user is still typing the same query.
+    pub connection_last_search: String,
+    /// Debounce time so typing pauses produce one fast search instead of a
+    /// request storm.
+    pub connection_search_deadline: Option<std::time::Instant>,
 }
 
 /// Result returned by the main panel.
@@ -642,50 +648,125 @@ pub fn show(
                 });
             });
             ui.add_space(8.0);
-            egui::Frame::default().inner_margin(egui::Margin::same(10.0)).show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                ui.strong("Connections");
-                ui.label("Search a managed username or user ID, then choose an action.");
-                ui.text_edit_singleline(&mut state.connection_target_input);
-                let query = state.connection_target_input.trim().to_ascii_lowercase();
-                let target = connection_users.iter().find(|candidate| {
-                    candidate.user_id.to_string() == query
-                        || candidate.username.to_ascii_lowercase() == query
-                        || candidate.display_name.to_ascii_lowercase() == query
-                });
-                if ui.button("Search Roblox").clicked() && !query.is_empty() {
-                    action = Some(MainPanelAction::SearchConnectionUsers { keyword: state.connection_target_input.trim().to_string() });
-                }
-                if !query.is_empty() {
-                    for candidate in connection_users.iter().filter(|candidate| {
-                        candidate.user_id.to_string().contains(&query)
-                            || candidate.username.to_ascii_lowercase().contains(&query)
-                            || candidate.display_name.to_ascii_lowercase().contains(&query)
-                    }).take(5) {
-                        let label = format!("{} (@{}) · ID {}", candidate.display_name, candidate.username, candidate.user_id);
-                        if ui.selectable_label(target.is_some_and(|selected| selected.user_id == candidate.user_id), label).clicked() {
-                            state.connection_target_input = candidate.user_id.to_string();
+            egui::Frame::default()
+                .inner_margin(egui::Margin::same(10.0))
+                .rounding(egui::Rounding::same(6.0))
+                .fill(ui.visuals().faint_bg_color)
+                .show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.strong("Connections");
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(
+                                egui::RichText::new("Quick join / social").small().color(ui.visuals().weak_text_color()),
+                            );
+                        });
+                    });
+                    ui.add_space(6.0);
+                    ui.horizontal_wrapped(|ui| {
+                        let search_value = state.connection_target_input.trim().to_string();
+                        ui.add_sized(
+                            egui::vec2(ui.available_width().max(220.0) - 110.0, 28.0),
+                            egui::TextEdit::singleline(&mut state.connection_target_input)
+                                .hint_text("Search username, display name, or ID"),
+                        );
+
+                        let now = std::time::Instant::now();
+                        let should_debounce = !search_value.is_empty()
+                            && search_value.len() >= 2
+                            && state.connection_last_search != search_value
+                            && state.connection_search_deadline.is_none_or(|deadline| now >= deadline);
+
+                        if ui
+                            .add_enabled(!search_value.is_empty(), egui::Button::new("Search"))
+                            .clicked()
+                        {
+                            state.connection_last_search = search_value.clone();
+                            state.connection_search_deadline = Some(now + std::time::Duration::from_millis(200));
+                            action = Some(MainPanelAction::SearchConnectionUsers {
+                                keyword: search_value.clone(),
+                            });
+                        } else if should_debounce {
+                            state.connection_last_search = search_value.clone();
+                            state.connection_search_deadline = Some(now + std::time::Duration::from_millis(250));
+                            action = Some(MainPanelAction::SearchConnectionUsers {
+                                keyword: search_value,
+                            });
+                        } else if search_value.is_empty() {
+                            state.connection_last_search.clear();
+                            state.connection_search_deadline = None;
                         }
+                    });
+                    ui.add_space(4.0);
+
+                    let query = state.connection_target_input.trim().to_ascii_lowercase();
+                    let target = connection_users.iter().find(|candidate| {
+                        candidate.user_id.to_string() == query
+                            || candidate.username.to_ascii_lowercase() == query
+                            || candidate.display_name.to_ascii_lowercase() == query
+                    });
+
+                    if !query.is_empty() {
+                        ui.vertical(|ui| {
+                            ui.set_min_width(ui.available_width());
+                            for candidate in connection_users.iter().filter(|candidate| {
+                                candidate.user_id.to_string().contains(&query)
+                                    || candidate.username.to_ascii_lowercase().contains(&query)
+                                    || candidate.display_name.to_ascii_lowercase().contains(&query)
+                            }).take(5) {
+                                let label = format!("{} (@{}) · ID {}", candidate.display_name, candidate.username, candidate.user_id);
+                                if ui
+                                    .selectable_label(
+                                        target.is_some_and(|selected| selected.user_id == candidate.user_id),
+                                        label,
+                                    )
+                                    .clicked()
+                                {
+                                    state.connection_target_input = candidate.user_id.to_string();
+                                }
+                            }
+                        });
+                        ui.add_space(4.0);
                     }
-                }
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(target.is_some(), egui::Button::new("Send friend request")).clicked() {
-                        action = Some(MainPanelAction::SendFriendRequest { target_user_id: target.unwrap().user_id });
-                    }
-                    if ui.add_enabled(target.is_some(), egui::Button::new("Follow")).clicked() {
-                        action = Some(MainPanelAction::FollowUser { target_user_id: target.unwrap().user_id });
-                    }
-                    if ui.add_enabled(target.is_some(), egui::Button::new("Unfollow")).clicked() {
-                        action = Some(MainPanelAction::UnfollowUser { target_user_id: target.unwrap().user_id });
-                    }
-                    if ui.add_enabled(target.is_some(), egui::Button::new("Join their game")).clicked() {
-                        action = Some(MainPanelAction::JoinUserGame { target_user_id: target.unwrap().user_id });
-                    }
-                    if ui.add_enabled(target.is_some(), egui::Button::new("Block user")).clicked() {
-                        action = Some(MainPanelAction::BlockUser { target_user_id: target.unwrap().user_id });
-                    }
+
+                    ui.horizontal_wrapped(|ui| {
+                        let resp_friend = ui.add_enabled(target.is_some(), egui::Button::new("Send friend request"));
+                        if resp_friend.clicked() {
+                            action = Some(MainPanelAction::SendFriendRequest {
+                                target_user_id: target.unwrap().user_id,
+                            });
+                        }
+
+                        let resp_follow = ui.add_enabled(target.is_some(), egui::Button::new("Follow"));
+                        if resp_follow.clicked() {
+                            action = Some(MainPanelAction::FollowUser {
+                                target_user_id: target.unwrap().user_id,
+                            });
+                        }
+
+                        let resp_unfollow = ui.add_enabled(target.is_some(), egui::Button::new("Unfollow"));
+                        if resp_unfollow.clicked() {
+                            action = Some(MainPanelAction::UnfollowUser {
+                                target_user_id: target.unwrap().user_id,
+                            });
+                        }
+
+                        let resp_join = ui.add_enabled(target.is_some(), egui::Button::new("Join their game"));
+                        if resp_join.clicked() {
+                            action = Some(MainPanelAction::JoinUserGame {
+                                target_user_id: target.unwrap().user_id,
+                            });
+                        }
+
+                        let resp_block = ui.add_enabled(target.is_some(), egui::Button::new("Block user"));
+                        if resp_block.clicked() {
+                            action = Some(MainPanelAction::BlockUser {
+                                target_user_id: target.unwrap().user_id,
+                            });
+                        }
+                    });
                 });
-            });
+            ui.add_space(8.0);
     });
 
     MainPanelResult {
