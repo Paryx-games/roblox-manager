@@ -28,19 +28,31 @@ struct UserSearchResultEntry {
     display_name: String,
 }
 
+fn normalize_search_keyword(keyword: &str) -> Result<String, CoreError> {
+    let trimmed = keyword.trim();
+    if trimmed.len() < 3 {
+        return Err(CoreError::RobloxApi {
+            status: 400,
+            message: "The keyword is too short.".into(),
+        });
+    }
+
+    Ok(trimmed
+        .bytes()
+        .flat_map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' => vec![byte as char],
+            _ => format!("%{byte:02X}").chars().collect(),
+        })
+        .collect())
+}
+
 /// Search public Roblox users by username or display name.
 pub async fn search_users(
     client: &RobloxClient,
     keyword: &str,
 ) -> Result<Vec<UserSearchResult>, CoreError> {
     tracing::debug!(keyword, "Searching Roblox users");
-    let keyword = keyword
-        .bytes()
-        .flat_map(|byte| match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' => vec![byte as char],
-            _ => format!("%{byte:02X}").chars().collect(),
-        })
-        .collect::<String>();
+    let keyword = normalize_search_keyword(keyword)?;
     let url = format!("https://users.roblox.com/v1/users/search?keyword={keyword}&limit=10");
     let response: UserSearchResponse = client.get_json(&url, "").await?;
     let results: Vec<_> = response
@@ -880,5 +892,13 @@ mod tests {
         let paired = pair_thumbnails(&requested, responded);
 
         assert_eq!(paired, vec![(1, "url-1".to_string())]);
+    }
+
+    #[test]
+    fn search_keywords_shorter_than_three_chars_are_rejected() {
+        assert!(normalize_search_keyword("a").is_err());
+        assert!(normalize_search_keyword("  a ").is_err());
+        assert!(normalize_search_keyword("ab").is_err());
+        assert!(normalize_search_keyword("abc").is_ok());
     }
 }
