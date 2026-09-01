@@ -104,6 +104,7 @@ pub fn show(
     let mut launch_btn_rect = egui::Rect::NOTHING;
 
     egui::ScrollArea::vertical().show(ui, |ui| {
+        ui.set_max_width(ui.available_width().min(980.0));
         ui.vertical(|ui| {
             let section_frame = egui::Frame::default()
                 .inner_margin(egui::Margin::same(12.0))

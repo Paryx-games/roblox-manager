@@ -6,6 +6,10 @@
 
 - **Join-by-user support.** The account panel now includes a user-join flow with direct follow/unfollow controls, a join-their-game action, and startup friend-cache refreshes to keep friends-only joins fast on large account lists.
 
+### Fixed
+
+- **Account-panel sizing.** The selected-account sections now stay within one consistent width so the launch, inventory, and social cards no longer stretch past the viewport on smaller windows.
+
 ## v1.16.0
 
 ### Changed
