@@ -1260,6 +1260,13 @@ impl AppState {
                 }
                 BackendEvent::Error(msg) => {
                     tracing::error!(%msg, "Backend error received");
+                    let friendly_msg = if msg.contains("Player is not in a game currently")
+                        || msg.contains("not exposing the server details for that user yet")
+                    {
+                        "Player is not in a game currently.".to_string()
+                    } else {
+                        msg.clone()
+                    };
                     if self.discord_webhook_state.modal_open {
                         self.discord_webhook_state.test_message_sent = false;
                         self.discord_webhook_state.test_error = Some(msg.clone());
@@ -1285,7 +1292,7 @@ impl AppState {
                             self.add_dialog.loading = false;
                             self.add_dialog.last_error = Some(msg.clone());
                         }
-                        self.toasts.push(Toast::error(msg));
+                        self.toasts.push(Toast::error(friendly_msg));
                     }
                 }
                 BackendEvent::UpdateAvailable { version, url } => {

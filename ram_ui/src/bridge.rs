@@ -1465,7 +1465,7 @@ async fn handle_command(
             else {
                 return Err(CoreError::RobloxApi {
                     status: 403,
-                    message: "Roblox is not exposing the server details for that user yet.".into(),
+                    message: "Player is not in a game currently.".into(),
                 });
             };
             let launch_token = process::next_launchtime();
