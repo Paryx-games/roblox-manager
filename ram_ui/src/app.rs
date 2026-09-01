@@ -2370,7 +2370,7 @@ impl eframe::App for AppState {
                 ui.separator();
                 ui.add_space(0.5);
 
-                let is_tools_active = matches!(
+                let _is_tools_active = matches!(
                     self.active_tab,
                     Tab::Utility | Tab::AssetManager | Tab::Inventory
                 );

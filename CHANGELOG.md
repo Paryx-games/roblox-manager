@@ -9,6 +9,7 @@
 ### Fixed
 
 - **Account-panel sizing.** The selected-account sections now stay within one consistent width so the launch, inventory, and social cards no longer stretch past the viewport on smaller windows.
+- **Tools menu rendering.** The Tools dropdown no longer opens to a blank menu; it now shows the available workspace entries or a clear empty-state message when no tools are enabled.
 
 ## v1.16.0
 

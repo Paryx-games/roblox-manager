@@ -154,6 +154,7 @@ pub fn tab_button(ui: &mut egui::Ui, name: &str, label: &str, selected: bool) ->
 }
 
 /// Draw a menu button: label, a thin divider, then a chevron - opens a dropdown on click.
+#[allow(dead_code)]
 pub fn menu_button<R>(
     ui: &mut egui::Ui,
     label: &str,
