@@ -46,25 +46,124 @@ fn normalize_search_keyword(keyword: &str) -> Result<String, CoreError> {
         .collect())
 }
 
-/// Search public Roblox users by username or display name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SearchTargetKind {
+    UserId,
+    Username,
+    BroadSearch,
+}
+
+fn classify_search_target(keyword: &str) -> SearchTargetKind {
+    let trimmed = keyword.trim();
+    if trimmed.is_empty() || trimmed.len() < 3 {
+        return SearchTargetKind::BroadSearch;
+    }
+
+    let has_letters = trimmed.chars().any(|ch| ch.is_ascii_alphabetic());
+    let has_spaces = trimmed.contains(char::is_whitespace);
+    let is_numeric = trimmed.chars().all(|ch| ch.is_ascii_digit());
+
+    if is_numeric {
+        SearchTargetKind::UserId
+    } else if !has_spaces && !has_letters {
+        SearchTargetKind::BroadSearch
+    } else if !has_spaces {
+        SearchTargetKind::Username
+    } else {
+        SearchTargetKind::BroadSearch
+    }
+}
+
+/// Try the exact path first: user IDs resolve without a broad search, and exact
+/// usernames are a single targeted lookup rather than a fuzzy keyword query.
 pub async fn search_users(
     client: &RobloxClient,
     keyword: &str,
 ) -> Result<Vec<UserSearchResult>, CoreError> {
-    tracing::debug!(keyword, "Searching Roblox users");
-    let keyword = normalize_search_keyword(keyword)?;
-    let url = format!("https://users.roblox.com/v1/users/search?keyword={keyword}&limit=10");
-    let response: UserSearchResponse = client.get_json(&url, "").await?;
-    let results: Vec<_> = response
-        .data
-        .into_iter()
-        .map(|user| UserSearchResult {
-            user_id: user.id,
-            username: user.name,
-            display_name: user.display_name,
-        })
-        .collect();
-    tracing::debug!(count = results.len(), "Roblox user search completed");
+    let trimmed = keyword.trim();
+    let target_kind = classify_search_target(trimmed);
+    println!(
+        "DEBUG search_users input='{trimmed}' kind={:?} len={}",
+        target_kind,
+        trimmed.len()
+    );
+    tracing::debug!(
+        keyword = trimmed,
+        class = ?target_kind,
+        "Searching Roblox users"
+    );
+
+    let results = match target_kind {
+        SearchTargetKind::UserId => {
+            println!("DEBUG exact user-id lookup path");
+            if let Ok(user_id) = trimmed.parse::<u64>() {
+                let url = format!("https://users.roblox.com/v1/users/{user_id}");
+                match client.get_json::<UserSearchResultEntry>(&url, "").await {
+                    Ok(user) => vec![UserSearchResult {
+                        user_id: user.id,
+                        username: user.name,
+                        display_name: user.display_name,
+                    }],
+                    Err(err) => {
+                        println!("DEBUG exact user-id lookup failed: {err}");
+                        tracing::warn!(
+                            user_id,
+                            error = %err,
+                            "Exact user-id lookup failed; falling back to broad search"
+                        );
+                        Vec::new()
+                    }
+                }
+            } else {
+                Vec::new()
+            }
+        }
+        SearchTargetKind::Username => match lookup_username(client, trimmed).await {
+            Ok(Some((user_id, username, display_name))) => {
+                println!("DEBUG exact username lookup hit: {username} ({user_id})");
+                vec![UserSearchResult {
+                    user_id,
+                    username,
+                    display_name,
+                }]
+            }
+            Ok(None) => {
+                println!("DEBUG exact username lookup missed: {trimmed}");
+                Vec::new()
+            }
+            Err(err) => {
+                println!("DEBUG exact username lookup failed: {err}");
+                tracing::warn!(
+                    keyword = trimmed,
+                    error = %err,
+                    "Exact username lookup failed; falling back to broad search"
+                );
+                Vec::new()
+            }
+        },
+        SearchTargetKind::BroadSearch => {
+            println!("DEBUG broad keyword search path");
+            let keyword = normalize_search_keyword(trimmed)?;
+            let url =
+                format!("https://users.roblox.com/v1/users/search?keyword={keyword}&limit=10");
+            let response: UserSearchResponse = client.get_json(&url, "").await?;
+            response
+                .data
+                .into_iter()
+                .map(|user| UserSearchResult {
+                    user_id: user.id,
+                    username: user.name,
+                    display_name: user.display_name,
+                })
+                .collect()
+        }
+    };
+
+    tracing::debug!(
+        count = results.len(),
+        keyword = trimmed,
+        "Roblox user search completed"
+    );
     Ok(results)
 }
 
@@ -900,5 +999,16 @@ mod tests {
         assert!(normalize_search_keyword("  a ").is_err());
         assert!(normalize_search_keyword("ab").is_err());
         assert!(normalize_search_keyword("abc").is_ok());
+    }
+
+    #[test]
+    fn search_targets_are_classified_for_exact_resolution() {
+        assert_eq!(classify_search_target("12345"), SearchTargetKind::UserId);
+        assert_eq!(classify_search_target("alice"), SearchTargetKind::Username);
+        assert_eq!(
+            classify_search_target("alice smith"),
+            SearchTargetKind::BroadSearch
+        );
+        assert_eq!(classify_search_target("a"), SearchTargetKind::BroadSearch);
     }
 }
