@@ -18,6 +18,29 @@
   <img src="https://img.shields.io/github/issues/Paryx-games/roblox-manager?label=issues&logo=github&logoColor=white&color=14b8a6" alt="issues">
 </p>
 
+> [!IMPORTANT]
+> **RM's UI is currently being ported from egui to Tauri + React.** egui's
+> immediate-mode styling made a consistent, enforceable design system hard
+> to maintain across contributors, and Tauri + React gives us token-based
+> styling, a more common contributor skillset, and removes the WebView2
+> subprocess workaround egui required. See
+> [#29](https://github.com/Paryx-games/roblox-manager/issues/29) for the
+> full rationale.
+>
+> The `main` branch is in a feature freeze during this migration: only bug
+> fixes and security patches will be merged until the rewrite reaches
+> parity with the current UI.
+>
+> - New feature PRs against the old egui UI will not be accepted.
+> - Contributing to the rewrite itself? See
+>   [`AGENTS.md`](AGENTS.md) (written for AI agents, but equally useful as
+>   a human contributor guide) for the architecture, and
+>   [`DESIGN.md`](DESIGN.md) for the UI design system - both are required
+>   reading before touching `ram_ui/`.
+> - Migration work is happening on the [`v2` branch](../../tree/v2) - see
+>   `TODO.md` there for current progress (local to that branch, not
+>   tracked on `main`).
+
 > [!NOTE]
 > This repository is a fork of [gitlab.com/centerepic/robloxmanager](https://gitlab.com/centerepic/robloxmanager).
 
@@ -27,8 +50,7 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 
 > [!WARNING]
 > This tool interacts with Roblox authentication cookies and game-launching internals. Use it at your own risk. The multi-instance feature bypasses Roblox's singleton mutex, which may conflict with Hyperion anti-cheat and could carry a ban risk. This project is not affiliated with or endorsed by Roblox Corporation.
-
-> [!NOTE]
+>
 > This project is independent and is not affiliated with, endorsed by, or sponsored by Roblox Corporation.
 
 ## Features
