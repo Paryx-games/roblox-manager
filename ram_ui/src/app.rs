@@ -3170,7 +3170,9 @@ impl AppState {
                                             target_user_id,
                                             encrypted_cookie: account.encrypted_cookie.clone(),
                                             session,
-                                            use_credential_manager: self.config.use_credential_manager,
+                                            use_credential_manager: self
+                                                .config
+                                                .use_credential_manager,
                                         });
                                     }
                                 }
@@ -3185,7 +3187,9 @@ impl AppState {
                                             target_user_id,
                                             encrypted_cookie: account.encrypted_cookie.clone(),
                                             session,
-                                            use_credential_manager: self.config.use_credential_manager,
+                                            use_credential_manager: self
+                                                .config
+                                                .use_credential_manager,
                                         });
                                     }
                                 }
@@ -3200,7 +3204,9 @@ impl AppState {
                                             target_user_id,
                                             encrypted_cookie: account.encrypted_cookie.clone(),
                                             session,
-                                            use_credential_manager: self.config.use_credential_manager,
+                                            use_credential_manager: self
+                                                .config
+                                                .use_credential_manager,
                                         });
                                     }
                                 }
@@ -3215,7 +3221,9 @@ impl AppState {
                                             target_user_id,
                                             encrypted_cookie: account.encrypted_cookie.clone(),
                                             session,
-                                            use_credential_manager: self.config.use_credential_manager,
+                                            use_credential_manager: self
+                                                .config
+                                                .use_credential_manager,
                                         });
                                     }
                                 }
@@ -3230,7 +3238,9 @@ impl AppState {
                                             target_user_id,
                                             encrypted_cookie: account.encrypted_cookie.clone(),
                                             session,
-                                            use_credential_manager: self.config.use_credential_manager,
+                                            use_credential_manager: self
+                                                .config
+                                                .use_credential_manager,
                                         });
                                     }
                                 }

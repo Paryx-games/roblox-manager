@@ -41,9 +41,18 @@ mod tests {
             display_name: "Alice".to_string(),
         }];
 
-        assert_eq!(bulk_connection_selected_user_id("12345", &candidates), Some(12345));
-        assert_eq!(bulk_connection_selected_user_id("alice", &candidates), Some(12345));
-        assert_eq!(bulk_connection_selected_user_id("missing", &candidates), None);
+        assert_eq!(
+            bulk_connection_selected_user_id("12345", &candidates),
+            Some(12345)
+        );
+        assert_eq!(
+            bulk_connection_selected_user_id("alice", &candidates),
+            Some(12345)
+        );
+        assert_eq!(
+            bulk_connection_selected_user_id("missing", &candidates),
+            None
+        );
     }
 }
 
@@ -72,29 +81,17 @@ pub enum GroupPanelAction {
     /// Kill all Roblox instances.
     KillAll,
     /// Search Roblox users for a social action to apply across the selected accounts.
-    SearchConnectionUsers {
-        keyword: String,
-    },
+    SearchConnectionUsers { keyword: String },
     /// Send a friend request from every selected account.
-    SendFriendRequestToSelected {
-        target_user_id: u64,
-    },
+    SendFriendRequestToSelected { target_user_id: u64 },
     /// Follow a user from every selected account.
-    FollowSelectedUsers {
-        target_user_id: u64,
-    },
+    FollowSelectedUsers { target_user_id: u64 },
     /// Unfollow a user from every selected account.
-    UnfollowSelectedUsers {
-        target_user_id: u64,
-    },
+    UnfollowSelectedUsers { target_user_id: u64 },
     /// Join a selected user's game from every selected account.
-    JoinSelectedUsersGame {
-        target_user_id: u64,
-    },
+    JoinSelectedUsersGame { target_user_id: u64 },
     /// Block a user from every selected account.
-    BlockSelectedUsers {
-        target_user_id: u64,
-    },
+    BlockSelectedUsers { target_user_id: u64 },
 }
 
 /// Draw the group control panel for multiple selected accounts.
