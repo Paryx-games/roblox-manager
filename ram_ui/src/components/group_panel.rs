@@ -7,6 +7,46 @@ use ram_core::models::{Account, LaunchPreset};
 use crate::icons;
 use crate::theme::ThemeUi;
 
+fn bulk_connection_selected_user_id(
+    query: &str,
+    candidates: &[ram_core::api::UserSearchResult],
+) -> Option<u64> {
+    let normalized = query.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let lowered = normalized.to_ascii_lowercase();
+    candidates.iter().find_map(|candidate| {
+        let matches_id = candidate.user_id.to_string() == lowered;
+        let matches_username = candidate.username.to_ascii_lowercase() == lowered;
+        let matches_display_name = candidate.display_name.to_ascii_lowercase() == lowered;
+        if matches_id || matches_username || matches_display_name {
+            Some(candidate.user_id)
+        } else {
+            None
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bulk_connection_target_matches_user_id_and_username() {
+        let candidates = [ram_core::api::UserSearchResult {
+            user_id: 12345,
+            username: "alice".to_string(),
+            display_name: "Alice".to_string(),
+        }];
+
+        assert_eq!(bulk_connection_selected_user_id("12345", &candidates), Some(12345));
+        assert_eq!(bulk_connection_selected_user_id("alice", &candidates), Some(12345));
+        assert_eq!(bulk_connection_selected_user_id("missing", &candidates), None);
+    }
+}
+
 /// Actions the group panel can request.
 pub enum GroupPanelAction {
     /// Launch all selected accounts into the given place/server.
@@ -31,6 +71,30 @@ pub enum GroupPanelAction {
     TileWindows,
     /// Kill all Roblox instances.
     KillAll,
+    /// Search Roblox users for a social action to apply across the selected accounts.
+    SearchConnectionUsers {
+        keyword: String,
+    },
+    /// Send a friend request from every selected account.
+    SendFriendRequestToSelected {
+        target_user_id: u64,
+    },
+    /// Follow a user from every selected account.
+    FollowSelectedUsers {
+        target_user_id: u64,
+    },
+    /// Unfollow a user from every selected account.
+    UnfollowSelectedUsers {
+        target_user_id: u64,
+    },
+    /// Join a selected user's game from every selected account.
+    JoinSelectedUsersGame {
+        target_user_id: u64,
+    },
+    /// Block a user from every selected account.
+    BlockSelectedUsers {
+        target_user_id: u64,
+    },
 }
 
 /// Draw the group control panel for multiple selected accounts.
@@ -50,6 +114,10 @@ pub fn show(
     common_inventory_items: &[ram_core::assets_api::UserInventoryItem],
     common_inventory_loading: bool,
     common_inventory_message: Option<&str>,
+    connection_search_input: &mut String,
+    connection_last_search: &mut String,
+    connection_search_deadline: &mut Option<std::time::Instant>,
+    connection_users: &[ram_core::api::UserSearchResult],
 ) -> Option<GroupPanelAction> {
     let mut action: Option<GroupPanelAction> = None;
     let count = selected_accounts.len();
@@ -143,6 +211,164 @@ pub fn show(
                 ui.label(format!("+ {} more items", common_inventory_items.len() - 6));
             }
         }
+        ui.add_space(8.0);
+
+        ui.heading("Connections");
+        ui.add_space(4.0);
+        let search_value = connection_search_input.trim().to_string();
+        let valid_search = !search_value.is_empty() && search_value.len() >= 3;
+        let now = std::time::Instant::now();
+        let should_debounce = valid_search
+            && *connection_last_search != search_value
+            && connection_search_deadline
+                .is_none_or(|deadline| now >= deadline);
+
+        ui.horizontal(|ui| {
+            let search_button_width = 120.0;
+            let clear_button_width = 60.0;
+            let input_width = (ui.available_width() - search_button_width - clear_button_width - 12.0)
+                .max(180.0);
+            ui.add_sized(
+                egui::vec2(input_width, 30.0),
+                egui::TextEdit::singleline(connection_search_input)
+                    .hint_text("Search username, display name, or user ID"),
+            );
+            if ui
+                .add_enabled(
+                    valid_search,
+                    egui::Button::new("Search Roblox").min_size(egui::vec2(search_button_width, 30.0)),
+                )
+                .clicked()
+            {
+                *connection_last_search = search_value.clone();
+                *connection_search_deadline = Some(now + std::time::Duration::from_millis(200));
+                action = Some(GroupPanelAction::SearchConnectionUsers {
+                    keyword: search_value.clone(),
+                });
+            }
+            if ui
+                .add(egui::Button::new("Clear").min_size(egui::vec2(clear_button_width, 30.0)))
+                .clicked()
+            {
+                connection_search_input.clear();
+                connection_last_search.clear();
+                *connection_search_deadline = None;
+            }
+        });
+
+        if !search_value.is_empty() && !valid_search {
+            ui.add_space(4.0);
+            ui.colored_label(
+                ui.theme().warning_text,
+                "Use at least 3 characters for a Roblox search.",
+            );
+        }
+
+        if should_debounce {
+            *connection_last_search = search_value.clone();
+            *connection_search_deadline = Some(now + std::time::Duration::from_millis(250));
+            action = Some(GroupPanelAction::SearchConnectionUsers {
+                keyword: search_value.clone(),
+            });
+        }
+
+        let query = search_value.to_ascii_lowercase();
+        let target = if query.is_empty() {
+            None
+        } else {
+            bulk_connection_selected_user_id(&search_value, connection_users)
+        };
+
+        if !query.is_empty() {
+            ui.add_space(6.0);
+            if connection_users.is_empty() {
+                ui.label(
+                    egui::RichText::new("No matches found. Try a wider username or ID.")
+                        .color(ui.visuals().weak_text_color()),
+                );
+            } else {
+                ui.label(
+                    egui::RichText::new("Results")
+                        .small()
+                        .color(ui.visuals().weak_text_color()),
+                );
+                ui.add_space(4.0);
+                egui::Frame::default()
+                    .inner_margin(egui::Margin::same(8.0))
+                    .rounding(egui::Rounding::same(6.0))
+                    .fill(ui.visuals().panel_fill)
+                    .show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        for candidate in connection_users.iter().take(6) {
+                            let selected = target == Some(candidate.user_id);
+                            let label = format!(
+                                "{} (@{}) · ID {}",
+                                candidate.display_name,
+                                candidate.username,
+                                candidate.user_id,
+                            );
+                            if ui.selectable_label(selected, label).clicked() {
+                                *connection_search_input = candidate.user_id.to_string();
+                            }
+                        }
+                    });
+            }
+        }
+
+        ui.add_space(8.0);
+        if let Some(selected_id) = target {
+            ui.horizontal_wrapped(|ui| {
+                let selected_user = connection_users
+                    .iter()
+                    .find(|candidate| candidate.user_id == selected_id)
+                    .unwrap();
+                ui.label(
+                    egui::RichText::new(format!(
+                        "Selected: {} (@{})",
+                        selected_user.display_name, selected_user.username,
+                    ))
+                    .strong(),
+                );
+            });
+        }
+
+        ui.add_space(6.0);
+        if let Some(target_user_id) = target {
+            ui.horizontal_wrapped(|ui| {
+                let width = (ui.available_width() / 5.0 - 12.0).clamp(90.0, 152.0);
+                if ui
+                    .add_enabled(true, egui::Button::new("Friend request").min_size(egui::vec2(width, 32.0)))
+                    .clicked()
+                {
+                    action = Some(GroupPanelAction::SendFriendRequestToSelected { target_user_id });
+                }
+                if ui
+                    .add_enabled(true, egui::Button::new("Follow").min_size(egui::vec2(width, 32.0)))
+                    .clicked()
+                {
+                    action = Some(GroupPanelAction::FollowSelectedUsers { target_user_id });
+                }
+                if ui
+                    .add_enabled(true, egui::Button::new("Unfollow").min_size(egui::vec2(width, 32.0)))
+                    .clicked()
+                {
+                    action = Some(GroupPanelAction::UnfollowSelectedUsers { target_user_id });
+                }
+                if ui
+                    .add_enabled(true, egui::Button::new("Join their game").min_size(egui::vec2(width, 32.0)))
+                    .clicked()
+                {
+                    action = Some(GroupPanelAction::JoinSelectedUsersGame { target_user_id });
+                }
+                if ui
+                    .add_enabled(true, egui::Button::new("Block user").min_size(egui::vec2(width, 32.0)))
+                    .clicked()
+                {
+                    action = Some(GroupPanelAction::BlockSelectedUsers { target_user_id });
+                }
+            });
+        }
+
         ui.add_space(8.0);
         ui.separator();
         ui.add_space(8.0);

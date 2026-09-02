@@ -3032,6 +3032,10 @@ impl AppState {
                     &self.common_inventory_items,
                     self.common_inventory_loading,
                     self.common_inventory_message.as_deref(),
+                    &mut self.main_panel_state.connection_target_input,
+                    &mut self.main_panel_state.connection_last_search,
+                    &mut self.main_panel_state.connection_search_deadline,
+                    &self.connection_users,
                 );
                 if let Some(a) = action {
                     match a {
@@ -3148,6 +3152,88 @@ impl AppState {
                                 self.confirm_kill_all = true;
                             } else {
                                 self.bridge.send(BackendCommand::KillAll);
+                            }
+                        }
+                        group_panel::GroupPanelAction::SearchConnectionUsers { keyword } => {
+                            self.connection_users.clear();
+                            self.bridge
+                                .send(BackendCommand::SearchConnectionUsers { keyword });
+                        }
+                        group_panel::GroupPanelAction::SendFriendRequestToSelected {
+                            target_user_id,
+                        } => {
+                            for user_id in self.selected_ids.iter().copied() {
+                                if let Some(account) = self.store.find_by_id(user_id) {
+                                    if let Some(session) = self.session() {
+                                        self.bridge.send(BackendCommand::SendFriendRequest {
+                                            user_id,
+                                            target_user_id,
+                                            encrypted_cookie: account.encrypted_cookie.clone(),
+                                            session,
+                                            use_credential_manager: self.config.use_credential_manager,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        group_panel::GroupPanelAction::FollowSelectedUsers { target_user_id } => {
+                            for user_id in self.selected_ids.iter().copied() {
+                                if let Some(account) = self.store.find_by_id(user_id) {
+                                    if let Some(session) = self.session() {
+                                        self.bridge.send(BackendCommand::FollowUser {
+                                            user_id,
+                                            target_user_id,
+                                            encrypted_cookie: account.encrypted_cookie.clone(),
+                                            session,
+                                            use_credential_manager: self.config.use_credential_manager,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        group_panel::GroupPanelAction::UnfollowSelectedUsers { target_user_id } => {
+                            for user_id in self.selected_ids.iter().copied() {
+                                if let Some(account) = self.store.find_by_id(user_id) {
+                                    if let Some(session) = self.session() {
+                                        self.bridge.send(BackendCommand::UnfollowUser {
+                                            user_id,
+                                            target_user_id,
+                                            encrypted_cookie: account.encrypted_cookie.clone(),
+                                            session,
+                                            use_credential_manager: self.config.use_credential_manager,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        group_panel::GroupPanelAction::JoinSelectedUsersGame { target_user_id } => {
+                            for user_id in self.selected_ids.iter().copied() {
+                                if let Some(account) = self.store.find_by_id(user_id) {
+                                    if let Some(session) = self.session() {
+                                        self.bridge.send(BackendCommand::JoinUserGame {
+                                            user_id,
+                                            target_user_id,
+                                            encrypted_cookie: account.encrypted_cookie.clone(),
+                                            session,
+                                            use_credential_manager: self.config.use_credential_manager,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        group_panel::GroupPanelAction::BlockSelectedUsers { target_user_id } => {
+                            for user_id in self.selected_ids.iter().copied() {
+                                if let Some(account) = self.store.find_by_id(user_id) {
+                                    if let Some(session) = self.session() {
+                                        self.bridge.send(BackendCommand::BlockUser {
+                                            user_id,
+                                            target_user_id,
+                                            encrypted_cookie: account.encrypted_cookie.clone(),
+                                            session,
+                                            use_credential_manager: self.config.use_credential_manager,
+                                        });
+                                    }
+                                }
                             }
                         }
                     }
