@@ -10,6 +10,7 @@
 
 - **Account-panel sizing.** The selected-account sections now stay within one consistent width so the launch, inventory, and social cards no longer stretch past the viewport on smaller windows.
 - **Tools menu rendering.** The Tools dropdown no longer opens to a blank menu; it now shows the available workspace entries or a clear empty-state message when no tools are enabled.
+- **Account-panel width lock.** The top identity block stays at its original size while every lower card is forced to the exact same width for a consistent, non-clipping layout.
 
 ## v1.16.0
 

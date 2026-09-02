@@ -102,9 +102,10 @@ pub fn show(
     let theme = ui.theme();
     let mut action: Option<MainPanelAction> = None;
     let mut launch_btn_rect = egui::Rect::NOTHING;
+    let panel_width = ui.available_width().min(980.0);
 
     egui::ScrollArea::vertical().show(ui, |ui| {
-        ui.set_max_width(ui.available_width().min(980.0));
+        ui.set_width(panel_width);
         ui.vertical(|ui| {
             let section_frame = egui::Frame::default()
                 .inner_margin(egui::Margin::same(12.0))
@@ -115,8 +116,8 @@ pub fn show(
             // Header — avatar, name, presence chip, kebab menu (⋮) on right.
             // -------------------------------------------------------------
             section_frame.show(ui, |ui: &mut egui::Ui| {
-                ui.set_min_width(ui.available_width());
-                ui.horizontal_wrapped(|ui| {
+                ui.set_width(panel_width);
+                ui.horizontal(|ui| {
                     draw_avatar(ui, account.user_id, avatar_bytes, 80.0, anonymize);
                     ui.add_space(8.0);
 
@@ -260,7 +261,7 @@ pub fn show(
             // Hero — Launch controls. The big primary action area.
             // -------------------------------------------------------------
             section_frame.show(ui, |ui: &mut egui::Ui| {
-                ui.set_min_width(ui.available_width());
+                ui.set_width(panel_width);
 
                 // Preset quick-select chips
                 if !presets.is_empty() {
@@ -479,7 +480,7 @@ pub fn show(
                 .rounding(egui::Rounding::same(6.0))
                 .fill(ui.visuals().extreme_bg_color)
                 .show(ui, |ui| {
-                    ui.set_min_width(ui.available_width());
+                    ui.set_width(panel_width);
                     ui.horizontal(|ui| {
                         ui.heading("Connections");
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -500,17 +501,26 @@ pub fn show(
                         && state.connection_search_deadline
                             .is_none_or(|deadline| now >= deadline);
 
-                    ui.horizontal_wrapped(|ui| {
+                    ui.set_width(panel_width);
+                    ui.horizontal(|ui| {
+                        let search_button_width = 96.0;
+                        let clear_button_width = 60.0;
+                        let input_width = (panel_width - search_button_width - clear_button_width - 22.0)
+                            .max(180.0)
+                            .min(panel_width - search_button_width - clear_button_width - 22.0);
                         ui.add_sized(
-                            egui::vec2(ui.available_width().max(220.0) - 120.0, 30.0),
+                            egui::vec2(input_width, 30.0),
                             egui::TextEdit::singleline(&mut state.connection_target_input)
                                 .hint_text("Search username, display name, or user ID"),
                         );
 
-                        if ui
-                            .add_enabled(valid_search, egui::Button::new("Search Roblox"))
-                            .clicked()
-                        {
+                        let search_btn = ui.add_enabled(
+                            valid_search,
+                            egui::Button::new("Search Roblox")
+                                .min_size(egui::vec2(search_button_width, 30.0))
+                                .fill(ui.visuals().widgets.inactive.bg_fill),
+                        );
+                        if search_btn.clicked() {
                             state.connection_last_search = search_value.clone();
                             state.connection_search_deadline =
                                 Some(now + std::time::Duration::from_millis(200));
@@ -519,7 +529,10 @@ pub fn show(
                             });
                         }
 
-                        if ui.button("Clear").clicked() {
+                        if ui
+                            .add(egui::Button::new("Clear").min_size(egui::vec2(clear_button_width, 30.0)))
+                            .clicked()
+                        {
                             state.connection_target_input.clear();
                             state.connection_last_search.clear();
                             state.connection_search_deadline = None;
@@ -605,11 +618,14 @@ pub fn show(
                     }
 
                     ui.add_space(6.0);
-                    ui.horizontal_wrapped(|ui| {
+                    ui.horizontal(|ui| {
                         let selected_id = target.map(|target| target.user_id);
+                        let action_button_width = (panel_width / 5.0 - 12.0).clamp(90.0, 150.0);
+
                         let friend_btn = ui.add_enabled(
                             selected_id.is_some(),
                             egui::Button::new("Friend request")
+                                .min_size(egui::vec2(action_button_width, 32.0))
                                 .fill(ui.visuals().widgets.inactive.bg_fill),
                         );
                         if friend_btn.clicked() {
@@ -621,6 +637,7 @@ pub fn show(
                         let follow_btn = ui.add_enabled(
                             selected_id.is_some(),
                             egui::Button::new("Follow")
+                                .min_size(egui::vec2(action_button_width, 32.0))
                                 .fill(ui.visuals().widgets.inactive.bg_fill),
                         );
                         if follow_btn.clicked() {
@@ -632,6 +649,7 @@ pub fn show(
                         let unfollow_btn = ui.add_enabled(
                             selected_id.is_some(),
                             egui::Button::new("Unfollow")
+                                .min_size(egui::vec2(action_button_width, 32.0))
                                 .fill(ui.visuals().widgets.inactive.bg_fill),
                         );
                         if unfollow_btn.clicked() {
@@ -643,6 +661,7 @@ pub fn show(
                         let join_btn = ui.add_enabled(
                             selected_id.is_some(),
                             egui::Button::new("Join their game")
+                                .min_size(egui::vec2(action_button_width, 32.0))
                                 .fill(ui.visuals().widgets.inactive.bg_fill),
                         );
                         if join_btn.clicked() {
@@ -654,6 +673,7 @@ pub fn show(
                         let block_btn = ui.add_enabled(
                             selected_id.is_some(),
                             egui::Button::new("Block user")
+                                .min_size(egui::vec2(action_button_width, 32.0))
                                 .fill(ui.visuals().widgets.inactive.bg_fill),
                         );
                         if block_btn.clicked() {
@@ -666,7 +686,7 @@ pub fn show(
             ui.add_space(8.0);
 
             section_frame.show(ui, |ui: &mut egui::Ui| {
-                ui.set_min_width(ui.available_width());
+                ui.set_width(panel_width);
                 let use_compact_actions = ui.available_width() < 680.0;
                 ui.horizontal(|ui| {
                     ui.heading("Roblox inventory");
@@ -732,7 +752,7 @@ pub fn show(
             // Account metadata — secondary info, no destructive actions.
             // -------------------------------------------------------------
             section_frame.show(ui, |ui: &mut egui::Ui| {
-                ui.set_min_width(ui.available_width());
+                ui.set_width(panel_width);
 
                 if state.alias_for_user != Some(account.user_id) {
                     state.alias_input = account.alias.clone();
