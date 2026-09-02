@@ -29,33 +29,6 @@ fn bulk_connection_selected_user_id(
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bulk_connection_target_matches_user_id_and_username() {
-        let candidates = [ram_core::api::UserSearchResult {
-            user_id: 12345,
-            username: "alice".to_string(),
-            display_name: "Alice".to_string(),
-        }];
-
-        assert_eq!(
-            bulk_connection_selected_user_id("12345", &candidates),
-            Some(12345)
-        );
-        assert_eq!(
-            bulk_connection_selected_user_id("alice", &candidates),
-            Some(12345)
-        );
-        assert_eq!(
-            bulk_connection_selected_user_id("missing", &candidates),
-            None
-        );
-    }
-}
-
 /// Actions the group panel can request.
 pub enum GroupPanelAction {
     /// Launch all selected accounts into the given place/server.
@@ -467,4 +440,31 @@ pub fn show(
     }); // ScrollArea
 
     action
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bulk_connection_target_matches_user_id_and_username() {
+        let candidates = [ram_core::api::UserSearchResult {
+            user_id: 12345,
+            username: "alice".to_string(),
+            display_name: "Alice".to_string(),
+        }];
+
+        assert_eq!(
+            bulk_connection_selected_user_id("12345", &candidates),
+            Some(12345)
+        );
+        assert_eq!(
+            bulk_connection_selected_user_id("alice", &candidates),
+            Some(12345)
+        );
+        assert_eq!(
+            bulk_connection_selected_user_id("missing", &candidates),
+            None
+        );
+    }
 }
