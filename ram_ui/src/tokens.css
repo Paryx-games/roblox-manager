@@ -1,0 +1,127 @@
+/**
+ * RM Design Tokens — SINGLE SOURCE OF TRUTH
+ *
+ * Every color, spacing, radius, border-width, and motion value used
+ * anywhere in the app MUST come from one of these variables.
+ * See /docs/design-system.md §"Enforcement" for what's lint-enforced
+ * vs. convention-enforced, and why.
+ *
+ * Dark mode only for now. Do not add a light-mode block until the
+ * design-system doc is updated to spec it — see the note on semantic
+ * layering below, which exists specifically to make that addition painless
+ * later.
+ */
+
+:root {
+  /* =========================================================
+     COLOR
+     Components consume ONLY the semantic layer below (--bg-*,
+     --text-*, --border-*, --action-*, --status-*). Never a raw hex.
+     There is currently no separate raw-palette layer (e.g. --blue-500)
+     underneath these — with one theme (dark only) that indirection has
+     no payoff yet. When light mode is added, insert a palette layer
+     here and repoint these semantic tokens at it; component code
+     should not need to change.
+     ========================================================= */
+
+  /* background scale — 3 steps, never more */
+  --bg-canvas: #14161c;   /* app background, titlebar */
+  --bg-surface: #1b1e27;  /* sidebar, panels, table headers */
+  --bg-raised: #242833;   /* hover/active rows, inputs, popovers */
+
+  /* border */
+  --border-default: #2e323f; /* the standard border color */
+  --border-muted: #23262f;   /* quieter dividers inside a surface, e.g. table row separators */
+
+  /* text */
+  --text-primary: #e4e6eb;
+  --text-secondary: #b4b8c4; /* de-emphasized but still readable — table secondary column, helper text */
+  --text-muted: #8b90a0;     /* labels, placeholders, timestamps */
+  --text-disabled: #565b6b;
+
+  /* action — buttons, links, focus rings, primary interactive elements */
+  --action-primary: #5b8def;
+  --action-primary-hover: #6f9bf2;
+  --action-primary-active: #4a7cdb;
+  --action-muted: #5b8def26; /* accent @ 15% — active-row washes, selected states */
+
+  /* status (RESERVED — see design-system.md rule 1. Never used on
+     buttons/links/decoration — only to represent live account,
+     instance, or process state.) */
+  --status-online: #4fbf7a;
+  --status-warning: #e0a93e;
+  --status-danger: #e0555a;
+  --status-neutral: #6b7080; /* offline / idle */
+
+  /* =========================================================
+     TYPE
+     ========================================================= */
+  --font-sans: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
+
+  /* type scale — do not introduce sizes outside this list */
+  --text-xs: 11px;   /* mono data, timestamps, badges */
+  --text-sm: 13px;   /* body, table cells, nav items */
+  --text-base: 14px; /* default body */
+  --text-lg: 16px;   /* section headings */
+  --text-xl: 20px;   /* page titles */
+
+  /* =========================================================
+     SPACING
+     4px base unit. Components use these tokens for all padding,
+     margin, and gap. Do not invent intermediate values (e.g. 18px,
+     22px) — pick the nearest token and adjust layout around it instead.
+     ========================================================= */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* =========================================================
+     RADIUS & BORDER WEIGHT — one value each, everywhere
+     ========================================================= */
+  --radius: 6px;
+  --border-width: 1px;
+
+  /* =========================================================
+     MOTION
+     RM is an operations console, not a showcase. Motion answers a
+     person's action (opening, expanding, confirming, a status
+     changing) — it does not decorate. No page-transition choreography,
+     no bounce/overshoot easing, no hover scale/glow effects.
+     Always respect prefers-reduced-motion: reduce (drop to 0ms / no-op).
+     ========================================================= */
+  --motion-fast: 100ms;   /* hover/active state changes, focus rings */
+  --motion-normal: 150ms; /* expand/collapse, dropdown open, tab switch */
+  --motion-slow: 250ms;   /* modal/panel enter-exit only */
+  --motion-easing: cubic-bezier(0.2, 0, 0, 1); /* one easing curve, everywhere */
+
+  /* =========================================================
+     LAYOUT CONSTANTS
+     These are structural, not "spacing" — they size specific fixed
+     regions of the shell (§2 of design-system.md), not padding/gaps
+     inside a component. Structural sizing like this is written as a
+     literal px value, not forced onto the spacing scale — see
+     design-system.md §"Enforcement" for why that distinction matters.
+     ========================================================= */
+  --titlebar-height: 40px;
+  --sidebar-width: 220px;
+  --activitybar-width: 44px;
+  --content-max-width: 960px;
+
+  /* Responsive breakpoints — see design-system.md §7 */
+  --breakpoint-comfortable: 1200px; /* full layout */
+  --breakpoint-condensed: 768px;    /* narrower content, tighter table columns */
+  /* below --breakpoint-condensed: sidebar collapses to icon rail (activity bar only) */
+
+  /* ---- Elevation: NONE.
+     RM does not use box-shadow for depth, at any breakpoint. Depth is
+     communicated only by the bg-canvas -> bg-surface -> bg-raised scale.
+     If you find yourself reaching for box-shadow, see design-system.md
+     §"No shadows" before adding one. ---- */
+}
