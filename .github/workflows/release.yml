@@ -1,4 +1,4 @@
-name: release
+name: Release
 
 on:
   push:
@@ -13,26 +13,26 @@ env:
 
 jobs:
   build:
-    name: build
+    name: Build
     runs-on: windows-latest
 
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v5
 
-      - name: setup rust
+      - name: Setup rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: cache cargo
+      - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
           # tags float on the same commit as their branch, cache key should track the lockfile not the ref
           key: release
 
-      - name: build
+      - name: Build
         run: cargo build --release
 
-      - name: upload executable
+      - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
           name: release-executable
@@ -41,23 +41,23 @@ jobs:
           compression-level: 0
 
   release:
-    name: release
+    name: Release
     needs: build
     runs-on: windows-latest
 
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: download executable
+      - name: Download executable
         uses: actions/download-artifact@v4
         with:
           name: release-executable
           path: release
 
-      - name: get previous tag
+      - name: Get previous tag
         id: previous-tag
         shell: pwsh
         run: |
@@ -72,7 +72,7 @@ jobs:
 
           "value=$($tags[0])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: extract changelog
+      - name: Extract changelog
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}"
@@ -103,7 +103,7 @@ jobs:
           $section = ($lines[$start..($end - 1)] -join "`n")
           Set-Content -Path release-notes.md -Value $section
 
-      - name: generate github release notes
+      - name: Generate github release notes
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -133,7 +133,7 @@ jobs:
           Set-Content -Path github-release-notes.md -Value $notes.Trim()
 
       # rename the built exe to roblox-manager-vX.Y.Z-windows-x64.exe, arch detected from runner env
-      - name: rename executable
+      - name: Rename executable
         id: rename-exe
         shell: pwsh
         run: |
@@ -162,7 +162,8 @@ jobs:
           "path=$newPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       # sha256 for the single release exe
-      - name: generate sha256 checksums
+      - name: Generate sha256 checksums
+        id: checksum
         shell: pwsh
         run: |
           $exePath = "${{ steps.rename-exe.outputs.path }}"
@@ -180,9 +181,78 @@ jobs:
 
           Set-Content -Path sha256.md -Value ($lines -join "`n")
 
+          "hash=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # scans the built exe with virustotal and links the report + the exact workflow file
+      # that produced it. scan failures to complete in time don't fail the release, the
+      # report link just finishes populating on virustotal's end
+      - name: Scan with virustotal
+        id: virustotal
+        shell: pwsh
+        env:
+          VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: |
+          if (-not $env:VT_API_KEY) {
+            throw "VIRUSTOTAL_API_KEY secret is not set."
+          }
+
+          $exePath = "${{ steps.rename-exe.outputs.path }}"
+          $sha256 = "${{ steps.checksum.outputs.hash }}"
+          $headers = @{ "x-apikey" = $env:VT_API_KEY }
+
+          $upload = Invoke-RestMethod -Uri "https://www.virustotal.com/api/v3/files" `
+            -Method Post -Headers $headers -Form @{ file = Get-Item -Path $exePath }
+
+          $analysisId = $upload.data.id
+
+          # fresh binaries usually finish in 30-90s, poll for up to 7.5 minutes
+          $status = "queued"
+          $attempts = 0
+          $maxAttempts = 30
+          $analysis = $null
+
+          while ($status -ne "completed" -and $attempts -lt $maxAttempts) {
+            Start-Sleep -Seconds 15
+            $analysis = Invoke-RestMethod -Uri "https://www.virustotal.com/api/v3/analyses/$analysisId" -Headers $headers
+            $status = $analysis.data.attributes.status
+            $attempts++
+          }
+
+          $reportUrl = "https://www.virustotal.com/gui/file/$sha256"
+
+          if ($status -eq "completed") {
+            $stats = $analysis.data.attributes.stats
+            $flagged = $stats.malicious + $stats.suspicious
+            $total = ($stats.PSObject.Properties | Measure-Object -Property Value -Sum).Sum
+            $summary = "$flagged / $total security vendors flagged this file"
+          } else {
+            $summary = "Scan submitted, results are still processing on VirusTotal"
+          }
+
+          # workflow_ref looks like "owner/repo/.github/workflows/release.yml@refs/tags/v1.0.0",
+          # strip the ref suffix and repo prefix to get just the file's repo-relative path
+          $repository = "${{ github.repository }}"
+          $workflowRef = "${{ github.workflow_ref }}"
+          $workflowPath = $workflowRef.Split('@')[0] -replace "^$([regex]::Escape($repository))/", ""
+          $workflowFileName = Split-Path -Path $workflowPath -Leaf
+          $workflowSha = "${{ github.workflow_sha }}"
+          $workflowUrl = "https://github.com/$repository/blob/$workflowSha/$workflowPath"
+
+          $lines = @(
+            "## Security"
+            ""
+            "This executable is automatically scanned with [VirusTotal](https://www.virustotal.com/) on every release."
+            ""
+            "- **Scan result:** $summary"
+            "- **Report:** $reportUrl"
+            "- **Build workflow:** [``$workflowFileName``]($workflowUrl)"
+          )
+
+          Set-Content -Path security.md -Value ($lines -join "`n")
+
       # builds the download table from whatever exes are actually in release/, so
       # adding a new arch job later just adds a row here for free, no edits needed
-      - name: build download table
+      - name: Build download table
         shell: pwsh
         run: |
           $archDescriptions = @{
@@ -221,7 +291,7 @@ jobs:
 
           Set-Content -Path downloads-table.md -Value ($lines -join "`n")
 
-      - name: assemble release notes
+      - name: Assemble release notes
         shell: pwsh
         run: |
           $currentTag = "${{ github.ref_name }}"
@@ -230,6 +300,7 @@ jobs:
           $downloadsTable = (Get-Content -Path downloads-table.md -Raw).Trim()
           $githubNotes = (Get-Content -Path github-release-notes.md -Raw).Trim()
           $sha256 = (Get-Content -Path sha256.md -Raw).Trim()
+          $security = (Get-Content -Path security.md -Raw).Trim()
 
           # drop the native "New Contributors" section entirely, not used
           $splitMarker = "## New Contributors"
@@ -275,14 +346,14 @@ jobs:
           "@
           }
 
-          $parts = @($changelog, $downloadsTable, $githubNotesBox.Trim(), $sha256, $prereleaseWarning.Trim()) |
+          $parts = @($changelog, $downloadsTable, $githubNotesBox.Trim(), $sha256, $security, $prereleaseWarning.Trim()) |
             Where-Object { $_ }
 
           $finalNotes = $parts -join "`n`n"
 
           Set-Content -Path final-release-notes.md -Value $finalNotes
 
-      - name: determine release type
+      - name: Determine release type
         id: release-type
         shell: pwsh
         run: |
@@ -291,7 +362,7 @@ jobs:
 
           "prerelease=$($isPrerelease.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: create release
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.rename-exe.outputs.path }}
