@@ -89,6 +89,7 @@ button:focus-visible {
   left: 50%;
   color: var(--text-muted);
   font-size: var(--text-sm);
+  user-select: none;
   transform: translateX(-50%);
 }
 
