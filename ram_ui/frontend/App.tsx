@@ -1,5 +1,6 @@
 import { useState, type MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { AccountsPage } from "./AccountsPage";
 
 type NavItem = {
   label: string;
@@ -72,7 +73,7 @@ function WindowButton({
 }
 
 export function App() {
-  const [activeNav, setActiveNav] = useState("Instances");
+  const [activeNav, setActiveNav] = useState("Accounts");
 
   function handleTitlebarMouseDown(event: MouseEvent<HTMLElement>) {
     const target = event.target;
@@ -142,17 +143,21 @@ export function App() {
 
         <div className="main-col">
           <div className="header-row">
-            <h1 className="header-title">Client Manager</h1>
+            <h1 className="header-title">{activeNav}</h1>
           </div>
-          <main className="content">
-            <section className="empty-state" aria-labelledby="whoops-title">
-              <h2 id="whoops-title">Whoops!</h2>
-              <p>
-                You need to disable 'Auto-Pick Clients' inside the settings to
-                use this feature.
-              </p>
-            </section>
-          </main>
+          {activeNav === "Accounts" ? (
+            <AccountsPage />
+          ) : (
+            <main className="content">
+              <section className="empty-state" aria-labelledby="whoops-title">
+                <h2 id="whoops-title">Whoops!</h2>
+                <p>
+                  You need to disable 'Auto-Pick Clients' inside the settings to
+                  use this feature.
+                </p>
+              </section>
+            </main>
+          )}
         </div>
       </div>
     </div>

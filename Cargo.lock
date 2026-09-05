@@ -5062,6 +5062,7 @@ dependencies = [
 name = "rm_tauri"
 version = "1.16.0"
 dependencies = [
+ "chrono",
  "ram_core",
  "serde",
  "tauri",
