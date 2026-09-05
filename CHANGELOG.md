@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Accounts overview.** The Accounts workspace now includes live account statistics, supported quick actions, and a recent activity feed while preserving the invitation to add an account when the store is empty.
 - **Bulk connection actions.** The multi-account panel now includes a Connections section with the same social controls as the single account view, so you can search a Roblox user and apply follow, unfollow, join-game, block, and friend-request actions across every selected account in one pass.
 - **Join-by-user support.** The account panel now includes a user-join flow with direct follow/unfollow controls, a join-their-game action, and startup friend-cache refreshes to keep friends-only joins fast on large account lists.
 
