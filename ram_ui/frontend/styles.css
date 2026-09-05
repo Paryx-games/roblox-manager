@@ -66,7 +66,7 @@ button:focus-visible {
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--space-3);
+  padding: 0 0 0 var(--space-3);
   border-bottom: var(--border-width) solid var(--border-default);
 }
 
@@ -95,25 +95,52 @@ button:focus-visible {
 .window-controls {
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 0;
   margin-left: auto;
 }
 
 .window-button {
   position: relative;
   display: flex;
-  width: 14px;
-  height: 14px;
+  width: 36px;
+  height: 36px;
   align-items: center;
-  padding: 0;
+  justify-content: center;
+  padding: 11px;
   border: 0;
   color: var(--text-muted);
   background: transparent;
   cursor: pointer;
 }
 
+.window-button > img {
+  width: 14px;
+  height: 14px;
+}
+
 .window-button:hover {
   color: var(--text-primary);
+  background: var(--bg-raised);
+}
+
+.window-button-close {
+  color: var(--text-muted);
+}
+
+.window-button:focus-visible {
+  background: var(--bg-raised);
+}
+
+.window-button-close:hover,
+.window-button-close:focus-visible {
+  color: var(--text-primary);
+  background: var(--status-danger);
+}
+
+.window-button-close > img,
+.window-button-close:hover > img,
+.window-button-close:focus-visible > img {
+  filter: invert(95%);
 }
 
 .window-button:hover > img,

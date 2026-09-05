@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 type NavItem = {
   label: string;
@@ -48,18 +49,21 @@ function RailButton({
 function WindowButton({
   label,
   icon,
+  close = false,
   onClick,
 }: {
   label: string;
   icon: string;
-  onClick: () => void;
+  close?: boolean;
+  onClick: () => Promise<void>;
 }) {
   return (
     <button
-      className="window-button"
+      className={`window-button ${close ? "window-button-close" : ""}`}
       type="button"
       aria-label={label}
       data-tip={label}
+      onMouseDown={(event) => event.stopPropagation()}
       onClick={onClick}
     >
       <Icon name={icon} />
@@ -72,15 +76,28 @@ export function App() {
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-canvas text-primary">
-      <header className="titlebar">
+      <header className="titlebar" data-tauri-drag-region>
         <span className="titlebar-logo" aria-label="Roblox Manager">
           <Icon name="feather" />
         </span>
         <span className="titlebar-version">1.3.7</span>
         <div className="window-controls" aria-label="Window controls">
-          <WindowButton label="Minimize" icon="minus" onClick={() => {}} />
-          <WindowButton label="Maximize" icon="square" onClick={() => {}} />
-          <WindowButton label="Close" icon="close" onClick={() => {}} />
+          <WindowButton
+            label="Minimize"
+            icon="minus"
+            onClick={() => getCurrentWindow().minimize()}
+          />
+          <WindowButton
+            label="Maximize"
+            icon="square"
+            onClick={() => getCurrentWindow().toggleMaximize()}
+          />
+          <WindowButton
+            label="Close"
+            icon="close"
+            close
+            onClick={() => getCurrentWindow().close()}
+          />
         </div>
       </header>
 
