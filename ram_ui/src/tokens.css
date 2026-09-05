@@ -25,21 +25,21 @@
      ========================================================= */
 
   /* background scale — 3 steps, never more */
-  --bg-canvas: #04060b;
-  --bg-surface: #0b1018;
-  --bg-raised: #131a25;
+  --bg-canvas: #0a0a0b;
+  --bg-surface: #111113;
+  --bg-raised: #16171a;
 
   /* border */
-  --border-default: #2a2c31;
+  --border-default: rgba(255, 255, 255, 0.07);
 
   /* text */
-  --text-primary: #e8e9ec;
-  --text-muted: #8b8d94;
-  --text-disabled: #55575e;
+  --text-primary: #f0f0f1;
+  --text-muted: #8a8a90;
+  --text-disabled: #5c5c62;
 
   /* action — buttons, links, focus rings, primary interactive elements */
-  --action-primary: #3b82f6;
-  --action-muted: #3b82f622;
+  --action-primary: #c7c7cc;
+  --action-muted: rgba(255, 255, 255, 0.08);
 
   /* status (RESERVED — see design-system.md rule 1. Never used on
      buttons/links/decoration — only to represent live account,
@@ -52,7 +52,8 @@
   /* =========================================================
      TYPE
      ========================================================= */
-  --font-sans: "Roboto", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-sans:
+    "Roboto", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
 
   /* type scale — do not introduce sizes outside this list */
