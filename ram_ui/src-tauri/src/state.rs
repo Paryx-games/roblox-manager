@@ -24,7 +24,7 @@ impl Default for AppState {
             .join("RM");
         let config_path = data_dir.join("config.json");
         let mut config = AppConfig::load(&config_path);
-        if config.accounts_path == PathBuf::from("accounts.dat") {
+        if config.accounts_path == std::path::Path::new("accounts.dat") {
             config.accounts_path = data_dir.join("accounts.dat");
         }
 
