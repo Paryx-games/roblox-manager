@@ -25,9 +25,9 @@
      ========================================================= */
 
   /* background scale — 3 steps, never more */
-   --bg-canvas: #080b12;
-   --bg-surface: #10151f;
-   --bg-raised: #181f2b;
+  --bg-canvas: #04060b;
+  --bg-surface: #0b1018;
+  --bg-raised: #131a25;
 
   /* border */
   --border-default: #2a2c31;

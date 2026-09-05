@@ -102,7 +102,9 @@ export function App() {
         <span className="titlebar-logo" aria-label="Roblox Manager">
           <Icon name="feather" />
         </span>
-        <span className="titlebar-version">1.3.7</span>
+        <span className="titlebar-version">
+          {import.meta.env.VITE_RM_VERSION}
+        </span>
         <div className="window-controls" aria-label="Window controls">
           <WindowButton
             label="Minimize"
