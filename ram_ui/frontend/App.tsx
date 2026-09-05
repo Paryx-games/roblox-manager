@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 type NavItem = {
@@ -74,9 +74,19 @@ function WindowButton({
 export function App() {
   const [activeNav, setActiveNav] = useState("Instances");
 
+  function handleTitlebarMouseDown(event: MouseEvent<HTMLElement>) {
+    if (event.button === 0) {
+      void getCurrentWindow().startDragging();
+    }
+  }
+
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-canvas text-primary">
-      <header className="titlebar" data-tauri-drag-region>
+      <header
+        className="titlebar"
+        data-tauri-drag-region
+        onMouseDown={handleTitlebarMouseDown}
+      >
         <span className="titlebar-logo" aria-label="Roblox Manager">
           <Icon name="feather" />
         </span>
