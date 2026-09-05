@@ -25,25 +25,21 @@
      ========================================================= */
 
   /* background scale — 3 steps, never more */
-  --bg-canvas: #14161c;   /* app background, titlebar */
-  --bg-surface: #1b1e27;  /* sidebar, panels, table headers */
-  --bg-raised: #242833;   /* hover/active rows, inputs, popovers */
+  --bg-canvas: #0d0e11;
+  --bg-surface: #151619;
+  --bg-raised: #1e2024;
 
   /* border */
-  --border-default: #2e323f; /* the standard border color */
-  --border-muted: #23262f;   /* quieter dividers inside a surface, e.g. table row separators */
+  --border-default: #2a2c31;
 
   /* text */
-  --text-primary: #e4e6eb;
-  --text-secondary: #b4b8c4; /* de-emphasized but still readable — table secondary column, helper text */
-  --text-muted: #8b90a0;     /* labels, placeholders, timestamps */
-  --text-disabled: #565b6b;
+  --text-primary: #e8e9ec;
+  --text-muted: #8b8d94;
+  --text-disabled: #55575e;
 
   /* action — buttons, links, focus rings, primary interactive elements */
-  --action-primary: #5b8def;
-  --action-primary-hover: #6f9bf2;
-  --action-primary-active: #4a7cdb;
-  --action-muted: #5b8def26; /* accent @ 15% — active-row washes, selected states */
+  --action-primary: #3b82f6;
+  --action-muted: #3b82f622;
 
   /* status (RESERVED — see design-system.md rule 1. Never used on
      buttons/links/decoration — only to represent live account,
@@ -56,15 +52,15 @@
   /* =========================================================
      TYPE
      ========================================================= */
-  --font-sans: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Roboto", -apple-system, "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
 
   /* type scale — do not introduce sizes outside this list */
-  --text-xs: 11px;   /* mono data, timestamps, badges */
-  --text-sm: 13px;   /* body, table cells, nav items */
+  --text-xs: 11px; /* mono data, timestamps, badges */
+  --text-sm: 13px; /* body, table cells, nav items */
   --text-base: 14px; /* default body */
-  --text-lg: 16px;   /* section headings */
-  --text-xl: 20px;   /* page titles */
+  --text-lg: 16px; /* section headings */
+  --text-xl: 20px; /* page titles */
 
   /* =========================================================
      SPACING
@@ -76,10 +72,8 @@
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
-  --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
-  --space-10: 40px;
   --space-12: 48px;
 
   /* =========================================================
@@ -96,10 +90,10 @@
      no bounce/overshoot easing, no hover scale/glow effects.
      Always respect prefers-reduced-motion: reduce (drop to 0ms / no-op).
      ========================================================= */
-  --motion-fast: 100ms;   /* hover/active state changes, focus rings */
-  --motion-normal: 150ms; /* expand/collapse, dropdown open, tab switch */
-  --motion-slow: 250ms;   /* modal/panel enter-exit only */
-  --motion-easing: cubic-bezier(0.2, 0, 0, 1); /* one easing curve, everywhere */
+  --duration-fast: 100ms;
+  --duration-base: 160ms;
+  --duration-slow: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
   /* =========================================================
      LAYOUT CONSTANTS
@@ -116,7 +110,7 @@
 
   /* Responsive breakpoints — see design-system.md §7 */
   --breakpoint-comfortable: 1200px; /* full layout */
-  --breakpoint-condensed: 768px;    /* narrower content, tighter table columns */
+  --breakpoint-condensed: 768px; /* narrower content, tighter table columns */
   /* below --breakpoint-condensed: sidebar collapses to icon rail (activity bar only) */
 
   /* ---- Elevation: NONE.
