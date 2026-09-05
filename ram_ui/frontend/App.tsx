@@ -75,8 +75,20 @@ export function App() {
   const [activeNav, setActiveNav] = useState("Instances");
 
   function handleTitlebarMouseDown(event: MouseEvent<HTMLElement>) {
-    if (event.button === 0) {
+    const target = event.target;
+    const clickedButton = target instanceof Element && target.closest("button");
+
+    if (event.button === 0 && !clickedButton) {
       void getCurrentWindow().startDragging();
+    }
+  }
+
+  function handleTitlebarDoubleClick(event: MouseEvent<HTMLElement>) {
+    const target = event.target;
+    const clickedButton = target instanceof Element && target.closest("button");
+
+    if (!clickedButton) {
+      void getCurrentWindow().toggleMaximize();
     }
   }
 
@@ -84,8 +96,8 @@ export function App() {
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-canvas text-primary">
       <header
         className="titlebar"
-        data-tauri-drag-region
         onMouseDown={handleTitlebarMouseDown}
+        onDoubleClick={handleTitlebarDoubleClick}
       >
         <span className="titlebar-logo" aria-label="Roblox Manager">
           <Icon name="feather" />
