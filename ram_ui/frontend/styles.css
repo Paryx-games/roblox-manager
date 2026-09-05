@@ -139,12 +139,6 @@ button:focus-visible {
   background: var(--status-danger);
 }
 
-.window-button-close > img,
-.window-button-close:hover > img,
-.window-button-close:focus-visible > img {
-  filter: invert(95%);
-}
-
 .window-button:hover > img,
 .window-button:focus-visible > img,
 .rail-button:hover .icon-box > img,
