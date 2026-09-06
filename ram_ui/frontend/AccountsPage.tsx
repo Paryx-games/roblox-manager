@@ -1633,9 +1633,18 @@ export function AccountsPage() {
           title="Delete group?"
           message={
             <>
-              Delete <strong>{groupDeleteConfirmation}</strong>? This will not
-              delete the accounts. They will remain managed and become
-              ungrouped.
+              Delete{" "}
+              <strong
+                style={{
+                  color: groups.find(
+                    (group) => group.name === groupDeleteConfirmation,
+                  )?.color,
+                }}
+              >
+                {groupDeleteConfirmation}
+              </strong>
+              ? This will not delete the accounts. They will remain managed
+              and become ungrouped.
             </>
           }
           confirmLabel="Delete group"

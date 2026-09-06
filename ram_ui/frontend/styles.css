@@ -1253,14 +1253,14 @@ button:focus-visible {
 }
 
 .confirm-modal-danger {
-  color: var(--bg-canvas);
+  color: var(--text-primary);
   border-color: var(--status-danger);
   background: var(--status-danger);
 }
 
 .confirm-modal-danger:hover,
 .confirm-modal-danger:focus-visible {
-  color: var(--bg-canvas);
+  color: var(--text-primary);
   background: var(--status-danger);
 }
 

@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Group deletion confirmation colors.** The confirmation names the group in its configured color and uses a red delete action with white text and icon.
 - **Account group management.** Group headers now expose rename, color, and delete actions through a right-click menu, with preset and native color picking.
 - **Group delete affordance.** The group delete action now uses a red bin icon to match its destructive label.
 - **Group delete spacing.** The red bin icon now uses the same icon-to-label spacing as the other group actions.
