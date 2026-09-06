@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- **Launch button icon contrast.** Primary action icons now automatically invert against light or dark button backgrounds, while disabled buttons retain muted icons.
 - **Account status notice motion.** Notices now empty counterclockwise and slide closed smoothly while their text and timer fade together, with reduced-motion support.
 - **Account status timer center.** The countdown now uses a white progress donut over a darker-gray track with a transparent center.
 - **Account status timer shape.** The notice timer now starts as a full circle, empties clockwise over five seconds, then fades away.

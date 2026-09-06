@@ -1155,15 +1155,26 @@ button:focus-visible {
 }
 
 .account-button.primary {
+  isolation: isolate;
   color: var(--bg-canvas);
   border-color: var(--action-primary);
   background: var(--action-primary);
+}
+
+.account-button.primary .account-icon {
+  filter: brightness(0) invert(1);
+  mix-blend-mode: difference;
 }
 
 .account-button:disabled {
   color: var(--text-disabled);
   background: var(--bg-surface);
   cursor: not-allowed;
+}
+
+.account-button.primary:disabled .account-icon {
+  filter: invert(65%);
+  mix-blend-mode: normal;
 }
 
 .account-button .account-icon {
