@@ -5,6 +5,7 @@
 
 mod app;
 mod bridge;
+#[allow(dead_code)]
 mod browser_login;
 mod components;
 mod icons;

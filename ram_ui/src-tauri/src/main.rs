@@ -3,6 +3,7 @@
 mod state;
 
 #[path = "../../src/browser_login.rs"]
+#[allow(dead_code)]
 mod browser_login;
 
 use ram_core::crypto;
