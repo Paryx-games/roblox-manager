@@ -1743,7 +1743,7 @@ export function AccountsPage() {
                   Cancel
                 </button>
                 <button
-                  className="account-button primary"
+                  className="account-button account-status-button primary"
                   type="button"
                   disabled={mutationLoading}
                   onClick={() => void saveGroupEditor()}

@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Group editor button transitions.** The Create group and Save group actions now fade between enabled and disabled states.
 - **Add account button transitions.** Validation and bulk-import buttons now fade between disabled and enabled states.
 - **Add account button states.** The disabled validation action now uses the same neutral border as the disabled import action.
 - **Add account modal motion.** The popup and browser-login status now fade smoothly, and non-editable modal copy cannot be accidentally selected.
