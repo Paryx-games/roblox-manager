@@ -184,6 +184,17 @@ export async function addAccount(cookie: string): Promise<AccountSummary> {
   return invoke<AccountSummary>("add_account", { cookie });
 }
 
+export async function loginAndAddAccount(): Promise<AccountSummary | null> {
+  return invoke<AccountSummary | null>("login_and_add_account");
+}
+
+export async function browseAsAccount(
+  userId: number,
+  inventory = false,
+): Promise<void> {
+  return invoke<void>("browse_as_account", { userId, inventory });
+}
+
 export async function saveLaunchPreset(
   name: string,
   placeId: number,

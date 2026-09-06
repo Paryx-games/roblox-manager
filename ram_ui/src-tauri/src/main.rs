@@ -2,6 +2,9 @@
 
 mod state;
 
+#[path = "../../src/browser_login.rs"]
+mod browser_login;
+
 use ram_core::crypto;
 use ram_core::models::{Account, GroupMeta, LaunchPreset, Presence};
 use ram_core::{api, assets_api, auth::RobloxClient, process};
@@ -118,6 +121,42 @@ fn account_summary(account: &Account, player_path: Option<String>) -> AccountSum
             .or(account.last_validated)
             .map(|timestamp| timestamp.to_rfc3339()),
     }
+}
+
+fn add_account_with_cookie(
+    runtime: &mut state::RuntimeState,
+    cookie: &str,
+    user_id: u64,
+    username: String,
+    display_name: String,
+) -> Result<AccountSummary, String> {
+    if runtime.accounts.find_by_id(user_id).is_some() {
+        return Err("This account is already managed".to_string());
+    }
+    let mut account = Account::new(user_id, username, display_name);
+    if runtime.config.use_credential_manager {
+        crypto::credential_store(user_id, cookie).map_err(|error| error.to_string())?;
+    } else {
+        let session = runtime
+            .session
+            .as_ref()
+            .ok_or_else(|| "Account store is locked".to_string())?;
+        account.encrypted_cookie = Some(
+            crypto::encrypt_cookie(cookie, session).map_err(|error| error.to_string())?,
+        );
+    }
+    runtime.accounts.accounts.push(account);
+    let account = runtime.accounts.accounts.last().expect("account was pushed");
+    let summary = account_summary(
+        account,
+        runtime
+            .config
+            .custom_player_paths
+            .get(&user_id)
+            .map(|path| path.display().to_string()),
+    );
+    save_runtime(runtime)?;
+    Ok(summary)
 }
 
 #[tauri::command]
@@ -263,6 +302,14 @@ fn save_runtime(runtime: &state::RuntimeState) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
+fn configured_player_path(runtime: &state::RuntimeState, user_id: u64) -> Option<String> {
+    runtime
+        .config
+        .custom_player_paths
+        .get(&user_id)
+        .map(|path| path.display().to_string())
+}
+
 #[tauri::command]
 fn update_account_alias(
     state: tauri::State<'_, AppState>,
@@ -276,6 +323,7 @@ fn update_account_alias(
     if alias.chars().count() > 64 {
         return Err("Alias must be 64 characters or fewer".to_string());
     }
+    let player_path = configured_player_path(&runtime, user_id);
     let summary = {
         let account = runtime
             .accounts
@@ -284,11 +332,7 @@ fn update_account_alias(
         account.alias = alias.trim().to_string();
         account_summary(
             account,
-            runtime
-                .config
-                .custom_player_paths
-                .get(&user_id)
-                .map(|path| path.display().to_string()),
+            player_path,
         )
     };
     save_runtime(&runtime)?;
@@ -304,6 +348,7 @@ fn toggle_account_pin(
         .runtime
         .lock()
         .map_err(|_| "Account state unavailable".to_string())?;
+    let player_path = configured_player_path(&runtime, user_id);
     let summary = {
         let account = runtime
             .accounts
@@ -312,11 +357,7 @@ fn toggle_account_pin(
         account.is_pinned = !account.is_pinned;
         account_summary(
             account,
-            runtime
-                .config
-                .custom_player_paths
-                .get(&user_id)
-                .map(|path| path.display().to_string()),
+            player_path,
         )
     };
     save_runtime(&runtime)?;
@@ -337,6 +378,7 @@ fn update_account_group(
     if group.chars().count() > 64 {
         return Err("Group name must be 64 characters or fewer".to_string());
     }
+    let player_path = configured_player_path(&runtime, user_id);
     let summary = {
         let account = runtime
             .accounts
@@ -345,11 +387,7 @@ fn update_account_group(
         account.group = group.to_string();
         account_summary(
             account,
-            runtime
-                .config
-                .custom_player_paths
-                .get(&user_id)
-                .map(|path| path.display().to_string()),
+            player_path,
         )
     };
     save_runtime(&runtime)?;
@@ -388,13 +426,10 @@ fn update_player_path(
         .accounts
         .find_by_id(user_id)
         .ok_or_else(|| "Account not found".to_string())?;
+    let player_path = configured_player_path(&runtime, user_id);
     Ok(account_summary(
         account,
-        runtime
-            .config
-            .custom_player_paths
-            .get(&user_id)
-            .map(|path| path.display().to_string()),
+        player_path,
     ))
 }
 
@@ -700,6 +735,7 @@ async fn revalidate_accounts(
             .runtime
             .lock()
             .map_err(|_| "Account state unavailable".to_string())?;
+        let player_path = configured_player_path(&runtime, user_id);
         if let Some(account) = runtime.accounts.find_by_id_mut(user_id) {
             account.cookie_expired = validation.is_err();
             if let Ok((validated_id, username, display_name)) = validation {
@@ -711,11 +747,7 @@ async fn revalidate_accounts(
             }
             results.push(account_summary(
                 account,
-                runtime
-                    .config
-                    .custom_player_paths
-                    .get(&user_id)
-                    .map(|path| path.display().to_string()),
+                player_path,
             ));
         }
     }
@@ -792,32 +824,73 @@ async fn add_account(
         .runtime
         .lock()
         .map_err(|_| "Account state unavailable".to_string())?;
-    if runtime.accounts.find_by_id(user_id).is_some() {
-        return Err("This account is already managed".to_string());
-    }
-    let mut account = Account::new(user_id, username, display_name);
-    if runtime.config.use_credential_manager {
-        crypto::credential_store(user_id, cookie.trim()).map_err(|error| error.to_string())?;
+    add_account_with_cookie(&mut runtime, cookie.trim(), user_id, username, display_name)
+}
+
+#[tauri::command]
+async fn login_and_add_account(
+    state: tauri::State<'_, AppState>,
+) -> Result<Option<AccountSummary>, String> {
+    let profile_dir = std::env::var_os("APPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("RM")
+        .join("webview_profile");
+    let cookie = tauri::async_runtime::spawn_blocking(move || {
+        let _ = std::fs::remove_dir_all(&profile_dir);
+        browser_login::login_blocking(profile_dir)
+    })
+    .await
+    .map_err(|_| "Browser login task failed".to_string())??;
+    let Some(cookie) = cookie else {
+        return Ok(None);
+    };
+    let client = RobloxClient::new().map_err(|error| error.to_string())?;
+    let (user_id, username, display_name) = client
+        .validate_cookie(&cookie)
+        .await
+        .map_err(|_| "Roblox rejected this account credential".to_string())?;
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Account state unavailable".to_string())?;
+    add_account_with_cookie(&mut runtime, &cookie, user_id, username, display_name).map(Some)
+}
+
+#[tauri::command]
+async fn browse_as_account(
+    state: tauri::State<'_, AppState>,
+    user_id: u64,
+    inventory: bool,
+) -> Result<(), String> {
+    let (cookie, label) = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        let account = runtime
+            .accounts
+            .find_by_id(user_id)
+            .ok_or_else(|| "Account not found".to_string())?;
+        (account_cookie(&runtime, user_id)?, account.label().to_string())
+    };
+    let profile_dir = std::env::var_os("APPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("RM")
+        .join("webview_browse_as")
+        .join(user_id.to_string());
+    let destination = if inventory {
+        Some(format!("https://www.roblox.com/users/{user_id}/inventory"))
     } else {
-        let session = runtime
-            .session
-            .as_ref()
-            .ok_or_else(|| "Account store is locked".to_string())?;
-        account.encrypted_cookie = Some(
-            crypto::encrypt_cookie(cookie.trim(), session).map_err(|error| error.to_string())?,
-        );
-    }
-    runtime.accounts.accounts.push(account);
-    let summary = account_summary(
-        runtime
-            .accounts
-            .accounts
-            .last()
-            .expect("account was pushed"),
-        None,
-    );
-    save_runtime(&runtime)?;
-    Ok(summary)
+        None
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        browser_login::spawn_browse_as_to(profile_dir, cookie, label, destination)
+    })
+    .await
+    .map_err(|_| "Browser launch task failed".to_string())??;
+    Ok(())
 }
 
 #[tauri::command]
@@ -869,6 +942,30 @@ fn list_account_group_colors(
 }
 
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() >= 4 && args[1] == browser_login::FLAG {
+        let code = browser_login::run_child(
+            std::path::PathBuf::from(&args[2]),
+            std::path::PathBuf::from(&args[3]),
+        );
+        std::process::exit(code);
+    }
+    if args.len() >= 4 && args[1] == browser_login::BROWSE_AS_FLAG {
+        let profile_dir = std::path::PathBuf::from(&args[2]);
+        let cookie_in = std::path::PathBuf::from(&args[3]);
+        let label = args.get(4).cloned().unwrap_or_default();
+        let code = if let Some(destination_url) = args.get(5) {
+            browser_login::run_browse_as_child_to(
+                profile_dir,
+                cookie_in,
+                label,
+                destination_url.clone(),
+            )
+        } else {
+            browser_login::run_browse_as_child(profile_dir, cookie_in, label)
+        };
+        std::process::exit(code);
+    }
     tauri::Builder::default()
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
@@ -894,6 +991,8 @@ fn main() {
             arrange_account_windows,
             connection_action,
             add_account,
+            login_and_add_account,
+            browse_as_account,
             save_launch_preset,
             list_account_group_colors
         ])

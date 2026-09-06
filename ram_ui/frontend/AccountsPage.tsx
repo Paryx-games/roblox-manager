@@ -19,6 +19,8 @@ import {
   updatePlayerPath,
   createDeviceStore,
   addAccount,
+  browseAsAccount,
+  loginAndAddAccount,
   listAccounts,
   listAccountGroupColors,
   refreshAccountPresence,
@@ -622,6 +624,35 @@ export function AccountsPage() {
     }
   }
 
+  async function addAccountFromBrowser() {
+    setMutationLoading(true);
+    try {
+      const account = await loginAndAddAccount();
+      if (!account) {
+        setNotice("Browser login was canceled.");
+        return;
+      }
+      setAccounts((current) => [...current, account]);
+      setSelectedId(account.userId);
+      setShowAddForm(false);
+      setNotice("Account added.");
+    } catch {
+      setNotice("Browser login could not add the account.");
+    } finally {
+      setMutationLoading(false);
+    }
+  }
+
+  async function browseAs(inventory = false) {
+    if (!selectedAccount) return;
+    try {
+      await browseAsAccount(selectedAccount.userId, inventory);
+      setNotice("Opening authenticated Roblox browser...");
+    } catch {
+      setNotice("The authenticated Roblox browser could not be opened.");
+    }
+  }
+
   return (
     <main className="accounts-page" aria-busy={loading}>
       <aside className="accounts-list-panel" aria-label="Managed accounts">
@@ -647,6 +678,16 @@ export function AccountsPage() {
           </div>
           {showAddForm && (
             <div className="add-account-form">
+              <button
+                className="account-button"
+                type="button"
+                disabled={mutationLoading}
+                onClick={() => void addAccountFromBrowser()}
+              >
+                <Icon name="browser" />
+                Log in with browser
+              </button>
+              <span className="account-form-divider">or paste a cookie</span>
               <label htmlFor="account-cookie">Roblox security cookie</label>
               <input
                 id="account-cookie"
@@ -812,6 +853,17 @@ export function AccountsPage() {
                     type="button"
                     role="menuitem"
                     onClick={() => {
+                      void browseAs();
+                      setShowAccountMenu(false);
+                    }}
+                  >
+                    <Icon name="browser" />
+                    Browse as account
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
                       void togglePin();
                       setShowAccountMenu(false);
                     }}
@@ -888,6 +940,14 @@ export function AccountsPage() {
                       {formatActivity(selectedAccount.moderationExpiresAt)}
                     </span>
                   )}
+                  <button
+                    className="account-button"
+                    type="button"
+                    onClick={() => void browseAs()}
+                  >
+                    <Icon name="browser" />
+                    Open browser as account
+                  </button>
                 </div>
               </section>
             )}
@@ -940,7 +1000,7 @@ export function AccountsPage() {
                 <button
                   className="account-button"
                   type="button"
-                  onClick={() => void openAccountPage(false)}
+                  onClick={() => void browseAs()}
                 >
                   <Icon name="browser" />
                   Open browser

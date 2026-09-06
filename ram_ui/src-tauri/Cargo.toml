@@ -11,8 +11,14 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 ram_core = { path = "../../ram_core" }
 serde = { workspace = true }
+tracing = { workspace = true }
 chrono = "0.4"
 tauri = { version = "2", features = [] }
+serde_json = { workspace = true }
+wry = "0.56"
+tao = "0.35"
+webview2-com = "0.38.2"
+windows-core = "0.61.2"
 
 [features]
 default = ["custom-protocol"]
