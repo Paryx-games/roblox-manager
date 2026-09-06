@@ -632,7 +632,7 @@ button:focus-visible {
 
 .add-account-modal-backdrop {
   position: fixed;
-  z-index: 40;
+  z-index: 100;
   inset: 0;
   display: flex;
   align-items: center;
@@ -640,6 +640,7 @@ button:focus-visible {
   padding: var(--space-8);
   background: var(--bg-canvas);
   backdrop-filter: blur(8px);
+  pointer-events: auto;
 }
 
 .add-account-modal {

@@ -1492,7 +1492,7 @@ export function AccountsPage() {
           <div
             className="add-account-modal-backdrop"
             role="presentation"
-            onClick={() => setShowAddForm(false)}
+            onPointerDown={(event) => event.stopPropagation()}
           >
             <section
               className={`add-account-modal ${
