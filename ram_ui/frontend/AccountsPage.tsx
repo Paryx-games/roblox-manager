@@ -532,6 +532,9 @@ export function AccountsPage() {
 
   const groups = useMemo<AccountGroup[]>(() => {
     const grouped = new Map<string, AccountSummary[]>();
+    for (const name of [...groupOrder, ...Object.keys(groupColors)]) {
+      if (!grouped.has(name)) grouped.set(name, []);
+    }
     for (const account of visibleAccounts) {
       const name = account.group.trim() || "Ungrouped";
       grouped.set(name, [...(grouped.get(name) ?? []), account]);
