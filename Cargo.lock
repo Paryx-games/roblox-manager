@@ -5065,8 +5065,14 @@ dependencies = [
  "chrono",
  "ram_core",
  "serde",
+ "serde_json",
+ "tao",
  "tauri",
  "tauri-build",
+ "tracing",
+ "webview2-com",
+ "windows-core 0.61.2",
+ "wry 0.56.1",
 ]
 
 [[package]]

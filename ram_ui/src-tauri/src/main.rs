@@ -143,12 +143,15 @@ fn add_account_with_cookie(
             .session
             .as_ref()
             .ok_or_else(|| "Account store is locked".to_string())?;
-        account.encrypted_cookie = Some(
-            crypto::encrypt_cookie(cookie, session).map_err(|error| error.to_string())?,
-        );
+        account.encrypted_cookie =
+            Some(crypto::encrypt_cookie(cookie, session).map_err(|error| error.to_string())?);
     }
     runtime.accounts.accounts.push(account);
-    let account = runtime.accounts.accounts.last().expect("account was pushed");
+    let account = runtime
+        .accounts
+        .accounts
+        .last()
+        .expect("account was pushed");
     let summary = account_summary(
         account,
         runtime
@@ -332,10 +335,7 @@ fn update_account_alias(
             .find_by_id_mut(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
         account.alias = alias.trim().to_string();
-        account_summary(
-            account,
-            player_path,
-        )
+        account_summary(account, player_path)
     };
     save_runtime(&runtime)?;
     Ok(summary)
@@ -357,10 +357,7 @@ fn toggle_account_pin(
             .find_by_id_mut(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
         account.is_pinned = !account.is_pinned;
-        account_summary(
-            account,
-            player_path,
-        )
+        account_summary(account, player_path)
     };
     save_runtime(&runtime)?;
     Ok(summary)
@@ -387,10 +384,7 @@ fn update_account_group(
             .find_by_id_mut(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
         account.group = group.to_string();
-        account_summary(
-            account,
-            player_path,
-        )
+        account_summary(account, player_path)
     };
     save_runtime(&runtime)?;
     Ok(summary)
@@ -429,10 +423,7 @@ fn update_player_path(
         .find_by_id(user_id)
         .ok_or_else(|| "Account not found".to_string())?;
     let player_path = configured_player_path(&runtime, user_id);
-    Ok(account_summary(
-        account,
-        player_path,
-    ))
+    Ok(account_summary(account, player_path))
 }
 
 fn save_config(runtime: &state::RuntimeState) -> Result<(), String> {
@@ -747,10 +738,7 @@ async fn revalidate_accounts(
                     account.last_validated = Some(chrono::Utc::now());
                 }
             }
-            results.push(account_summary(
-                account,
-                player_path,
-            ));
+            results.push(account_summary(account, player_path));
         }
     }
     let runtime = state
@@ -832,7 +820,11 @@ async fn join_user_game(
                 .cloned()
                 .or_else(|| runtime.config.roblox_player_path.clone()),
         );
-        (cookie, RobloxClient::new().map_err(|error| error.to_string())?, options)
+        (
+            cookie,
+            RobloxClient::new().map_err(|error| error.to_string())?,
+            options,
+        )
     };
     let presence = api::fetch_presences(&client, &cookie, &[target_user_id])
         .await
@@ -860,12 +852,11 @@ async fn join_user_game(
         .generate_auth_ticket(&cookie)
         .await
         .map_err(|error| error.to_string())?;
-    let cleanup = tauri::async_runtime::spawn_blocking(move || {
-        process::prepare_privacy_cleanup(options.2)
-    })
-    .await
-    .map_err(|_| "Privacy cleanup failed".to_string())?
-    .map_err(|error| error.to_string())?;
+    let cleanup =
+        tauri::async_runtime::spawn_blocking(move || process::prepare_privacy_cleanup(options.2))
+            .await
+            .map_err(|_| "Privacy cleanup failed".to_string())?
+            .map_err(|error| error.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
         process::launch_game(
             &ticket,
@@ -983,7 +974,10 @@ async fn browse_as_account(
             .accounts
             .find_by_id(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
-        (account_cookie(&runtime, user_id)?, account.label().to_string())
+        (
+            account_cookie(&runtime, user_id)?,
+            account.label().to_string(),
+        )
     };
     let profile_dir = std::env::var_os("APPDATA")
         .map(std::path::PathBuf::from)
