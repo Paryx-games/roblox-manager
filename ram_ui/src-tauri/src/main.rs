@@ -65,6 +65,14 @@ struct PresenceUpdate {
     location: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AccountGroupSummary {
+    name: String,
+    color: [u8; 3],
+    sort_order: u32,
+}
+
 fn account_cookie(runtime: &state::RuntimeState, user_id: u64) -> Result<String, String> {
     let account = runtime
         .accounts
@@ -1071,6 +1079,47 @@ fn list_account_group_colors(
         .collect())
 }
 
+#[tauri::command]
+fn list_account_groups(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<AccountGroupSummary>, String> {
+    let runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Account state unavailable".to_string())?;
+    let mut groups = runtime
+        .config
+        .groups
+        .iter()
+        .map(|(name, meta)| AccountGroupSummary {
+            name: name.clone(),
+            color: meta.color,
+            sort_order: meta.sort_order,
+        })
+        .collect::<Vec<_>>();
+    groups.sort_by_key(|group| (group.sort_order, group.name.clone()));
+    Ok(groups)
+}
+
+#[tauri::command]
+fn reorder_account_groups(
+    state: tauri::State<'_, AppState>,
+    names: Vec<String>,
+) -> Result<Vec<AccountGroupSummary>, String> {
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Account state unavailable".to_string())?;
+    for (sort_order, name) in names.iter().enumerate() {
+        if let Some(group) = runtime.config.groups.get_mut(name) {
+            group.sort_order = sort_order as u32;
+        }
+    }
+    save_config(&runtime)?;
+    drop(runtime);
+    list_account_groups(state)
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() >= 4 && args[1] == browser_login::FLAG {
@@ -1127,7 +1176,9 @@ fn main() {
             login_and_add_account,
             browse_as_account,
             save_launch_preset,
-            list_account_group_colors
+            list_account_group_colors,
+            list_account_groups,
+            reorder_account_groups
         ])
         .run(tauri::generate_context!())
         .expect("error while running RM");

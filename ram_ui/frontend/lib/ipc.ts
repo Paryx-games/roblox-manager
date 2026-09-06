@@ -53,6 +53,12 @@ export interface PresenceUpdate {
   location: string;
 }
 
+export interface AccountGroupSummary {
+  name: string;
+  color: [number, number, number];
+  sortOrder: number;
+}
+
 export async function listAccounts(): Promise<AccountSummary[]> {
   return invoke<AccountSummary[]>("list_accounts");
 }
@@ -63,6 +69,16 @@ export async function listAccountGroupColors(): Promise<
   return invoke<Record<string, [number, number, number]>>(
     "list_account_group_colors",
   );
+}
+
+export async function listAccountGroups(): Promise<AccountGroupSummary[]> {
+  return invoke<AccountGroupSummary[]>("list_account_groups");
+}
+
+export async function reorderAccountGroups(
+  names: string[],
+): Promise<AccountGroupSummary[]> {
+  return invoke<AccountGroupSummary[]>("reorder_account_groups", { names });
 }
 
 export async function getStoreStatus(): Promise<StoreStatus> {

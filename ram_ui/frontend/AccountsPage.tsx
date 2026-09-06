@@ -26,6 +26,8 @@ import {
   loginAndAddAccount,
   listAccounts,
   listAccountGroupColors,
+  listAccountGroups,
+  reorderAccountGroups,
   refreshAccountPresence,
   revalidateAccounts,
   killAllAccounts,
@@ -192,6 +194,7 @@ function AccountGroup({
   selectedId,
   onSelect,
   onDropAccount,
+  onDropGroup,
   color,
 }: {
   group: AccountGroup;
@@ -200,6 +203,7 @@ function AccountGroup({
   onToggle: () => void;
   onSelect: (id: number, event: MouseEvent<HTMLButtonElement>) => void;
   onDropAccount: (sourceId: number, targetId: number) => void;
+  onDropGroup: (sourceName: string, targetName: string) => void;
   color: string;
 }) {
   return (
@@ -210,6 +214,16 @@ function AccountGroup({
       <button
         className="account-group-header"
         type="button"
+        draggable
+        onDragStart={(event) =>
+          event.dataTransfer.setData("text/account-group", group.name)
+        }
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          const sourceName = event.dataTransfer.getData("text/account-group");
+          if (sourceName && sourceName !== group.name)
+            onDropGroup(sourceName, group.name);
+        }}
         onClick={onToggle}
         aria-expanded={!collapsed}
       >
@@ -279,6 +293,7 @@ export function AccountsPage() {
   const [groupColors, setGroupColors] = useState<
     Record<string, [number, number, number]>
   >({});
+  const [groupOrder, setGroupOrder] = useState<string[]>([]);
   const [playerPath, setPlayerPath] = useState("");
 
   function setNotice(message: string | null) {
@@ -317,10 +332,11 @@ export function AccountsPage() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    Promise.all([getStoreStatus(), listAccountGroupColors()])
-      .then(async ([status, colors]) => {
+    Promise.all([getStoreStatus(), listAccountGroupColors(), listAccountGroups()])
+      .then(async ([status, colors, groupSummaries]) => {
         if (!mounted) return [];
         setGroupColors(colors);
+        setGroupOrder(groupSummaries.map((group) => group.name));
         setStoreStatus(status);
         if (!status.unlocked) {
           if (status.needsPassword) throw new Error("password-required");
@@ -399,17 +415,24 @@ export function AccountsPage() {
       const name = account.group.trim() || "Ungrouped";
       grouped.set(name, [...(grouped.get(name) ?? []), account]);
     }
-    return [...grouped.entries()].map(([name, groupedAccounts], index) => ({
-      name,
-      tone: index % 2 === 0 ? "primary" : "secondary",
-      accounts: groupedAccounts,
-      color: groupColors[name]
-        ? `rgb(${groupColors[name][0]}, ${groupColors[name][1]}, ${groupColors[name][2]})`
-        : index % 2 === 0
-          ? "var(--status-danger)"
-          : "var(--status-warning)",
-    }));
-  }, [groupColors, visibleAccounts]);
+    return [...grouped.entries()]
+      .sort(([left], [right]) => {
+        const leftOrder = groupOrder.indexOf(left);
+        const rightOrder = groupOrder.indexOf(right);
+        return (leftOrder < 0 ? Number.MAX_SAFE_INTEGER : leftOrder) -
+          (rightOrder < 0 ? Number.MAX_SAFE_INTEGER : rightOrder);
+      })
+      .map(([name, groupedAccounts], index) => ({
+        name,
+        tone: index % 2 === 0 ? "primary" : "secondary",
+        accounts: groupedAccounts,
+        color: groupColors[name]
+          ? `rgb(${groupColors[name][0]}, ${groupColors[name][1]}, ${groupColors[name][2]})`
+          : index % 2 === 0
+            ? "var(--status-danger)"
+            : "var(--status-warning)",
+      }));
+  }, [groupColors, groupOrder, visibleAccounts]);
 
   const selectedAccount =
     accounts.find((account) => account.userId === selectedId) ?? null;
@@ -493,6 +516,22 @@ export function AccountsPage() {
       setNotice("Account order saved.");
     } catch {
       setNotice("The account order could not be saved.");
+    }
+  }
+
+  async function reorderGroup(sourceName: string, targetName: string) {
+    const nextOrder = [...groupOrder];
+    const sourceIndex = nextOrder.indexOf(sourceName);
+    const targetIndex = nextOrder.indexOf(targetName);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    nextOrder.splice(sourceIndex, 1);
+    nextOrder.splice(targetIndex, 0, sourceName);
+    try {
+      const groups = await reorderAccountGroups(nextOrder);
+      setGroupOrder(groups.map((group) => group.name));
+      setNotice("Group order saved.");
+    } catch {
+      setNotice("The group order could not be saved.");
     }
   }
 
@@ -1234,6 +1273,9 @@ export function AccountsPage() {
               onSelect={selectAccountWithModifiers}
               onDropAccount={(sourceId, targetId) =>
                 void reorderAccount(sourceId, targetId)
+              }
+              onDropGroup={(sourceName, targetName) =>
+                void reorderGroup(sourceName, targetName)
               }
               color={group.color}
             />
