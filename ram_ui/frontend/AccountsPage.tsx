@@ -56,6 +56,11 @@ type AccountGroup = {
   color: string;
 };
 
+type AccountNotice = {
+  id: number;
+  message: string;
+};
+
 function Icon({ name }: { name: string }) {
   return (
     <img
@@ -248,7 +253,8 @@ export function AccountsPage() {
   const [connectionQuery, setConnectionQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notices, setNotices] = useState<AccountNotice[]>([]);
+  const nextNoticeId = useRef(0);
   const [reloadKey, setReloadKey] = useState(0);
   const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null);
   const [password, setPassword] = useState("");
@@ -274,6 +280,20 @@ export function AccountsPage() {
     Record<string, [number, number, number]>
   >({});
   const [playerPath, setPlayerPath] = useState("");
+
+  function setNotice(message: string | null) {
+    if (message === null) {
+      setNotices([]);
+      return;
+    }
+    const id = nextNoticeId.current;
+    nextNoticeId.current += 1;
+    setNotices((current) => [...current, { id, message }]);
+  }
+
+  function dismissNotice(id: number) {
+    setNotices((current) => current.filter((notice) => notice.id !== id));
+  }
 
   useEffect(() => {
     if (!showAccountMenu) return;
@@ -1419,12 +1439,13 @@ export function AccountsPage() {
                   <Icon name="star" />
                 </button>
               </div>
-              {notice && (
+              {notices.map((notice) => (
                 <TimedNotice
-                  message={notice}
-                  onDismiss={() => setNotice(null)}
+                  key={notice.id}
+                  message={notice.message}
+                  onDismiss={() => dismissNotice(notice.id)}
                 />
-              )}
+              ))}
             </section>
 
             <section className="account-card">
