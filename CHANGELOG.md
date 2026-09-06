@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Add account modal motion.** The popup and browser-login status now fade smoothly, and non-editable modal copy cannot be accidentally selected.
 - **Add account modal shielding.** The Add account popup now blocks interaction with the Accounts workspace behind it and closes only through its explicit controls.
 - **Browser login progress overlay.** The Add account popup now blurs while its browser login window is active and shows progress until the flow completes, exits, or fails.
 - **Add account modal.** Account login, cookie validation, recovery, and bulk import now live in a cleaner focused popup instead of expanding inside the sidebar.

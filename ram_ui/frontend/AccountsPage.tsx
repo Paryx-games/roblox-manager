@@ -359,7 +359,11 @@ export function AccountsPage() {
   const [alias, setAlias] = useState("");
   const [mutationLoading, setMutationLoading] = useState(false);
   const [browserLoginLoading, setBrowserLoginLoading] = useState(false);
+  const [browserLoginOverlayVisible, setBrowserLoginOverlayVisible] =
+    useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [addFormClosing, setAddFormClosing] = useState(false);
+  const addFormCloseTimer = useRef<number | null>(null);
   const [cookie, setCookie] = useState("");
   const [bulkCookieInput, setBulkCookieInput] = useState("");
   const [bulkProgress, setBulkProgress] = useState<[number, number] | null>(
@@ -401,6 +405,25 @@ export function AccountsPage() {
 
   function dismissNotice(id: number) {
     setNotices((current) => current.filter((notice) => notice.id !== id));
+  }
+
+  function openAddForm() {
+    if (addFormCloseTimer.current !== null) {
+      window.clearTimeout(addFormCloseTimer.current);
+      addFormCloseTimer.current = null;
+    }
+    setAddFormClosing(false);
+    setShowAddForm(true);
+  }
+
+  function closeAddForm() {
+    if (!showAddForm || addFormClosing) return;
+    setAddFormClosing(true);
+    addFormCloseTimer.current = window.setTimeout(() => {
+      setShowAddForm(false);
+      setAddFormClosing(false);
+      addFormCloseTimer.current = null;
+    }, 160);
   }
 
   useEffect(() => {
@@ -448,12 +471,20 @@ export function AccountsPage() {
     if (!showAddForm) return;
 
     function dismissOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setShowAddForm(false);
+      if (event.key === "Escape") closeAddForm();
     }
 
     document.addEventListener("keydown", dismissOnEscape);
     return () => document.removeEventListener("keydown", dismissOnEscape);
-  }, [showAddForm]);
+  }, [showAddForm, addFormClosing]);
+
+  useEffect(() => {
+    return () => {
+      if (addFormCloseTimer.current !== null) {
+        window.clearTimeout(addFormCloseTimer.current);
+      }
+    };
+  }, []);
 
   const [commonInventory, setCommonInventory] = useState<InventoryItem[]>([]);
   const [commonInventoryLoading, setCommonInventoryLoading] = useState(false);
@@ -1170,7 +1201,7 @@ export function AccountsPage() {
       setAccounts((current) => [...current, account]);
       setSelectedId(account.userId);
       setCookie("");
-      setShowAddForm(false);
+      closeAddForm();
       setNotice("Account added.");
     } catch (addError) {
       setAddError(
@@ -1197,7 +1228,7 @@ export function AccountsPage() {
       setCookie("");
       setForceAddUsername("");
       setAddError(null);
-      setShowAddForm(false);
+      closeAddForm();
       setNotice("Account added without validation.");
     } catch (error) {
       setNotice(
@@ -1235,6 +1266,7 @@ export function AccountsPage() {
   }
 
   async function addAccountFromBrowser() {
+    setBrowserLoginOverlayVisible(true);
     setBrowserLoginLoading(true);
     setMutationLoading(true);
     try {
@@ -1245,12 +1277,13 @@ export function AccountsPage() {
       }
       setAccounts((current) => [...current, account]);
       setSelectedId(account.userId);
-      setShowAddForm(false);
+      closeAddForm();
       setNotice("Account added.");
     } catch {
       setNotice("Browser login could not add the account.");
     } finally {
       setBrowserLoginLoading(false);
+      window.setTimeout(() => setBrowserLoginOverlayVisible(false), 160);
       setMutationLoading(false);
     }
   }
@@ -1300,7 +1333,9 @@ export function AccountsPage() {
                 type="button"
                 aria-label="Add account"
                 data-tip="Add account"
-                onClick={() => setShowAddForm((current) => !current)}
+                onClick={() =>
+                  showAddForm ? closeAddForm() : openAddForm()
+                }
               >
                 <Icon name="add" />
               </button>
@@ -1490,7 +1525,9 @@ export function AccountsPage() {
 
         {showAddForm && (
           <div
-            className="add-account-modal-backdrop"
+            className={`add-account-modal-backdrop ${
+              addFormClosing ? "is-closing" : ""
+            }`}
             role="presentation"
             onPointerDown={(event) => event.stopPropagation()}
           >
@@ -1514,7 +1551,7 @@ export function AccountsPage() {
                   type="button"
                   aria-label="Close add account dialog"
                   data-tip="Close"
-                  onClick={() => setShowAddForm(false)}
+                  onClick={closeAddForm}
                 >
                   <Icon name="close" />
                 </button>
@@ -1606,8 +1643,13 @@ export function AccountsPage() {
                   </span>
                 )}
               </div>
-              {browserLoginLoading && (
-                <div className="add-account-browser-overlay" role="status">
+              {browserLoginOverlayVisible && (
+                <div
+                  className={`add-account-browser-overlay ${
+                    browserLoginLoading ? "" : "is-fading-out"
+                  }`}
+                  role="status"
+                >
                   <span className="add-account-spinner" aria-hidden="true" />
                   <span>Waiting for browser login...</span>
                 </div>

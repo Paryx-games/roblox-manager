@@ -641,6 +641,13 @@ button:focus-visible {
   background: var(--bg-canvas);
   backdrop-filter: blur(8px);
   pointer-events: auto;
+  animation: add-account-modal-enter var(--duration-base) var(--ease-standard)
+    both;
+}
+
+.add-account-modal-backdrop.is-closing {
+  animation: add-account-modal-exit var(--duration-base) var(--ease-standard)
+    both;
 }
 
 .add-account-modal {
@@ -653,6 +660,13 @@ button:focus-visible {
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
   background: var(--bg-surface);
+  animation: add-account-modal-enter var(--duration-base) var(--ease-standard)
+    both;
+}
+
+.add-account-modal-backdrop.is-closing .add-account-modal {
+  animation: add-account-modal-exit var(--duration-base) var(--ease-standard)
+    both;
 }
 
 .add-account-modal.is-browser-pending > *:not(.add-account-browser-overlay) {
@@ -671,6 +685,14 @@ button:focus-visible {
   color: var(--text-primary);
   background: var(--bg-surface);
   font-size: var(--text-sm);
+  user-select: none;
+  animation: add-account-status-enter var(--duration-base) var(--ease-standard)
+    both;
+}
+
+.add-account-browser-overlay.is-fading-out {
+  animation: add-account-status-exit var(--duration-base) var(--ease-standard)
+    both;
 }
 
 .add-account-spinner {
@@ -688,7 +710,34 @@ button:focus-visible {
   }
 }
 
+@keyframes add-account-modal-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes add-account-modal-exit {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes add-account-status-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes add-account-status-exit {
+  to {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .add-account-modal-backdrop,
+  .add-account-modal,
+  .add-account-browser-overlay,
   .add-account-spinner {
     animation: none;
   }
@@ -701,6 +750,7 @@ button:focus-visible {
   gap: var(--space-4);
   padding: var(--space-6);
   border-bottom: var(--border-width) solid var(--border-default);
+  user-select: none;
 }
 
 .add-account-modal-header h2 {
@@ -726,6 +776,14 @@ button:focus-visible {
 .add-account-modal-body label {
   color: var(--text-muted);
   font-size: var(--text-xs);
+  user-select: none;
+}
+
+.add-account-modal button,
+.add-account-modal .account-form-divider,
+.add-account-modal .account-form-progress,
+.add-account-modal .add-account-recovery {
+  user-select: none;
 }
 
 .add-account-modal-body input,
