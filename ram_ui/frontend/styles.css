@@ -1196,6 +1196,19 @@ button:focus-visible {
   font-size: var(--text-lg);
 }
 
+.group-delete-confirmation > p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.group-delete-confirmation > p strong {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
 .group-editor-field {
   display: flex;
   flex-direction: column;
@@ -1259,6 +1272,28 @@ button:focus-visible {
 
 .group-editor-actions {
   justify-content: flex-end;
+}
+
+.group-delete-button {
+  color: var(--bg-canvas);
+  border-color: var(--status-danger);
+  background: var(--status-danger);
+}
+
+.group-delete-button:hover,
+.group-delete-button:focus-visible {
+  color: var(--bg-canvas);
+  background: var(--status-danger);
+}
+
+.group-delete-button .account-icon {
+  filter: brightness(0) invert(1);
+}
+
+.group-delete-button:disabled {
+  color: var(--text-disabled);
+  border-color: var(--border-default);
+  background: var(--bg-surface);
 }
 
 .account-profile-actions {

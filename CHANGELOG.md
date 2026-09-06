@@ -8,6 +8,7 @@
 - **Group delete affordance.** The group delete action now uses a red bin icon to match its destructive label.
 - **Group delete spacing.** The red bin icon now uses the same icon-to-label spacing as the other group actions.
 - **Context menu boundaries.** Native right-click menus are suppressed across Accounts unless a workspace control explicitly handles the gesture.
+- **Group deletion confirmation.** Group deletion now uses a themed confirmation popup that explains accounts remain managed and become ungrouped.
 - **Account identity action alignment.** Profile and username actions now sit closer to their associated identity text with brighter hover contrast.
 - **Account avatar containment.** Avatar artwork now stays inside its circular frame while presence indicators remain visible.
 - **Account pin affordance.** Account rows now expose a direct pin/unpin control with distinct icons and persisted state.

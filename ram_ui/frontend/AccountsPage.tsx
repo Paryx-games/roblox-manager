@@ -382,6 +382,9 @@ export function AccountsPage() {
   const [groupContextMenu, setGroupContextMenu] =
     useState<GroupContextMenu | null>(null);
   const [groupEditor, setGroupEditor] = useState<GroupEditorState | null>(null);
+  const [groupDeleteConfirmation, setGroupDeleteConfirmation] = useState<
+    string | null
+  >(null);
   const groupMenuRef = useRef<HTMLDivElement>(null);
 
   function setNotice(message: string | null) {
@@ -438,6 +441,17 @@ export function AccountsPage() {
       document.removeEventListener("keydown", dismissOnEscape);
     };
   }, [groupContextMenu]);
+
+  useEffect(() => {
+    if (!groupDeleteConfirmation) return;
+
+    function dismissOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setGroupDeleteConfirmation(null);
+    }
+
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => document.removeEventListener("keydown", dismissOnEscape);
+  }, [groupDeleteConfirmation]);
   const [commonInventory, setCommonInventory] = useState<InventoryItem[]>([]);
   const [commonInventoryLoading, setCommonInventoryLoading] = useState(false);
 
@@ -822,16 +836,15 @@ export function AccountsPage() {
       return;
     }
     if (value === "__delete__" && selectedAccount?.group) {
-      if (!window.confirm(`Delete group ${selectedAccount.group}?`)) return;
-      try {
-        await deleteAccountGroup(selectedAccount.group);
-        await saveGroup("");
-      } catch {
-        setNotice("The group could not be deleted.");
-      }
+      requestGroupDeletion(selectedAccount.group);
       return;
     }
     await saveGroup(value);
+  }
+
+  function requestGroupDeletion(name: string) {
+    setGroupContextMenu(null);
+    setGroupDeleteConfirmation(name);
   }
 
   function handleGroupContextMenu(
@@ -887,8 +900,13 @@ export function AccountsPage() {
   }
 
   async function deleteGroupFromMenu(name: string) {
-    setGroupContextMenu(null);
-    if (!window.confirm(`Delete group ${name}?`)) return;
+    requestGroupDeletion(name);
+  }
+
+  async function confirmGroupDeletion() {
+    if (!groupDeleteConfirmation) return;
+    const name = groupDeleteConfirmation;
+    setGroupDeleteConfirmation(null);
     setMutationLoading(true);
     try {
       await deleteAccountGroup(name);
@@ -1613,6 +1631,60 @@ export function AccountsPage() {
               >
                 <Icon name="save" />
                 Save group
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {groupDeleteConfirmation && (
+        <div
+          className="group-editor-backdrop"
+          role="presentation"
+          onClick={() => setGroupDeleteConfirmation(null)}
+        >
+          <section
+            className="group-editor group-delete-confirmation"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="group-delete-title"
+            aria-describedby="group-delete-description"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="group-editor-header">
+              <h2 id="group-delete-title">Delete group?</h2>
+              <button
+                className="icon-button"
+                type="button"
+                aria-label="Cancel group deletion"
+                data-tip="Cancel"
+                onClick={() => setGroupDeleteConfirmation(null)}
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+            <p id="group-delete-description">
+              Delete <strong>{groupDeleteConfirmation}</strong>? This will not
+              delete the accounts. They will remain managed and become
+              ungrouped.
+            </p>
+            <div className="group-editor-actions">
+              <button
+                className="account-button"
+                type="button"
+                onClick={() => setGroupDeleteConfirmation(null)}
+              >
+                <Icon name="close" />
+                No
+              </button>
+              <button
+                className="account-button group-delete-button"
+                type="button"
+                disabled={mutationLoading}
+                onClick={() => void confirmGroupDeletion()}
+              >
+                <Icon name="delete" />
+                Delete group
               </button>
             </div>
           </section>
