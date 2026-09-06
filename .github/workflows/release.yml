@@ -25,17 +25,18 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 11
 
       - name: Setup node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -50,19 +51,20 @@ jobs:
         run: pnpm build
 
       - name: Setup rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           # tags float on the same commit as their branch, cache key should track the lockfile not the ref
           key: release
+          lookup-only: true
 
       - name: Build
         run: cargo build --release
 
       - name: Upload executable
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-executable
           path: target/release/ram_ui.exe
@@ -76,10 +78,11 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Resolve tag commit
         id: resolve-tag
@@ -87,11 +90,11 @@ jobs:
         run: |
           # github.sha / github.workflow_sha point at whatever commit this run was
           # dispatched from, not the tag - resolve it directly off the checked-out ref instead
-          $sha = git rev-parse "${{ env.RELEASE_TAG }}"
+          $sha = git rev-parse "$env:RELEASE_TAG"
           "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Download executable
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-executable
           path: release
@@ -100,7 +103,7 @@ jobs:
         id: previous-tag
         shell: pwsh
         run: |
-          $currentTag = "${{ env.RELEASE_TAG }}"
+          $currentTag = "$env:RELEASE_TAG"
           $tags = git tag --sort=-version:refname |
             Where-Object { $_ -ne $currentTag -and $_ -like "v*" }
 
@@ -114,7 +117,7 @@ jobs:
       - name: Extract changelog
         shell: pwsh
         run: |
-          $version = "${{ env.RELEASE_TAG }}"
+          $version = "$env:RELEASE_TAG"
           $path = "CHANGELOG.md"
           $lines = Get-Content $path
 
@@ -146,11 +149,13 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          STEPS_PREVIOUS_TAG_OUTPUTS_VALUE: ${{ steps.previous-tag.outputs.value }}
+          STEPS_RESOLVE_TAG_OUTPUTS_SHA: ${{ steps.resolve-tag.outputs.sha }}
         run: |
-          $currentTag = "${{ env.RELEASE_TAG }}"
-          $previousTag = "${{ steps.previous-tag.outputs.value }}"
+          $currentTag = "$env:RELEASE_TAG"
+          $previousTag = "$env:STEPS_PREVIOUS_TAG_OUTPUTS_VALUE"
           $repository = "${{ github.repository }}"
-          $commitish = "${{ steps.resolve-tag.outputs.sha }}"
+          $commitish = "$env:STEPS_RESOLVE_TAG_OUTPUTS_SHA"
 
           if ($previousTag) {
             $response = gh api `
@@ -183,7 +188,7 @@ jobs:
             throw "ram_ui.exe was not found in the release directory."
           }
 
-          $version = "${{ env.RELEASE_TAG }}" -replace "^v", ""
+          $version = "$env:RELEASE_TAG" -replace "^v", ""
 
           $os = "windows"
           $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
@@ -206,8 +211,8 @@ jobs:
         id: checksum
         shell: pwsh
         run: |
-          $exePath = "${{ steps.rename-exe.outputs.path }}"
-          $exeName = "${{ steps.rename-exe.outputs.filename }}"
+          $exePath = "$env:STEPS_RENAME_EXE_OUTPUTS_PATH"
+          $exeName = "$env:STEPS_RENAME_EXE_OUTPUTS_FILENAME"
 
           $hash = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash.ToLower()
 
@@ -222,6 +227,9 @@ jobs:
           Set-Content -Path sha256.md -Value ($lines -join "`n")
 
           "hash=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        env:
+          STEPS_RENAME_EXE_OUTPUTS_PATH: ${{ steps.rename-exe.outputs.path }}
+          STEPS_RENAME_EXE_OUTPUTS_FILENAME: ${{ steps.rename-exe.outputs.filename }}
 
       # scans the built exe with virustotal and links the report + the exact workflow file
       # that produced it. scan failures to complete in time don't fail the release, the
@@ -231,13 +239,16 @@ jobs:
         shell: pwsh
         env:
           VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          STEPS_RENAME_EXE_OUTPUTS_PATH: ${{ steps.rename-exe.outputs.path }}
+          STEPS_CHECKSUM_OUTPUTS_HASH: ${{ steps.checksum.outputs.hash }}
+          STEPS_RESOLVE_TAG_OUTPUTS_SHA: ${{ steps.resolve-tag.outputs.sha }}
         run: |
           if (-not $env:VT_API_KEY) {
             throw "VIRUSTOTAL_API_KEY secret is not set."
           }
 
-          $exePath = "${{ steps.rename-exe.outputs.path }}"
-          $sha256 = "${{ steps.checksum.outputs.hash }}"
+          $exePath = "$env:STEPS_RENAME_EXE_OUTPUTS_PATH"
+          $sha256 = "$env:STEPS_CHECKSUM_OUTPUTS_HASH"
           $headers = @{ "x-apikey" = $env:VT_API_KEY }
 
           $upload = Invoke-RestMethod -Uri "https://www.virustotal.com/api/v3/files" `
@@ -274,7 +285,7 @@ jobs:
           $repository = "${{ github.repository }}"
           $workflowPath = ".github/workflows/release.yml"
           $workflowFileName = Split-Path -Path $workflowPath -Leaf
-          $workflowSha = "${{ steps.resolve-tag.outputs.sha }}"
+          $workflowSha = "$env:STEPS_RESOLVE_TAG_OUTPUTS_SHA"
           $workflowUrl = "https://github.com/$repository/blob/$workflowSha/$workflowPath"
 
           $lines = @(
@@ -301,7 +312,7 @@ jobs:
           }
 
           $repository = "${{ github.repository }}"
-          $tag = "${{ env.RELEASE_TAG }}"
+          $tag = "$env:RELEASE_TAG"
 
           $files = Get-ChildItem -Path release -Filter "*.exe" | Sort-Object Name
 
@@ -333,7 +344,7 @@ jobs:
       - name: Assemble release notes
         shell: pwsh
         run: |
-          $currentTag = "${{ env.RELEASE_TAG }}"
+          $currentTag = "$env:RELEASE_TAG"
 
           $changelog = (Get-Content -Path release-notes.md -Raw).Trim()
           $downloadsTable = (Get-Content -Path downloads-table.md -Raw).Trim()
@@ -396,13 +407,13 @@ jobs:
         id: release-type
         shell: pwsh
         run: |
-          $currentTag = "${{ env.RELEASE_TAG }}"
+          $currentTag = "$env:RELEASE_TAG"
           $isPrerelease = $currentTag -match "-(alpha|beta|rc)"
 
           "prerelease=$($isPrerelease.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           files: ${{ steps.rename-exe.outputs.path }}
