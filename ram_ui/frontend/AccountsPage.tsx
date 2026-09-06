@@ -204,6 +204,7 @@ function AccountRow({
   selected,
   onSelect,
   onDropAccount,
+  canDragAccounts,
   accentColor,
   onTogglePin,
   pinning,
@@ -212,6 +213,7 @@ function AccountRow({
   selected: boolean;
   onSelect: (event: AccountSelectionEvent) => void;
   onDropAccount: (sourceId: number, targetId: number) => void;
+  canDragAccounts: boolean;
   accentColor: string;
   onTogglePin: (userId: number) => void;
   pinning: boolean;
@@ -222,12 +224,30 @@ function AccountRow({
       style={{ "--account-accent": accentColor } as CSSProperties}
       role="button"
       tabIndex={0}
-      draggable
-      onDragStart={(event) =>
-        event.dataTransfer.setData("text/account-id", String(account.userId))
+      draggable={canDragAccounts}
+      onDragStart={
+        canDragAccounts
+          ? (event) => {
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData(
+                "text/account-id",
+                String(account.userId),
+              );
+            }
+          : undefined
       }
-      onDragOver={(event) => event.preventDefault()}
+      onDragOver={
+        canDragAccounts
+          ? (event) => {
+              if (!event.dataTransfer.types.includes("text/account-id")) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+            }
+          : undefined
+      }
       onDrop={(event) => {
+        if (!canDragAccounts) return;
+        if (!event.dataTransfer.types.includes("text/account-id")) return;
         const sourceId = Number(event.dataTransfer.getData("text/account-id"));
         if (sourceId && sourceId !== account.userId)
           onDropAccount(sourceId, account.userId);
@@ -267,6 +287,7 @@ function AccountGroup({
   selectedId,
   onSelect,
   onDropAccount,
+  canDragAccounts,
   onDropGroup,
   color,
   onTogglePin,
@@ -279,6 +300,7 @@ function AccountGroup({
   onToggle: () => void;
   onSelect: (id: number, event: AccountSelectionEvent) => void;
   onDropAccount: (sourceId: number, targetId: number) => void;
+  canDragAccounts: boolean;
   onDropGroup: (sourceName: string, targetName: string) => void;
   color: string;
   onTogglePin: (userId: number) => void;
@@ -294,11 +316,17 @@ function AccountGroup({
         className="account-group-header"
         type="button"
         draggable
-        onDragStart={(event) =>
-          event.dataTransfer.setData("text/account-group", group.name)
-        }
-        onDragOver={(event) => event.preventDefault()}
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/account-group", group.name);
+        }}
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes("text/account-group")) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+        }}
         onDrop={(event) => {
+          if (!event.dataTransfer.types.includes("text/account-group")) return;
           const sourceName = event.dataTransfer.getData("text/account-group");
           if (sourceName && sourceName !== group.name)
             onDropGroup(sourceName, group.name);
@@ -326,6 +354,7 @@ function AccountGroup({
               onDropAccount={(sourceId) =>
                 onDropAccount(sourceId, account.userId)
               }
+              canDragAccounts={canDragAccounts}
               accentColor={color}
               onTogglePin={onTogglePin}
               pinning={pinningIds.has(account.userId)}
@@ -668,7 +697,11 @@ export function AccountsPage() {
   }
 
   async function reorderAccount(sourceId: number, targetId: number) {
-    const ordered = [...accounts];
+    if (sortMode !== "custom") return;
+    const ordered = [...accounts].sort((left, right) => {
+      if (left.isPinned !== right.isPinned) return left.isPinned ? -1 : 1;
+      return left.sortOrder - right.sortOrder;
+    });
     const sourceIndex = ordered.findIndex(
       (account) => account.userId === sourceId,
     );
@@ -1482,6 +1515,7 @@ export function AccountsPage() {
                 onDropAccount={(sourceId, targetId) =>
                   void reorderAccount(sourceId, targetId)
                 }
+                canDragAccounts={sortMode === "custom"}
                 onDropGroup={(sourceName, targetName) =>
                   void reorderGroup(sourceName, targetName)
                 }
