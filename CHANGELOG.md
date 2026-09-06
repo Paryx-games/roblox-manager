@@ -6,6 +6,7 @@
 
 - **Account group management.** Group headers now expose rename, color, and delete actions through a right-click menu, with preset and native color picking.
 - **Group delete affordance.** The group delete action now uses a red bin icon to match its destructive label.
+- **Group delete spacing.** The red bin icon now uses the same icon-to-label spacing as the other group actions.
 - **Context menu boundaries.** Native right-click menus are suppressed across Accounts unless a workspace control explicitly handles the gesture.
 - **Account identity action alignment.** Profile and username actions now sit closer to their associated identity text with brighter hover contrast.
 - **Account avatar containment.** Avatar artwork now stays inside its circular frame while presence indicators remain visible.

@@ -1139,7 +1139,7 @@ button:focus-visible {
 }
 
 .account-menu .account-menu-danger .account-icon {
-  opacity: 0;
+  display: none;
 }
 
 .account-menu .account-menu-danger::before {
