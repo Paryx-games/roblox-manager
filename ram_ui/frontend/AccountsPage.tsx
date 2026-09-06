@@ -119,16 +119,30 @@ function TimedNotice({
   message: string;
   onDismiss: () => void;
 }) {
+  const [exiting, setExiting] = useState(false);
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
+
   useEffect(() => {
-    const timeout = window.setTimeout(onDismiss, 5400);
-    return () => window.clearTimeout(timeout);
-  }, [message, onDismiss]);
+    setExiting(false);
+    const exitTimeout = window.setTimeout(() => setExiting(true), 5000);
+    const dismissTimeout = window.setTimeout(
+      () => dismissRef.current(),
+      5300,
+    );
+    return () => {
+      window.clearTimeout(exitTimeout);
+      window.clearTimeout(dismissTimeout);
+    };
+  }, [message]);
 
   return (
-    <p className="account-notice" role="status">
-      <span className="notice-timer" aria-hidden="true" />
-      {message}
-    </p>
+    <div className={`account-notice-shell ${exiting ? "is-exiting" : ""}`}>
+      <p className="account-notice" role="status">
+        <span className="notice-timer" aria-hidden="true" />
+        {message}
+      </p>
+    </div>
   );
 }
 

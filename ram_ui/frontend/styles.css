@@ -635,6 +635,16 @@ button:focus-visible {
   color: var(--status-warning);
 }
 
+.account-notice-shell {
+  max-height: var(--space-8);
+  overflow: hidden;
+}
+
+.account-notice-shell.is-exiting {
+  animation: account-notice-exit 300ms var(--ease-standard) forwards;
+  pointer-events: none;
+}
+
 .notice-timer {
   position: relative;
   display: inline-block;
@@ -643,7 +653,6 @@ button:focus-visible {
   flex: 0 0 14px;
   border-radius: 50%;
   background: transparent;
-  animation: notice-timer-fade 400ms linear 5s forwards;
 }
 
 .notice-timer::before,
@@ -662,8 +671,8 @@ button:focus-visible {
 .notice-timer::after {
   background: conic-gradient(
     from 0deg,
-    var(--text-primary) 0 var(--notice-progress),
-    transparent var(--notice-progress) 100%
+    transparent 0 calc(100% - var(--notice-progress)),
+    var(--text-primary) calc(100% - var(--notice-progress)) 100%
   );
   animation: notice-timer-progress 5s linear forwards;
 }
@@ -684,24 +693,30 @@ button:focus-visible {
   }
 }
 
-@keyframes notice-timer-fade {
+@keyframes account-notice-exit {
+  from {
+    max-height: var(--space-8);
+    opacity: 1;
+    transform: translateY(0);
+  }
+
   to {
+    max-height: 0;
     opacity: 0;
+    transform: translateY(calc(var(--space-1) * -1));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .notice-timer {
-    animation: none;
-  }
-
-  .notice-timer::before,
   .notice-timer::after {
     animation: none;
-  }
 
-  .notice-timer::after {
     --notice-progress: 100%;
+  }
+
+  .account-notice-shell.is-exiting {
+    animation: none;
+    display: none;
   }
 }
 
