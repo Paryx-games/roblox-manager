@@ -142,21 +142,23 @@ export function App() {
         </nav>
 
         <div className="main-col">
-          <div className="header-row">
-            <h1 className="header-title">{activeNav}</h1>
-          </div>
           {activeNav === "Accounts" ? (
             <AccountsPage />
           ) : (
-            <main className="content">
-              <section className="empty-state" aria-labelledby="whoops-title">
-                <h2 id="whoops-title">Whoops!</h2>
-                <p>
-                  You need to disable 'Auto-Pick Clients' inside the settings to
-                  use this feature.
-                </p>
-              </section>
-            </main>
+            <>
+              <div className="header-row">
+                <h1 className="header-title">{activeNav}</h1>
+              </div>
+              <main className="content">
+                <section className="empty-state" aria-labelledby="whoops-title">
+                  <h2 id="whoops-title">Whoops!</h2>
+                  <p>
+                    You need to disable 'Auto-Pick Clients' inside the settings to
+                    use this feature.
+                  </p>
+                </section>
+              </main>
+            </>
           )}
         </div>
       </div>

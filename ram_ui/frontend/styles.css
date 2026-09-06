@@ -316,6 +316,36 @@ button:focus-visible {
   font-weight: 700;
 }
 
+.accounts-header-row {
+  justify-content: space-between;
+}
+
+.accounts-header-export {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  gap: var(--space-2);
+  margin-right: var(--space-3);
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  cursor: pointer;
+  font-size: var(--text-xs);
+}
+
+.accounts-header-export:hover,
+.accounts-header-export:focus-visible {
+  color: var(--text-primary);
+  background: var(--bg-raised);
+}
+
+.accounts-header-export .account-icon {
+  width: 14px;
+  height: 14px;
+}
+
 .content {
   display: flex;
   flex: 1;

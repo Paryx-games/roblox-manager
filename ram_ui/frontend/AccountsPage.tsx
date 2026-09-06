@@ -833,6 +833,23 @@ export function AccountsPage() {
     await saveGroup(value);
   }
 
+  async function createGroup() {
+    const name = window.prompt("Group name");
+    if (!name?.trim()) return;
+    try {
+      await createAccountGroup(name);
+      const [colors, groupSummaries] = await Promise.all([
+        listAccountGroupColors(),
+        listAccountGroups(),
+      ]);
+      setGroupColors(colors);
+      setGroupOrder(groupSummaries.map((group) => group.name));
+      setNotice("Group created.");
+    } catch {
+      setNotice("The group could not be created.");
+    }
+  }
+
   function requestGroupDeletion(name: string) {
     setGroupContextMenu(null);
     setGroupDeleteConfirmation(name);
@@ -1236,12 +1253,25 @@ export function AccountsPage() {
   }
 
   return (
-    <main
-      className="accounts-page"
-      aria-busy={loading}
-      onContextMenu={(event) => event.preventDefault()}
-    >
-      <aside className="accounts-list-panel" aria-label="Managed accounts">
+    <>
+      <div className="header-row accounts-header-row">
+        <h1 className="header-title">Accounts</h1>
+        <button
+          className="accounts-header-export"
+          type="button"
+          aria-label="Export accounts"
+          onClick={exportAccountsCsv}
+        >
+          <Icon name="copy" />
+          Export accounts
+        </button>
+      </div>
+      <main
+        className="accounts-page"
+        aria-busy={loading}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        <aside className="accounts-list-panel" aria-label="Managed accounts">
         <div className="accounts-list-head">
           <div className="accounts-search-row">
             <label className="accounts-search-field">
@@ -1264,11 +1294,11 @@ export function AccountsPage() {
             <button
               className="icon-button bordered"
               type="button"
-              aria-label="Export accounts"
-              data-tip="Export accounts"
-              onClick={exportAccountsCsv}
+              aria-label="Add group"
+              data-tip="Add group"
+              onClick={() => void createGroup()}
             >
-              <Icon name="copy" />
+              <Icon name="groups" />
             </button>
           </div>
           {showAddForm && (
@@ -1530,7 +1560,7 @@ export function AccountsPage() {
             </button>
           </div>
         )}
-      </aside>
+        </aside>
 
       {groupEditor && (
         <div className="group-editor-backdrop" role="presentation">
@@ -1654,7 +1684,7 @@ export function AccountsPage() {
         />
       )}
 
-      <section className="accounts-detail-panel" aria-label="Account details">
+        <section className="accounts-detail-panel" aria-label="Account details">
         {!selectedAccount ? (
           <div className="accounts-detail-empty">
             <Icon name="id-card" />
@@ -2149,7 +2179,8 @@ export function AccountsPage() {
             </section>
           </>
         )}
-      </section>
-    </main>
+        </section>
+      </main>
+    </>
   );
 }
