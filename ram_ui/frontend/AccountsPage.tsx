@@ -336,7 +336,11 @@ export function AccountsPage() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    Promise.all([getStoreStatus(), listAccountGroupColors(), listAccountGroups()])
+    Promise.all([
+      getStoreStatus(),
+      listAccountGroupColors(),
+      listAccountGroups(),
+    ])
       .then(async ([status, colors, groupSummaries]) => {
         if (!mounted) return [];
         setGroupColors(colors);
@@ -423,8 +427,10 @@ export function AccountsPage() {
       .sort(([left], [right]) => {
         const leftOrder = groupOrder.indexOf(left);
         const rightOrder = groupOrder.indexOf(right);
-        return (leftOrder < 0 ? Number.MAX_SAFE_INTEGER : leftOrder) -
-          (rightOrder < 0 ? Number.MAX_SAFE_INTEGER : rightOrder);
+        return (
+          (leftOrder < 0 ? Number.MAX_SAFE_INTEGER : leftOrder) -
+          (rightOrder < 0 ? Number.MAX_SAFE_INTEGER : rightOrder)
+        );
       })
       .map(([name, groupedAccounts], index) => ({
         name,
@@ -1303,7 +1309,9 @@ export function AccountsPage() {
               <AccountAvatar account={selectedAccount} large />
               <div className="account-profile-copy">
                 <div className="account-identity-name">
-                  <h2>{selectedAccount.displayName || selectedAccount.label}</h2>
+                  <h2>
+                    {selectedAccount.displayName || selectedAccount.label}
+                  </h2>
                   <button
                     className="identity-icon-button"
                     type="button"
