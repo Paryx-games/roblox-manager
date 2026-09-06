@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- **Account notice spacing.** Added a small separation between launch controls and the stacked timer queue, with compact spacing between queued notices.
 - **Account status notice queue.** Multiple notices can now stack independently, with each message owning its own countdown and dismissal.
 - **Launch button icon contrast.** Primary action icons now automatically invert against light or dark button backgrounds, while disabled buttons retain muted icons.
 - **Account status notice motion.** Notices now empty counterclockwise and slide closed smoothly while their text and timer fade together, with reduced-motion support.

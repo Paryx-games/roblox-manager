@@ -1182,8 +1182,12 @@ button:focus-visible {
   height: 15px;
 }
 
-.launch-card > .account-notice {
-  margin-top: var(--space-3);
+.launch-card > .account-notice-shell {
+  margin-top: var(--space-2);
+}
+
+.launch-card > .account-notice-shell + .account-notice-shell {
+  margin-top: var(--space-1);
 }
 
 .account-card-header {
