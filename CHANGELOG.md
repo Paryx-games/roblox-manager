@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- **Account notice entrance.** Queued timers now fade in and expand into place independently when they appear.
 - **Inventory action icon.** The Open inventory action now uses the backpack icon.
 - **Account notice spacing.** Added a small separation between launch controls and the stacked timer queue, with compact spacing between queued notices.
 - **Account status notice queue.** Multiple notices can now stack independently, with each message owning its own countdown and dismissal.

@@ -638,6 +638,7 @@ button:focus-visible {
 .account-notice-shell {
   max-height: var(--space-8);
   overflow: hidden;
+  animation: account-notice-enter 160ms var(--ease-standard) both;
 }
 
 .account-notice-shell.is-exiting {
@@ -707,6 +708,20 @@ button:focus-visible {
   }
 }
 
+@keyframes account-notice-enter {
+  from {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(calc(var(--space-1) * -1));
+  }
+
+  to {
+    max-height: var(--space-8);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .notice-timer::after {
     animation: none;
@@ -717,6 +732,10 @@ button:focus-visible {
   .account-notice-shell.is-exiting {
     animation: none;
     display: none;
+  }
+
+  .account-notice-shell {
+    animation: none;
   }
 }
 
