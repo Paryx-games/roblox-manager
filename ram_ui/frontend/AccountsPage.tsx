@@ -381,9 +381,7 @@ export function AccountsPage() {
   const [pinningIds, setPinningIds] = useState<Set<number>>(new Set());
   const [groupContextMenu, setGroupContextMenu] =
     useState<GroupContextMenu | null>(null);
-  const [groupEditor, setGroupEditor] = useState<GroupEditorState | null>(
-    null,
-  );
+  const [groupEditor, setGroupEditor] = useState<GroupEditorState | null>(null);
   const groupMenuRef = useRef<HTMLDivElement>(null);
 
   function setNotice(message: string | null) {
@@ -1229,7 +1227,11 @@ export function AccountsPage() {
   }
 
   return (
-    <main className="accounts-page" aria-busy={loading}>
+    <main
+      className="accounts-page"
+      aria-busy={loading}
+      onContextMenu={(event) => event.preventDefault()}
+    >
       <aside className="accounts-list-panel" aria-label="Managed accounts">
         <div className="accounts-list-head">
           <div className="accounts-search-row">
@@ -1579,9 +1581,7 @@ export function AccountsPage() {
                     key={preset.label}
                     type="button"
                     aria-label={`${preset.label} group color`}
-                    aria-pressed={
-                      groupEditor.color === rgbToHex(preset.color)
-                    }
+                    aria-pressed={groupEditor.color === rgbToHex(preset.color)}
                     style={{
                       backgroundColor: `rgb(${preset.color.join(", ")})`,
                     }}
