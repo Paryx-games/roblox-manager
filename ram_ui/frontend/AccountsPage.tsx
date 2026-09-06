@@ -63,6 +63,11 @@ type AccountNotice = {
   message: string;
 };
 
+type AccountSelectionEvent = Pick<
+  MouseEvent<HTMLDivElement>,
+  "ctrlKey" | "metaKey"
+>;
+
 function Icon({ name }: { name: string }) {
   return (
     <img
@@ -158,18 +163,23 @@ function AccountRow({
   onSelect,
   onDropAccount,
   accentColor,
+  onTogglePin,
+  pinning,
 }: {
   account: AccountSummary;
   selected: boolean;
-  onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
+  onSelect: (event: AccountSelectionEvent) => void;
   onDropAccount: (sourceId: number, targetId: number) => void;
   accentColor: string;
+  onTogglePin: (userId: number) => void;
+  pinning: boolean;
 }) {
   return (
-    <button
+    <div
       className={`account-row ${selected ? "is-selected" : ""}`}
       style={{ "--account-accent": accentColor } as CSSProperties}
-      type="button"
+      role="button"
+      tabIndex={0}
       draggable
       onDragStart={(event) =>
         event.dataTransfer.setData("text/account-id", String(account.userId))
@@ -181,14 +191,30 @@ function AccountRow({
           onDropAccount(sourceId, account.userId);
       }}
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(event);
+        }
+      }}
     >
       <span className="account-row-bar" aria-hidden="true" />
       <AccountAvatar account={account} />
       <span className="account-row-name">{account.label}</span>
-      <span className="account-row-pin" aria-label="Pinned account">
-        <Icon name="pin" />
-      </span>
-    </button>
+      <button
+        className={`account-row-pin ${account.isPinned ? "is-pinned" : ""}`}
+        type="button"
+        disabled={pinning}
+        aria-label={account.isPinned ? "Unpin account" : "Pin account"}
+        data-tip={account.isPinned ? "Unpin account" : "Pin account"}
+        onClick={(event) => {
+          event.stopPropagation();
+          onTogglePin(account.userId);
+        }}
+      >
+        <Icon name={account.isPinned ? "pin" : "pin-off"} />
+      </button>
+    </div>
   );
 }
 
@@ -201,15 +227,19 @@ function AccountGroup({
   onDropAccount,
   onDropGroup,
   color,
+  onTogglePin,
+  pinningIds,
 }: {
   group: AccountGroup;
   collapsed: boolean;
   selectedId: number | null;
   onToggle: () => void;
-  onSelect: (id: number, event: MouseEvent<HTMLButtonElement>) => void;
+  onSelect: (id: number, event: AccountSelectionEvent) => void;
   onDropAccount: (sourceId: number, targetId: number) => void;
   onDropGroup: (sourceName: string, targetName: string) => void;
   color: string;
+  onTogglePin: (userId: number) => void;
+  pinningIds: Set<number>;
 }) {
   return (
     <section
@@ -251,6 +281,8 @@ function AccountGroup({
                 onDropAccount(sourceId, account.userId)
               }
               accentColor={color}
+              onTogglePin={onTogglePin}
+              pinning={pinningIds.has(account.userId)}
             />
           ))}
         </div>
@@ -301,6 +333,7 @@ export function AccountsPage() {
   >({});
   const [groupOrder, setGroupOrder] = useState<string[]>([]);
   const [playerPath, setPlayerPath] = useState("");
+  const [pinningIds, setPinningIds] = useState<Set<number>>(new Set());
 
   function setNotice(message: string | null) {
     if (message === null) {
@@ -466,7 +499,7 @@ export function AccountsPage() {
 
   function selectAccountWithModifiers(
     id: number,
-    event: MouseEvent<HTMLButtonElement>,
+    event: AccountSelectionEvent,
   ) {
     if (event.ctrlKey || event.metaKey) {
       setSelectedIds((current) => {
@@ -663,10 +696,10 @@ export function AccountsPage() {
     }
   }
 
-  async function togglePin() {
-    if (!selectedAccount) return;
+  async function togglePinForAccount(userId: number) {
+    setPinningIds((current) => new Set(current).add(userId));
     try {
-      const updated = await toggleAccountPin(selectedAccount.userId);
+      const updated = await toggleAccountPin(userId);
       setAccounts((current) =>
         current.map((account) =>
           account.userId === updated.userId ? updated : account,
@@ -674,7 +707,18 @@ export function AccountsPage() {
       );
     } catch {
       setNotice("The pin state could not be saved.");
+    } finally {
+      setPinningIds((current) => {
+        const next = new Set(current);
+        next.delete(userId);
+        return next;
+      });
     }
+  }
+
+  async function togglePin() {
+    if (!selectedAccount) return;
+    await togglePinForAccount(selectedAccount.userId);
   }
 
   async function saveGroup(group: string) {
@@ -1290,6 +1334,8 @@ export function AccountsPage() {
                 void reorderGroup(sourceName, targetName)
               }
               color={group.color}
+              onTogglePin={(userId) => void togglePinForAccount(userId)}
+              pinningIds={pinningIds}
             />
           ))}
         </div>

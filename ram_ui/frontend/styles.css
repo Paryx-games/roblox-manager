@@ -945,13 +945,63 @@ button:focus-visible {
 }
 
 .account-row-pin {
+  position: relative;
   display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
   color: var(--text-disabled);
+  background: transparent;
+  cursor: pointer;
 }
 
 .account-row-pin .account-icon {
   width: 13px;
   height: 13px;
+}
+
+.account-row-pin:hover,
+.account-row-pin:focus-visible,
+.account-row-pin.is-pinned {
+  color: var(--text-primary);
+  background: var(--bg-raised);
+}
+
+.account-row-pin:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.account-row-pin[data-tip]::after {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  content: attr(data-tip);
+  font-size: var(--text-xs);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition:
+    opacity var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+  white-space: nowrap;
+}
+
+.account-row-pin[data-tip]:hover::after,
+.account-row-pin[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .accounts-detail-panel {
