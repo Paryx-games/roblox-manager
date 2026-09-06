@@ -883,6 +883,23 @@ button:focus-visible {
   font-weight: 700;
 }
 
+.account-avatar-media {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.account-avatar-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
 .account-avatar-large {
   width: 64px;
   height: 64px;

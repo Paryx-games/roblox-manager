@@ -93,11 +93,13 @@ function AccountAvatar({
 }) {
   return (
     <span className={`account-avatar ${large ? "account-avatar-large" : ""}`}>
-      {account.avatarUrl ? (
-        <img src={account.avatarUrl} alt="" />
-      ) : (
-        initials(account)
-      )}
+      <span className="account-avatar-media">
+        {account.avatarUrl ? (
+          <img src={account.avatarUrl} alt="" />
+        ) : (
+          initials(account)
+        )}
+      </span>
       <span
         className={`presence-dot presence-${account.presence}`}
         aria-label={account.presenceText}
