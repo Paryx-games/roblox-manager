@@ -358,6 +358,7 @@ export function AccountsPage() {
   const [password, setPassword] = useState("");
   const [alias, setAlias] = useState("");
   const [mutationLoading, setMutationLoading] = useState(false);
+  const [browserLoginLoading, setBrowserLoginLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [cookie, setCookie] = useState("");
   const [bulkCookieInput, setBulkCookieInput] = useState("");
@@ -1234,6 +1235,7 @@ export function AccountsPage() {
   }
 
   async function addAccountFromBrowser() {
+    setBrowserLoginLoading(true);
     setMutationLoading(true);
     try {
       const account = await loginAndAddAccount();
@@ -1248,6 +1250,7 @@ export function AccountsPage() {
     } catch {
       setNotice("Browser login could not add the account.");
     } finally {
+      setBrowserLoginLoading(false);
       setMutationLoading(false);
     }
   }
@@ -1492,10 +1495,13 @@ export function AccountsPage() {
             onClick={() => setShowAddForm(false)}
           >
             <section
-              className="add-account-modal"
+              className={`add-account-modal ${
+                browserLoginLoading ? "is-browser-pending" : ""
+              }`}
               role="dialog"
               aria-modal="true"
               aria-labelledby="add-account-title"
+              aria-busy={browserLoginLoading}
               onClick={(event) => event.stopPropagation()}
             >
               <div className="add-account-modal-header">
@@ -1600,6 +1606,12 @@ export function AccountsPage() {
                   </span>
                 )}
               </div>
+              {browserLoginLoading && (
+                <div className="add-account-browser-overlay" role="status">
+                  <span className="add-account-spinner" aria-hidden="true" />
+                  <span>Waiting for browser login...</span>
+                </div>
+              )}
             </section>
           </div>
         )}

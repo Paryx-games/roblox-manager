@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Browser login progress overlay.** The Add account popup now blurs while its browser login window is active and shows progress until the flow completes, exits, or fails.
 - **Add account modal.** Account login, cookie validation, recovery, and bulk import now live in a cleaner focused popup instead of expanding inside the sidebar.
 - **Empty group visibility.** Newly created groups now remain visible in the account list even before accounts are assigned to them.
 - **Account row contrast.** Unselected account names now use muted gray text while the selected account remains bright.

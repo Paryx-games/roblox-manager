@@ -639,9 +639,11 @@ button:focus-visible {
   justify-content: center;
   padding: var(--space-8);
   background: var(--bg-canvas);
+  backdrop-filter: blur(8px);
 }
 
 .add-account-modal {
+  position: relative;
   display: flex;
   width: min(100%, 520px);
   max-height: calc(100vh - var(--space-8));
@@ -650,6 +652,45 @@ button:focus-visible {
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
   background: var(--bg-surface);
+}
+
+.add-account-modal.is-browser-pending > *:not(.add-account-browser-overlay) {
+  filter: blur(3px);
+}
+
+.add-account-browser-overlay {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  flex-direction: column;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  font-size: var(--text-sm);
+}
+
+.add-account-spinner {
+  width: var(--space-6);
+  height: var(--space-6);
+  border: var(--border-width) solid var(--border-default);
+  border-top-color: var(--text-primary);
+  border-radius: 50%;
+  animation: add-account-spin var(--duration-slow) linear infinite;
+}
+
+@keyframes add-account-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .add-account-spinner {
+    animation: none;
+  }
 }
 
 .add-account-modal-header {
