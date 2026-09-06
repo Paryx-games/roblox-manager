@@ -39,6 +39,26 @@ jobs:
       - name: checkout
         uses: actions/checkout@v7
 
+      - name: setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ram_ui/pnpm-lock.yaml
+
+      - name: install frontend dependencies
+        working-directory: ram_ui
+        run: pnpm install --frozen-lockfile
+
+      - name: build frontend
+        working-directory: ram_ui
+        run: pnpm build
+
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable
         with:
