@@ -277,7 +277,8 @@ export function AccountsPage() {
     }
 
     document.addEventListener("pointerdown", dismissAccountMenu);
-    return () => document.removeEventListener("pointerdown", dismissAccountMenu);
+    return () =>
+      document.removeEventListener("pointerdown", dismissAccountMenu);
   }, [showAccountMenu]);
   const [commonInventory, setCommonInventory] = useState<InventoryItem[]>([]);
   const [commonInventoryLoading, setCommonInventoryLoading] = useState(false);
@@ -1236,72 +1237,76 @@ export function AccountsPage() {
                 </button>
                 {showAccountMenu && (
                   <div className="account-menu" role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      void browseAs();
-                      setShowAccountMenu(false);
-                    }}
-                  >
-                    <Icon name="browser" />
-                    Browse as account
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      void togglePin();
-                      setShowAccountMenu(false);
-                    }}
-                  >
-                    <Icon name={selectedAccount.isPinned ? "pin-off" : "pin"} />
-                    {selectedAccount.isPinned ? "Unpin account" : "Pin account"}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      void removeSelectedAccount();
-                      setShowAccountMenu(false);
-                    }}
-                  >
-                    <Icon name="delete" />
-                    Remove account
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      void revalidate();
-                      setShowAccountMenu(false);
-                    }}
-                  >
-                    <Icon name="refresh" />
-                    Revalidate account
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      void arrangeAccountWindows();
-                      setShowAccountMenu(false);
-                    }}
-                  >
-                    <Icon name="grid" />
-                    Arrange windows
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      void killAllAccounts();
-                      setShowAccountMenu(false);
-                    }}
-                  >
-                    <Icon name="kill" />
-                    Kill all Roblox
-                  </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        void browseAs();
+                        setShowAccountMenu(false);
+                      }}
+                    >
+                      <Icon name="browser" />
+                      Browse as account
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        void togglePin();
+                        setShowAccountMenu(false);
+                      }}
+                    >
+                      <Icon
+                        name={selectedAccount.isPinned ? "pin-off" : "pin"}
+                      />
+                      {selectedAccount.isPinned
+                        ? "Unpin account"
+                        : "Pin account"}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        void removeSelectedAccount();
+                        setShowAccountMenu(false);
+                      }}
+                    >
+                      <Icon name="delete" />
+                      Remove account
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        void revalidate();
+                        setShowAccountMenu(false);
+                      }}
+                    >
+                      <Icon name="refresh" />
+                      Revalidate account
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        void arrangeAccountWindows();
+                        setShowAccountMenu(false);
+                      }}
+                    >
+                      <Icon name="grid" />
+                      Arrange windows
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        void killAllAccounts();
+                        setShowAccountMenu(false);
+                      }}
+                    >
+                      <Icon name="kill" />
+                      Kill all Roblox
+                    </button>
                   </div>
                 )}
               </div>
