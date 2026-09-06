@@ -22,6 +22,7 @@ struct AccountSummary {
     group: String,
     avatar_url: String,
     is_pinned: bool,
+    sort_order: u32,
     cookie_expired: bool,
     moderation_active: bool,
     moderation_banned: bool,
@@ -93,6 +94,7 @@ fn account_summary(account: &Account, player_path: Option<String>) -> AccountSum
         group: account.group.clone(),
         avatar_url: account.avatar_url.clone(),
         is_pinned: account.is_pinned,
+        sort_order: account.sort_order,
         cookie_expired: account.cookie_expired,
         moderation_active: account
             .moderation
@@ -808,6 +810,85 @@ async fn connection_action(
 }
 
 #[tauri::command]
+async fn join_user_game(
+    state: tauri::State<'_, AppState>,
+    user_id: u64,
+    target_user_id: u64,
+) -> Result<(), String> {
+    let (cookie, client, options) = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        let cookie = account_cookie(&runtime, user_id)?;
+        let options = (
+            runtime.config.multi_instance_enabled,
+            runtime.config.kill_background_roblox,
+            runtime.config.privacy_cleanup_options(),
+            runtime
+                .config
+                .custom_player_paths
+                .get(&user_id)
+                .cloned()
+                .or_else(|| runtime.config.roblox_player_path.clone()),
+        );
+        (cookie, RobloxClient::new().map_err(|error| error.to_string())?, options)
+    };
+    let presence = api::fetch_presences(&client, &cookie, &[target_user_id])
+        .await
+        .map_err(|error| error.to_string())?
+        .into_iter()
+        .next()
+        .map(|(_, presence)| presence)
+        .ok_or_else(|| "Target user is not reporting a live presence right now".to_string())?;
+    let place_id = presence
+        .place_id
+        .ok_or_else(|| "Player is not in a game currently".to_string())?;
+    let job_id = presence.game_id;
+    if options.0 {
+        tauri::async_runtime::spawn_blocking(process::enable_multi_instance)
+            .await
+            .map_err(|_| "Multi-instance setup failed".to_string())?
+            .map_err(|error| error.to_string())?;
+    }
+    if options.1 || options.0 {
+        tauri::async_runtime::spawn_blocking(process::kill_tray_roblox)
+            .await
+            .map_err(|_| "Roblox tray cleanup failed".to_string())?;
+    }
+    let ticket = client
+        .generate_auth_ticket(&cookie)
+        .await
+        .map_err(|error| error.to_string())?;
+    let cleanup = tauri::async_runtime::spawn_blocking(move || {
+        process::prepare_privacy_cleanup(options.2)
+    })
+    .await
+    .map_err(|_| "Privacy cleanup failed".to_string())?
+    .map_err(|error| error.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        process::launch_game(
+            &ticket,
+            place_id,
+            job_id.as_deref(),
+            None,
+            None,
+            None,
+            process::next_launchtime(),
+            options.3.as_deref(),
+        )
+    })
+    .await
+    .map_err(|_| "Join launch task failed".to_string())?
+    .map_err(|error| error.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || cleanup.commit())
+        .await
+        .map_err(|_| "Privacy cleanup task failed".to_string())?
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn add_account(
     state: tauri::State<'_, AppState>,
     cookie: String,
@@ -1020,6 +1101,7 @@ fn main() {
             kill_all_accounts,
             arrange_account_windows,
             connection_action,
+            join_user_game,
             add_account,
             add_account_anyway,
             login_and_add_account,

@@ -11,6 +11,7 @@ export interface AccountSummary {
   group: string;
   avatarUrl: string;
   isPinned: boolean;
+  sortOrder: number;
   cookieExpired: boolean;
   moderationActive: boolean;
   moderationBanned: boolean;
@@ -178,6 +179,13 @@ export async function runConnectionAction(
   action: string,
 ): Promise<void> {
   return invoke<void>("connection_action", { userId, targetUserId, action });
+}
+
+export async function joinUserGame(
+  userId: number,
+  targetUserId: number,
+): Promise<void> {
+  return invoke<void>("join_user_game", { userId, targetUserId });
 }
 
 export async function addAccount(cookie: string): Promise<AccountSummary> {

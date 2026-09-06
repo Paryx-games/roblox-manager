@@ -27,6 +27,7 @@ import {
   refreshAccountPresence,
   revalidateAccounts,
   killAllAccounts,
+  joinUserGame,
   arrangeAccountWindows,
   createAccountGroup,
   deleteAccountGroup,
@@ -218,6 +219,8 @@ export function AccountsPage() {
     Record<string, [number, number, number]>
   >({});
   const [playerPath, setPlayerPath] = useState("");
+  const [commonInventory, setCommonInventory] = useState<InventoryItem[]>([]);
+  const [commonInventoryLoading, setCommonInventoryLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -268,6 +271,9 @@ export function AccountsPage() {
     return [...filtered].sort((left, right) => {
       if (sortMode === "custom" && left.isPinned !== right.isPinned) {
         return left.isPinned ? -1 : 1;
+      }
+      if (sortMode === "custom" && left.sortOrder !== right.sortOrder) {
+        return left.sortOrder - right.sortOrder;
       }
       if (sortMode === "username")
         return (
@@ -321,6 +327,7 @@ export function AccountsPage() {
     setAlias(selectedAccount?.alias ?? "");
     setPlayerPath(selectedAccount?.playerPath ?? "");
     setInventory([]);
+    setCommonInventory([]);
     setConnectionResults([]);
   }, [selectedAccount]);
 
@@ -618,6 +625,125 @@ export function AccountsPage() {
     }
   }
 
+  async function applyBulkConnectionAction(targetUserId: number, action: string) {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    setMutationLoading(true);
+    try {
+      for (const userId of ids) {
+        await runConnectionAction(userId, targetUserId, action);
+      }
+      setNotice(`${action} completed for ${ids.length} account(s).`);
+    } catch {
+      setNotice(`${action} could not be completed for every account.`);
+    } finally {
+      setMutationLoading(false);
+    }
+  }
+
+  async function joinTargetGame(targetUserId: number) {
+    if (!selectedAccount) return;
+    try {
+      await joinUserGame(selectedAccount.userId, targetUserId);
+      setNotice("Join requested.");
+    } catch {
+      setNotice("The target user is not currently joinable.");
+    }
+  }
+
+  async function openSelectedBrowsers() {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    setMutationLoading(true);
+    try {
+      for (const userId of ids) await browseAsAccount(userId);
+      setNotice(`Opened ${ids.length} authenticated browser(s).`);
+    } catch {
+      setNotice("One or more authenticated browsers could not be opened.");
+    } finally {
+      setMutationLoading(false);
+    }
+  }
+
+  async function copySelectedIds() {
+    try {
+      await navigator.clipboard.writeText([...selectedIds].join("\n"));
+      setNotice("Account IDs copied.");
+    } catch {
+      setNotice("Account IDs could not be copied.");
+    }
+  }
+
+  async function changeSelectedPath() {
+    const path = window.prompt("Roblox player path", playerPath);
+    if (path === null) return;
+    setMutationLoading(true);
+    try {
+      const updates = await Promise.all(
+        [...selectedIds].map((userId) => updatePlayerPath(userId, path.trim() || null)),
+      );
+      setAccounts((current) =>
+        current.map((account) => updates.find((item) => item.userId === account.userId) ?? account),
+      );
+      setNotice("Player path updated.");
+    } catch {
+      setNotice("The player path could not be updated for every account.");
+    } finally {
+      setMutationLoading(false);
+    }
+  }
+
+  async function loadCommonInventory() {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    setCommonInventoryLoading(true);
+    try {
+      const inventories = await Promise.all(ids.map((userId) => fetchAccountInventory(userId)));
+      const counts = new Map<number, { item: InventoryItem; count: number }>();
+      for (const item of inventories[0] ?? []) counts.set(item.assetId, { item, count: 1 });
+      for (const inventoryItems of inventories.slice(1)) {
+        const present = new Set(inventoryItems.map((item) => item.assetId));
+        for (const [assetId, entry] of counts) {
+          if (present.has(assetId)) entry.count += 1;
+          else counts.delete(assetId);
+        }
+      }
+      setCommonInventory([...counts.values()].map(({ item }) => item));
+      setNotice(`${counts.size} common inventory item(s) found.`);
+    } catch {
+      setNotice("Common inventory could not be loaded.");
+    } finally {
+      setCommonInventoryLoading(false);
+    }
+  }
+
+  function exportAccountsCsv() {
+    const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
+    const rows = [
+      "username,display_name,user_id,alias,group,created_at,last_activity",
+      ...accounts.map((account) =>
+        [
+          account.username,
+          account.displayName,
+          String(account.userId),
+          account.alias,
+          account.group,
+          account.createdAt ?? "",
+          account.lastActivity ?? "",
+        ]
+          .map(escape)
+          .join(","),
+      ),
+    ];
+    const url = URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "roblox-accounts.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+    setNotice(`Exported ${accounts.length} account(s).`);
+  }
+
   async function addManagedAccount() {
     setMutationLoading(true);
     setAddError(null);
@@ -741,6 +867,15 @@ export function AccountsPage() {
               onClick={() => setShowAddForm((current) => !current)}
             >
               <Icon name="add" />
+            </button>
+            <button
+              className="icon-button bordered"
+              type="button"
+              aria-label="Export accounts"
+              data-tip="Export accounts"
+              onClick={exportAccountsCsv}
+            >
+              <Icon name="copy" />
             </button>
           </div>
           {showAddForm && (
@@ -871,7 +1006,25 @@ export function AccountsPage() {
                 <Icon name="launch" />
                 Bulk launch
               </button>
+              <button type="button" onClick={() => void openSelectedBrowsers()} disabled={mutationLoading}>
+                <Icon name="browser" />
+                Open browsers
+              </button>
+              <button type="button" onClick={() => void copySelectedIds()}>
+                Copy IDs
+              </button>
+              <button type="button" onClick={() => void changeSelectedPath()} disabled={mutationLoading}>
+                Change path
+              </button>
+              <button type="button" onClick={() => void loadCommonInventory()} disabled={commonInventoryLoading}>
+                Common inventory
+              </button>
             </div>
+          )}
+          {commonInventory.length > 0 && (
+            <p className="common-inventory-summary">
+              {commonInventory.length} common inventory item(s)
+            </p>
           )}
         </div>
         <div className="accounts-groups">
@@ -1303,6 +1456,30 @@ export function AccountsPage() {
                         >
                           Block
                         </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void applyConnectionAction(result.userId, "unfollow")
+                          }
+                        >
+                          Unfollow
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void joinTargetGame(result.userId)}
+                        >
+                          Join game
+                        </button>
+                        {selectedIds.size > 1 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void applyBulkConnectionAction(result.userId, "unfollow")
+                            }
+                          >
+                            Unfollow selected
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
