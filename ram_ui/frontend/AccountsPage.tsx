@@ -80,7 +80,7 @@ function AccountAvatar({
 }) {
   return (
     <span className={`account-avatar ${large ? "account-avatar-large" : ""}`}>
-      {initials(account)}
+      {account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : initials(account)}
       <span
         className={`presence-dot presence-${account.presence}`}
         aria-label={account.presenceText}
@@ -1054,7 +1054,7 @@ export function AccountsPage() {
               </div>
               <div>
                 <span>Location</span>
-                <strong>Website</strong>
+                <strong>{selectedAccount.presenceLocation || "Website"}</strong>
               </div>
               <div>
                 <label htmlFor="player-path">Player path</label>

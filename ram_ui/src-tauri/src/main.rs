@@ -28,6 +28,7 @@ struct AccountSummary {
     created_at: Option<String>,
     presence: &'static str,
     presence_text: String,
+    presence_location: String,
     can_launch: bool,
     last_activity: Option<String>,
 }
@@ -79,7 +80,7 @@ fn account_cookie(runtime: &state::RuntimeState, user_id: u64) -> Result<String,
     }
 }
 
-fn account_summary(account: &Account) -> AccountSummary {
+fn account_summary(account: &Account, player_path: Option<String>) -> AccountSummary {
     AccountSummary {
         user_id: account.user_id,
         label: account.label().to_string(),
@@ -106,10 +107,11 @@ fn account_summary(account: &Account) -> AccountSummary {
             .moderation
             .as_ref()
             .and_then(|info| info.expires_at.map(|value| value.to_rfc3339())),
-        player_path: None,
+        player_path,
         created_at: account.created_at.map(|value| value.to_rfc3339()),
         presence: presence_kind(&account.last_presence),
         presence_text: account.last_presence.status_text().to_string(),
+        presence_location: account.last_presence.last_location.clone(),
         can_launch: account.can_launch(),
         last_activity: account
             .last_used
@@ -241,7 +243,14 @@ fn list_accounts(state: tauri::State<'_, AppState>) -> Result<Vec<AccountSummary
         .accounts
         .accounts
         .iter()
-        .map(account_summary)
+        .map(|account| {
+            let player_path = runtime
+                .config
+                .custom_player_paths
+                .get(&account.user_id)
+                .map(|path| path.display().to_string());
+            account_summary(account, player_path)
+        })
         .collect())
 }
 
@@ -273,7 +282,14 @@ fn update_account_alias(
             .find_by_id_mut(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
         account.alias = alias.trim().to_string();
-        account_summary(account)
+        account_summary(
+            account,
+            runtime
+                .config
+                .custom_player_paths
+                .get(&user_id)
+                .map(|path| path.display().to_string()),
+        )
     };
     save_runtime(&runtime)?;
     Ok(summary)
@@ -294,7 +310,14 @@ fn toggle_account_pin(
             .find_by_id_mut(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
         account.is_pinned = !account.is_pinned;
-        account_summary(account)
+        account_summary(
+            account,
+            runtime
+                .config
+                .custom_player_paths
+                .get(&user_id)
+                .map(|path| path.display().to_string()),
+        )
     };
     save_runtime(&runtime)?;
     Ok(summary)
@@ -320,7 +343,14 @@ fn update_account_group(
             .find_by_id_mut(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
         account.group = group.to_string();
-        account_summary(account)
+        account_summary(
+            account,
+            runtime
+                .config
+                .custom_player_paths
+                .get(&user_id)
+                .map(|path| path.display().to_string()),
+        )
     };
     save_runtime(&runtime)?;
     Ok(summary)
@@ -358,7 +388,14 @@ fn update_player_path(
         .accounts
         .find_by_id(user_id)
         .ok_or_else(|| "Account not found".to_string())?;
-    Ok(account_summary(account))
+    Ok(account_summary(
+        account,
+        runtime
+            .config
+            .custom_player_paths
+            .get(&user_id)
+            .map(|path| path.display().to_string()),
+    ))
 }
 
 fn save_config(runtime: &state::RuntimeState) -> Result<(), String> {
@@ -672,7 +709,14 @@ async fn revalidate_accounts(
                     account.last_validated = Some(chrono::Utc::now());
                 }
             }
-            results.push(account_summary(account));
+            results.push(account_summary(
+                account,
+                runtime
+                    .config
+                    .custom_player_paths
+                    .get(&user_id)
+                    .map(|path| path.display().to_string()),
+            ));
         }
     }
     let runtime = state
@@ -770,6 +814,7 @@ async fn add_account(
             .accounts
             .last()
             .expect("account was pushed"),
+        None,
     );
     save_runtime(&runtime)?;
     Ok(summary)

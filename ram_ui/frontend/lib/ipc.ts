@@ -20,6 +20,7 @@ export interface AccountSummary {
   createdAt: string | null;
   presence: PresenceStatus;
   presenceText: string;
+  presenceLocation: string;
   canLaunch: boolean;
   lastActivity: string | null;
 }
