@@ -91,7 +91,7 @@ type GroupContextMenu = {
 };
 
 type GroupEditorState = {
-  originalName: string;
+  originalName: string | null;
   name: string;
   color: string;
 };
@@ -834,20 +834,11 @@ export function AccountsPage() {
   }
 
   async function createGroup() {
-    const name = window.prompt("Group name");
-    if (!name?.trim()) return;
-    try {
-      await createAccountGroup(name);
-      const [colors, groupSummaries] = await Promise.all([
-        listAccountGroupColors(),
-        listAccountGroups(),
-      ]);
-      setGroupColors(colors);
-      setGroupOrder(groupSummaries.map((group) => group.name));
-      setNotice("Group created.");
-    } catch {
-      setNotice("The group could not be created.");
-    }
+    setGroupEditor({
+      originalName: null,
+      name: "",
+      color: rgbToHex([59, 130, 246]),
+    });
   }
 
   function requestGroupDeletion(name: string) {
@@ -880,8 +871,11 @@ export function AccountsPage() {
     }
     setMutationLoading(true);
     try {
+      if (groupEditor.originalName === null) {
+        await createAccountGroup(name);
+      }
       const groups = await updateAccountGroupMeta(
-        groupEditor.originalName,
+        groupEditor.originalName ?? name,
         name,
         color,
       );
@@ -889,7 +883,7 @@ export function AccountsPage() {
       for (const group of groups) nextColors[group.name] = group.color;
       setGroupColors(nextColors);
       setGroupOrder(groups.map((group) => group.name));
-      if (name !== groupEditor.originalName) {
+      if (groupEditor.originalName && name !== groupEditor.originalName) {
         setAccounts((current) =>
           current.map((account) =>
             account.group === groupEditor.originalName
@@ -899,7 +893,9 @@ export function AccountsPage() {
         );
       }
       setGroupEditor(null);
-      setNotice("Group saved.");
+      setNotice(
+        groupEditor.originalName === null ? "Group created." : "Group saved.",
+      );
     } catch {
       setNotice("The group could not be saved.");
     } finally {
@@ -1573,7 +1569,9 @@ export function AccountsPage() {
               aria-labelledby="group-editor-title"
             >
               <div className="group-editor-header">
-                <h2 id="group-editor-title">Edit group</h2>
+                <h2 id="group-editor-title">
+                  {groupEditor.originalName ? "Edit group" : "Create group"}
+                </h2>
                 <button
                   className="icon-button"
                   type="button"
@@ -1655,7 +1653,7 @@ export function AccountsPage() {
                   onClick={() => void saveGroupEditor()}
                 >
                   <Icon name="save" />
-                  Save group
+                {groupEditor.originalName ? "Save group" : "Create group"}
                 </button>
               </div>
             </section>
