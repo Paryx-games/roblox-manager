@@ -1786,6 +1786,10 @@ button:focus-visible {
   cursor: not-allowed;
 }
 
+.account-button.primary:disabled {
+  border-color: var(--border-default);
+}
+
 .account-button.primary:disabled .account-icon {
   filter: invert(65%);
   mix-blend-mode: normal;
