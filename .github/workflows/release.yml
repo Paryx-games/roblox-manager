@@ -4,12 +4,19 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)release, e.g. v1.2.3"
+        required: true
 
 permissions:
   contents: write
 
 env:
   CARGO_TERM_COLOR: always
+  # falls back to the pushed tag when this wasn't manually dispatched
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -19,6 +26,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -69,7 +78,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
+
+      - name: Resolve tag commit
+        id: resolve-tag
+        shell: pwsh
+        run: |
+          # github.sha / github.workflow_sha point at whatever commit this run was
+          # dispatched from, not the tag - resolve it directly off the checked-out ref instead
+          $sha = git rev-parse "${{ env.RELEASE_TAG }}"
+          "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Download executable
         uses: actions/download-artifact@v4
@@ -81,7 +100,7 @@ jobs:
         id: previous-tag
         shell: pwsh
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "${{ env.RELEASE_TAG }}"
           $tags = git tag --sort=-version:refname |
             Where-Object { $_ -ne $currentTag -and $_ -like "v*" }
 
@@ -95,7 +114,7 @@ jobs:
       - name: Extract changelog
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}"
+          $version = "${{ env.RELEASE_TAG }}"
           $path = "CHANGELOG.md"
           $lines = Get-Content $path
 
@@ -128,23 +147,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "${{ env.RELEASE_TAG }}"
           $previousTag = "${{ steps.previous-tag.outputs.value }}"
           $repository = "${{ github.repository }}"
+          $commitish = "${{ steps.resolve-tag.outputs.sha }}"
 
           if ($previousTag) {
             $response = gh api `
               --method POST `
               "repos/$repository/releases/generate-notes" `
               -f "tag_name=$currentTag" `
-              -f "target_commitish=${{ github.sha }}" `
+              -f "target_commitish=$commitish" `
               -f "previous_tag_name=$previousTag"
           } else {
             $response = gh api `
               --method POST `
               "repos/$repository/releases/generate-notes" `
               -f "tag_name=$currentTag" `
-              -f "target_commitish=${{ github.sha }}"
+              -f "target_commitish=$commitish"
           }
 
           $generated = $response | ConvertFrom-Json
@@ -163,7 +183,7 @@ jobs:
             throw "ram_ui.exe was not found in the release directory."
           }
 
-          $version = "${{ github.ref_name }}" -replace "^v", ""
+          $version = "${{ env.RELEASE_TAG }}" -replace "^v", ""
 
           $os = "windows"
           $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
@@ -249,13 +269,12 @@ jobs:
             $summary = "Scan submitted, results are still processing on VirusTotal"
           }
 
-          # workflow_ref looks like "owner/repo/.github/workflows/release.yml@refs/tags/v1.0.0",
-          # strip the ref suffix and repo prefix to get just the file's repo-relative path
+          # workflow file path resolved off the checked-out tag ref, not github.workflow_ref,
+          # since a manual dispatch's workflow_ref points at whatever branch triggered it
           $repository = "${{ github.repository }}"
-          $workflowRef = "${{ github.workflow_ref }}"
-          $workflowPath = $workflowRef.Split('@')[0] -replace "^$([regex]::Escape($repository))/", ""
+          $workflowPath = ".github/workflows/release.yml"
           $workflowFileName = Split-Path -Path $workflowPath -Leaf
-          $workflowSha = "${{ github.workflow_sha }}"
+          $workflowSha = "${{ steps.resolve-tag.outputs.sha }}"
           $workflowUrl = "https://github.com/$repository/blob/$workflowSha/$workflowPath"
 
           $lines = @(
@@ -282,7 +301,7 @@ jobs:
           }
 
           $repository = "${{ github.repository }}"
-          $tag = "${{ github.ref_name }}"
+          $tag = "${{ env.RELEASE_TAG }}"
 
           $files = Get-ChildItem -Path release -Filter "*.exe" | Sort-Object Name
 
@@ -314,7 +333,7 @@ jobs:
       - name: Assemble release notes
         shell: pwsh
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "${{ env.RELEASE_TAG }}"
 
           $changelog = (Get-Content -Path release-notes.md -Raw).Trim()
           $downloadsTable = (Get-Content -Path downloads-table.md -Raw).Trim()
@@ -377,7 +396,7 @@ jobs:
         id: release-type
         shell: pwsh
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "${{ env.RELEASE_TAG }}"
           $isPrerelease = $currentTag -match "-(alpha|beta|rc)"
 
           "prerelease=$($isPrerelease.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -385,6 +404,7 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           files: ${{ steps.rename-exe.outputs.path }}
           body_path: final-release-notes.md
           prerelease: ${{ steps.release-type.outputs.prerelease }}
