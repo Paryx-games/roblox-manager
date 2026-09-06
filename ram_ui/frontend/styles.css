@@ -1050,6 +1050,71 @@ button:focus-visible {
   flex: 1;
 }
 
+.account-identity-name,
+.account-identity-username {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.account-identity-name h2,
+.account-identity-username p {
+  min-width: 0;
+}
+
+.identity-icon-button {
+  position: relative;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.identity-icon-button:hover,
+.identity-icon-button:focus-visible {
+  color: var(--text-primary);
+  background: var(--bg-raised);
+}
+
+.identity-icon-button .account-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.identity-icon-button[data-tip]::after {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--space-2));
+  left: 50%;
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  content: attr(data-tip);
+  font-size: var(--text-xs);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -4px);
+  transition:
+    opacity var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+  white-space: nowrap;
+}
+
+.identity-icon-button[data-tip]:hover::after,
+.identity-icon-button[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .account-profile-copy h2,
 .account-card h3,
 .accounts-detail-empty h2 {

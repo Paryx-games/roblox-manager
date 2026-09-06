@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- **Account identity actions.** The username now has a copy button, and the display-name link opens the profile in the native browser.
 - **Account notice entrance.** Queued timers now fade in and expand into place independently when they appear.
 - **Inventory action icon.** The Open inventory action now uses the backpack icon.
 - **Account notice spacing.** Added a small separation between launch controls and the stacked timer queue, with compact spacing between queued notices.

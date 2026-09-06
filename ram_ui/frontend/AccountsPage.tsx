@@ -685,6 +685,16 @@ export function AccountsPage() {
     }
   }
 
+  async function copyUsername() {
+    if (!selectedAccount) return;
+    try {
+      await navigator.clipboard.writeText(selectedAccount.username);
+      setNotice("Username copied.");
+    } catch {
+      setNotice("Username could not be copied.");
+    }
+  }
+
   async function removeSelectedAccount() {
     if (!selectedAccount || !window.confirm(`Remove ${selectedAccount.label}?`))
       return;
@@ -1246,8 +1256,30 @@ export function AccountsPage() {
             <section className="account-card account-profile-card">
               <AccountAvatar account={selectedAccount} large />
               <div className="account-profile-copy">
-                <h2>{selectedAccount.displayName || selectedAccount.label}</h2>
-                <p>@{selectedAccount.username}</p>
+                <div className="account-identity-name">
+                  <h2>{selectedAccount.displayName || selectedAccount.label}</h2>
+                  <button
+                    className="identity-icon-button"
+                    type="button"
+                    aria-label="Open account profile in browser"
+                    data-tip="Open profile"
+                    onClick={() => void openAccountPage(false)}
+                  >
+                    <Icon name="link" />
+                  </button>
+                </div>
+                <div className="account-identity-username">
+                  <p>@{selectedAccount.username}</p>
+                  <button
+                    className="identity-icon-button"
+                    type="button"
+                    aria-label="Copy username"
+                    data-tip="Copy username"
+                    onClick={() => void copyUsername()}
+                  >
+                    <Icon name="copy" />
+                  </button>
+                </div>
                 <span className="account-id">ID: {selectedAccount.userId}</span>
                 <span className="status-pill">
                   <span
