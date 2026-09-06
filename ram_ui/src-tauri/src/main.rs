@@ -507,6 +507,56 @@ fn delete_account_group(state: tauri::State<'_, AppState>, name: String) -> Resu
 }
 
 #[tauri::command]
+fn update_account_group_meta(
+    state: tauri::State<'_, AppState>,
+    old_name: String,
+    new_name: String,
+    color: [u8; 3],
+) -> Result<Vec<AccountGroupSummary>, String> {
+    let old_name = old_name.trim();
+    let new_name = new_name.trim();
+    if new_name.is_empty() || new_name.chars().count() > 64 {
+        return Err("Group name must be between 1 and 64 characters".to_string());
+    }
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Account state unavailable".to_string())?;
+    if old_name.is_empty() || !runtime.config.groups.contains_key(old_name) {
+        return Err("Group not found".to_string());
+    }
+    if old_name != new_name && runtime.config.groups.contains_key(new_name) {
+        return Err("A group with that name already exists".to_string());
+    }
+    let mut metadata = runtime
+        .config
+        .groups
+        .remove(old_name)
+        .ok_or_else(|| "Group not found".to_string())?;
+    metadata.color = color;
+    runtime.config.groups.insert(new_name.to_string(), metadata);
+    for account in &mut runtime.accounts.accounts {
+        if account.group == old_name {
+            account.group = new_name.to_string();
+        }
+    }
+    save_config(&runtime)?;
+    save_runtime(&runtime)?;
+    let mut groups = runtime
+        .config
+        .groups
+        .iter()
+        .map(|(name, meta)| AccountGroupSummary {
+            name: name.clone(),
+            color: meta.color,
+            sort_order: meta.sort_order,
+        })
+        .collect::<Vec<_>>();
+    groups.sort_by_key(|group| (group.sort_order, group.name.clone()));
+    Ok(groups)
+}
+
+#[tauri::command]
 fn open_account_url(user_id: u64, inventory: bool) -> Result<(), String> {
     let path = if inventory { "inventory" } else { "profile" };
     let url = format!("https://www.roblox.com/users/{user_id}/{path}");
@@ -1160,6 +1210,7 @@ fn main() {
             update_player_path,
             create_account_group,
             delete_account_group,
+            update_account_group_meta,
             open_account_url,
             remove_account,
             launch_account,

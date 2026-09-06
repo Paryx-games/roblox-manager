@@ -138,6 +138,18 @@ export async function deleteAccountGroup(name: string): Promise<void> {
   return invoke<void>("delete_account_group", { name });
 }
 
+export async function updateAccountGroupMeta(
+  oldName: string,
+  newName: string,
+  color: [number, number, number],
+): Promise<AccountGroupSummary[]> {
+  return invoke<AccountGroupSummary[]>("update_account_group_meta", {
+    oldName,
+    newName,
+    color,
+  });
+}
+
 export async function openAccountUrl(
   userId: number,
   inventory: boolean,

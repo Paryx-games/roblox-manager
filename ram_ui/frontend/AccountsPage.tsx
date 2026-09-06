@@ -35,6 +35,7 @@ import {
   arrangeAccountWindows,
   createAccountGroup,
   deleteAccountGroup,
+  updateAccountGroupMeta,
   unlockDevice,
   unlockPassword,
   updateAccountAlias,
@@ -63,10 +64,36 @@ type AccountNotice = {
   message: string;
 };
 
+const GROUP_COLOR_PRESETS: ReadonlyArray<{
+  label: string;
+  color: [number, number, number];
+}> = [
+  { label: "Red", color: [220, 60, 60] },
+  { label: "Green", color: [60, 180, 60] },
+  { label: "Blue", color: [60, 120, 220] },
+  { label: "Yellow", color: [220, 180, 50] },
+  { label: "Purple", color: [160, 60, 220] },
+  { label: "Cyan", color: [60, 200, 200] },
+  { label: "Orange", color: [220, 130, 50] },
+  { label: "Pink", color: [220, 80, 160] },
+];
+
 type AccountSelectionEvent = Pick<
   MouseEvent<HTMLDivElement>,
   "ctrlKey" | "metaKey"
 >;
+
+type GroupContextMenu = {
+  name: string;
+  x: number;
+  y: number;
+};
+
+type GroupEditorState = {
+  originalName: string;
+  name: string;
+  color: string;
+};
 
 function Icon({ name }: { name: string }) {
   return (
@@ -87,6 +114,20 @@ function initials(account: AccountSummary) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function rgbToHex(color: [number, number, number]) {
+  return `#${color.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function hexToRgb(value: string): [number, number, number] | null {
+  const match = /^#([\da-f]{6})$/i.exec(value);
+  if (!match) return null;
+  return [
+    Number.parseInt(match[1].slice(0, 2), 16),
+    Number.parseInt(match[1].slice(2, 4), 16),
+    Number.parseInt(match[1].slice(4, 6), 16),
+  ];
 }
 
 function AccountAvatar({
@@ -229,6 +270,7 @@ function AccountGroup({
   color,
   onTogglePin,
   pinningIds,
+  onContextMenu,
 }: {
   group: AccountGroup;
   collapsed: boolean;
@@ -240,6 +282,7 @@ function AccountGroup({
   color: string;
   onTogglePin: (userId: number) => void;
   pinningIds: Set<number>;
+  onContextMenu: (event: MouseEvent<HTMLButtonElement>, name: string) => void;
 }) {
   return (
     <section
@@ -260,7 +303,9 @@ function AccountGroup({
             onDropGroup(sourceName, group.name);
         }}
         onClick={onToggle}
+        onContextMenu={(event) => onContextMenu(event, group.name)}
         aria-expanded={!collapsed}
+        aria-haspopup={group.name !== "Ungrouped" ? "menu" : undefined}
       >
         <span className={`group-chevron ${collapsed ? "is-collapsed" : ""}`}>
           <Icon name="chevron-down" />
@@ -334,6 +379,12 @@ export function AccountsPage() {
   const [groupOrder, setGroupOrder] = useState<string[]>([]);
   const [playerPath, setPlayerPath] = useState("");
   const [pinningIds, setPinningIds] = useState<Set<number>>(new Set());
+  const [groupContextMenu, setGroupContextMenu] =
+    useState<GroupContextMenu | null>(null);
+  const [groupEditor, setGroupEditor] = useState<GroupEditorState | null>(
+    null,
+  );
+  const groupMenuRef = useRef<HTMLDivElement>(null);
 
   function setNotice(message: string | null) {
     if (message === null) {
@@ -365,6 +416,30 @@ export function AccountsPage() {
     return () =>
       document.removeEventListener("pointerdown", dismissAccountMenu);
   }, [showAccountMenu]);
+
+  useEffect(() => {
+    if (!groupContextMenu) return;
+
+    function dismissGroupMenu(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !groupMenuRef.current?.contains(event.target)
+      ) {
+        setGroupContextMenu(null);
+      }
+    }
+
+    function dismissOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setGroupContextMenu(null);
+    }
+
+    document.addEventListener("pointerdown", dismissGroupMenu);
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissGroupMenu);
+      document.removeEventListener("keydown", dismissOnEscape);
+    };
+  }, [groupContextMenu]);
   const [commonInventory, setCommonInventory] = useState<InventoryItem[]>([]);
   const [commonInventoryLoading, setCommonInventoryLoading] = useState(false);
 
@@ -759,6 +834,83 @@ export function AccountsPage() {
       return;
     }
     await saveGroup(value);
+  }
+
+  function handleGroupContextMenu(
+    event: MouseEvent<HTMLButtonElement>,
+    name: string,
+  ) {
+    event.preventDefault();
+    if (name === "Ungrouped") return;
+    setGroupContextMenu({ name, x: event.clientX, y: event.clientY });
+  }
+
+  function openGroupEditor(name: string) {
+    const color = groupColors[name] ?? [59, 130, 246];
+    setGroupEditor({ originalName: name, name, color: rgbToHex(color) });
+    setGroupContextMenu(null);
+  }
+
+  async function saveGroupEditor() {
+    if (!groupEditor) return;
+    const name = groupEditor.name.trim();
+    const color = hexToRgb(groupEditor.color);
+    if (!name || !color) {
+      setNotice("Enter a group name and choose a valid color.");
+      return;
+    }
+    setMutationLoading(true);
+    try {
+      const groups = await updateAccountGroupMeta(
+        groupEditor.originalName,
+        name,
+        color,
+      );
+      const nextColors: Record<string, [number, number, number]> = {};
+      for (const group of groups) nextColors[group.name] = group.color;
+      setGroupColors(nextColors);
+      setGroupOrder(groups.map((group) => group.name));
+      if (name !== groupEditor.originalName) {
+        setAccounts((current) =>
+          current.map((account) =>
+            account.group === groupEditor.originalName
+              ? { ...account, group: name }
+              : account,
+          ),
+        );
+      }
+      setGroupEditor(null);
+      setNotice("Group saved.");
+    } catch {
+      setNotice("The group could not be saved.");
+    } finally {
+      setMutationLoading(false);
+    }
+  }
+
+  async function deleteGroupFromMenu(name: string) {
+    setGroupContextMenu(null);
+    if (!window.confirm(`Delete group ${name}?`)) return;
+    setMutationLoading(true);
+    try {
+      await deleteAccountGroup(name);
+      setAccounts((current) =>
+        current.map((account) =>
+          account.group === name ? { ...account, group: "" } : account,
+        ),
+      );
+      setGroupColors((current) => {
+        const next = { ...current };
+        delete next[name];
+        return next;
+      });
+      setGroupOrder((current) => current.filter((group) => group !== name));
+      setNotice("Group deleted.");
+    } catch {
+      setNotice("The group could not be deleted.");
+    } finally {
+      setMutationLoading(false);
+    }
   }
 
   async function savePlayerPath() {
@@ -1336,10 +1488,136 @@ export function AccountsPage() {
               color={group.color}
               onTogglePin={(userId) => void togglePinForAccount(userId)}
               pinningIds={pinningIds}
+              onContextMenu={handleGroupContextMenu}
             />
           ))}
         </div>
+        {groupContextMenu && (
+          <div
+            className="account-menu group-context-menu"
+            ref={groupMenuRef}
+            role="menu"
+            style={{ left: groupContextMenu.x, top: groupContextMenu.y }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => openGroupEditor(groupContextMenu.name)}
+            >
+              <Icon name="edit" />
+              Rename and color
+            </button>
+            <div className="account-menu-separator" role="separator" />
+            <button
+              className="account-menu-danger"
+              type="button"
+              role="menuitem"
+              onClick={() => void deleteGroupFromMenu(groupContextMenu.name)}
+            >
+              <Icon name="delete" />
+              Delete group
+            </button>
+          </div>
+        )}
       </aside>
+
+      {groupEditor && (
+        <div className="group-editor-backdrop" role="presentation">
+          <section
+            className="group-editor"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="group-editor-title"
+          >
+            <div className="group-editor-header">
+              <h2 id="group-editor-title">Edit group</h2>
+              <button
+                className="icon-button"
+                type="button"
+                aria-label="Close group editor"
+                data-tip="Close"
+                onClick={() => setGroupEditor(null)}
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+            <label className="group-editor-field">
+              <span>Group name</span>
+              <input
+                value={groupEditor.name}
+                onChange={(event) =>
+                  setGroupEditor((current) =>
+                    current ? { ...current, name: event.target.value } : null,
+                  )
+                }
+                maxLength={64}
+                autoFocus
+              />
+            </label>
+            <div className="group-editor-field">
+              <span>Color</span>
+              <div className="group-color-controls">
+                <input
+                  className="group-color-picker"
+                  type="color"
+                  value={groupEditor.color}
+                  aria-label="Choose group color"
+                  onChange={(event) =>
+                    setGroupEditor((current) =>
+                      current
+                        ? { ...current, color: event.target.value }
+                        : null,
+                    )
+                  }
+                />
+                <span className="group-color-value">{groupEditor.color}</span>
+              </div>
+              <div className="group-color-presets">
+                {GROUP_COLOR_PRESETS.map((preset) => (
+                  <button
+                    className="group-color-swatch"
+                    key={preset.label}
+                    type="button"
+                    aria-label={`${preset.label} group color`}
+                    aria-pressed={
+                      groupEditor.color === rgbToHex(preset.color)
+                    }
+                    style={{
+                      backgroundColor: `rgb(${preset.color.join(", ")})`,
+                    }}
+                    onClick={() =>
+                      setGroupEditor((current) =>
+                        current
+                          ? { ...current, color: rgbToHex(preset.color) }
+                          : null,
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="group-editor-actions">
+              <button
+                className="account-button"
+                type="button"
+                onClick={() => setGroupEditor(null)}
+              >
+                <Icon name="close" />
+                Cancel
+              </button>
+              <button
+                className="account-button primary"
+                type="button"
+                disabled={mutationLoading}
+                onClick={() => void saveGroupEditor()}
+              >
+                <Icon name="save" />
+                Save group
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <section className="accounts-detail-panel" aria-label="Account details">
         {!selectedAccount ? (
