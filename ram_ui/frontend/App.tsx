@@ -153,8 +153,8 @@ export function App() {
                 <section className="empty-state" aria-labelledby="whoops-title">
                   <h2 id="whoops-title">Whoops!</h2>
                   <p>
-                    You need to disable 'Auto-Pick Clients' inside the settings to
-                    use this feature.
+                    You need to disable 'Auto-Pick Clients' inside the settings
+                    to use this feature.
                   </p>
                 </section>
               </main>

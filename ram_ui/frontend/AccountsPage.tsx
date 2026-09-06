@@ -1272,913 +1272,929 @@ export function AccountsPage() {
         onContextMenu={(event) => event.preventDefault()}
       >
         <aside className="accounts-list-panel" aria-label="Managed accounts">
-        <div className="accounts-list-head">
-          <div className="accounts-search-row">
-            <label className="accounts-search-field">
-              <Icon name="search" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search accounts"
-              />
-            </label>
-            <button
-              className="icon-button bordered"
-              type="button"
-              aria-label="Add account"
-              data-tip="Add account"
-              onClick={() => setShowAddForm((current) => !current)}
-            >
-              <Icon name="add" />
-            </button>
-            <button
-              className="icon-button bordered"
-              type="button"
-              aria-label="Add group"
-              data-tip="Add group"
-              onClick={() => void createGroup()}
-            >
-              <Icon name="groups" />
-            </button>
-          </div>
-          {showAddForm && (
-            <div className="add-account-form">
+          <div className="accounts-list-head">
+            <div className="accounts-search-row">
+              <label className="accounts-search-field">
+                <Icon name="search" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search accounts"
+                />
+              </label>
               <button
-                className="account-button"
+                className="icon-button bordered"
                 type="button"
-                disabled={mutationLoading}
-                onClick={() => void addAccountFromBrowser()}
+                aria-label="Add account"
+                data-tip="Add account"
+                onClick={() => setShowAddForm((current) => !current)}
               >
-                <Icon name="browser" />
-                Log in with browser
-              </button>
-              <span className="account-form-divider">or paste a cookie</span>
-              <label htmlFor="account-cookie">Roblox security cookie</label>
-              <input
-                id="account-cookie"
-                type="password"
-                value={cookie}
-                onChange={(event) => setCookie(event.target.value)}
-                placeholder="Paste cookie to validate"
-                autoComplete="off"
-              />
-              <button
-                className="account-button primary"
-                type="button"
-                disabled={!cookie || mutationLoading}
-                onClick={() => void addManagedAccount()}
-              >
-                Validate and add account
-              </button>
-              {addError && (
-                <div className="add-account-recovery">
-                  <strong>{addError}</strong>
-                  <label htmlFor="force-add-username">
-                    Roblox username for unvalidated account
-                  </label>
-                  <input
-                    id="force-add-username"
-                    value={forceAddUsername}
-                    onChange={(event) =>
-                      setForceAddUsername(event.target.value)
-                    }
-                    placeholder="Username"
-                    autoComplete="off"
-                  />
-                  <button
-                    className="account-button"
-                    type="button"
-                    disabled={!forceAddUsername.trim() || mutationLoading}
-                    onClick={() => void addManagedAccountAnyway()}
-                  >
-                    Add anyway
-                  </button>
-                </div>
-              )}
-              <span className="account-form-divider">bulk import</span>
-              <textarea
-                value={bulkCookieInput}
-                onChange={(event) => setBulkCookieInput(event.target.value)}
-                placeholder="Paste one cookie per line, comma-separated, or load a text file"
-                rows={4}
-                disabled={mutationLoading}
-              />
-              <input
-                type="file"
-                accept=".txt,.csv,.tsv,text/plain,text/csv"
-                disabled={mutationLoading}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void file.text().then(setBulkCookieInput);
-                  event.currentTarget.value = "";
-                }}
-              />
-              <button
-                className="account-button"
-                type="button"
-                disabled={
-                  !parseCookies(bulkCookieInput).length || mutationLoading
-                }
-                onClick={() => void importAccounts()}
-              >
-                Import {parseCookies(bulkCookieInput).length} account(s)
-              </button>
-              {bulkProgress && (
-                <span className="account-form-progress">
-                  Processed {bulkProgress[0]} of {bulkProgress[1]}...
-                </span>
-              )}
-            </div>
-          )}
-          <div className="accounts-sort-row">
-            <span>Sort:</span>
-            <select
-              value={sortMode}
-              onChange={(event) => setSortMode(event.target.value as SortMode)}
-              aria-label="Sort accounts"
-            >
-              <option value="custom">Custom</option>
-              <option value="username">Username</option>
-              <option value="status">Status</option>
-              <option value="accountAge">Account age</option>
-              <option value="lastActivity">Last used</option>
-            </select>
-            <select
-              value={descending ? "descending" : "ascending"}
-              onChange={(event) =>
-                setDescending(event.target.value === "descending")
-              }
-              aria-label="Sort direction"
-            >
-              <option value="ascending">Ascending</option>
-              <option value="descending">Descending</option>
-            </select>
-          </div>
-          {selectedIds.size > 1 && (
-            <div className="bulk-account-actions">
-              <span>{selectedIds.size} selected</span>
-              <button
-                type="button"
-                onClick={() => void refreshPresence()}
-                disabled={presenceLoading}
-              >
-                <Icon name="refresh" />
-                Refresh status
+                <Icon name="add" />
               </button>
               <button
+                className="icon-button bordered"
                 type="button"
-                onClick={() => void bulkLaunch()}
-                disabled={mutationLoading}
+                aria-label="Add group"
+                data-tip="Add group"
+                onClick={() => void createGroup()}
               >
-                <Icon name="launch" />
-                Bulk launch
-              </button>
-              <button
-                type="button"
-                onClick={() => void openSelectedBrowsers()}
-                disabled={mutationLoading}
-              >
-                <Icon name="browser" />
-                Open browsers
-              </button>
-              <button type="button" onClick={() => void copySelectedIds()}>
-                Copy IDs
-              </button>
-              <button
-                type="button"
-                onClick={() => void changeSelectedPath()}
-                disabled={mutationLoading}
-              >
-                Change path
-              </button>
-              <button
-                type="button"
-                onClick={() => void loadCommonInventory()}
-                disabled={commonInventoryLoading}
-              >
-                Common inventory
+                <Icon name="groups" />
               </button>
             </div>
-          )}
-          {commonInventory.length > 0 && (
-            <p className="common-inventory-summary">
-              {commonInventory.length} common inventory item(s)
-            </p>
-          )}
-        </div>
-        <div className="accounts-groups">
-          {loading && (
-            <p className="accounts-list-message">Loading accounts...</p>
-          )}
-          {!loading && error && (
-            <div className="accounts-list-message accounts-error">
-              <p>{error}</p>
-              {storeStatus?.needsPassword ? (
-                <div className="unlock-form">
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Master password"
-                    aria-label="Master password"
-                  />
-                  <button
-                    className="account-button"
-                    type="button"
-                    disabled={!password || mutationLoading}
-                    onClick={() => void unlockStore()}
-                  >
-                    Unlock accounts
-                  </button>
-                </div>
-              ) : (
+            {showAddForm && (
+              <div className="add-account-form">
                 <button
                   className="account-button"
                   type="button"
-                  onClick={() => setReloadKey((current) => current + 1)}
+                  disabled={mutationLoading}
+                  onClick={() => void addAccountFromBrowser()}
                 >
-                  Retry loading accounts
+                  <Icon name="browser" />
+                  Log in with browser
                 </button>
-              )}
-            </div>
-          )}
-          {!loading && !error && groups.length === 0 && (
-            <p className="accounts-list-message">
-              No accounts match this search.
-            </p>
-          )}
-          {groups.map((group) => (
-            <AccountGroup
-              group={group}
-              key={group.name}
-              collapsed={Boolean(collapsed[group.name])}
-              onToggle={() =>
-                setCollapsed((current) => ({
-                  ...current,
-                  [group.name]: !current[group.name],
-                }))
-              }
-              selectedId={selectedId}
-              onSelect={selectAccountWithModifiers}
-              onDropAccount={(sourceId, targetId) =>
-                void reorderAccount(sourceId, targetId)
-              }
-              onDropGroup={(sourceName, targetName) =>
-                void reorderGroup(sourceName, targetName)
-              }
-              color={group.color}
-              onTogglePin={(userId) => void togglePinForAccount(userId)}
-              pinningIds={pinningIds}
-              onContextMenu={handleGroupContextMenu}
-            />
-          ))}
-        </div>
-        {groupContextMenu && (
-          <div
-            className="account-menu group-context-menu"
-            ref={groupMenuRef}
-            role="menu"
-            style={{ left: groupContextMenu.x, top: groupContextMenu.y }}
-          >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => openGroupEditor(groupContextMenu.name)}
-            >
-              <Icon name="edit" />
-              Rename and color
-            </button>
-            <div className="account-menu-separator" role="separator" />
-            <button
-              className="account-menu-danger"
-              type="button"
-              role="menuitem"
-              onClick={() => void deleteGroupFromMenu(groupContextMenu.name)}
-            >
-              <Icon name="delete" />
-              Delete group
-            </button>
-          </div>
-        )}
-        </aside>
-
-      {groupEditor && (
-        <div className="group-editor-backdrop" role="presentation">
-          <section
-            className="group-editor"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="group-editor-title"
-          >
-            <div className="group-editor-header">
-              <h2 id="group-editor-title">Edit group</h2>
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Close group editor"
-                data-tip="Close"
-                onClick={() => setGroupEditor(null)}
+                <span className="account-form-divider">or paste a cookie</span>
+                <label htmlFor="account-cookie">Roblox security cookie</label>
+                <input
+                  id="account-cookie"
+                  type="password"
+                  value={cookie}
+                  onChange={(event) => setCookie(event.target.value)}
+                  placeholder="Paste cookie to validate"
+                  autoComplete="off"
+                />
+                <button
+                  className="account-button primary"
+                  type="button"
+                  disabled={!cookie || mutationLoading}
+                  onClick={() => void addManagedAccount()}
+                >
+                  Validate and add account
+                </button>
+                {addError && (
+                  <div className="add-account-recovery">
+                    <strong>{addError}</strong>
+                    <label htmlFor="force-add-username">
+                      Roblox username for unvalidated account
+                    </label>
+                    <input
+                      id="force-add-username"
+                      value={forceAddUsername}
+                      onChange={(event) =>
+                        setForceAddUsername(event.target.value)
+                      }
+                      placeholder="Username"
+                      autoComplete="off"
+                    />
+                    <button
+                      className="account-button"
+                      type="button"
+                      disabled={!forceAddUsername.trim() || mutationLoading}
+                      onClick={() => void addManagedAccountAnyway()}
+                    >
+                      Add anyway
+                    </button>
+                  </div>
+                )}
+                <span className="account-form-divider">bulk import</span>
+                <textarea
+                  value={bulkCookieInput}
+                  onChange={(event) => setBulkCookieInput(event.target.value)}
+                  placeholder="Paste one cookie per line, comma-separated, or load a text file"
+                  rows={4}
+                  disabled={mutationLoading}
+                />
+                <input
+                  type="file"
+                  accept=".txt,.csv,.tsv,text/plain,text/csv"
+                  disabled={mutationLoading}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void file.text().then(setBulkCookieInput);
+                    event.currentTarget.value = "";
+                  }}
+                />
+                <button
+                  className="account-button"
+                  type="button"
+                  disabled={
+                    !parseCookies(bulkCookieInput).length || mutationLoading
+                  }
+                  onClick={() => void importAccounts()}
+                >
+                  Import {parseCookies(bulkCookieInput).length} account(s)
+                </button>
+                {bulkProgress && (
+                  <span className="account-form-progress">
+                    Processed {bulkProgress[0]} of {bulkProgress[1]}...
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="accounts-sort-row">
+              <span>Sort:</span>
+              <select
+                value={sortMode}
+                onChange={(event) =>
+                  setSortMode(event.target.value as SortMode)
+                }
+                aria-label="Sort accounts"
               >
-                <Icon name="close" />
+                <option value="custom">Custom</option>
+                <option value="username">Username</option>
+                <option value="status">Status</option>
+                <option value="accountAge">Account age</option>
+                <option value="lastActivity">Last used</option>
+              </select>
+              <select
+                value={descending ? "descending" : "ascending"}
+                onChange={(event) =>
+                  setDescending(event.target.value === "descending")
+                }
+                aria-label="Sort direction"
+              >
+                <option value="ascending">Ascending</option>
+                <option value="descending">Descending</option>
+              </select>
+            </div>
+            {selectedIds.size > 1 && (
+              <div className="bulk-account-actions">
+                <span>{selectedIds.size} selected</span>
+                <button
+                  type="button"
+                  onClick={() => void refreshPresence()}
+                  disabled={presenceLoading}
+                >
+                  <Icon name="refresh" />
+                  Refresh status
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void bulkLaunch()}
+                  disabled={mutationLoading}
+                >
+                  <Icon name="launch" />
+                  Bulk launch
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void openSelectedBrowsers()}
+                  disabled={mutationLoading}
+                >
+                  <Icon name="browser" />
+                  Open browsers
+                </button>
+                <button type="button" onClick={() => void copySelectedIds()}>
+                  Copy IDs
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void changeSelectedPath()}
+                  disabled={mutationLoading}
+                >
+                  Change path
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void loadCommonInventory()}
+                  disabled={commonInventoryLoading}
+                >
+                  Common inventory
+                </button>
+              </div>
+            )}
+            {commonInventory.length > 0 && (
+              <p className="common-inventory-summary">
+                {commonInventory.length} common inventory item(s)
+              </p>
+            )}
+          </div>
+          <div className="accounts-groups">
+            {loading && (
+              <p className="accounts-list-message">Loading accounts...</p>
+            )}
+            {!loading && error && (
+              <div className="accounts-list-message accounts-error">
+                <p>{error}</p>
+                {storeStatus?.needsPassword ? (
+                  <div className="unlock-form">
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="Master password"
+                      aria-label="Master password"
+                    />
+                    <button
+                      className="account-button"
+                      type="button"
+                      disabled={!password || mutationLoading}
+                      onClick={() => void unlockStore()}
+                    >
+                      Unlock accounts
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="account-button"
+                    type="button"
+                    onClick={() => setReloadKey((current) => current + 1)}
+                  >
+                    Retry loading accounts
+                  </button>
+                )}
+              </div>
+            )}
+            {!loading && !error && groups.length === 0 && (
+              <p className="accounts-list-message">
+                No accounts match this search.
+              </p>
+            )}
+            {groups.map((group) => (
+              <AccountGroup
+                group={group}
+                key={group.name}
+                collapsed={Boolean(collapsed[group.name])}
+                onToggle={() =>
+                  setCollapsed((current) => ({
+                    ...current,
+                    [group.name]: !current[group.name],
+                  }))
+                }
+                selectedId={selectedId}
+                onSelect={selectAccountWithModifiers}
+                onDropAccount={(sourceId, targetId) =>
+                  void reorderAccount(sourceId, targetId)
+                }
+                onDropGroup={(sourceName, targetName) =>
+                  void reorderGroup(sourceName, targetName)
+                }
+                color={group.color}
+                onTogglePin={(userId) => void togglePinForAccount(userId)}
+                pinningIds={pinningIds}
+                onContextMenu={handleGroupContextMenu}
+              />
+            ))}
+          </div>
+          {groupContextMenu && (
+            <div
+              className="account-menu group-context-menu"
+              ref={groupMenuRef}
+              role="menu"
+              style={{ left: groupContextMenu.x, top: groupContextMenu.y }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => openGroupEditor(groupContextMenu.name)}
+              >
+                <Icon name="edit" />
+                Rename and color
+              </button>
+              <div className="account-menu-separator" role="separator" />
+              <button
+                className="account-menu-danger"
+                type="button"
+                role="menuitem"
+                onClick={() => void deleteGroupFromMenu(groupContextMenu.name)}
+              >
+                <Icon name="delete" />
+                Delete group
               </button>
             </div>
-            <label className="group-editor-field">
-              <span>Group name</span>
-              <input
-                value={groupEditor.name}
-                onChange={(event) =>
-                  setGroupEditor((current) =>
-                    current ? { ...current, name: event.target.value } : null,
-                  )
-                }
-                maxLength={64}
-                autoFocus
-              />
-            </label>
-            <div className="group-editor-field">
-              <span>Color</span>
-              <div className="group-color-controls">
+          )}
+        </aside>
+
+        {groupEditor && (
+          <div className="group-editor-backdrop" role="presentation">
+            <section
+              className="group-editor"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="group-editor-title"
+            >
+              <div className="group-editor-header">
+                <h2 id="group-editor-title">Edit group</h2>
+                <button
+                  className="icon-button"
+                  type="button"
+                  aria-label="Close group editor"
+                  data-tip="Close"
+                  onClick={() => setGroupEditor(null)}
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+              <label className="group-editor-field">
+                <span>Group name</span>
                 <input
-                  className="group-color-picker"
-                  type="color"
-                  value={groupEditor.color}
-                  aria-label="Choose group color"
+                  value={groupEditor.name}
                   onChange={(event) =>
                     setGroupEditor((current) =>
-                      current
-                        ? { ...current, color: event.target.value }
-                        : null,
+                      current ? { ...current, name: event.target.value } : null,
                     )
                   }
+                  maxLength={64}
+                  autoFocus
                 />
-                <span className="group-color-value">{groupEditor.color}</span>
-              </div>
-              <div className="group-color-presets">
-                {GROUP_COLOR_PRESETS.map((preset) => (
-                  <button
-                    className="group-color-swatch"
-                    key={preset.label}
-                    type="button"
-                    aria-label={`${preset.label} group color`}
-                    aria-pressed={groupEditor.color === rgbToHex(preset.color)}
-                    style={{
-                      backgroundColor: `rgb(${preset.color.join(", ")})`,
-                    }}
-                    onClick={() =>
+              </label>
+              <div className="group-editor-field">
+                <span>Color</span>
+                <div className="group-color-controls">
+                  <input
+                    className="group-color-picker"
+                    type="color"
+                    value={groupEditor.color}
+                    aria-label="Choose group color"
+                    onChange={(event) =>
                       setGroupEditor((current) =>
                         current
-                          ? { ...current, color: rgbToHex(preset.color) }
+                          ? { ...current, color: event.target.value }
                           : null,
                       )
                     }
                   />
-                ))}
-              </div>
-            </div>
-            <div className="group-editor-actions">
-              <button
-                className="account-button"
-                type="button"
-                onClick={() => setGroupEditor(null)}
-              >
-                <Icon name="close" />
-                Cancel
-              </button>
-              <button
-                className="account-button primary"
-                type="button"
-                disabled={mutationLoading}
-                onClick={() => void saveGroupEditor()}
-              >
-                <Icon name="save" />
-                Save group
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-
-      {groupDeleteConfirmation && (
-        <ConfirmModal
-          title="Delete group?"
-          message={
-            <>
-              Delete{" "}
-              <strong
-                style={{
-                  color: groups.find(
-                    (group) => group.name === groupDeleteConfirmation,
-                  )?.color,
-                }}
-              >
-                {groupDeleteConfirmation}
-              </strong>
-              ? This will not delete the accounts. They will remain managed and
-              become ungrouped.
-            </>
-          }
-          confirmLabel="Delete group"
-          confirmDisabled={mutationLoading}
-          onCancel={() => setGroupDeleteConfirmation(null)}
-          onConfirm={() => void confirmGroupDeletion()}
-        />
-      )}
-
-        <section className="accounts-detail-panel" aria-label="Account details">
-        {!selectedAccount ? (
-          <div className="accounts-detail-empty">
-            <Icon name="id-card" />
-            <h2>Select an account</h2>
-            <p>
-              Choose a managed account to view launch controls and account
-              details.
-            </p>
-          </div>
-        ) : (
-          <>
-            <section className="account-card account-profile-card">
-              <AccountAvatar account={selectedAccount} large />
-              <div className="account-profile-copy">
-                <div className="account-identity-name">
-                  <h2>
-                    {selectedAccount.displayName || selectedAccount.label}
-                  </h2>
-                  <button
-                    className="identity-icon-button"
-                    type="button"
-                    aria-label="Open account profile in browser"
-                    data-tip="Open profile"
-                    onClick={() => void openAccountPage(false)}
-                  >
-                    <Icon name="link" />
-                  </button>
+                  <span className="group-color-value">{groupEditor.color}</span>
                 </div>
-                <div className="account-identity-username">
-                  <p>@{selectedAccount.username}</p>
-                  <button
-                    className="identity-icon-button"
-                    type="button"
-                    aria-label="Copy username"
-                    data-tip="Copy username"
-                    onClick={() => void copyUsername()}
-                  >
-                    <Icon name="copy" />
-                  </button>
+                <div className="group-color-presets">
+                  {GROUP_COLOR_PRESETS.map((preset) => (
+                    <button
+                      className="group-color-swatch"
+                      key={preset.label}
+                      type="button"
+                      aria-label={`${preset.label} group color`}
+                      aria-pressed={
+                        groupEditor.color === rgbToHex(preset.color)
+                      }
+                      style={{
+                        backgroundColor: `rgb(${preset.color.join(", ")})`,
+                      }}
+                      onClick={() =>
+                        setGroupEditor((current) =>
+                          current
+                            ? { ...current, color: rgbToHex(preset.color) }
+                            : null,
+                        )
+                      }
+                    />
+                  ))}
                 </div>
-                <span className="account-id">ID: {selectedAccount.userId}</span>
-                <span className="status-pill">
-                  <span
-                    className={`presence-dot presence-${selectedAccount.presence}`}
-                  />
-                  {selectedAccount.presenceText}
-                </span>
               </div>
-              <div className="account-menu-anchor" ref={accountMenuRef}>
+              <div className="group-editor-actions">
                 <button
-                  className="icon-button"
+                  className="account-button"
                   type="button"
-                  aria-label="More account actions"
-                  data-tip="More actions"
-                  onClick={() => setShowAccountMenu((current) => !current)}
+                  onClick={() => setGroupEditor(null)}
                 >
-                  <Icon name="more" />
+                  <Icon name="close" />
+                  Cancel
                 </button>
-                {showAccountMenu && (
-                  <div className="account-menu" role="menu">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        void browseAs();
-                        setShowAccountMenu(false);
-                      }}
-                    >
-                      <Icon name="browser" />
-                      Browse as account
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        void togglePin();
-                        setShowAccountMenu(false);
-                      }}
-                    >
-                      <Icon
-                        name={selectedAccount.isPinned ? "pin-off" : "pin"}
-                      />
-                      {selectedAccount.isPinned
-                        ? "Unpin account"
-                        : "Pin account"}
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        void removeSelectedAccount();
-                        setShowAccountMenu(false);
-                      }}
-                    >
-                      <Icon name="delete" />
-                      Remove account
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        void revalidate();
-                        setShowAccountMenu(false);
-                      }}
-                    >
-                      <Icon name="refresh" />
-                      Revalidate account
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        void arrangeAccountWindows();
-                        setShowAccountMenu(false);
-                      }}
-                    >
-                      <Icon name="grid" />
-                      Arrange windows
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        void killAllAccounts();
-                        setShowAccountMenu(false);
-                      }}
-                    >
-                      <Icon name="kill" />
-                      Kill all Roblox
-                    </button>
-                  </div>
-                )}
+                <button
+                  className="account-button primary"
+                  type="button"
+                  disabled={mutationLoading}
+                  onClick={() => void saveGroupEditor()}
+                >
+                  <Icon name="save" />
+                  Save group
+                </button>
               </div>
             </section>
+          </div>
+        )}
 
-            {(selectedAccount.moderationActive ||
-              selectedAccount.cookieExpired) && (
-              <section className="account-warning" role="alert">
-                <Icon name="warning" />
-                <div>
-                  <strong>
-                    {selectedAccount.moderationBanned
-                      ? "Warning: Account terminated"
-                      : selectedAccount.cookieExpired
-                        ? "Account credential expired"
-                        : "Warning: Account moderated"}
-                  </strong>
-                  {selectedAccount.moderationReason && (
-                    <span>{selectedAccount.moderationReason}</span>
+        {groupDeleteConfirmation && (
+          <ConfirmModal
+            title="Delete group?"
+            message={
+              <>
+                Delete{" "}
+                <strong
+                  style={{
+                    color: groups.find(
+                      (group) => group.name === groupDeleteConfirmation,
+                    )?.color,
+                  }}
+                >
+                  {groupDeleteConfirmation}
+                </strong>
+                ? This will not delete the accounts. They will remain managed
+                and become ungrouped.
+              </>
+            }
+            confirmLabel="Delete group"
+            confirmDisabled={mutationLoading}
+            onCancel={() => setGroupDeleteConfirmation(null)}
+            onConfirm={() => void confirmGroupDeletion()}
+          />
+        )}
+
+        <section className="accounts-detail-panel" aria-label="Account details">
+          {!selectedAccount ? (
+            <div className="accounts-detail-empty">
+              <Icon name="id-card" />
+              <h2>Select an account</h2>
+              <p>
+                Choose a managed account to view launch controls and account
+                details.
+              </p>
+            </div>
+          ) : (
+            <>
+              <section className="account-card account-profile-card">
+                <AccountAvatar account={selectedAccount} large />
+                <div className="account-profile-copy">
+                  <div className="account-identity-name">
+                    <h2>
+                      {selectedAccount.displayName || selectedAccount.label}
+                    </h2>
+                    <button
+                      className="identity-icon-button"
+                      type="button"
+                      aria-label="Open account profile in browser"
+                      data-tip="Open profile"
+                      onClick={() => void openAccountPage(false)}
+                    >
+                      <Icon name="link" />
+                    </button>
+                  </div>
+                  <div className="account-identity-username">
+                    <p>@{selectedAccount.username}</p>
+                    <button
+                      className="identity-icon-button"
+                      type="button"
+                      aria-label="Copy username"
+                      data-tip="Copy username"
+                      onClick={() => void copyUsername()}
+                    >
+                      <Icon name="copy" />
+                    </button>
+                  </div>
+                  <span className="account-id">
+                    ID: {selectedAccount.userId}
+                  </span>
+                  <span className="status-pill">
+                    <span
+                      className={`presence-dot presence-${selectedAccount.presence}`}
+                    />
+                    {selectedAccount.presenceText}
+                  </span>
+                </div>
+                <div className="account-menu-anchor" ref={accountMenuRef}>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label="More account actions"
+                    data-tip="More actions"
+                    onClick={() => setShowAccountMenu((current) => !current)}
+                  >
+                    <Icon name="more" />
+                  </button>
+                  {showAccountMenu && (
+                    <div className="account-menu" role="menu">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          void browseAs();
+                          setShowAccountMenu(false);
+                        }}
+                      >
+                        <Icon name="browser" />
+                        Browse as account
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          void togglePin();
+                          setShowAccountMenu(false);
+                        }}
+                      >
+                        <Icon
+                          name={selectedAccount.isPinned ? "pin-off" : "pin"}
+                        />
+                        {selectedAccount.isPinned
+                          ? "Unpin account"
+                          : "Pin account"}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          void removeSelectedAccount();
+                          setShowAccountMenu(false);
+                        }}
+                      >
+                        <Icon name="delete" />
+                        Remove account
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          void revalidate();
+                          setShowAccountMenu(false);
+                        }}
+                      >
+                        <Icon name="refresh" />
+                        Revalidate account
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          void arrangeAccountWindows();
+                          setShowAccountMenu(false);
+                        }}
+                      >
+                        <Icon name="grid" />
+                        Arrange windows
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          void killAllAccounts();
+                          setShowAccountMenu(false);
+                        }}
+                      >
+                        <Icon name="kill" />
+                        Kill all Roblox
+                      </button>
+                    </div>
                   )}
-                  {selectedAccount.moderationExpiresAt && (
-                    <span>
-                      Expires:{" "}
-                      {formatActivity(selectedAccount.moderationExpiresAt)}
-                    </span>
-                  )}
+                </div>
+              </section>
+
+              {(selectedAccount.moderationActive ||
+                selectedAccount.cookieExpired) && (
+                <section className="account-warning" role="alert">
+                  <Icon name="warning" />
+                  <div>
+                    <strong>
+                      {selectedAccount.moderationBanned
+                        ? "Warning: Account terminated"
+                        : selectedAccount.cookieExpired
+                          ? "Account credential expired"
+                          : "Warning: Account moderated"}
+                    </strong>
+                    {selectedAccount.moderationReason && (
+                      <span>{selectedAccount.moderationReason}</span>
+                    )}
+                    {selectedAccount.moderationExpiresAt && (
+                      <span>
+                        Expires:{" "}
+                        {formatActivity(selectedAccount.moderationExpiresAt)}
+                      </span>
+                    )}
+                    <button
+                      className="account-button"
+                      type="button"
+                      onClick={() => void browseAs()}
+                    >
+                      <Icon name="browser" />
+                      Open browser as account
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              <section className="account-card launch-card">
+                <div className="account-field">
+                  <label htmlFor="place-id">Place ID</label>
+                  <input
+                    id="place-id"
+                    className={!placeIdValid && placeId ? "has-error" : ""}
+                    value={placeId}
+                    onChange={(event) => setPlaceId(event.target.value)}
+                    inputMode="numeric"
+                  />
+                </div>
+                <div className="account-field-grid">
+                  <div className="account-field">
+                    <label htmlFor="job-id">Job ID (optional)</label>
+                    <input
+                      id="job-id"
+                      value={jobId}
+                      onChange={(event) => setJobId(event.target.value)}
+                      placeholder="Specific server GUID"
+                    />
+                  </div>
+                  <div className="account-field">
+                    <label htmlFor="launch-data">Data (optional)</label>
+                    <input
+                      id="launch-data"
+                      value={launchData}
+                      onChange={(event) => setLaunchData(event.target.value)}
+                      placeholder="Extra launch query data"
+                    />
+                  </div>
+                </div>
+                <p className="account-hint">
+                  Examples: <code>?linkCode=CODE</code>{" "}
+                  <code>?accessCode=CODE</code> <code>?userId=123456789</code>
+                </p>
+                <div className="account-action-row">
+                  <button
+                    className="account-button primary"
+                    type="button"
+                    onClick={launchAccount}
+                    disabled={!selectedAccount.canLaunch}
+                  >
+                    <Icon name="launch" />
+                    Launch
+                  </button>
                   <button
                     className="account-button"
                     type="button"
                     onClick={() => void browseAs()}
                   >
                     <Icon name="browser" />
-                    Open browser as account
+                    Open browser
                   </button>
-                </div>
-              </section>
-            )}
-
-            <section className="account-card launch-card">
-              <div className="account-field">
-                <label htmlFor="place-id">Place ID</label>
-                <input
-                  id="place-id"
-                  className={!placeIdValid && placeId ? "has-error" : ""}
-                  value={placeId}
-                  onChange={(event) => setPlaceId(event.target.value)}
-                  inputMode="numeric"
-                />
-              </div>
-              <div className="account-field-grid">
-                <div className="account-field">
-                  <label htmlFor="job-id">Job ID (optional)</label>
-                  <input
-                    id="job-id"
-                    value={jobId}
-                    onChange={(event) => setJobId(event.target.value)}
-                    placeholder="Specific server GUID"
-                  />
-                </div>
-                <div className="account-field">
-                  <label htmlFor="launch-data">Data (optional)</label>
-                  <input
-                    id="launch-data"
-                    value={launchData}
-                    onChange={(event) => setLaunchData(event.target.value)}
-                    placeholder="Extra launch query data"
-                  />
-                </div>
-              </div>
-              <p className="account-hint">
-                Examples: <code>?linkCode=CODE</code>{" "}
-                <code>?accessCode=CODE</code> <code>?userId=123456789</code>
-              </p>
-              <div className="account-action-row">
-                <button
-                  className="account-button primary"
-                  type="button"
-                  onClick={launchAccount}
-                  disabled={!selectedAccount.canLaunch}
-                >
-                  <Icon name="launch" />
-                  Launch
-                </button>
-                <button
-                  className="account-button"
-                  type="button"
-                  onClick={() => void browseAs()}
-                >
-                  <Icon name="browser" />
-                  Open browser
-                </button>
-                <button
-                  className="icon-button bordered"
-                  type="button"
-                  aria-label="Save preset"
-                  data-tip="Save preset"
-                  onClick={() => void savePreset()}
-                >
-                  <Icon name="star" />
-                </button>
-              </div>
-              {notices.map((notice) => (
-                <TimedNotice
-                  key={notice.id}
-                  message={notice.message}
-                  onDismiss={() => dismissNotice(notice.id)}
-                />
-              ))}
-            </section>
-
-            <section className="account-card">
-              <div className="account-card-header">
-                <h3>Roblox inventory</h3>
-                <div className="account-card-actions">
                   <button
                     className="icon-button bordered"
                     type="button"
-                    aria-label="Refresh inventory"
-                    data-tip="Refresh"
-                    onClick={() => void loadInventory()}
+                    aria-label="Save preset"
+                    data-tip="Save preset"
+                    onClick={() => void savePreset()}
                   >
-                    <Icon name="refresh" />
+                    <Icon name="star" />
                   </button>
+                </div>
+                {notices.map((notice) => (
+                  <TimedNotice
+                    key={notice.id}
+                    message={notice.message}
+                    onDismiss={() => dismissNotice(notice.id)}
+                  />
+                ))}
+              </section>
+
+              <section className="account-card">
+                <div className="account-card-header">
+                  <h3>Roblox inventory</h3>
+                  <div className="account-card-actions">
+                    <button
+                      className="icon-button bordered"
+                      type="button"
+                      aria-label="Refresh inventory"
+                      data-tip="Refresh"
+                      onClick={() => void loadInventory()}
+                    >
+                      <Icon name="refresh" />
+                    </button>
+                    <button
+                      className="account-button"
+                      type="button"
+                      onClick={() => void openAccountPage(true)}
+                    >
+                      <Icon name="inventory" />
+                      Open inventory
+                    </button>
+                  </div>
+                </div>
+                {inventoryLoading ? (
+                  <div className="account-empty-inline">
+                    <strong>Loading inventory...</strong>
+                  </div>
+                ) : inventory.length === 0 ? (
+                  <div className="account-empty-inline">
+                    <Icon name="inventory" />
+                    <strong>No user inventory loaded yet</strong>
+                    <span>
+                      Refresh to fetch hats, accessories, clothing, gear, and
+                      emotes.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="inventory-list">
+                    {inventory.map((item) => (
+                      <div className="inventory-row" key={item.assetId}>
+                        <span className="data-value">{item.assetId}</span>
+                        <strong>{item.name}</strong>
+                        <span>{item.assetType}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="account-card account-info-grid">
+                <div>
+                  <label htmlFor="account-alias">Alias</label>
+                  <input
+                    id="account-alias"
+                    value={alias}
+                    onChange={(event) => setAlias(event.target.value)}
+                    onBlur={() => void saveAlias()}
+                    placeholder="No alias set"
+                    disabled={mutationLoading}
+                  />
+                </div>
+                <div>
+                  <span>Group</span>
+                  <select
+                    className="account-group-select"
+                    value={selectedAccount.group}
+                    onChange={(event) => void selectGroup(event.target.value)}
+                  >
+                    <option value="">Ungrouped</option>
+                    {[
+                      ...new Set(
+                        accounts
+                          .map((account) => account.group)
+                          .filter(Boolean),
+                      ),
+                    ].map((group) => (
+                      <option value={group} key={group}>
+                        {group}
+                      </option>
+                    ))}
+                    <option value="__new__">Create group...</option>
+                    {selectedAccount.group && (
+                      <option value="__delete__">Delete group...</option>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <span>Last activity</span>
+                  <strong className="data-value">
+                    {formatActivity(selectedAccount.lastActivity)}
+                  </strong>
+                </div>
+                <div>
+                  <span>Location</span>
+                  <strong>
+                    {selectedAccount.presenceLocation || "Website"}
+                  </strong>
+                </div>
+                <div>
+                  <label htmlFor="player-path">Player path</label>
+                  <input
+                    id="player-path"
+                    value={playerPath}
+                    onChange={(event) => setPlayerPath(event.target.value)}
+                    onBlur={() => void savePlayerPath()}
+                    placeholder="Default (Auto-detect)"
+                    disabled={mutationLoading}
+                  />
+                </div>
+              </section>
+
+              <section className="account-card connections-card">
+                <h3>Connections</h3>
+                <p>
+                  Search a managed username or user ID, then choose an action.
+                </p>
+                <div className="connections-row">
+                  <input
+                    value={connectionQuery}
+                    onChange={(event) => setConnectionQuery(event.target.value)}
+                    placeholder="Username or user ID"
+                  />
                   <button
                     className="account-button"
                     type="button"
-                    onClick={() => void openAccountPage(true)}
+                    onClick={() => void searchConnections()}
                   >
-                    <Icon name="inventory" />
-                    Open inventory
+                    <Icon name="search" />
+                    Search Roblox
                   </button>
                 </div>
-              </div>
-              {inventoryLoading ? (
-                <div className="account-empty-inline">
-                  <strong>Loading inventory...</strong>
-                </div>
-              ) : inventory.length === 0 ? (
-                <div className="account-empty-inline">
-                  <Icon name="inventory" />
-                  <strong>No user inventory loaded yet</strong>
-                  <span>
-                    Refresh to fetch hats, accessories, clothing, gear, and
-                    emotes.
-                  </span>
-                </div>
-              ) : (
-                <div className="inventory-list">
-                  {inventory.map((item) => (
-                    <div className="inventory-row" key={item.assetId}>
-                      <span className="data-value">{item.assetId}</span>
-                      <strong>{item.name}</strong>
-                      <span>{item.assetType}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="account-card account-info-grid">
-              <div>
-                <label htmlFor="account-alias">Alias</label>
-                <input
-                  id="account-alias"
-                  value={alias}
-                  onChange={(event) => setAlias(event.target.value)}
-                  onBlur={() => void saveAlias()}
-                  placeholder="No alias set"
-                  disabled={mutationLoading}
-                />
-              </div>
-              <div>
-                <span>Group</span>
-                <select
-                  className="account-group-select"
-                  value={selectedAccount.group}
-                  onChange={(event) => void selectGroup(event.target.value)}
-                >
-                  <option value="">Ungrouped</option>
-                  {[
-                    ...new Set(
-                      accounts.map((account) => account.group).filter(Boolean),
-                    ),
-                  ].map((group) => (
-                    <option value={group} key={group}>
-                      {group}
-                    </option>
-                  ))}
-                  <option value="__new__">Create group...</option>
-                  {selectedAccount.group && (
-                    <option value="__delete__">Delete group...</option>
-                  )}
-                </select>
-              </div>
-              <div>
-                <span>Last activity</span>
-                <strong className="data-value">
-                  {formatActivity(selectedAccount.lastActivity)}
-                </strong>
-              </div>
-              <div>
-                <span>Location</span>
-                <strong>{selectedAccount.presenceLocation || "Website"}</strong>
-              </div>
-              <div>
-                <label htmlFor="player-path">Player path</label>
-                <input
-                  id="player-path"
-                  value={playerPath}
-                  onChange={(event) => setPlayerPath(event.target.value)}
-                  onBlur={() => void savePlayerPath()}
-                  placeholder="Default (Auto-detect)"
-                  disabled={mutationLoading}
-                />
-              </div>
-            </section>
-
-            <section className="account-card connections-card">
-              <h3>Connections</h3>
-              <p>
-                Search a managed username or user ID, then choose an action.
-              </p>
-              <div className="connections-row">
-                <input
-                  value={connectionQuery}
-                  onChange={(event) => setConnectionQuery(event.target.value)}
-                  placeholder="Username or user ID"
-                />
-                <button
-                  className="account-button"
-                  type="button"
-                  onClick={() => void searchConnections()}
-                >
-                  <Icon name="search" />
-                  Search Roblox
-                </button>
-              </div>
-              {connectionResults.length > 0 && (
-                <div className="connection-results">
-                  {connectionResults.map((result) => (
-                    <div className="connection-result" key={result.userId}>
-                      <div>
-                        <strong>{result.displayName}</strong>
-                        <span>@{result.username}</span>
-                      </div>
-                      <div className="connection-actions">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void applyConnectionAction(result.userId, "follow")
-                          }
-                        >
-                          Follow
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void applyConnectionAction(result.userId, "friend")
-                          }
-                        >
-                          Friend
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void applyConnectionAction(result.userId, "block")
-                          }
-                        >
-                          Block
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void applyConnectionAction(
-                              result.userId,
-                              "unfollow",
-                            )
-                          }
-                        >
-                          Unfollow
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void joinTargetGame(result.userId)}
-                        >
-                          Join game
-                        </button>
-                        {selectedIds.size > 1 && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void applyBulkConnectionAction(
-                                  result.userId,
-                                  "friend",
-                                )
-                              }
-                            >
-                              Friend selected
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void applyBulkConnectionAction(
-                                  result.userId,
-                                  "follow",
-                                )
-                              }
-                            >
-                              Follow selected
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void applyBulkConnectionAction(
-                                  result.userId,
-                                  "unfollow",
-                                )
-                              }
-                            >
-                              Unfollow selected
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void applyBulkConnectionAction(
-                                  result.userId,
-                                  "block",
-                                )
-                              }
-                            >
-                              Block selected
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void Promise.all(
-                                  [...selectedIds].map((userId) =>
-                                    joinUserGame(userId, result.userId),
-                                  ),
-                                ).then(
-                                  () =>
-                                    setNotice(
-                                      "Join requested for selected accounts.",
+                {connectionResults.length > 0 && (
+                  <div className="connection-results">
+                    {connectionResults.map((result) => (
+                      <div className="connection-result" key={result.userId}>
+                        <div>
+                          <strong>{result.displayName}</strong>
+                          <span>@{result.username}</span>
+                        </div>
+                        <div className="connection-actions">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(
+                                result.userId,
+                                "follow",
+                              )
+                            }
+                          >
+                            Follow
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(
+                                result.userId,
+                                "friend",
+                              )
+                            }
+                          >
+                            Friend
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(result.userId, "block")
+                            }
+                          >
+                            Block
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(
+                                result.userId,
+                                "unfollow",
+                              )
+                            }
+                          >
+                            Unfollow
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void joinTargetGame(result.userId)}
+                          >
+                            Join game
+                          </button>
+                          {selectedIds.size > 1 && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "friend",
+                                  )
+                                }
+                              >
+                                Friend selected
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "follow",
+                                  )
+                                }
+                              >
+                                Follow selected
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "unfollow",
+                                  )
+                                }
+                              >
+                                Unfollow selected
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "block",
+                                  )
+                                }
+                              >
+                                Block selected
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void Promise.all(
+                                    [...selectedIds].map((userId) =>
+                                      joinUserGame(userId, result.userId),
                                     ),
-                                  () =>
-                                    setNotice(
-                                      "The target user could not be joined by every account.",
-                                    ),
-                                )
-                              }
-                            >
-                              Join selected
-                            </button>
-                          </>
-                        )}
+                                  ).then(
+                                    () =>
+                                      setNotice(
+                                        "Join requested for selected accounts.",
+                                      ),
+                                    () =>
+                                      setNotice(
+                                        "The target user could not be joined by every account.",
+                                      ),
+                                  )
+                                }
+                              >
+                                Join selected
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </>
-        )}
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
         </section>
       </main>
     </>
