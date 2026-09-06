@@ -30,11 +30,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  rust:
-    name: rust
+  frontend:
+    name: frontend
     runs-on: windows-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 15
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -59,22 +58,100 @@ jobs:
         working-directory: ram_ui
         run: pnpm build
 
+      # shared with clippy/test/build jobs so they don't each rebuild it
+      - name: upload frontend dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: ram_ui-dist
+          path: ram_ui/dist
+          retention-days: 1
+
+  fmt:
+    name: fmt
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
-
-      - name: cache rust
-        uses: Swatinem/rust-cache@v2
+          components: rustfmt
 
       - name: check formatting
         run: cargo fmt --all -- --check
 
+  clippy:
+    name: clippy
+    needs: frontend
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: ram_ui-dist
+          path: ram_ui/dist
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@v2
+
       - name: clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
+  test:
+    name: test
+    needs: frontend
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: ram_ui-dist
+          path: ram_ui/dist
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@v2
+
       - name: test
         run: cargo test --workspace --all-features --locked
+
+  build:
+    name: build
+    needs: frontend
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: ram_ui-dist
+          path: ram_ui/dist
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@v2
 
       - name: build
         run: cargo build --workspace --all-features --locked
