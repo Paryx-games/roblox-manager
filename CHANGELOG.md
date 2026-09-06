@@ -5,6 +5,7 @@
 ### Added
 
 - **Account group management.** Group headers now expose rename, color, and delete actions through a right-click menu, with preset and native color picking.
+- **Group delete affordance.** The group delete action now uses a red bin icon to match its destructive label.
 - **Account identity action alignment.** Profile and username actions now sit closer to their associated identity text with brighter hover contrast.
 - **Account avatar containment.** Avatar artwork now stays inside its circular frame while presence indicators remain visible.
 - **Account pin affordance.** Account rows now expose a direct pin/unpin control with distinct icons and persisted state.

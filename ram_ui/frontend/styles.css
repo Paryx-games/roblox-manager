@@ -1138,6 +1138,19 @@ button:focus-visible {
   color: var(--status-danger);
 }
 
+.account-menu .account-menu-danger .account-icon {
+  opacity: 0;
+}
+
+.account-menu .account-menu-danger::before {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  background: var(--status-danger);
+  content: "";
+  mask: url("/icons/delete.svg") center / contain no-repeat;
+}
+
 .account-menu .account-menu-danger:hover,
 .account-menu .account-menu-danger:focus-visible {
   background: var(--bg-surface);
