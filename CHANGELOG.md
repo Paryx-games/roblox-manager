@@ -4,27 +4,6 @@
 
 ### Added
 
-- **Group editor button transitions.** The Create group and Save group actions now fade between enabled and disabled states.
-- **Add account button transitions.** Validation and bulk-import buttons now fade between disabled and enabled states.
-- **Add account button states.** The disabled validation action now uses the same neutral border as the disabled import action.
-- **Add account modal motion.** The popup and browser-login status now fade smoothly, and non-editable modal copy cannot be accidentally selected.
-- **Add account modal shielding.** The Add account popup now blocks interaction with the Accounts workspace behind it and closes only through its explicit controls.
-- **Browser login progress overlay.** The Add account popup now blurs while its browser login window is active and shows progress until the flow completes, exits, or fails.
-- **Add account modal.** Account login, cookie validation, recovery, and bulk import now live in a cleaner focused popup instead of expanding inside the sidebar.
-- **Empty group visibility.** Newly created groups now remain visible in the account list even before accounts are assigned to them.
-- **Account row contrast.** Unselected account names now use muted gray text while the selected account remains bright.
-- **Group creation editor.** Add group now opens the same themed name-and-color editor used for renaming groups.
-- **Accounts bar actions.** Add group now occupies the existing export slot, while Export accounts is available as a labeled action in the Accounts header.
-- **Group deletion confirmation colors.** The confirmation names the group in its configured color and uses a red delete action with white text and icon.
-- **Account group management.** Group headers now expose rename, color, and delete actions through a right-click menu, with preset and native color picking.
-- **Group delete affordance.** The group delete action now uses a red bin icon to match its destructive label.
-- **Group delete spacing.** The red bin icon now uses the same icon-to-label spacing as the other group actions.
-- **Context menu boundaries.** Native right-click menus are suppressed across Accounts unless a workspace control explicitly handles the gesture.
-- **Group deletion confirmation.** Group deletion now uses a themed confirmation popup that explains accounts remain managed and become ungrouped.
-- **Account identity action alignment.** Profile and username actions now sit closer to their associated identity text with brighter hover contrast.
-- **Account avatar containment.** Avatar artwork now stays inside its circular frame while presence indicators remain visible.
-- **Account pin affordance.** Account rows now expose a direct pin/unpin control with distinct icons and persisted state.
-- **Pinned account emphasis.** Pinned rows now use a solid white pin while unpinned rows retain the ordinary pin icon.
 - **Custom account ordering.** Account rows can now be dragged into a persisted custom order, and selected connection searches expose friend, follow, unfollow, block, and join-game actions.
 - **Accounts action parity.** The Tauri Accounts workspace now supports custom account ordering, CSV metadata export, selected-account browser and player-path tools, common inventory checks, unfollow, and join-target-game launching.
 - **Account import recovery.** The Tauri Accounts add flow now supports browser login, multiline or text-file bulk cookie import, and an explicit username-confirmed path for storing credentials Roblox refuses to validate.
