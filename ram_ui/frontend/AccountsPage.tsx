@@ -208,6 +208,8 @@ function AccountRow({
   accentColor,
   onTogglePin,
   pinning,
+  draggingAccountId,
+  onAccountDragStateChange,
 }: {
   account: AccountSummary;
   selected: boolean;
@@ -217,6 +219,8 @@ function AccountRow({
   accentColor: string;
   onTogglePin: (userId: number) => void;
   pinning: boolean;
+  draggingAccountId: number | null;
+  onAccountDragStateChange: (id: number | null) => void;
 }) {
   return (
     <div
@@ -229,29 +233,32 @@ function AccountRow({
         canDragAccounts
           ? (event) => {
               event.dataTransfer.effectAllowed = "move";
-              event.dataTransfer.setData(
-                "text/account-id",
-                String(account.userId),
-              );
+              // webview2 needs a standard mime type to actually start the drag
+              event.dataTransfer.setData("text/plain", String(account.userId));
+              onAccountDragStateChange(account.userId);
             }
           : undefined
       }
       onDragOver={
         canDragAccounts
           ? (event) => {
-              if (!event.dataTransfer.types.includes("text/account-id")) return;
+              // gate on our own state, not dataTransfer.types - webview2 hides
+              // custom types during dragover so the types check never passes
+              if (draggingAccountId === null) return;
               event.preventDefault();
               event.dataTransfer.dropEffect = "move";
             }
           : undefined
       }
       onDrop={(event) => {
-        if (!canDragAccounts) return;
-        if (!event.dataTransfer.types.includes("text/account-id")) return;
-        const sourceId = Number(event.dataTransfer.getData("text/account-id"));
-        if (sourceId && sourceId !== account.userId)
+        if (!canDragAccounts || draggingAccountId === null) return;
+        event.preventDefault();
+        const sourceId = draggingAccountId;
+        onAccountDragStateChange(null);
+        if (sourceId !== account.userId)
           onDropAccount(sourceId, account.userId);
       }}
+      onDragEnd={() => onAccountDragStateChange(null)}
       onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -293,6 +300,10 @@ function AccountGroup({
   onTogglePin,
   pinningIds,
   onContextMenu,
+  draggingAccountId,
+  onAccountDragStateChange,
+  draggingGroupName,
+  onGroupDragStateChange,
 }: {
   group: AccountGroup;
   collapsed: boolean;
@@ -306,6 +317,10 @@ function AccountGroup({
   onTogglePin: (userId: number) => void;
   pinningIds: Set<number>;
   onContextMenu: (event: MouseEvent<HTMLButtonElement>, name: string) => void;
+  draggingAccountId: number | null;
+  onAccountDragStateChange: (id: number | null) => void;
+  draggingGroupName: string | null;
+  onGroupDragStateChange: (name: string | null) => void;
 }) {
   return (
     <section
@@ -318,19 +333,22 @@ function AccountGroup({
         draggable
         onDragStart={(event) => {
           event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/account-group", group.name);
+          event.dataTransfer.setData("text/plain", group.name);
+          onGroupDragStateChange(group.name);
         }}
         onDragOver={(event) => {
-          if (!event.dataTransfer.types.includes("text/account-group")) return;
+          if (draggingGroupName === null) return;
           event.preventDefault();
           event.dataTransfer.dropEffect = "move";
         }}
         onDrop={(event) => {
-          if (!event.dataTransfer.types.includes("text/account-group")) return;
-          const sourceName = event.dataTransfer.getData("text/account-group");
-          if (sourceName && sourceName !== group.name)
-            onDropGroup(sourceName, group.name);
+          if (draggingGroupName === null) return;
+          event.preventDefault();
+          const sourceName = draggingGroupName;
+          onGroupDragStateChange(null);
+          if (sourceName !== group.name) onDropGroup(sourceName, group.name);
         }}
+        onDragEnd={() => onGroupDragStateChange(null)}
         onClick={onToggle}
         onContextMenu={(event) => onContextMenu(event, group.name)}
         aria-expanded={!collapsed}
@@ -358,6 +376,8 @@ function AccountGroup({
               accentColor={color}
               onTogglePin={onTogglePin}
               pinning={pinningIds.has(account.userId)}
+              draggingAccountId={draggingAccountId}
+              onAccountDragStateChange={onAccountDragStateChange}
             />
           ))}
         </div>
@@ -368,6 +388,12 @@ function AccountGroup({
 
 export function AccountsPage() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [draggingAccountId, setDraggingAccountId] = useState<number | null>(
+    null,
+  );
+  const [draggingGroupName, setDraggingGroupName] = useState<string | null>(
+    null,
+  );
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
@@ -1523,6 +1549,10 @@ export function AccountsPage() {
                 onTogglePin={(userId) => void togglePinForAccount(userId)}
                 pinningIds={pinningIds}
                 onContextMenu={handleGroupContextMenu}
+                draggingAccountId={draggingAccountId}
+                onAccountDragStateChange={setDraggingAccountId}
+                draggingGroupName={draggingGroupName}
+                onGroupDragStateChange={setDraggingGroupName}
               />
             ))}
           </div>
