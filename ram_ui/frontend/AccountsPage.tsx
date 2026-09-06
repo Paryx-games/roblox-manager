@@ -443,6 +443,17 @@ export function AccountsPage() {
     };
   }, [groupContextMenu]);
 
+  useEffect(() => {
+    if (!showAddForm) return;
+
+    function dismissOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setShowAddForm(false);
+    }
+
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => document.removeEventListener("keydown", dismissOnEscape);
+  }, [showAddForm]);
+
   const [commonInventory, setCommonInventory] = useState<InventoryItem[]>([]);
   const [commonInventoryLoading, setCommonInventoryLoading] = useState(false);
 
@@ -1300,95 +1311,6 @@ export function AccountsPage() {
                 <Icon name="groups" />
               </button>
             </div>
-            {showAddForm && (
-              <div className="add-account-form">
-                <button
-                  className="account-button"
-                  type="button"
-                  disabled={mutationLoading}
-                  onClick={() => void addAccountFromBrowser()}
-                >
-                  <Icon name="browser" />
-                  Log in with browser
-                </button>
-                <span className="account-form-divider">or paste a cookie</span>
-                <label htmlFor="account-cookie">Roblox security cookie</label>
-                <input
-                  id="account-cookie"
-                  type="password"
-                  value={cookie}
-                  onChange={(event) => setCookie(event.target.value)}
-                  placeholder="Paste cookie to validate"
-                  autoComplete="off"
-                />
-                <button
-                  className="account-button primary"
-                  type="button"
-                  disabled={!cookie || mutationLoading}
-                  onClick={() => void addManagedAccount()}
-                >
-                  Validate and add account
-                </button>
-                {addError && (
-                  <div className="add-account-recovery">
-                    <strong>{addError}</strong>
-                    <label htmlFor="force-add-username">
-                      Roblox username for unvalidated account
-                    </label>
-                    <input
-                      id="force-add-username"
-                      value={forceAddUsername}
-                      onChange={(event) =>
-                        setForceAddUsername(event.target.value)
-                      }
-                      placeholder="Username"
-                      autoComplete="off"
-                    />
-                    <button
-                      className="account-button"
-                      type="button"
-                      disabled={!forceAddUsername.trim() || mutationLoading}
-                      onClick={() => void addManagedAccountAnyway()}
-                    >
-                      Add anyway
-                    </button>
-                  </div>
-                )}
-                <span className="account-form-divider">bulk import</span>
-                <textarea
-                  value={bulkCookieInput}
-                  onChange={(event) => setBulkCookieInput(event.target.value)}
-                  placeholder="Paste one cookie per line, comma-separated, or load a text file"
-                  rows={4}
-                  disabled={mutationLoading}
-                />
-                <input
-                  type="file"
-                  accept=".txt,.csv,.tsv,text/plain,text/csv"
-                  disabled={mutationLoading}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void file.text().then(setBulkCookieInput);
-                    event.currentTarget.value = "";
-                  }}
-                />
-                <button
-                  className="account-button"
-                  type="button"
-                  disabled={
-                    !parseCookies(bulkCookieInput).length || mutationLoading
-                  }
-                  onClick={() => void importAccounts()}
-                >
-                  Import {parseCookies(bulkCookieInput).length} account(s)
-                </button>
-                {bulkProgress && (
-                  <span className="account-form-progress">
-                    Processed {bulkProgress[0]} of {bulkProgress[1]}...
-                  </span>
-                )}
-              </div>
-            )}
             <div className="accounts-sort-row">
               <span>Sort:</span>
               <select
@@ -1563,6 +1485,125 @@ export function AccountsPage() {
           )}
         </aside>
 
+        {showAddForm && (
+          <div
+            className="add-account-modal-backdrop"
+            role="presentation"
+            onClick={() => setShowAddForm(false)}
+          >
+            <section
+              className="add-account-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-account-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="add-account-modal-header">
+                <div>
+                  <h2 id="add-account-title">Add account</h2>
+                  <p>Choose a secure way to add a Roblox account.</p>
+                </div>
+                <button
+                  className="icon-button"
+                  type="button"
+                  aria-label="Close add account dialog"
+                  data-tip="Close"
+                  onClick={() => setShowAddForm(false)}
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+              <div className="add-account-modal-body">
+                <button
+                  className="account-button"
+                  type="button"
+                  disabled={mutationLoading}
+                  onClick={() => void addAccountFromBrowser()}
+                >
+                  <Icon name="browser" />
+                  Log in with browser
+                </button>
+                <div className="account-form-divider">or paste a cookie</div>
+                <label htmlFor="account-cookie">Roblox security cookie</label>
+                <input
+                  id="account-cookie"
+                  type="password"
+                  value={cookie}
+                  onChange={(event) => setCookie(event.target.value)}
+                  placeholder="Paste cookie to validate"
+                  autoComplete="off"
+                />
+                <button
+                  className="account-button primary"
+                  type="button"
+                  disabled={!cookie || mutationLoading}
+                  onClick={() => void addManagedAccount()}
+                >
+                  Validate and add account
+                </button>
+                {addError && (
+                  <div className="add-account-recovery">
+                    <strong>{addError}</strong>
+                    <label htmlFor="force-add-username">
+                      Roblox username for unvalidated account
+                    </label>
+                    <input
+                      id="force-add-username"
+                      value={forceAddUsername}
+                      onChange={(event) =>
+                        setForceAddUsername(event.target.value)
+                      }
+                      placeholder="Username"
+                      autoComplete="off"
+                    />
+                    <button
+                      className="account-button"
+                      type="button"
+                      disabled={!forceAddUsername.trim() || mutationLoading}
+                      onClick={() => void addManagedAccountAnyway()}
+                    >
+                      Add anyway
+                    </button>
+                  </div>
+                )}
+                <div className="account-form-divider">bulk import</div>
+                <textarea
+                  value={bulkCookieInput}
+                  onChange={(event) => setBulkCookieInput(event.target.value)}
+                  placeholder="Paste one cookie per line, comma-separated, or load a text file"
+                  rows={4}
+                  disabled={mutationLoading}
+                />
+                <input
+                  type="file"
+                  accept=".txt,.csv,.tsv,text/plain,text/csv"
+                  disabled={mutationLoading}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void file.text().then(setBulkCookieInput);
+                    event.currentTarget.value = "";
+                  }}
+                />
+                <button
+                  className="account-button"
+                  type="button"
+                  disabled={
+                    !parseCookies(bulkCookieInput).length || mutationLoading
+                  }
+                  onClick={() => void importAccounts()}
+                >
+                  Import {parseCookies(bulkCookieInput).length} account(s)
+                </button>
+                {bulkProgress && (
+                  <span className="account-form-progress">
+                    Processed {bulkProgress[0]} of {bulkProgress[1]}...
+                  </span>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
+
         {groupEditor && (
           <div className="group-editor-backdrop" role="presentation">
             <section
@@ -1656,7 +1697,7 @@ export function AccountsPage() {
                   onClick={() => void saveGroupEditor()}
                 >
                   <Icon name="save" />
-                {groupEditor.originalName ? "Save group" : "Create group"}
+                  {groupEditor.originalName ? "Save group" : "Create group"}
                 </button>
               </div>
             </section>

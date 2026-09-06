@@ -630,6 +630,100 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+.add-account-modal-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  background: var(--bg-canvas);
+}
+
+.add-account-modal {
+  display: flex;
+  width: min(100%, 520px);
+  max-height: calc(100vh - var(--space-8));
+  flex-direction: column;
+  overflow: hidden;
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
+.add-account-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border-bottom: var(--border-width) solid var(--border-default);
+}
+
+.add-account-modal-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+}
+
+.add-account-modal-header p {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.add-account-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+  padding: var(--space-6);
+}
+
+.add-account-modal-body label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.add-account-modal-body input,
+.add-account-modal-body textarea {
+  width: 100%;
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.add-account-modal-body input {
+  height: 36px;
+  padding: 0 var(--space-3);
+}
+
+.add-account-modal-body textarea {
+  min-height: 96px;
+  resize: vertical;
+  padding: var(--space-2) var(--space-3);
+}
+
+.add-account-modal-body input:focus,
+.add-account-modal-body textarea:focus,
+.add-account-modal-body input[type="file"]:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
+}
+
+.add-account-modal-body input[type="file"] {
+  height: auto;
+  padding: var(--space-2);
+}
+
+.add-account-modal-body .account-button {
+  flex: 0 0 auto;
+}
+
 .accounts-sort-row select {
   min-width: 0;
   height: 30px;
