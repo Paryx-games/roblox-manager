@@ -972,6 +972,10 @@ button:focus-visible {
   background: var(--bg-raised);
 }
 
+.account-row-pin.is-pinned .account-icon {
+  filter: brightness(0) invert(1);
+}
+
 .account-row-pin:disabled {
   color: var(--text-disabled);
   cursor: not-allowed;

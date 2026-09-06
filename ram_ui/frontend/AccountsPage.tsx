@@ -253,7 +253,7 @@ function AccountRow({
           onTogglePin(account.userId);
         }}
       >
-        <Icon name={account.isPinned ? "pin" : "pin-off"} />
+        <Icon name={account.isPinned ? "pin-filled" : "pin"} />
       </button>
     </div>
   );
