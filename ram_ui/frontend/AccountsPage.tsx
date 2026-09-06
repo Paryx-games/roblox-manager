@@ -155,15 +155,18 @@ function AccountRow({
   selected,
   onSelect,
   onDropAccount,
+  accentColor,
 }: {
   account: AccountSummary;
   selected: boolean;
   onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
   onDropAccount: (sourceId: number, targetId: number) => void;
+  accentColor: string;
 }) {
   return (
     <button
       className={`account-row ${selected ? "is-selected" : ""}`}
+      style={{ "--account-accent": accentColor } as CSSProperties}
       type="button"
       draggable
       onDragStart={(event) =>
@@ -245,6 +248,7 @@ function AccountGroup({
               onDropAccount={(sourceId) =>
                 onDropAccount(sourceId, account.userId)
               }
+              accentColor={color}
             />
           ))}
         </div>

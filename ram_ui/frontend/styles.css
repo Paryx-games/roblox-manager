@@ -846,15 +846,26 @@ button:focus-visible {
   width: 3px;
   height: 22px;
   border-radius: 0 var(--radius) var(--radius) 0;
-  background: var(--action-primary);
+  background: var(--account-accent, var(--action-primary));
   opacity: 0;
-  transform: translateY(-50%);
-  transition: opacity var(--duration-fast) var(--ease-standard);
+  transform: translateY(-50%) scaleY(0);
+  transform-origin: center;
+  transition:
+    transform var(--duration-base) var(--ease-standard),
+    background-color var(--duration-base) var(--ease-standard);
 }
 
 .account-row:hover .account-row-bar,
 .account-row.is-selected .account-row-bar {
   opacity: 1;
+}
+
+.account-row:hover .account-row-bar {
+  transform: translateY(-50%) scaleY(1);
+}
+
+.account-row.is-selected .account-row-bar {
+  transform: translateY(-50%) scaleY(1.3);
 }
 
 .account-avatar {

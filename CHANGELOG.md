@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- **Group-colored account accents.** Account row bars now use their group color and match the sidebar hover and selected expansion animations.
 - **Reorderable account groups.** Group headers can now be dragged into a new order, which is persisted across launches.
 - **Account identity actions.** The username now has a copy button, and the display-name link opens the profile in the native browser.
 - **Account notice entrance.** Queued timers now fade in and expand into place independently when they appear.
