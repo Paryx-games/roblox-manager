@@ -16,8 +16,52 @@ Roblox reshuffles legacy endpoints without changelogs, so treat unverified secti
 
 All endpoints below accept the `.ROBLOSECURITY` cookie. Roblox's own docs mark cookie auth as **not recommended for production** - these are legacy/unversioned APIs that can break without a deprecation notice.
 
+All production API calls in RM go through `ram_core` (Rust). Other languages below are testing/scratch only - never wire a real feature to anything but the Rust backend.
+
+```rust
+// cargo add reqwest --features json,cookies
+// cargo add serde_json
+
+use reqwest::{Client, cookie::Jar, Url};
+use std::sync::Arc;
+
+let jar = Arc::new(Jar::default());
+let url = "https://roblox.com".parse::<Url>().unwrap();
+jar.add_cookie_str(&format!(".ROBLOSECURITY={COOKIE}"), &url);
+
+let client = Client::builder()
+    .cookie_provider(jar)
+    .build()?;
 ```
-# python example
+
+**CSRF note:** any state-changing call (POST/PATCH/DELETE) will 403 on the first try and return an `x-csrf-token` header - grab it and retry with that header set. Applies across every domain below.
+
+```rust
+// shared helper: retries once with the csrf token roblox hands back on the first 403
+async fn post_with_csrf(
+    client: &Client,
+    url: &str,
+    body: &serde_json::Value,
+) -> reqwest::Result<reqwest::Response> {
+    let first = client.post(url).json(body).send().await?;
+
+    if first.status() != reqwest::StatusCode::FORBIDDEN {
+        return Ok(first);
+    }
+
+    let Some(token) = first.headers().get("x-csrf-token").cloned() else {
+        return Ok(first);
+    };
+
+    client.post(url).header("x-csrf-token", token).json(body).send().await
+}
+```
+
+<details>
+<summary>Python - testing/scratch only, not for production paths</summary>
+
+```python
+# uv add requests
 import requests
 
 session = requests.Session()
@@ -28,7 +72,31 @@ session.cookies[".ROBLOSECURITY"] = COOKIE
 # roblox returns in the 403 response headers
 ```
 
-**CSRF note:** any state-changing call (POST/PATCH/DELETE) will 403 on the first try and return an `x-csrf-token` header - grab it and retry with that header set. Applies across every domain below.
+</details>
+
+<details>
+<summary>JavaScript - testing/scratch only, not for production paths</summary>
+
+```javascript
+// pnpm add node-fetch (or use native fetch on node 18+)
+const res = await fetch("https://groups.roblox.com/v1/groups/123", {
+  headers: { Cookie: `.ROBLOSECURITY=${COOKIE}` },
+});
+```
+
+</details>
+
+<details>
+<summary>C++ - testing/scratch only, not for production paths</summary>
+
+```cpp
+// libcurl example - manual cookie header, no session abstraction
+CURL* curl = curl_easy_init();
+curl_easy_setopt(curl, CURLOPT_URL, "https://groups.roblox.com/v1/groups/123");
+curl_easy_setopt(curl, CURLOPT_COOKIE, (".ROBLOSECURITY=" + cookie).c_str());
+```
+
+</details>
 
 ---
 
@@ -62,6 +130,23 @@ Manages Roblox groups: membership, roles, permissions, payouts, relationships, a
 
 **Also available, less commonly needed:** relationships (allies/enemies), social links, blocked keywords, community tiers, name history, group settings, group creation, group search.
 
+```rust
+#[derive(serde::Deserialize)]
+struct GroupInfo {
+    id: u64,
+    name: String,
+    #[serde(rename = "memberCount")]
+    member_count: u64,
+}
+
+let group: GroupInfo = client
+    .get(format!("https://groups.roblox.com/v1/groups/{group_id}"))
+    .send()
+    .await?
+    .json()
+    .await?;
+```
+
 ---
 
 ## Users - `users.roblox.com` [Verified Sept 2026]
@@ -84,6 +169,23 @@ Core identity domain: profile lookups, display names, birthdate/gender settings,
 - `GET /v1/users/authenticated/country-code` - country code of the authenticated user
 - `GET /v1/users/authenticated/roles` - public roles (e.g. `"BetaTester"`) for the authenticated user
 
+```rust
+#[derive(serde::Deserialize)]
+struct WhoAmI {
+    id: u64,
+    name: String,
+    #[serde(rename = "displayName")]
+    display_name: String,
+}
+
+let me: WhoAmI = client
+    .get("https://users.roblox.com/v1/users/authenticated")
+    .send()
+    .await?
+    .json()
+    .await?;
+```
+
 ---
 
 ## Economy - `economy.roblox.com` [Verified Sept 2026]
@@ -91,6 +193,20 @@ Core identity domain: profile lookups, display names, birthdate/gender settings,
 **Down to a single legacy endpoint** - most economy functionality (transactions, resale, purchases) has moved to Open Cloud (`apis.roblox.com`, API key/OAuth only) and is no longer on this cookie-auth domain. Don't build against old `/v2/users/{userId}/transaction-totals` or reseller paths from older guides - re-check Open Cloud endpoints instead if you need transaction history.
 
 - `GET /v1/user/currency` - Robux balance for the authenticated user (`{ "robux": 0 }`)
+
+```rust
+#[derive(serde::Deserialize)]
+struct Currency {
+    robux: u64,
+}
+
+let balance: Currency = client
+    .get("https://economy.roblox.com/v1/user/currency")
+    .send()
+    .await?
+    .json()
+    .await?;
+```
 
 ---
 
@@ -101,6 +217,16 @@ Small domain for user tags (the nickname you can set for a friend/contact).
 - `POST /v1/user/get-tags` - bulk-get tags you've set for other users
 - `POST /v1/user/tag` - set a tag for a user
 - `GET /v1/user/tag/validate` - validate a tag string before setting it (checks moderation/length)
+
+```rust
+let body = serde_json::json!({ "targetUserId": target_id });
+
+let resp = post_with_csrf(
+    &client,
+    "https://contacts.roblox.com/v1/user/tag",
+    &body,
+).await?;
+```
 
 ---
 
@@ -205,7 +331,8 @@ Small domain for user tags (the nickname you can set for a friend/contact).
 
 1. Check the live docs first - `create.roblox.com/docs/cloud/llms.txt` lists every domain's markdown reference. Legacy endpoints get renamed/removed without changelog entries.
 2. Confirm cookie auth is actually supported for that endpoint - some functionality has moved to Open Cloud (API key/OAuth only), like most of `economy.roblox.com`.
-3. Handle CSRF token retry logic - don't assume a single request will succeed on state-changing calls.
+3. Handle CSRF token retry logic - don't assume a single request will succeed on state-changing calls. Use `post_with_csrf` (or the equivalent for PATCH/DELETE) instead of hand-rolling it per call site.
 4. Never log or commit cookies, passwords, or CSRF tokens. Use `.env` / secrets manager, never hardcode.
 5. Add rate limiting on bulk/loop operations - Roblox will flag/throttle aggressive request patterns.
 6. When you verify a section against live docs, flip its status to Verified with the date, and update/remove any stale endpoints it replaces.
+7. All production calls live in `ram_core`. Python/JS/C++ snippets here are for one-off testing against the live API only - if it needs to ship, port it to Rust.
