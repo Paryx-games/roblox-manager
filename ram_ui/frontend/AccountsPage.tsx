@@ -44,6 +44,7 @@ import {
   type UserSearchResult,
   type StoreStatus,
 } from "./lib/ipc";
+import { ConfirmModal } from "./ConfirmModal";
 
 type SortMode =
   | "custom"
@@ -442,16 +443,6 @@ export function AccountsPage() {
     };
   }, [groupContextMenu]);
 
-  useEffect(() => {
-    if (!groupDeleteConfirmation) return;
-
-    function dismissOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setGroupDeleteConfirmation(null);
-    }
-
-    document.addEventListener("keydown", dismissOnEscape);
-    return () => document.removeEventListener("keydown", dismissOnEscape);
-  }, [groupDeleteConfirmation]);
   const [commonInventory, setCommonInventory] = useState<InventoryItem[]>([]);
   const [commonInventoryLoading, setCommonInventoryLoading] = useState(false);
 
@@ -1638,57 +1629,20 @@ export function AccountsPage() {
       )}
 
       {groupDeleteConfirmation && (
-        <div
-          className="group-editor-backdrop"
-          role="presentation"
-          onClick={() => setGroupDeleteConfirmation(null)}
-        >
-          <section
-            className="group-editor group-delete-confirmation"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="group-delete-title"
-            aria-describedby="group-delete-description"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="group-editor-header">
-              <h2 id="group-delete-title">Delete group?</h2>
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Cancel group deletion"
-                data-tip="Cancel"
-                onClick={() => setGroupDeleteConfirmation(null)}
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-            <p id="group-delete-description">
+        <ConfirmModal
+          title="Delete group?"
+          message={
+            <>
               Delete <strong>{groupDeleteConfirmation}</strong>? This will not
               delete the accounts. They will remain managed and become
               ungrouped.
-            </p>
-            <div className="group-editor-actions">
-              <button
-                className="account-button"
-                type="button"
-                onClick={() => setGroupDeleteConfirmation(null)}
-              >
-                <Icon name="close" />
-                No
-              </button>
-              <button
-                className="account-button group-delete-button"
-                type="button"
-                disabled={mutationLoading}
-                onClick={() => void confirmGroupDeletion()}
-              >
-                <Icon name="delete" />
-                Delete group
-              </button>
-            </div>
-          </section>
-        </div>
+            </>
+          }
+          confirmLabel="Delete group"
+          confirmDisabled={mutationLoading}
+          onCancel={() => setGroupDeleteConfirmation(null)}
+          onConfirm={() => void confirmGroupDeletion()}
+        />
       )}
 
       <section className="accounts-detail-panel" aria-label="Account details">

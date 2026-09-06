@@ -1196,17 +1196,82 @@ button:focus-visible {
   font-size: var(--text-lg);
 }
 
-.group-delete-confirmation > p {
+.confirm-modal-message {
   margin: 0;
   color: var(--text-muted);
   font-size: var(--text-sm);
   line-height: 1.6;
 }
 
-.group-delete-confirmation > p strong {
+.confirm-modal-message strong {
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-weight: 500;
+}
+
+.confirm-modal-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  background: var(--bg-canvas);
+}
+
+.confirm-modal {
+  display: flex;
+  width: min(100%, 360px);
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
+.confirm-modal-header,
+.confirm-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.confirm-modal-header {
+  justify-content: space-between;
+}
+
+.confirm-modal-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+}
+
+.confirm-modal-actions {
+  justify-content: flex-end;
+}
+
+.confirm-modal-danger {
+  color: var(--bg-canvas);
+  border-color: var(--status-danger);
+  background: var(--status-danger);
+}
+
+.confirm-modal-danger:hover,
+.confirm-modal-danger:focus-visible {
+  color: var(--bg-canvas);
+  background: var(--status-danger);
+}
+
+.confirm-modal-danger .account-icon {
+  filter: brightness(0) invert(1);
+}
+
+.confirm-modal-danger:disabled {
+  color: var(--text-disabled);
+  border-color: var(--border-default);
+  background: var(--bg-surface);
 }
 
 .group-editor-field {
@@ -1272,28 +1337,6 @@ button:focus-visible {
 
 .group-editor-actions {
   justify-content: flex-end;
-}
-
-.group-delete-button {
-  color: var(--bg-canvas);
-  border-color: var(--status-danger);
-  background: var(--status-danger);
-}
-
-.group-delete-button:hover,
-.group-delete-button:focus-visible {
-  color: var(--bg-canvas);
-  background: var(--status-danger);
-}
-
-.group-delete-button .account-icon {
-  filter: brightness(0) invert(1);
-}
-
-.group-delete-button:disabled {
-  color: var(--text-disabled);
-  border-color: var(--border-default);
-  background: var(--bg-surface);
 }
 
 .account-profile-actions {
