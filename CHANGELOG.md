@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Account import recovery.** The Tauri Accounts add flow now supports browser login, multiline or text-file bulk cookie import, and an explicit username-confirmed path for storing credentials Roblox refuses to validate.
 - **Browser account flows.** The Tauri Accounts workspace now supports secure browser login when adding an account and authenticated browse-as windows for selected or moderated accounts without sending cookies through the frontend.
 - **Accounts workflow actions.** The React Accounts workspace now supports encrypted-store unlock, secure account addition, launch and preset persistence, inventory and connection actions, account validation, presence refresh, groups, pinning, aliases, custom player paths, bulk selection, and Roblox window operations.
 - **React Accounts workspace.** Replaced the frontend Accounts placeholder with a searchable, sortable, grouped account manager that loads account summaries through Tauri, supports account selection, launch input validation, responsive detail panels, and retryable loading errors.

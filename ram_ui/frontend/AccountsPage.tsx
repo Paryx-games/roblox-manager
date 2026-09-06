@@ -19,6 +19,7 @@ import {
   updatePlayerPath,
   createDeviceStore,
   addAccount,
+  addAccountAnyway,
   browseAsAccount,
   loginAndAddAccount,
   listAccounts,
@@ -95,6 +96,13 @@ function formatActivity(value: string | null) {
   if (!value) return "Never";
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? value : date.toLocaleString();
+}
+
+function parseCookies(value: string) {
+  return value
+    .split(/[\n,;\t]+/)
+    .map((cookie) => cookie.trim())
+    .filter(Boolean);
 }
 
 function AccountRow({
@@ -193,6 +201,12 @@ export function AccountsPage() {
   const [mutationLoading, setMutationLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [cookie, setCookie] = useState("");
+  const [bulkCookieInput, setBulkCookieInput] = useState("");
+  const [bulkProgress, setBulkProgress] = useState<[number, number] | null>(
+    null,
+  );
+  const [forceAddUsername, setForceAddUsername] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [connectionResults, setConnectionResults] = useState<
@@ -606,6 +620,7 @@ export function AccountsPage() {
 
   async function addManagedAccount() {
     setMutationLoading(true);
+    setAddError(null);
     try {
       const account = await addAccount(cookie);
       setAccounts((current) => [...current, account]);
@@ -614,6 +629,11 @@ export function AccountsPage() {
       setShowAddForm(false);
       setNotice("Account added.");
     } catch (addError) {
+      setAddError(
+        addError instanceof Error
+          ? addError.message
+          : "The account could not be added.",
+      );
       setNotice(
         addError instanceof Error
           ? addError.message
@@ -622,6 +642,53 @@ export function AccountsPage() {
     } finally {
       setMutationLoading(false);
     }
+  }
+
+  async function addManagedAccountAnyway() {
+    setMutationLoading(true);
+    try {
+      const account = await addAccountAnyway(cookie, forceAddUsername);
+      setAccounts((current) => [...current, account]);
+      setSelectedId(account.userId);
+      setCookie("");
+      setForceAddUsername("");
+      setAddError(null);
+      setShowAddForm(false);
+      setNotice("Account added without validation.");
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "The account could not be added.",
+      );
+    } finally {
+      setMutationLoading(false);
+    }
+  }
+
+  async function importAccounts() {
+    const cookies = parseCookies(bulkCookieInput);
+    if (!cookies.length) {
+      setNotice("Paste at least one Roblox security cookie.");
+      return;
+    }
+    setMutationLoading(true);
+    setBulkProgress([0, cookies.length]);
+    let added = 0;
+    for (const [index, value] of cookies.entries()) {
+      try {
+        const account = await addAccount(value);
+        setAccounts((current) => [...current, account]);
+        setSelectedId(account.userId);
+        added += 1;
+      } catch {
+      }
+      setBulkProgress([index + 1, cookies.length]);
+    }
+    setMutationLoading(false);
+    setBulkCookieInput("");
+    setNotice(`Bulk import finished: ${added} of ${cookies.length} added.`);
+    setBulkProgress(null);
   }
 
   async function addAccountFromBrowser() {
@@ -705,6 +772,60 @@ export function AccountsPage() {
               >
                 Validate and add account
               </button>
+              {addError && (
+                <div className="add-account-recovery">
+                  <strong>{addError}</strong>
+                  <label htmlFor="force-add-username">
+                    Roblox username for unvalidated account
+                  </label>
+                  <input
+                    id="force-add-username"
+                    value={forceAddUsername}
+                    onChange={(event) => setForceAddUsername(event.target.value)}
+                    placeholder="Username"
+                    autoComplete="off"
+                  />
+                  <button
+                    className="account-button"
+                    type="button"
+                    disabled={!forceAddUsername.trim() || mutationLoading}
+                    onClick={() => void addManagedAccountAnyway()}
+                  >
+                    Add anyway
+                  </button>
+                </div>
+              )}
+              <span className="account-form-divider">bulk import</span>
+              <textarea
+                value={bulkCookieInput}
+                onChange={(event) => setBulkCookieInput(event.target.value)}
+                placeholder="Paste one cookie per line, comma-separated, or load a text file"
+                rows={4}
+                disabled={mutationLoading}
+              />
+              <input
+                type="file"
+                accept=".txt,.csv,.tsv,text/plain,text/csv"
+                disabled={mutationLoading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void file.text().then(setBulkCookieInput);
+                  event.currentTarget.value = "";
+                }}
+              />
+              <button
+                className="account-button"
+                type="button"
+                disabled={!parseCookies(bulkCookieInput).length || mutationLoading}
+                onClick={() => void importAccounts()}
+              >
+                Import {parseCookies(bulkCookieInput).length} account(s)
+              </button>
+              {bulkProgress && (
+                <span className="account-form-progress">
+                  Processed {bulkProgress[0]} of {bulkProgress[1]}...
+                </span>
+              )}
             </div>
           )}
           <div className="accounts-sort-row">

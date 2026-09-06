@@ -184,6 +184,13 @@ export async function addAccount(cookie: string): Promise<AccountSummary> {
   return invoke<AccountSummary>("add_account", { cookie });
 }
 
+export async function addAccountAnyway(
+  cookie: string,
+  username: string,
+): Promise<AccountSummary> {
+  return invoke<AccountSummary>("add_account_anyway", { cookie, username });
+}
+
 export async function loginAndAddAccount(): Promise<AccountSummary | null> {
   return invoke<AccountSummary | null>("login_and_add_account");
 }

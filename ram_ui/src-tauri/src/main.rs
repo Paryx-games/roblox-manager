@@ -828,6 +828,36 @@ async fn add_account(
 }
 
 #[tauri::command]
+async fn add_account_anyway(
+    state: tauri::State<'_, AppState>,
+    cookie: String,
+    username: String,
+) -> Result<AccountSummary, String> {
+    if cookie.trim().is_empty() || username.trim().is_empty() {
+        return Err("Enter both the cookie and Roblox username".to_string());
+    }
+    let client = RobloxClient::new().map_err(|error| error.to_string())?;
+    let candidates = api::search_users(&client, username.trim())
+        .await
+        .map_err(|_| "Roblox username lookup failed".to_string())?;
+    let candidate = candidates
+        .into_iter()
+        .find(|user| user.username.eq_ignore_ascii_case(username.trim()))
+        .ok_or_else(|| "That Roblox username could not be found".to_string())?;
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Account state unavailable".to_string())?;
+    add_account_with_cookie(
+        &mut runtime,
+        cookie.trim(),
+        candidate.user_id,
+        candidate.username,
+        candidate.display_name,
+    )
+}
+
+#[tauri::command]
 async fn login_and_add_account(
     state: tauri::State<'_, AppState>,
 ) -> Result<Option<AccountSummary>, String> {
@@ -991,6 +1021,7 @@ fn main() {
             arrange_account_windows,
             connection_action,
             add_account,
+            add_account_anyway,
             login_and_add_account,
             browse_as_account,
             save_launch_preset,
