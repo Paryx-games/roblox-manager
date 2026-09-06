@@ -2,40 +2,10 @@
 
 ## Unreleased
 
-### Added
+### Changed
 
-- **Custom account ordering.** Account rows can now be dragged into a persisted custom order, and selected connection searches expose friend, follow, unfollow, block, and join-game actions.
-- **Accounts action parity.** The Tauri Accounts workspace now supports custom account ordering, CSV metadata export, selected-account browser and player-path tools, common inventory checks, unfollow, and join-target-game launching.
-- **Account import recovery.** The Tauri Accounts add flow now supports browser login, multiline or text-file bulk cookie import, and an explicit username-confirmed path for storing credentials Roblox refuses to validate.
-- **Browser account flows.** The Tauri Accounts workspace now supports secure browser login when adding an account and authenticated browse-as windows for selected or moderated accounts without sending cookies through the frontend.
-- **Accounts workflow actions.** The React Accounts workspace now supports encrypted-store unlock, secure account addition, launch and preset persistence, inventory and connection actions, account validation, presence refresh, groups, pinning, aliases, custom player paths, bulk selection, and Roblox window operations.
-- **React Accounts workspace.** Replaced the frontend Accounts placeholder with a searchable, sortable, grouped account manager that loads account summaries through Tauri, supports account selection, launch input validation, responsive detail panels, and retryable loading errors.
-- **Accounts overview.** The Accounts workspace now includes live account statistics, supported quick actions, and a recent activity feed while preserving the invitation to add an account when the store is empty.
-- **Bulk connection actions.** The multi-account panel now includes a Connections section with the same social controls as the single account view, so you can search a Roblox user and apply follow, unfollow, join-game, block, and friend-request actions across every selected account in one pass.
-- **Join-by-user support.** The account panel now includes a user-join flow with direct follow/unfollow controls, a join-their-game action, and startup friend-cache refreshes to keep friends-only joins fast on large account lists.
-
-### Fixed
-
-- **Group-colored account accents.** Account row bars now use their group color and match the sidebar hover and selected expansion animations.
-- **Reorderable account groups.** Group headers can now be dragged into a new order, which is persisted across launches.
-- **Account identity actions.** The username now has a copy button, and the display-name link opens the profile in the native browser.
-- **Account notice entrance.** Queued timers now fade in and expand into place independently when they appear.
-- **Inventory action icon.** The Open inventory action now uses the backpack icon.
-- **Account notice spacing.** Added a small separation between launch controls and the stacked timer queue, with compact spacing between queued notices.
-- **Account status notice queue.** Multiple notices can now stack independently, with each message owning its own countdown and dismissal.
-- **Launch button icon contrast.** Primary action icons now automatically invert against light or dark button backgrounds, while disabled buttons retain muted icons.
-- **Account status notice motion.** Notices now empty counterclockwise and slide closed smoothly while their text and timer fade together, with reduced-motion support.
-- **Account status timer center.** The countdown now uses a white progress donut over a darker-gray track with a transparent center.
-- **Account status timer shape.** The notice timer now starts as a full circle, empties clockwise over five seconds, then fades away.
-- **Account actions menu.** The three-dots menu now fades in and closes when clicking outside it.
-- **Account status timer.** Status notices now use a five-second non-fading timer ring.
-- **Account avatars.** Roblox avatar images now stay contained within their circular frames while presence indicators remain visible.
-- **Account status notices.** Action feedback now includes a clockwise fading timer and dismisses automatically after four seconds.
-- **Accounts data parity.** The Tauri Accounts workspace now displays saved player paths, live presence locations, and cached Roblox avatar URLs from the account store.
-
-- **Account-panel sizing.** The selected-account sections now stay within one consistent width so the launch, inventory, and social cards no longer stretch past the viewport on smaller windows.
-- **Tools menu rendering.** The Tools dropdown no longer opens to a blank menu; it now shows the available workspace entries or a clear empty-state message when no tools are enabled.
-- **Account-panel width lock.** The top identity block stays at its original size while every lower card is forced to the exact same width for a consistent, non-clipping layout.
+- **Accounts menu rewrite.** Fully rewritten the accounts menu UI in Tauri + React to look cleaner, space easier, and function better.
+- **New UI facelift.** All UI has/being ported from egui to Tauri + React. Details are on [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30)
 
 ## v1.16.0
 
