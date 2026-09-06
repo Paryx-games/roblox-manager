@@ -1466,7 +1466,7 @@ export function AccountsPage() {
                     type="button"
                     onClick={() => void openAccountPage(true)}
                   >
-                    <Icon name="external-link" />
+                    <Icon name="inventory" />
                     Open inventory
                   </button>
                 </div>
