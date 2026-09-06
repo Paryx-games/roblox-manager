@@ -126,10 +126,7 @@ function TimedNotice({
   useEffect(() => {
     setExiting(false);
     const exitTimeout = window.setTimeout(() => setExiting(true), 5000);
-    const dismissTimeout = window.setTimeout(
-      () => dismissRef.current(),
-      5300,
-    );
+    const dismissTimeout = window.setTimeout(() => dismissRef.current(), 5300);
     return () => {
       window.clearTimeout(exitTimeout);
       window.clearTimeout(dismissTimeout);
