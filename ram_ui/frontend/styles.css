@@ -1086,6 +1086,7 @@ button:focus-visible {
   color: var(--text-muted);
   background: transparent;
   cursor: pointer;
+  transform: translate(calc(var(--space-1) * -1), var(--space-1));
 }
 
 .identity-icon-button:hover,

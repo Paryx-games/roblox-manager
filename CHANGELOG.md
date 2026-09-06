@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Account identity action alignment.** Profile and username actions now sit closer to their associated identity text with brighter hover contrast.
 - **Custom account ordering.** Account rows can now be dragged into a persisted custom order, and selected connection searches expose friend, follow, unfollow, block, and join-game actions.
 - **Accounts action parity.** The Tauri Accounts workspace now supports custom account ordering, CSV metadata export, selected-account browser and player-path tools, common inventory checks, unfollow, and join-target-game launching.
 - **Account import recovery.** The Tauri Accounts add flow now supports browser login, multiline or text-file bulk cookie import, and an explicit username-confirmed path for storing credentials Roblox refuses to validate.
