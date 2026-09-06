@@ -946,8 +946,8 @@ button:focus-visible {
 .account-menu {
   position: absolute;
   z-index: 30;
-  top: 58px;
-  right: var(--space-4);
+  top: calc(100% + var(--space-2));
+  right: 0;
   display: flex;
   width: 180px;
   flex-direction: column;
@@ -955,6 +955,30 @@ button:focus-visible {
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
   background: var(--bg-raised);
+  animation: account-menu-enter var(--duration-base) var(--ease-standard);
+}
+
+.account-menu-anchor {
+  position: relative;
+  align-self: flex-start;
+}
+
+@keyframes account-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--space-1) * -1));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-menu {
+    animation: none;
+  }
 }
 
 .account-menu button {

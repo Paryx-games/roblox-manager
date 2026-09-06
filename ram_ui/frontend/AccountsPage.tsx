@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type MouseEvent,
@@ -256,11 +257,28 @@ export function AccountsPage() {
     UserSearchResult[]
   >([]);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const [presenceLoading, setPresenceLoading] = useState(false);
   const [groupColors, setGroupColors] = useState<
     Record<string, [number, number, number]>
   >({});
   const [playerPath, setPlayerPath] = useState("");
+
+  useEffect(() => {
+    if (!showAccountMenu) return;
+
+    function dismissAccountMenu(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !accountMenuRef.current?.contains(event.target)
+      ) {
+        setShowAccountMenu(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", dismissAccountMenu);
+    return () => document.removeEventListener("pointerdown", dismissAccountMenu);
+  }, [showAccountMenu]);
   const [commonInventory, setCommonInventory] = useState<InventoryItem[]>([]);
   const [commonInventoryLoading, setCommonInventoryLoading] = useState(false);
 
@@ -1206,17 +1224,18 @@ export function AccountsPage() {
                   {selectedAccount.presenceText}
                 </span>
               </div>
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="More account actions"
-                data-tip="More actions"
-                onClick={() => setShowAccountMenu((current) => !current)}
-              >
-                <Icon name="more" />
-              </button>
-              {showAccountMenu && (
-                <div className="account-menu" role="menu">
+              <div className="account-menu-anchor" ref={accountMenuRef}>
+                <button
+                  className="icon-button"
+                  type="button"
+                  aria-label="More account actions"
+                  data-tip="More actions"
+                  onClick={() => setShowAccountMenu((current) => !current)}
+                >
+                  <Icon name="more" />
+                </button>
+                {showAccountMenu && (
+                  <div className="account-menu" role="menu">
                   <button
                     type="button"
                     role="menuitem"
@@ -1283,8 +1302,9 @@ export function AccountsPage() {
                     <Icon name="kill" />
                     Kill all Roblox
                   </button>
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </section>
 
             {(selectedAccount.moderationActive ||
