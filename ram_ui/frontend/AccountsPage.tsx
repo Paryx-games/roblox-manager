@@ -111,6 +111,26 @@ function parseCookies(value: string) {
     .filter(Boolean);
 }
 
+function TimedNotice({
+  message,
+  onDismiss,
+}: {
+  message: string;
+  onDismiss: () => void;
+}) {
+  useEffect(() => {
+    const timeout = window.setTimeout(onDismiss, 5400);
+    return () => window.clearTimeout(timeout);
+  }, [message, onDismiss]);
+
+  return (
+    <p className="account-notice" role="status">
+      <span className="notice-timer" aria-hidden="true" />
+      {message}
+    </p>
+  );
+}
+
 function AccountRow({
   account,
   selected,
@@ -1364,9 +1384,10 @@ export function AccountsPage() {
                 </button>
               </div>
               {notice && (
-                <p className="account-notice" role="status">
-                  {notice}
-                </p>
+                <TimedNotice
+                  message={notice}
+                  onDismiss={() => setNotice(null)}
+                />
               )}
             </section>
 

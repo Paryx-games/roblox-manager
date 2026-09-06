@@ -629,7 +629,80 @@ button:focus-visible {
 
 .accounts-error,
 .account-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--status-warning);
+}
+
+.notice-timer {
+  position: relative;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border-radius: 50%;
+  background: transparent;
+  animation: notice-timer-fade 400ms linear 5s forwards;
+}
+
+.notice-timer::before,
+.notice-timer::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  content: "";
+  mask: radial-gradient(circle, transparent 0 55%, currentcolor 57%);
+}
+
+.notice-timer::before {
+  background: var(--status-neutral);
+}
+
+.notice-timer::after {
+  background: conic-gradient(
+    from 0deg,
+    var(--text-primary) 0 var(--notice-progress),
+    transparent var(--notice-progress) 100%
+  );
+  animation: notice-timer-progress 5s linear forwards;
+}
+
+@property --notice-progress {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+
+@keyframes notice-timer-progress {
+  from {
+    --notice-progress: 100%;
+  }
+
+  to {
+    --notice-progress: 0%;
+  }
+}
+
+@keyframes notice-timer-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice-timer {
+    animation: none;
+  }
+
+  .notice-timer::before,
+  .notice-timer::after {
+    animation: none;
+  }
+
+  .notice-timer::after {
+    --notice-progress: 100%;
+  }
 }
 
 .unlock-form {

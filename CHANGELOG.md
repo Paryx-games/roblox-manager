@@ -16,6 +16,12 @@
 
 ### Fixed
 
+- **Account status timer center.** The countdown now uses a white progress donut over a darker-gray track with a transparent center.
+- **Account status timer shape.** The notice timer now starts as a full circle, empties clockwise over five seconds, then fades away.
+- **Account actions menu.** The three-dots menu now fades in and closes when clicking outside it.
+- **Account status timer.** Status notices now use a five-second non-fading timer ring.
+- **Account avatars.** Roblox avatar images now stay contained within their circular frames while presence indicators remain visible.
+- **Account status notices.** Action feedback now includes a clockwise fading timer and dismisses automatically after four seconds.
 - **Accounts data parity.** The Tauri Accounts workspace now displays saved player paths, live presence locations, and cached Roblox avatar URLs from the account store.
 
 - **Account-panel sizing.** The selected-account sections now stay within one consistent width so the launch, inventory, and social cards no longer stretch past the viewport on smaller windows.
