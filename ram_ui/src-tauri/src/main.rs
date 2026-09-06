@@ -391,6 +391,30 @@ fn update_account_group(
 }
 
 #[tauri::command]
+fn reorder_accounts(
+    state: tauri::State<'_, AppState>,
+    user_ids: Vec<u64>,
+) -> Result<Vec<AccountSummary>, String> {
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Account state unavailable".to_string())?;
+    for (sort_order, user_id) in user_ids.iter().enumerate() {
+        if let Some(account) = runtime.accounts.find_by_id_mut(*user_id) {
+            account.sort_order = sort_order as u32;
+        }
+    }
+    let summaries = runtime
+        .accounts
+        .accounts
+        .iter()
+        .map(|account| account_summary(account, configured_player_path(&runtime, account.user_id)))
+        .collect();
+    save_runtime(&runtime)?;
+    Ok(summaries)
+}
+
+#[tauri::command]
 fn update_player_path(
     state: tauri::State<'_, AppState>,
     user_id: u64,
@@ -1082,6 +1106,7 @@ fn main() {
             update_account_alias,
             toggle_account_pin,
             update_account_group,
+            reorder_accounts,
             update_player_path,
             create_account_group,
             delete_account_group,

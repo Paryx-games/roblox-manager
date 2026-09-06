@@ -16,6 +16,7 @@ import {
   toggleAccountPin,
   openAccountUrl,
   updateAccountGroup,
+  reorderAccounts,
   updatePlayerPath,
   createDeviceStore,
   addAccount,
@@ -110,15 +111,24 @@ function AccountRow({
   account,
   selected,
   onSelect,
+  onDropAccount,
 }: {
   account: AccountSummary;
   selected: boolean;
   onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
+  onDropAccount: (sourceId: number, targetId: number) => void;
 }) {
   return (
     <button
       className={`account-row ${selected ? "is-selected" : ""}`}
       type="button"
+      draggable
+      onDragStart={(event) => event.dataTransfer.setData("text/account-id", String(account.userId))}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        const sourceId = Number(event.dataTransfer.getData("text/account-id"));
+        if (sourceId && sourceId !== account.userId) onDropAccount(sourceId, account.userId);
+      }}
       onClick={onSelect}
     >
       <span className="account-row-bar" aria-hidden="true" />
@@ -137,6 +147,7 @@ function AccountGroup({
   onToggle,
   selectedId,
   onSelect,
+  onDropAccount,
   color,
 }: {
   group: AccountGroup;
@@ -144,6 +155,7 @@ function AccountGroup({
   selectedId: number | null;
   onToggle: () => void;
   onSelect: (id: number, event: MouseEvent<HTMLButtonElement>) => void;
+  onDropAccount: (sourceId: number, targetId: number) => void;
   color: string;
 }) {
   return (
@@ -172,6 +184,7 @@ function AccountGroup({
               key={account.userId}
               selected={selectedId === account.userId}
               onSelect={(event) => onSelect(account.userId, event)}
+              onDropAccount={(sourceId) => onDropAccount(sourceId, account.userId)}
             />
           ))}
         </div>
@@ -380,6 +393,21 @@ export function AccountsPage() {
       setNotice("Presence could not be refreshed.");
     } finally {
       setPresenceLoading(false);
+    }
+  }
+
+  async function reorderAccount(sourceId: number, targetId: number) {
+    const ordered = [...accounts];
+    const sourceIndex = ordered.findIndex((account) => account.userId === sourceId);
+    const targetIndex = ordered.findIndex((account) => account.userId === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [source] = ordered.splice(sourceIndex, 1);
+    ordered.splice(targetIndex, 0, source);
+    try {
+      setAccounts(await reorderAccounts(ordered.map((account) => account.userId)));
+      setNotice("Account order saved.");
+    } catch {
+      setNotice("The account order could not be saved.");
     }
   }
 
@@ -1081,6 +1109,7 @@ export function AccountsPage() {
               }
               selectedId={selectedId}
               onSelect={selectAccountWithModifiers}
+              onDropAccount={(sourceId, targetId) => void reorderAccount(sourceId, targetId)}
               color={group.color}
             />
           ))}
@@ -1471,14 +1500,33 @@ export function AccountsPage() {
                           Join game
                         </button>
                         {selectedIds.size > 1 && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void applyBulkConnectionAction(result.userId, "unfollow")
-                            }
-                          >
-                            Unfollow selected
-                          </button>
+                          <>
+                            <button type="button" onClick={() => void applyBulkConnectionAction(result.userId, "friend")}>
+                              Friend selected
+                            </button>
+                            <button type="button" onClick={() => void applyBulkConnectionAction(result.userId, "follow")}>
+                              Follow selected
+                            </button>
+                            <button type="button" onClick={() => void applyBulkConnectionAction(result.userId, "unfollow")}>
+                              Unfollow selected
+                            </button>
+                            <button type="button" onClick={() => void applyBulkConnectionAction(result.userId, "block")}>
+                              Block selected
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void Promise.all(
+                                  [...selectedIds].map((userId) => joinUserGame(userId, result.userId)),
+                                ).then(
+                                  () => setNotice("Join requested for selected accounts."),
+                                  () => setNotice("The target user could not be joined by every account."),
+                                )
+                              }
+                            >
+                              Join selected
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
