@@ -1643,8 +1643,8 @@ export function AccountsPage() {
               >
                 {groupDeleteConfirmation}
               </strong>
-              ? This will not delete the accounts. They will remain managed
-              and become ungrouped.
+              ? This will not delete the accounts. They will remain managed and
+              become ungrouped.
             </>
           }
           confirmLabel="Delete group"
