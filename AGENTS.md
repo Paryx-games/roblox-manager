@@ -10,6 +10,11 @@ Use:
 
 or a close equivalent. This acknowledgement is required before editing files, running commands, or making other repository changes. **The security rules under Agent Guidelines § 5 are non-negotiable - RM stores live Roblox credentials, so treat that section as load-bearing, not advisory.** **If your task touches any UI code (`ram_ui/src/`), you must also read `DESIGN.md` and `ram_ui/src/tokens.css` before writing a single component - see Agent Guidelines § 10.**
 
+## Currently important news (required read)
+
+- **v2 is a Tauri + React/TypeScript rewrite of the UI only**, tracked in draft [PR #30](https://github.com/Paryx-games/roblox-manager/pull/30) (closes [#29](https://github.com/Paryx-games/roblox-manager/issues/29)). It replaces the egui/eframe frontend - it does not touch `ram_core` (logic, crypto, storage, Roblox API, Win32 process management stays as-is) and does not remove or rewrite the existing egui source, which stays in place until the new UI reaches feature parity.
+- **Do not touch `ram_core` at all, and do not touch the existing egui source code.** Only edit Tauri (Rust `src-tauri`), React, or TypeScript files.
+
 ## Project Overview
 
 **RM (Roblox Manager)** is a fast, lightweight, native Windows desktop application built with a **Rust core** and a **Tauri + React/TypeScript** UI. It provides comprehensive Roblox multi-account management, secure credential storage, multi-instance game launching, automated window tiling, live presence tracking, group management, asset uploading, and anti-association privacy features.
