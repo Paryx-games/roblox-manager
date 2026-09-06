@@ -101,7 +101,9 @@ export async function updateAccountGroup(
   return invoke<AccountSummary>("update_account_group", { userId, group });
 }
 
-export async function reorderAccounts(userIds: number[]): Promise<AccountSummary[]> {
+export async function reorderAccounts(
+  userIds: number[],
+): Promise<AccountSummary[]> {
   return invoke<AccountSummary[]>("reorder_accounts", { userIds });
 }
 

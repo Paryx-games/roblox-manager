@@ -85,7 +85,11 @@ function AccountAvatar({
 }) {
   return (
     <span className={`account-avatar ${large ? "account-avatar-large" : ""}`}>
-      {account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : initials(account)}
+      {account.avatarUrl ? (
+        <img src={account.avatarUrl} alt="" />
+      ) : (
+        initials(account)
+      )}
       <span
         className={`presence-dot presence-${account.presence}`}
         aria-label={account.presenceText}
@@ -123,11 +127,14 @@ function AccountRow({
       className={`account-row ${selected ? "is-selected" : ""}`}
       type="button"
       draggable
-      onDragStart={(event) => event.dataTransfer.setData("text/account-id", String(account.userId))}
+      onDragStart={(event) =>
+        event.dataTransfer.setData("text/account-id", String(account.userId))
+      }
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => {
         const sourceId = Number(event.dataTransfer.getData("text/account-id"));
-        if (sourceId && sourceId !== account.userId) onDropAccount(sourceId, account.userId);
+        if (sourceId && sourceId !== account.userId)
+          onDropAccount(sourceId, account.userId);
       }}
       onClick={onSelect}
     >
@@ -184,7 +191,9 @@ function AccountGroup({
               key={account.userId}
               selected={selectedId === account.userId}
               onSelect={(event) => onSelect(account.userId, event)}
-              onDropAccount={(sourceId) => onDropAccount(sourceId, account.userId)}
+              onDropAccount={(sourceId) =>
+                onDropAccount(sourceId, account.userId)
+              }
             />
           ))}
         </div>
@@ -398,13 +407,19 @@ export function AccountsPage() {
 
   async function reorderAccount(sourceId: number, targetId: number) {
     const ordered = [...accounts];
-    const sourceIndex = ordered.findIndex((account) => account.userId === sourceId);
-    const targetIndex = ordered.findIndex((account) => account.userId === targetId);
+    const sourceIndex = ordered.findIndex(
+      (account) => account.userId === sourceId,
+    );
+    const targetIndex = ordered.findIndex(
+      (account) => account.userId === targetId,
+    );
     if (sourceIndex < 0 || targetIndex < 0) return;
     const [source] = ordered.splice(sourceIndex, 1);
     ordered.splice(targetIndex, 0, source);
     try {
-      setAccounts(await reorderAccounts(ordered.map((account) => account.userId)));
+      setAccounts(
+        await reorderAccounts(ordered.map((account) => account.userId)),
+      );
       setNotice("Account order saved.");
     } catch {
       setNotice("The account order could not be saved.");
@@ -653,7 +668,10 @@ export function AccountsPage() {
     }
   }
 
-  async function applyBulkConnectionAction(targetUserId: number, action: string) {
+  async function applyBulkConnectionAction(
+    targetUserId: number,
+    action: string,
+  ) {
     const ids = [...selectedIds];
     if (!ids.length) return;
     setMutationLoading(true);
@@ -708,10 +726,15 @@ export function AccountsPage() {
     setMutationLoading(true);
     try {
       const updates = await Promise.all(
-        [...selectedIds].map((userId) => updatePlayerPath(userId, path.trim() || null)),
+        [...selectedIds].map((userId) =>
+          updatePlayerPath(userId, path.trim() || null),
+        ),
       );
       setAccounts((current) =>
-        current.map((account) => updates.find((item) => item.userId === account.userId) ?? account),
+        current.map(
+          (account) =>
+            updates.find((item) => item.userId === account.userId) ?? account,
+        ),
       );
       setNotice("Player path updated.");
     } catch {
@@ -726,9 +749,12 @@ export function AccountsPage() {
     if (!ids.length) return;
     setCommonInventoryLoading(true);
     try {
-      const inventories = await Promise.all(ids.map((userId) => fetchAccountInventory(userId)));
+      const inventories = await Promise.all(
+        ids.map((userId) => fetchAccountInventory(userId)),
+      );
       const counts = new Map<number, { item: InventoryItem; count: number }>();
-      for (const item of inventories[0] ?? []) counts.set(item.assetId, { item, count: 1 });
+      for (const item of inventories[0] ?? [])
+        counts.set(item.assetId, { item, count: 1 });
       for (const inventoryItems of inventories.slice(1)) {
         const present = new Set(inventoryItems.map((item) => item.assetId));
         for (const [assetId, entry] of counts) {
@@ -763,7 +789,9 @@ export function AccountsPage() {
           .join(","),
       ),
     ];
-    const url = URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }));
+    const url = URL.createObjectURL(
+      new Blob([rows.join("\n")], { type: "text/csv" }),
+    );
     const link = document.createElement("a");
     link.href = url;
     link.download = "roblox-accounts.csv";
@@ -835,8 +863,7 @@ export function AccountsPage() {
         setAccounts((current) => [...current, account]);
         setSelectedId(account.userId);
         added += 1;
-      } catch {
-      }
+      } catch {}
       setBulkProgress([index + 1, cookies.length]);
     }
     setMutationLoading(false);
@@ -944,7 +971,9 @@ export function AccountsPage() {
                   <input
                     id="force-add-username"
                     value={forceAddUsername}
-                    onChange={(event) => setForceAddUsername(event.target.value)}
+                    onChange={(event) =>
+                      setForceAddUsername(event.target.value)
+                    }
                     placeholder="Username"
                     autoComplete="off"
                   />
@@ -979,7 +1008,9 @@ export function AccountsPage() {
               <button
                 className="account-button"
                 type="button"
-                disabled={!parseCookies(bulkCookieInput).length || mutationLoading}
+                disabled={
+                  !parseCookies(bulkCookieInput).length || mutationLoading
+                }
                 onClick={() => void importAccounts()}
               >
                 Import {parseCookies(bulkCookieInput).length} account(s)
@@ -1034,17 +1065,29 @@ export function AccountsPage() {
                 <Icon name="launch" />
                 Bulk launch
               </button>
-              <button type="button" onClick={() => void openSelectedBrowsers()} disabled={mutationLoading}>
+              <button
+                type="button"
+                onClick={() => void openSelectedBrowsers()}
+                disabled={mutationLoading}
+              >
                 <Icon name="browser" />
                 Open browsers
               </button>
               <button type="button" onClick={() => void copySelectedIds()}>
                 Copy IDs
               </button>
-              <button type="button" onClick={() => void changeSelectedPath()} disabled={mutationLoading}>
+              <button
+                type="button"
+                onClick={() => void changeSelectedPath()}
+                disabled={mutationLoading}
+              >
                 Change path
               </button>
-              <button type="button" onClick={() => void loadCommonInventory()} disabled={commonInventoryLoading}>
+              <button
+                type="button"
+                onClick={() => void loadCommonInventory()}
+                disabled={commonInventoryLoading}
+              >
                 Common inventory
               </button>
             </div>
@@ -1109,7 +1152,9 @@ export function AccountsPage() {
               }
               selectedId={selectedId}
               onSelect={selectAccountWithModifiers}
-              onDropAccount={(sourceId, targetId) => void reorderAccount(sourceId, targetId)}
+              onDropAccount={(sourceId, targetId) =>
+                void reorderAccount(sourceId, targetId)
+              }
               color={group.color}
             />
           ))}
@@ -1488,7 +1533,10 @@ export function AccountsPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            void applyConnectionAction(result.userId, "unfollow")
+                            void applyConnectionAction(
+                              result.userId,
+                              "unfollow",
+                            )
                           }
                         >
                           Unfollow
@@ -1501,26 +1549,66 @@ export function AccountsPage() {
                         </button>
                         {selectedIds.size > 1 && (
                           <>
-                            <button type="button" onClick={() => void applyBulkConnectionAction(result.userId, "friend")}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void applyBulkConnectionAction(
+                                  result.userId,
+                                  "friend",
+                                )
+                              }
+                            >
                               Friend selected
                             </button>
-                            <button type="button" onClick={() => void applyBulkConnectionAction(result.userId, "follow")}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void applyBulkConnectionAction(
+                                  result.userId,
+                                  "follow",
+                                )
+                              }
+                            >
                               Follow selected
                             </button>
-                            <button type="button" onClick={() => void applyBulkConnectionAction(result.userId, "unfollow")}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void applyBulkConnectionAction(
+                                  result.userId,
+                                  "unfollow",
+                                )
+                              }
+                            >
                               Unfollow selected
                             </button>
-                            <button type="button" onClick={() => void applyBulkConnectionAction(result.userId, "block")}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void applyBulkConnectionAction(
+                                  result.userId,
+                                  "block",
+                                )
+                              }
+                            >
                               Block selected
                             </button>
                             <button
                               type="button"
                               onClick={() =>
                                 void Promise.all(
-                                  [...selectedIds].map((userId) => joinUserGame(userId, result.userId)),
+                                  [...selectedIds].map((userId) =>
+                                    joinUserGame(userId, result.userId),
+                                  ),
                                 ).then(
-                                  () => setNotice("Join requested for selected accounts."),
-                                  () => setNotice("The target user could not be joined by every account."),
+                                  () =>
+                                    setNotice(
+                                      "Join requested for selected accounts.",
+                                    ),
+                                  () =>
+                                    setNotice(
+                                      "The target user could not be joined by every account.",
+                                    ),
                                 )
                               }
                             >
