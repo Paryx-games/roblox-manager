@@ -1333,9 +1333,7 @@ export function AccountsPage() {
                 type="button"
                 aria-label="Add account"
                 data-tip="Add account"
-                onClick={() =>
-                  showAddForm ? closeAddForm() : openAddForm()
-                }
+                onClick={() => (showAddForm ? closeAddForm() : openAddForm())}
               >
                 <Icon name="add" />
               </button>
@@ -1577,7 +1575,7 @@ export function AccountsPage() {
                   autoComplete="off"
                 />
                 <button
-                  className="account-button primary"
+                  className="account-button account-status-button primary"
                   type="button"
                   disabled={!cookie || mutationLoading}
                   onClick={() => void addManagedAccount()}
@@ -1628,7 +1626,7 @@ export function AccountsPage() {
                   }}
                 />
                 <button
-                  className="account-button"
+                  className="account-button account-status-button"
                   type="button"
                   disabled={
                     !parseCookies(bulkCookieInput).length || mutationLoading

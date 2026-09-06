@@ -1795,6 +1795,13 @@ button:focus-visible {
   mix-blend-mode: normal;
 }
 
+.account-status-button {
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
 .account-button .account-icon {
   width: 15px;
   height: 15px;
