@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Account row contrast.** Unselected account names now use muted gray text while the selected account remains bright.
 - **Group creation editor.** Add group now opens the same themed name-and-color editor used for renaming groups.
 - **Accounts bar actions.** Add group now occupies the existing export slot, while Export accounts is available as a labeled action in the Accounts header.
 - **Group deletion confirmation colors.** The confirmation names the group in its configured color and uses a red delete action with white text and icon.

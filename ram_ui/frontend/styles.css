@@ -968,10 +968,15 @@ button:focus-visible {
   min-width: 0;
   flex: 1;
   overflow: hidden;
+  color: var(--text-muted);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.account-row.is-selected .account-row-name {
+  color: var(--text-primary);
 }
 
 .account-row-pin {
