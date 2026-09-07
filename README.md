@@ -51,6 +51,29 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 >
 > Never include `.ROBLOSECURITY` cookies, authentication tokens, credentials, encryption keys, or other sensitive account data in issues, pull requests, commits, logs, or screenshots. If you discover a security vulnerability, see [SECURITY.md](SECURITY.md) for how to report it privately.
 
+## Usage
+
+1. **First launch** - Nothing to set up. Encryption configures itself on this PC
+2. **Add accounts** - Click "+ Add Account" and paste your `.ROBLOSECURITY` cookie
+3. **Launch** - Select an account, enter a Place ID, and click Launch
+4. **Bulk launch** - Ctrl+click or Shift+click to select multiple accounts, then use the group panel
+5. **Settings** - Configure multi-instance, privacy mode, auto-arrange, and more
+
+> [!CAUTION]
+> Multi-instance and privacy features interact with Roblox's local processes and files. Roblox updates may change or break these behaviours, so do not assume that a feature will continue working indefinitely.
+
+## Credits
+
+- [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of RobloxAccountManager that this repository was forked from
+- [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by [ic3w0lf22](https://github.com/ic3w0lf22) - The original Roblox Account Manager that served as the primary reference for this project
+- [Lucide Icons](https://lucide.dev/icons/) - The icon pack used for icons throughout the app. Licensed under the [ISC License](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
+
+## Background
+
+RM is the spiritual successor to [ByeBanAsync](https://github.com/centerepic/ByeBanAsync), since simply clearing `RobloxCookies.dat` is no longer effective on its own. The project focuses on managing separate Roblox sessions and account data while adapting to changes in Roblox's client behaviour.
+
+Later updates may be made to reinforce account isolation and session management if needed.
+
 ## Building from Source
 
 ### Prerequisites
@@ -74,21 +97,6 @@ cargo run --release
 
 The compiled binary will be at `target/release/ram_ui.exe`.
 
-### Development
-
-```powershell
-# Check for errors without building
-cargo check
-
-# Run with debug logging
-$env:RUST_LOG="debug"; cargo run
-```
-
-> [!TIP]
-> If you are developing RM, `cargo check` is the quickest way to catch compilation errors without producing a release build.
->
-> We also allow AI development but please make sure it follows our [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md), otherwise the pull request will not be merged
-
 ## Development Commands
 
 Run these commands from the repository root unless noted otherwise.
@@ -99,8 +107,11 @@ Run these commands from the repository root unless noted otherwise.
 # Format all Rust crates
 cargo fmt --all
 
-# Check the workspace without producing release artifacts
+# Check for errors without building
 cargo check
+
+# Run with debug logging
+$env:RUST_LOG="debug"; cargo run
 
 # Run all Rust tests
 cargo test --workspace
@@ -163,29 +174,6 @@ pnpm --dir ram_ui typecheck
 
 > [!WARNING]
 > Never include Roblox cookies, authentication tokens, passwords, webhook URLs, account data, logs, or build artifacts in commits, issues, pull requests, or screenshots. Report security vulnerabilities privately through [SECURITY.md](SECURITY.md).
-
-## Usage
-
-1. **First launch** - Nothing to set up. Encryption configures itself on this PC
-2. **Add accounts** - Click "+ Add Account" and paste your `.ROBLOSECURITY` cookie
-3. **Launch** - Select an account, enter a Place ID, and click Launch
-4. **Bulk launch** - Ctrl+click or Shift+click to select multiple accounts, then use the group panel
-5. **Settings** - Configure multi-instance, privacy mode, auto-arrange, and more
-
-> [!CAUTION]
-> Multi-instance and privacy features interact with Roblox's local processes and files. Roblox updates may change or break these behaviours, so do not assume that a feature will continue working indefinitely.
-
-## Credits
-
-- [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of RobloxAccountManager that this repository was forked from
-- [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by [ic3w0lf22](https://github.com/ic3w0lf22) - The original Roblox Account Manager that served as the primary reference for this project
-- [Lucide Icons](https://lucide.dev/icons/) - The icon pack used for icons throughout the app. Licensed under the [ISC License](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
-
-## Background
-
-RM is the spiritual successor to [ByeBanAsync](https://github.com/centerepic/ByeBanAsync), since simply clearing `RobloxCookies.dat` is no longer effective on its own. The project focuses on managing separate Roblox sessions and account data while adapting to changes in Roblox's client behaviour.
-
-Later updates may be made to reinforce account isolation and session management if needed.
 
 ## License
 
