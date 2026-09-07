@@ -8,7 +8,7 @@
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
     "lint": "eslint . && stylelint \"frontend/**/*.css\"",
     "typecheck": "tsc --noEmit -p tsconfig.app.json --pretty false",
-    "tauri": "tauri"
+    "tauri": "node scripts/tauri.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
