@@ -985,6 +985,7 @@ button:focus-visible {
 }
 
 .account-group-header {
+  position: relative;
   display: flex;
   width: 100%;
   height: 36px;
@@ -1003,6 +1004,58 @@ button:focus-visible {
 .account-group-header:hover,
 .account-group-header:focus-visible {
   background: var(--bg-surface);
+}
+
+.account-group.is-ungrouped {
+  margin-top: var(--space-3);
+}
+
+.special-categories-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 var(--space-4) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--text-sm);
+  pointer-events: none;
+  user-select: none;
+}
+
+.special-categories-label::before,
+.special-categories-label::after {
+  flex: 1;
+  border-top: var(--border-width) solid var(--border-default);
+  content: "";
+}
+
+.account-group-header.is-ungrouped {
+  color: var(--text-muted);
+}
+
+.account-group-header.is-ungrouped .group-marker {
+  background: var(--text-muted);
+}
+
+.account-drop-line,
+.group-drop-line {
+  position: absolute;
+  right: var(--space-4);
+  left: var(--space-4);
+  height: 2px;
+  background: var(--text-primary);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.account-drop-line.before,
+.group-drop-line.before {
+  top: 0;
+}
+
+.account-drop-line.after,
+.group-drop-line.after {
+  bottom: 0;
 }
 
 .account-group-header > .account-icon {

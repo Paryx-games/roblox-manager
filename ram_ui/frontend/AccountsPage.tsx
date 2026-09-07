@@ -96,6 +96,14 @@ type GroupEditorState = {
   color: string;
 };
 
+type DropPosition = "before" | "after";
+
+type DropIndicator = {
+  kind: "account" | "group";
+  id: number | string;
+  position: DropPosition;
+};
+
 function Icon({ name }: { name: string }) {
   return (
     <img
@@ -129,6 +137,13 @@ function hexToRgb(value: string): [number, number, number] | null {
     Number.parseInt(match[1].slice(2, 4), 16),
     Number.parseInt(match[1].slice(4, 6), 16),
   ];
+}
+
+function setTransparentDragImage(dataTransfer: DataTransfer) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  dataTransfer.setDragImage(canvas, 0, 0);
 }
 
 function AccountAvatar({
@@ -210,17 +225,26 @@ function AccountRow({
   pinning,
   draggingAccountId,
   onAccountDragStateChange,
+  dropIndicator,
+  onDropIndicatorChange,
 }: {
   account: AccountSummary;
   selected: boolean;
   onSelect: (event: AccountSelectionEvent) => void;
-  onDropAccount: (sourceId: number, targetId: number) => void;
+  onDropAccount: (
+    sourceId: number,
+    targetId: number,
+    position: DropPosition,
+    targetGroup: string,
+  ) => void;
   canDragAccounts: boolean;
   accentColor: string;
   onTogglePin: (userId: number) => void;
   pinning: boolean;
   draggingAccountId: number | null;
   onAccountDragStateChange: (id: number | null) => void;
+  dropIndicator: DropIndicator | null;
+  onDropIndicatorChange: (indicator: DropIndicator | null) => void;
 }) {
   return (
     <div
@@ -233,6 +257,7 @@ function AccountRow({
         canDragAccounts
           ? (event) => {
               event.dataTransfer.effectAllowed = "move";
+              setTransparentDragImage(event.dataTransfer);
               // webview2 needs a standard mime type to actually start the drag
               event.dataTransfer.setData("text/plain", String(account.userId));
               onAccountDragStateChange(account.userId);
@@ -247,6 +272,15 @@ function AccountRow({
               if (draggingAccountId === null) return;
               event.preventDefault();
               event.dataTransfer.dropEffect = "move";
+              const bounds = event.currentTarget.getBoundingClientRect();
+              onDropIndicatorChange({
+                kind: "account",
+                id: account.userId,
+                position:
+                  event.clientY < bounds.top + bounds.height / 2
+                    ? "before"
+                    : "after",
+              });
             }
           : undefined
       }
@@ -255,10 +289,20 @@ function AccountRow({
         event.preventDefault();
         const sourceId = draggingAccountId;
         onAccountDragStateChange(null);
-        if (sourceId !== account.userId)
-          onDropAccount(sourceId, account.userId);
+        const position =
+          dropIndicator?.kind === "account" &&
+          dropIndicator.id === account.userId
+            ? dropIndicator.position
+            : "after";
+        onDropIndicatorChange(null);
+        if (sourceId !== account.userId) {
+          onDropAccount(sourceId, account.userId, position, account.group);
+        }
       }}
-      onDragEnd={() => onAccountDragStateChange(null)}
+      onDragEnd={() => {
+        onAccountDragStateChange(null);
+        onDropIndicatorChange(null);
+      }}
       onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -267,6 +311,13 @@ function AccountRow({
         }
       }}
     >
+      {dropIndicator?.kind === "account" &&
+        dropIndicator.id === account.userId && (
+          <span
+            className={`account-drop-line ${dropIndicator.position}`}
+            aria-hidden="true"
+          />
+        )}
       <span className="account-row-bar" aria-hidden="true" />
       <AccountAvatar account={account} />
       <span className="account-row-name">{account.label}</span>
@@ -304,15 +355,27 @@ function AccountGroup({
   onAccountDragStateChange,
   draggingGroupName,
   onGroupDragStateChange,
+  dropIndicator,
+  onDropIndicatorChange,
+  showUngroupedSeparator,
 }: {
   group: AccountGroup;
   collapsed: boolean;
   selectedId: number | null;
   onToggle: () => void;
   onSelect: (id: number, event: AccountSelectionEvent) => void;
-  onDropAccount: (sourceId: number, targetId: number) => void;
+  onDropAccount: (
+    sourceId: number,
+    targetId: number,
+    position: DropPosition,
+    targetGroup: string,
+  ) => void;
   canDragAccounts: boolean;
-  onDropGroup: (sourceName: string, targetName: string) => void;
+  onDropGroup: (
+    sourceName: string,
+    targetName: string,
+    position: DropPosition,
+  ) => void;
   color: string;
   onTogglePin: (userId: number) => void;
   pinningIds: Set<number>;
@@ -321,39 +384,95 @@ function AccountGroup({
   onAccountDragStateChange: (id: number | null) => void;
   draggingGroupName: string | null;
   onGroupDragStateChange: (name: string | null) => void;
+  dropIndicator: DropIndicator | null;
+  onDropIndicatorChange: (indicator: DropIndicator | null) => void;
+  showUngroupedSeparator: boolean;
 }) {
+  const isUngrouped = group.name === "Ungrouped";
+
   return (
     <section
-      className={`account-group group-${group.tone}`}
+      className={`account-group group-${group.tone} ${
+        isUngrouped && showUngroupedSeparator ? "is-ungrouped" : ""
+      }`}
       style={{ "--group-color": color } as CSSProperties}
     >
+      {isUngrouped && showUngroupedSeparator && (
+        <div className="special-categories-label" aria-hidden="true">
+          <span>Special Categories</span>
+        </div>
+      )}
       <button
-        className="account-group-header"
+        className={`account-group-header ${isUngrouped ? "is-ungrouped" : ""}`}
         type="button"
-        draggable
+        draggable={group.name !== "Ungrouped"}
         onDragStart={(event) => {
+          if (group.name === "Ungrouped") return;
           event.dataTransfer.effectAllowed = "move";
+          setTransparentDragImage(event.dataTransfer);
           event.dataTransfer.setData("text/plain", group.name);
           onGroupDragStateChange(group.name);
         }}
         onDragOver={(event) => {
+          if (draggingAccountId !== null) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            onDropIndicatorChange({
+              kind: "account",
+              id: group.name,
+              position: "after",
+            });
+            return;
+          }
           if (draggingGroupName === null) return;
           event.preventDefault();
           event.dataTransfer.dropEffect = "move";
+          const bounds = event.currentTarget.getBoundingClientRect();
+          onDropIndicatorChange({
+            kind: "group",
+            id: group.name,
+            position:
+              event.clientY < bounds.top + bounds.height / 2
+                ? "before"
+                : "after",
+          });
         }}
         onDrop={(event) => {
+          if (draggingAccountId !== null) {
+            event.preventDefault();
+            const sourceId = draggingAccountId;
+            onAccountDragStateChange(null);
+            onDropIndicatorChange(null);
+            onDropAccount(sourceId, -1, "after", group.name);
+            return;
+          }
           if (draggingGroupName === null) return;
           event.preventDefault();
           const sourceName = draggingGroupName;
           onGroupDragStateChange(null);
-          if (sourceName !== group.name) onDropGroup(sourceName, group.name);
+          const position =
+            dropIndicator?.kind === "group" && dropIndicator.id === group.name
+              ? dropIndicator.position
+              : "after";
+          onDropIndicatorChange(null);
+          if (sourceName !== group.name)
+            onDropGroup(sourceName, group.name, position);
         }}
-        onDragEnd={() => onGroupDragStateChange(null)}
+        onDragEnd={() => {
+          onGroupDragStateChange(null);
+          onDropIndicatorChange(null);
+        }}
         onClick={onToggle}
         onContextMenu={(event) => onContextMenu(event, group.name)}
         aria-expanded={!collapsed}
         aria-haspopup={group.name !== "Ungrouped" ? "menu" : undefined}
       >
+        {dropIndicator?.id === group.name && (
+          <span
+            className={`group-drop-line ${dropIndicator.position}`}
+            aria-hidden="true"
+          />
+        )}
         <span className={`group-chevron ${collapsed ? "is-collapsed" : ""}`}>
           <Icon name="chevron-down" />
         </span>
@@ -369,8 +488,8 @@ function AccountGroup({
               key={account.userId}
               selected={selectedId === account.userId}
               onSelect={(event) => onSelect(account.userId, event)}
-              onDropAccount={(sourceId) =>
-                onDropAccount(sourceId, account.userId)
+              onDropAccount={(sourceId, targetId, position, targetGroup) =>
+                onDropAccount(sourceId, targetId, position, targetGroup)
               }
               canDragAccounts={canDragAccounts}
               accentColor={color}
@@ -378,6 +497,8 @@ function AccountGroup({
               pinning={pinningIds.has(account.userId)}
               draggingAccountId={draggingAccountId}
               onAccountDragStateChange={onAccountDragStateChange}
+              dropIndicator={dropIndicator}
+              onDropIndicatorChange={onDropIndicatorChange}
             />
           ))}
         </div>
@@ -392,6 +513,9 @@ export function AccountsPage() {
     null,
   );
   const [draggingGroupName, setDraggingGroupName] = useState<string | null>(
+    null,
+  );
+  const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(
     null,
   );
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -658,6 +782,8 @@ export function AccountsPage() {
       }));
   }, [groupColors, groupOrder, visibleAccounts]);
 
+  const hasNamedGroups = groups.some((group) => group.name !== "Ungrouped");
+
   const selectedAccount =
     accounts.find((account) => account.userId === selectedId) ?? null;
   const placeIdValid = /^\d+$/.test(placeId.trim());
@@ -722,7 +848,12 @@ export function AccountsPage() {
     }
   }
 
-  async function reorderAccount(sourceId: number, targetId: number) {
+  async function reorderAccount(
+    sourceId: number,
+    targetId: number,
+    position: DropPosition,
+    targetGroup: string,
+  ) {
     if (sortMode !== "custom") return;
     const ordered = [...accounts].sort((left, right) => {
       if (left.isPinned !== right.isPinned) return left.isPinned ? -1 : 1;
@@ -731,29 +862,65 @@ export function AccountsPage() {
     const sourceIndex = ordered.findIndex(
       (account) => account.userId === sourceId,
     );
-    const targetIndex = ordered.findIndex(
-      (account) => account.userId === targetId,
-    );
-    if (sourceIndex < 0 || targetIndex < 0) return;
+    if (sourceIndex < 0) return;
     const [source] = ordered.splice(sourceIndex, 1);
-    ordered.splice(targetIndex, 0, source);
+    const targetIndex =
+      targetId > 0
+        ? ordered.findIndex((account) => account.userId === targetId)
+        : -1;
+    let insertionIndex = targetIndex;
+    if (targetIndex < 0) {
+      const groupIndexes = ordered.reduce<number[]>(
+        (indexes, account, index) => {
+          if ((account.group.trim() || "Ungrouped") === targetGroup)
+            indexes.push(index);
+          return indexes;
+        },
+        [],
+      );
+      insertionIndex =
+        groupIndexes.length > 0
+          ? groupIndexes[groupIndexes.length - 1]
+          : ordered.length - 1;
+      position = "after";
+    } else if (position === "after") {
+      insertionIndex += 1;
+    }
+    ordered.splice(Math.max(0, insertionIndex), 0, source);
     try {
+      const currentGroup = source.group.trim() || "Ungrouped";
+      const nextGroup = targetGroup.trim() || "Ungrouped";
+      if (currentGroup !== nextGroup) {
+        await updateAccountGroup(
+          sourceId,
+          nextGroup === "Ungrouped" ? "" : nextGroup,
+        );
+      }
       setAccounts(
         await reorderAccounts(ordered.map((account) => account.userId)),
       );
       setNotice("Account order saved.");
     } catch {
-      setNotice("The account order could not be saved.");
+      setNotice("The account move could not be saved.");
     }
   }
 
-  async function reorderGroup(sourceName: string, targetName: string) {
+  async function reorderGroup(
+    sourceName: string,
+    targetName: string,
+    position: DropPosition,
+  ) {
     const nextOrder = [...groupOrder];
     const sourceIndex = nextOrder.indexOf(sourceName);
-    const targetIndex = nextOrder.indexOf(targetName);
-    if (sourceIndex < 0 || targetIndex < 0) return;
+    if (sourceIndex < 0) return;
     nextOrder.splice(sourceIndex, 1);
-    nextOrder.splice(targetIndex, 0, sourceName);
+    const targetIndex = nextOrder.indexOf(targetName);
+    if (targetIndex < 0) return;
+    nextOrder.splice(
+      position === "after" ? targetIndex + 1 : targetIndex,
+      0,
+      sourceName,
+    );
     try {
       const groups = await reorderAccountGroups(nextOrder);
       setGroupOrder(groups.map((group) => group.name));
@@ -1538,12 +1705,12 @@ export function AccountsPage() {
                 }
                 selectedId={selectedId}
                 onSelect={selectAccountWithModifiers}
-                onDropAccount={(sourceId, targetId) =>
-                  void reorderAccount(sourceId, targetId)
+                onDropAccount={(sourceId, targetId, position, targetGroup) =>
+                  void reorderAccount(sourceId, targetId, position, targetGroup)
                 }
                 canDragAccounts={sortMode === "custom"}
-                onDropGroup={(sourceName, targetName) =>
-                  void reorderGroup(sourceName, targetName)
+                onDropGroup={(sourceName, targetName, position) =>
+                  void reorderGroup(sourceName, targetName, position)
                 }
                 color={group.color}
                 onTogglePin={(userId) => void togglePinForAccount(userId)}
@@ -1553,6 +1720,9 @@ export function AccountsPage() {
                 onAccountDragStateChange={setDraggingAccountId}
                 draggingGroupName={draggingGroupName}
                 onGroupDragStateChange={setDraggingGroupName}
+                dropIndicator={dropIndicator}
+                onDropIndicatorChange={setDropIndicator}
+                showUngroupedSeparator={hasNamedGroups}
               />
             ))}
           </div>
