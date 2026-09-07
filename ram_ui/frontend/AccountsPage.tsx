@@ -854,9 +854,11 @@ export function AccountsPage() {
   }
 
   async function refreshPresence(accountIds?: number[]) {
-    const ids = accountIds ?? (selectedIds.size
-      ? [...selectedIds]
-      : accounts.map((account) => account.userId));
+    const ids =
+      accountIds ??
+      (selectedIds.size
+        ? [...selectedIds]
+        : accounts.map((account) => account.userId));
     if (!ids.length) return;
     setPresenceLoading(true);
     try {
@@ -1522,8 +1524,7 @@ export function AccountsPage() {
         results.push({
           index: index + 1,
           status: "failed",
-          message:
-            error instanceof Error ? error.message : "Validation failed",
+          message: error instanceof Error ? error.message : "Validation failed",
         });
       }
       setBulkResults([...results]);
@@ -1945,7 +1946,10 @@ export function AccountsPage() {
                   </span>
                 )}
                 {!bulkProgress && bulkResults.length > 0 && (
-                  <ul className="account-form-results" aria-label="Bulk import results">
+                  <ul
+                    className="account-form-results"
+                    aria-label="Bulk import results"
+                  >
                     {bulkResults.map((result) => (
                       <li key={result.index}>
                         <span
