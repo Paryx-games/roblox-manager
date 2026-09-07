@@ -8,9 +8,8 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { label: "Instances", icon: "package" },
-  { label: "Client Manager", icon: "app-window" },
   { label: "Accounts", icon: "id-card" },
+  { label: "Private Servers", icon: "game" },
 ];
 
 function Icon({ name }: { name: string }) {
@@ -28,8 +27,9 @@ function RailButton({
   label,
   icon,
   active = false,
+  disabled = false,
   onClick,
-}: NavItem & { active?: boolean; onClick: () => void }) {
+}: NavItem & { active?: boolean; disabled?: boolean; onClick: () => void }) {
   return (
     <button
       className={`rail-button ${active ? "is-active" : ""}`}
@@ -37,6 +37,7 @@ function RailButton({
       aria-label={label}
       aria-current={active ? "page" : undefined}
       data-tip={label}
+      disabled={disabled}
       onClick={onClick}
     >
       <span className="accent-bar" aria-hidden="true" />
@@ -137,6 +138,12 @@ export function App() {
             />
           ))}
           <span className="sidebar-spacer" />
+          <RailButton
+            label="Instances"
+            icon="package"
+            disabled
+            onClick={() => {}}
+          />
           <RailButton label="Clear Cache" icon="eraser" onClick={() => {}} />
           <RailButton label="Settings" icon="settings" onClick={() => {}} />
         </nav>

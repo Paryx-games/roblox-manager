@@ -300,6 +300,18 @@ button:focus-visible {
   background: var(--bg-raised);
 }
 
+.rail-button:disabled {
+  cursor: not-allowed;
+}
+
+.rail-button:disabled .icon-box {
+  color: var(--text-disabled);
+}
+
+.rail-button:disabled .icon-box > img {
+  filter: invert(38%);
+}
+
 .header-row {
   display: flex;
   height: 42px;
