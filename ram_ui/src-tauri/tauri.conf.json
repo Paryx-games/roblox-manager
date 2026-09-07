@@ -24,5 +24,9 @@
     ],
     "security": { "csp": null }
   },
-  "bundle": { "active": true, "targets": "all" }
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["../../assets/logos/Live.ico"]
+  }
 }
