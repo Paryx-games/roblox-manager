@@ -616,6 +616,29 @@ button:focus-visible {
   font-size: var(--text-xs);
 }
 
+.account-form-results {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  list-style: none;
+}
+
+.account-form-results li {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.account-form-results .result-success {
+  color: var(--status-online);
+}
+
+.account-form-results .result-failure {
+  color: var(--status-danger);
+}
+
 .add-account-recovery {
   display: flex;
   flex-direction: column;

@@ -65,6 +65,12 @@ type AccountNotice = {
   message: string;
 };
 
+type BulkImportResult = {
+  index: number;
+  status: "added" | "failed";
+  message?: string;
+};
+
 const GROUP_COLOR_PRESETS: ReadonlyArray<{
   label: string;
   color: [number, number, number];
@@ -548,6 +554,7 @@ export function AccountsPage() {
   const [bulkProgress, setBulkProgress] = useState<[number, number] | null>(
     null,
   );
+  const [bulkResults, setBulkResults] = useState<BulkImportResult[]>([]);
   const [forceAddUsername, setForceAddUsername] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -570,6 +577,7 @@ export function AccountsPage() {
   const [groupDeleteConfirmation, setGroupDeleteConfirmation] = useState<
     string | null
   >(null);
+  const [killAllConfirmation, setKillAllConfirmation] = useState(false);
   const groupMenuRef = useRef<HTMLDivElement>(null);
 
   function setNotice(message: string | null) {
@@ -710,6 +718,31 @@ export function AccountsPage() {
     };
   }, [reloadKey]);
 
+  useEffect(() => {
+    if (loading || error || !accounts.length) return;
+    const refresh = () => {
+      void refreshPresence(accounts.map((account) => account.userId));
+    };
+    const revalidate = window.setInterval(() => {
+      void revalidateAccounts([])
+        .then((updated) => {
+          setAccounts((current) =>
+            current.map(
+              (account) =>
+                updated.find((item) => item.userId === account.userId) ??
+                account,
+            ),
+          );
+        })
+        .catch(() => setNotice("Automatic account validation failed."));
+    }, 300_000);
+    const presence = window.setInterval(refresh, 10_000);
+    return () => {
+      window.clearInterval(revalidate);
+      window.clearInterval(presence);
+    };
+  }, [accounts.length, error, loading]);
+
   const visibleAccounts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     const filtered = accounts.filter((account) => {
@@ -820,10 +853,10 @@ export function AccountsPage() {
     selectAccount(id);
   }
 
-  async function refreshPresence() {
-    const ids = selectedIds.size
+  async function refreshPresence(accountIds?: number[]) {
+    const ids = accountIds ?? (selectedIds.size
       ? [...selectedIds]
-      : accounts.map((account) => account.userId);
+      : accounts.map((account) => account.userId));
     if (!ids.length) return;
     setPresenceLoading(true);
     try {
@@ -1475,20 +1508,57 @@ export function AccountsPage() {
     }
     setMutationLoading(true);
     setBulkProgress([0, cookies.length]);
+    setBulkResults([]);
     let added = 0;
+    const results: BulkImportResult[] = [];
     for (const [index, value] of cookies.entries()) {
       try {
         const account = await addAccount(value);
         setAccounts((current) => [...current, account]);
         setSelectedId(account.userId);
         added += 1;
-      } catch {}
+        results.push({ index: index + 1, status: "added" });
+      } catch (error) {
+        results.push({
+          index: index + 1,
+          status: "failed",
+          message:
+            error instanceof Error ? error.message : "Validation failed",
+        });
+      }
+      setBulkResults([...results]);
       setBulkProgress([index + 1, cookies.length]);
     }
     setMutationLoading(false);
     setBulkCookieInput("");
     setNotice(`Bulk import finished: ${added} of ${cookies.length} added.`);
     setBulkProgress(null);
+  }
+
+  function changeSortMode(nextMode: SortMode) {
+    if (
+      sortMode === "custom" &&
+      nextMode !== "custom" &&
+      !window.confirm(
+        "Leave custom order? Drag-and-drop reordering is disabled until Custom sorting is selected again.",
+      )
+    ) {
+      return;
+    }
+    setSortMode(nextMode);
+  }
+
+  async function confirmKillAll() {
+    setKillAllConfirmation(false);
+    setMutationLoading(true);
+    try {
+      const count = await killAllAccounts();
+      setNotice(`Closed ${count} Roblox client(s).`);
+    } catch {
+      setNotice("Roblox clients could not be closed.");
+    } finally {
+      setMutationLoading(false);
+    }
   }
 
   async function addAccountFromBrowser() {
@@ -1578,7 +1648,7 @@ export function AccountsPage() {
               <select
                 value={sortMode}
                 onChange={(event) =>
-                  setSortMode(event.target.value as SortMode)
+                  changeSortMode(event.target.value as SortMode)
                 }
                 aria-label="Sort accounts"
               >
@@ -1874,6 +1944,24 @@ export function AccountsPage() {
                     Processed {bulkProgress[0]} of {bulkProgress[1]}...
                   </span>
                 )}
+                {!bulkProgress && bulkResults.length > 0 && (
+                  <ul className="account-form-results" aria-label="Bulk import results">
+                    {bulkResults.map((result) => (
+                      <li key={result.index}>
+                        <span
+                          className={
+                            result.status === "added"
+                              ? "result-success"
+                              : "result-failure"
+                          }
+                        >
+                          Cookie {result.index}: {result.status}
+                        </span>
+                        {result.message && <span>{result.message}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               {browserLoginOverlayVisible && (
                 <div
@@ -2016,6 +2104,18 @@ export function AccountsPage() {
           />
         )}
 
+        {killAllConfirmation && (
+          <ConfirmModal
+            title="Kill all Roblox clients?"
+            message="This closes every Roblox client currently running on this computer."
+            confirmLabel="Kill all Roblox"
+            confirmIcon="kill"
+            confirmDisabled={mutationLoading}
+            onCancel={() => setKillAllConfirmation(false)}
+            onConfirm={() => void confirmKillAll()}
+          />
+        )}
+
         <section className="accounts-detail-panel" aria-label="Account details">
           {!selectedAccount ? (
             <div className="accounts-detail-empty">
@@ -2142,7 +2242,7 @@ export function AccountsPage() {
                         type="button"
                         role="menuitem"
                         onClick={() => {
-                          void killAllAccounts();
+                          setKillAllConfirmation(true);
                           setShowAccountMenu(false);
                         }}
                       >
@@ -2182,6 +2282,15 @@ export function AccountsPage() {
                     >
                       <Icon name="browser" />
                       Open browser as account
+                    </button>
+                    <button
+                      className="account-button"
+                      type="button"
+                      disabled={mutationLoading}
+                      onClick={() => void revalidate()}
+                    >
+                      <Icon name="refresh" />
+                      Revalidate account
                     </button>
                   </div>
                 </section>
