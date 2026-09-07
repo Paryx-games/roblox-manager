@@ -1,7 +1,16 @@
-<p align="center">
-  <img src="assets/branding/LogoThumb.png" alt="roblox manager" width="650">
-</p>
+<div align="center">
 
+<img src="assets/branding/LogoThumb.png" alt="roblox manager" width="650">
+
+<p><strong><font size="6">Welcome to version 2.0</font></strong></p>
+
+<i>
+v2 introduces a complete UI rework from top to bottom, alongside a migration from egui's immediate-mode rendering to Tauri & React. This change brings a more modern, flexible, and maintainable foundation for the future of the app. You can read more about the reasoning behind the migration in <a href="https://github.com/Paryx-games/roblox-manager/pull/30">#30</a>.
+</i>
+
+<hr>
+
+</div>
 <p align="center">
   <a href="https://github.com/Paryx-games/roblox-manager/actions/workflows/rust.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/rust.yml?label=ci&logo=github&logoColor=white&color=9333ea" alt="ci">
