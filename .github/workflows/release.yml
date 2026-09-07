@@ -45,10 +45,6 @@ jobs:
         working-directory: ram_ui
         run: pnpm install --frozen-lockfile
 
-      - name: Build frontend
-        working-directory: ram_ui
-        run: pnpm build
-
       - name: Setup rust
         uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
 
@@ -59,8 +55,9 @@ jobs:
           key: release
           lookup-only: true
 
-      - name: Build
-        run: cargo build --release
+      - name: Build application
+        working-directory: ram_ui
+        run: pnpm tauri build
 
       - name: Upload executable
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
