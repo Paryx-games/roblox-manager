@@ -88,6 +88,8 @@ Later updates may be made to reinforce account isolation and session management 
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (stable)
+- [Node.js](https://nodejs.org/) 22+
+- [pnpm](https://pnpm.io/) 11+
 - Windows 10/11 (required for Win32 APIs)
 
 ### Build
@@ -97,11 +99,11 @@ Later updates may be made to reinforce account isolation and session management 
 git clone https://github.com/Paryx-games/roblox-manager.git
 cd roblox-manager
 
-# Build in release mode
-cargo build --release
+# Install frontend dependencies
+pnpm --dir ram_ui install
 
-# Run
-cargo run --release
+# Build the production Tauri application and installer
+pnpm --dir ram_ui tauri build
 ```
 
 The compiled binary will be at `target/release/ram_ui.exe`.
@@ -157,7 +159,15 @@ pnpm --dir ram_ui build
 
 # Build the optimized Tauri application and installer
 pnpm --dir ram_ui tauri build
+
+# Build a debug Tauri application
+pnpm --dir ram_ui tauri build --debug
 ```
+
+The Tauri command wrapper selects the Windows application icon automatically. Development and debug builds use
+`assets/logos/Development.ico`; versions containing `-alpha` use `Alpha.ico`; versions containing `-beta` use
+`Beta.ico`; and release candidates and stable versions use `Live.ico`. The version is read from the root
+`Cargo.toml`.
 
 > [!TIP]
 > For the quickest local feedback, run `cargo check` and `pnpm --dir ram_ui typecheck` while developing. Use the full validation commands before opening a pull request.
