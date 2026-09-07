@@ -415,8 +415,8 @@ export function PrivateServersPage({
                     >
                       <Icon name="warning" />
                     </span>
-                    <strong>{server.name}</strong>
                     <OwnershipBadge status={ownershipStatus} />
+                    <strong>{server.name}</strong>
                     <div className="private-server-account-picker">
                       {(() => {
                         const account = accounts.find(
