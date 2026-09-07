@@ -57,7 +57,7 @@ function OwnershipBadge({
   return (
     <span
       className={`private-server-ownership private-server-ownership-${status}`}
-      title={content.label}
+      data-tip={content.label}
       aria-label={content.label}
     >
       <Icon name={content.icon} />
