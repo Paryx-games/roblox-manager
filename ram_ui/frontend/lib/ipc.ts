@@ -59,6 +59,35 @@ export interface AccountGroupSummary {
   sortOrder: number;
 }
 
+export interface PrivateServerSummary {
+  index: number;
+  name: string;
+  placeId: number;
+  placeName: string;
+}
+
+export async function listPrivateServers(): Promise<PrivateServerSummary[]> {
+  return invoke<PrivateServerSummary[]>("list_private_servers");
+}
+
+export async function addPrivateServer(
+  name: string,
+  url: string,
+): Promise<PrivateServerSummary> {
+  return invoke<PrivateServerSummary>("add_private_server", { name, url });
+}
+
+export async function removePrivateServer(index: number): Promise<void> {
+  return invoke<void>("remove_private_server", { index });
+}
+
+export async function launchPrivateServer(
+  index: number,
+  userIds: number[],
+): Promise<void> {
+  return invoke<void>("launch_private_server", { index, userIds });
+}
+
 export async function listAccounts(): Promise<AccountSummary[]> {
   return invoke<AccountSummary[]>("list_accounts");
 }
