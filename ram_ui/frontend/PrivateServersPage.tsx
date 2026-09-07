@@ -21,6 +21,18 @@ function Icon({ name }: { name: string }) {
   );
 }
 
+function AccountAvatar({ account }: { account: AccountSummary }) {
+  return (
+    <span className="private-server-avatar">
+      {account.avatarUrl ? (
+        <img src={account.avatarUrl} alt="" />
+      ) : (
+        account.username.slice(0, 2).toUpperCase()
+      )}
+    </span>
+  );
+}
+
 export function PrivateServersPage({
   selectedIds,
 }: {
@@ -58,7 +70,9 @@ export function PrivateServersPage({
   }
   useEffect(() => {
     void reload();
-    void listAccounts().then(setAccounts).catch(() => setAccounts([]));
+    void listAccounts()
+      .then(setAccounts)
+      .catch(() => setAccounts([]));
   }, []);
   const groups = useMemo(() => {
     const map = new Map<number, PrivateServerSummary[]>();
@@ -143,7 +157,9 @@ export function PrivateServersPage({
     }
   }
   async function rename(index: number, currentName: string) {
-    const nextName = window.prompt("Rename private server", currentName)?.trim();
+    const nextName = window
+      .prompt("Rename private server", currentName)
+      ?.trim();
     if (!nextName || nextName === currentName) return;
     try {
       await renamePrivateServer(index, nextName);
@@ -158,7 +174,10 @@ export function PrivateServersPage({
   }
   function addUnderGame(placeName: string) {
     setName(`${placeName} Server`);
-    addSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    addSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
     setError("Paste a private server link for this game to add it.");
   }
   return (
@@ -304,7 +323,9 @@ export function PrivateServersPage({
                     type="button"
                     aria-label="Add server under this game"
                     data-tip="Add server under this game"
-                    onClick={() => addUnderGame(group[0].placeName || `Place ${placeId}`)}
+                    onClick={() =>
+                      addUnderGame(group[0].placeName || `Place ${placeId}`)
+                    }
                   >
                     <Icon name="add" />
                   </button>
@@ -322,63 +343,77 @@ export function PrivateServersPage({
                     <div className="private-server-account-picker">
                       {(() => {
                         const account = accounts.find(
-                          (candidate) => candidate.userId === serverAccounts[server.index],
+                          (candidate) =>
+                            candidate.userId === serverAccounts[server.index],
                         );
                         return (
                           <>
                             <button
-                        className="private-server-account-trigger"
-                        type="button"
-                        onClick={() =>
-                          setOpenPicker(
-                            openPicker === server.index ? null : server.index,
-                          )
-                        }
-                      >
-                        <span className="private-server-avatar">
-                          {account?.username.slice(0, 2).toUpperCase() ?? "--"}
-                        </span>
-                        <span>
-                          {account?.username ?? (selectedIds.size ? "Selected accounts" : "Select account")}
-                        </span>
-                        <Icon name="chevron-down" />
+                              className="private-server-account-trigger"
+                              type="button"
+                              onClick={() =>
+                                setOpenPicker(
+                                  openPicker === server.index
+                                    ? null
+                                    : server.index,
+                                )
+                              }
+                            >
+                              {account ? (
+                                <AccountAvatar account={account} />
+                              ) : (
+                                <span className="private-server-avatar">
+                                  --
+                                </span>
+                              )}
+                              <span>
+                                {account?.username ??
+                                  (selectedIds.size
+                                    ? "Selected accounts"
+                                    : "Select account")}
+                              </span>
+                              <Icon name="chevron-down" />
                             </button>
                             {openPicker === server.index && (
-                        <div className="private-server-account-menu">
-                          {accounts.map((candidate) => (
-                          <button
-                            key={candidate.userId}
-                            type="button"
-                            onClick={() => {
-                              setServerAccounts((current) => ({
-                                ...current,
-                                [server.index]: candidate.userId,
-                              }));
-                              setOpenPicker(null);
-                            }}
-                          >
-                            <span className="private-server-avatar">
-                              {candidate.username.slice(0, 2).toUpperCase()}
-                            </span>
-                            {candidate.username}
-                          </button>
-                          ))}
-                          {!accounts.length && <span className="private-server-account-empty">No accounts available</span>}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setServerAccounts((current) => {
-                                const next = { ...current };
-                                delete next[server.index];
-                                return next;
-                              });
-                              setOpenPicker(null);
-                            }}
-                          >
-                            <span className="private-server-avatar">--</span>No
-                            account
-                          </button>
-                        </div>
+                              <div className="private-server-account-menu">
+                                {accounts.map((candidate) => (
+                                  <button
+                                    key={candidate.userId}
+                                    type="button"
+                                    onClick={() => {
+                                      setServerAccounts((current) => ({
+                                        ...current,
+                                        [server.index]: candidate.userId,
+                                      }));
+                                      setOpenPicker(null);
+                                    }}
+                                  >
+                                    <AccountAvatar account={candidate} />
+                                    {candidate.username}
+                                  </button>
+                                ))}
+                                {!accounts.length && (
+                                  <span className="private-server-account-empty">
+                                    No accounts available
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setServerAccounts((current) => {
+                                      const next = { ...current };
+                                      delete next[server.index];
+                                      return next;
+                                    });
+                                    setOpenPicker(null);
+                                  }}
+                                >
+                                  <span className="private-server-avatar">
+                                    --
+                                  </span>
+                                  No account
+                                </button>
+                              </div>
                             )}
                           </>
                         );
