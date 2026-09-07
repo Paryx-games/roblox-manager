@@ -9,6 +9,7 @@ import {
   type AccountSummary,
   type PrivateServerSummary,
 } from "./lib/ipc";
+import { ConfirmModal } from "./ConfirmModal";
 
 function Icon({ name }: { name: string }) {
   return (
@@ -55,6 +56,9 @@ export function PrivateServersPage({
   const [serverAccounts, setServerAccounts] = useState<Record<number, number>>(
     {},
   );
+  const [deleteTarget, setDeleteTarget] =
+    useState<PrivateServerSummary | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const addSectionRef = useRef<HTMLElement>(null);
 
   async function reload() {
@@ -131,13 +135,17 @@ export function PrivateServersPage({
       );
     }
   }
-  async function remove(index: number) {
-    if (!window.confirm("Remove this private server?")) return;
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await removePrivateServer(index);
+      await removePrivateServer(deleteTarget.index);
+      setDeleteTarget(null);
       await reload();
     } catch {
       setError("The private server could not be removed.");
+    } finally {
+      setDeleting(false);
     }
   }
   async function pasteUrl() {
@@ -455,7 +463,7 @@ export function PrivateServersPage({
                         type="button"
                         aria-label={`Delete ${server.name}`}
                         data-tip="Delete"
-                        onClick={() => void remove(server.index)}
+                        onClick={() => setDeleteTarget(server)}
                       >
                         <Icon name="delete" />
                       </button>
@@ -467,6 +475,22 @@ export function PrivateServersPage({
           )}
         </section>
       </main>
+      {deleteTarget && (
+        <ConfirmModal
+          title="Delete private server?"
+          message={
+            <>
+              This will permanently remove <strong>{deleteTarget.name}</strong>.
+            </>
+          }
+          confirmLabel={deleting ? "Deleting..." : "Delete"}
+          confirmDisabled={deleting}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => {
+            if (!deleting) setDeleteTarget(null);
+          }}
+        />
+      )}
     </>
   );
 }
