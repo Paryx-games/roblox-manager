@@ -504,6 +504,9 @@ button:focus-visible {
   gap: var(--space-3);
   margin-top: var(--space-3);
 }
+.private-server-card .account-empty-inline {
+  margin-top: var(--space-3);
+}
 .private-server-search {
   display: flex;
   flex: 1;
