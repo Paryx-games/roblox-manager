@@ -45,6 +45,12 @@ import {
   type StoreStatus,
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
+import {
+  Toast,
+  type ToastDuration,
+  type ToastItem,
+  type ToastKind,
+} from "./Toast";
 
 type SortMode =
   | "custom"
@@ -187,6 +193,27 @@ function parseCookies(value: string) {
     .split(/[\n,;\t]+/)
     .map((cookie) => cookie.trim())
     .filter(Boolean);
+}
+
+function noticeKind(message: string): ToastKind {
+  if (/could not|failed|error|stopped|unable|not be/i.test(message)) {
+    return "error";
+  }
+  if (/enter |not ready|cannot|warning|expired|restricted/i.test(message)) {
+    return "warning";
+  }
+  if (
+    /saved|added|requested|refreshed|completed|opened|exported|closed/i.test(
+      message,
+    )
+  ) {
+    return "success";
+  }
+  return "info";
+}
+
+function noticeTitle(kind: ToastKind) {
+  return kind[0].toUpperCase() + kind.slice(1);
 }
 
 function TimedNotice({
@@ -536,7 +563,8 @@ export function AccountsPage() {
   const [connectionQuery, setConnectionQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notices, setNotices] = useState<AccountNotice[]>([]);
+  const [notices, setNotices] = useState<ToastItem[]>([]);
+  const [accountNotices, setAccountNotices] = useState<AccountNotice[]>([]);
   const nextNoticeId = useRef(0);
   const [reloadKey, setReloadKey] = useState(0);
   const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null);
@@ -580,18 +608,45 @@ export function AccountsPage() {
   const [killAllConfirmation, setKillAllConfirmation] = useState(false);
   const groupMenuRef = useRef<HTMLDivElement>(null);
 
-  function setNotice(message: string | null) {
+  function setNotice(
+    message: string | null,
+    kind?: ToastKind,
+    duration: ToastDuration = "standard",
+    title?: string,
+  ) {
     if (message === null) {
       setNotices([]);
       return;
     }
     const id = nextNoticeId.current;
     nextNoticeId.current += 1;
-    setNotices((current) => [...current, { id, message }]);
+    const resolvedKind = kind ?? noticeKind(message);
+    setNotices((current) => [
+      ...current,
+      {
+        id,
+        title: title ?? noticeTitle(resolvedKind),
+        message,
+        kind: resolvedKind,
+        duration,
+      },
+    ]);
+  }
+
+  function setAccountNotice(message: string) {
+    const id = nextNoticeId.current;
+    nextNoticeId.current += 1;
+    setAccountNotices((current) => [...current, { id, message }]);
   }
 
   function dismissNotice(id: number) {
     setNotices((current) => current.filter((notice) => notice.id !== id));
+  }
+
+  function dismissAccountNotice(id: number) {
+    setAccountNotices((current) =>
+      current.filter((notice) => notice.id !== id),
+    );
   }
 
   function openAddForm() {
@@ -824,6 +879,7 @@ export function AccountsPage() {
   useEffect(() => {
     setAlias(selectedAccount?.alias ?? "");
     setPlayerPath(selectedAccount?.playerPath ?? "");
+    setAccountNotices([]);
     setInventory([]);
     setCommonInventory([]);
     setConnectionResults([]);
@@ -875,7 +931,6 @@ export function AccountsPage() {
             : account;
         }),
       );
-      setNotice("Presence refreshed.");
     } catch {
       setNotice("Presence could not be refreshed.");
     } finally {
@@ -1004,11 +1059,11 @@ export function AccountsPage() {
 
   function launchAccount() {
     if (!placeIdValid) {
-      setNotice("Enter a numeric Place ID before launching.");
+      setAccountNotice("Enter a numeric Place ID before launching.");
       return;
     }
     if (!selectedAccount?.canLaunch) {
-      setNotice("This account is not ready to launch.");
+      setAccountNotice("This account is not ready to launch.");
       return;
     }
     setMutationLoading(true);
@@ -1024,9 +1079,9 @@ export function AccountsPage() {
         jobId,
         launchData,
       );
-      setNotice("Launch requested.");
+      setAccountNotice("Launch requested.");
     } catch {
-      setNotice("Roblox could not be launched for this account.");
+      setAccountNotice("Roblox could not be launched for this account.");
     } finally {
       setMutationLoading(false);
     }
@@ -1034,16 +1089,16 @@ export function AccountsPage() {
 
   async function savePreset() {
     if (!placeIdValid) {
-      setNotice("Enter a numeric Place ID before saving a preset.");
+      setAccountNotice("Enter a numeric Place ID before saving a preset.");
       return;
     }
     const name = window.prompt("Preset name");
     if (!name) return;
     try {
       await saveLaunchPreset(name, Number(placeId), jobId, launchData);
-      setNotice("Preset saved.");
+      setAccountNotice("Preset saved.");
     } catch {
-      setNotice("The preset could not be saved.");
+      setAccountNotice("The preset could not be saved.");
     }
   }
 
@@ -1589,9 +1644,9 @@ export function AccountsPage() {
     if (!selectedAccount) return;
     try {
       await browseAsAccount(selectedAccount.userId, inventory);
-      setNotice("Opening authenticated Roblox browser...");
+      setAccountNotice("Opening authenticated Roblox browser...");
     } catch {
-      setNotice("The authenticated Roblox browser could not be opened.");
+      setAccountNotice("The authenticated Roblox browser could not be opened.");
     }
   }
 
@@ -2363,11 +2418,11 @@ export function AccountsPage() {
                     <Icon name="star" />
                   </button>
                 </div>
-                {notices.map((notice) => (
+                {accountNotices.map((notice) => (
                   <TimedNotice
                     key={notice.id}
                     message={notice.message}
-                    onDismiss={() => dismissNotice(notice.id)}
+                    onDismiss={() => dismissAccountNotice(notice.id)}
                   />
                 ))}
               </section>
@@ -2638,6 +2693,19 @@ export function AccountsPage() {
           )}
         </section>
       </main>
+      <div
+        className="toast-stack"
+        aria-live="polite"
+        aria-label="Notifications"
+      >
+        {notices.map((notice) => (
+          <Toast
+            key={notice.id}
+            item={notice}
+            onDismiss={() => dismissNotice(notice.id)}
+          />
+        ))}
+      </div>
     </>
   );
 }
