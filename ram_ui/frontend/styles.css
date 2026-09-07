@@ -651,13 +651,13 @@ button:focus-visible {
   height: 17px;
 }
 .private-server-ownership-owned {
-  color: var(--status-online);
+  color: var(--ownership-owned);
 }
 .private-server-ownership-unknown {
-  color: var(--status-warning);
+  color: var(--ownership-unverified);
 }
 .private-server-ownership-not-owned {
-  color: var(--status-danger);
+  color: var(--ownership-not-owned);
 }
 .private-server-status[data-tip]::after,
 .private-server-ownership[data-tip]::after {

@@ -49,6 +49,11 @@
   --status-danger: #e0555a;
   --status-neutral: #6b7080; /* offline / idle */
 
+  /* private-server ownership status */
+  --ownership-owned: #03fc49;
+  --ownership-unverified: #fcba03;
+  --ownership-not-owned: #e02626;
+
   /* =========================================================
      TYPE
      ========================================================= */
