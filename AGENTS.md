@@ -8,7 +8,7 @@ Use:
 
 > Understood pre-task rules
 
-or a close equivalent. This acknowledgement is required before editing files, running commands, or making other repository changes. **The security rules under Agent Guidelines § 5 are non-negotiable - RM stores live Roblox credentials, so treat that section as load-bearing, not advisory.** **If your task touches any UI code (`ram_ui/src/`), you must also read `DESIGN.md` and `ram_ui/src/tokens.css` before writing a single component - see Agent Guidelines § 10.**
+or a close equivalent. This acknowledgement is required before editing files, running commands, or making other repository changes. **The security rules under Agent Guidelines § 5 are non-negotiable - RM stores live Roblox credentials, so treat that section as load-bearing, not advisory.** **If your task touches any UI code (`ram_ui/src/`), you must also read `DESIGN.md` and `ram_ui/src/tokens.css` before writing a single component - see Agent Guidelines § 10.** **If your task involves opening a pull request, you must also read [PR_CONVENTIONS.md](PR_CONVENTIONS.md) before writing the PR description.**
 
 ## Currently important news (required read)
 
@@ -58,6 +58,7 @@ robloxmanager/
 ├── SECURITY.md                 # Vulnerability reporting - use this, not public issues
 ├── CONVENTIONAL_COMMITS.md     # Commit message format reference
 ├── VERSIONING.md               # SemVer policy reference
+├── PR_CONVENTIONS.md           # PR title/description/checklist spec - REQUIRED READ before opening a PR
 ├── DESIGN.md                  # UI design system spec - REQUIRED READ before any UI change
 ├── .github/workflows/release.yml # Tag-triggered release pipeline (v* tags only)
 ├── assets/                    # Static assets (e.g. Logo.png, assets/icons for all icon use - see DESIGN.md § Icons)
@@ -316,6 +317,8 @@ git push -u origin your-feature-name
 
 PR description should cover: what changed, why, user-visible behavior, tests run, and any Roblox-version assumptions. Include the design-system checklist items (see DESIGN.md § Enforcement) for any UI change. Report vulnerabilities through [SECURITY.md](SECURITY.md), never as a public issue.
 
+**Every PR must follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md)** - title format, required description sections and order, and the required checklist. Treat that file as the authoritative spec for PR title/description/checklist; the summary above is not a substitute for it.
+
 ---
 
 ## Versioning & Releasing
@@ -445,6 +448,8 @@ Only move a tag before anyone relies on it - never once users have downloaded th
     - Every new interactive component must implement its full required interaction-state set (DESIGN.md § Interaction states) - a button with no visible focus ring is an incomplete component, not a follow-up task.
     - Don't invent a new component for a single-use wrapper (DESIGN.md § 4) - and don't invent a new _pattern_ (a new card style, a new table variant) without flagging it and confirming the approach first, the same way a major architectural change gets flagged under § "Ask before major changes" below.
 
+11. **Pull requests**: every PR must follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md) - title format, the four required description sections in order, and the required checklist stated explicitly (checked or N/A). Don't improvise a different PR shape even for a small change; if the checklist doesn't fit cleanly, that's a signal to split the PR, not to skip items.
+
 ---
 
 ## Notes
@@ -457,5 +462,6 @@ Only move a tag before anyone relies on it - never once users have downloaded th
 - **Preserve existing behaviour:** Avoid changing existing functionality unless the task explicitly requires it. Prefer small, targeted changes over unnecessary refactors.
 - **Ask before major changes:** If a requested change would require a significant architectural change, removal of existing functionality, a new design-system pattern not already covered by `DESIGN.md`, or a potentially destructive migration, explain the impact before proceeding.
 - Follow the repository's [Conventional Commits guide](CONVENTIONAL_COMMITS.md) for commit messages, and [VERSIONING.md](VERSIONING.md) for how version numbers are chosen.
+- **Pull requests:** every PR follows [PR_CONVENTIONS.md](PR_CONVENTIONS.md) - required title format, the four description sections in order, and the required checklist stated explicitly.
 - Full user-facing docs (guides, FAQ, security guidance) live at `https://roblox-manager.gitbook.io/docs` - check there before re-explaining a feature that's already documented for users.
 - All icons use the existing set under `assets/icons` (.pngs OR .svgs ONLY) - see DESIGN.md § Icons for the full rule, including the no-emoji rule.
