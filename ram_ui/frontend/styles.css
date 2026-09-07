@@ -640,18 +640,13 @@ button:focus-visible {
 }
 .private-server-ownership {
   display: inline-flex;
-  flex-shrink: 0;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  border: var(--border-width) solid currentcolor;
-  border-radius: var(--radius);
-  font-size: var(--text-xs);
-  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: help;
 }
 .private-server-ownership .account-icon {
-  width: 13px;
-  height: 13px;
+  width: 17px;
+  height: 17px;
 }
 .private-server-ownership-owned {
   color: var(--status-online);

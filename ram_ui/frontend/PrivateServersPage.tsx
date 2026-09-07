@@ -38,20 +38,29 @@ type OwnershipStatus = "owned" | "unknown" | "not-owned";
 
 const ownershipStatus: OwnershipStatus = "unknown";
 
-function OwnershipBadge({ status }: { status: OwnershipStatus }) {
+function OwnershipBadge({
+  status,
+  accountName,
+}: {
+  status: OwnershipStatus;
+  accountName?: string;
+}) {
   const content = {
-    owned: { icon: "check", label: "You own it" },
-    unknown: { icon: "warning", label: "Ownership unknown" },
-    "not-owned": { icon: "close", label: "You do not own it" },
+    owned: {
+      icon: "shield-check",
+      label: `Owned by ${accountName ?? "one of your accounts"}`,
+    },
+    unknown: { icon: "shield-question-mark", label: "Ownership unverified" },
+    "not-owned": { icon: "shield-x", label: "Not owned by any account" },
   }[status];
 
   return (
     <span
       className={`private-server-ownership private-server-ownership-${status}`}
       title={content.label}
+      aria-label={content.label}
     >
       <Icon name={content.icon} />
-      <span>{content.label}</span>
     </span>
   );
 }
