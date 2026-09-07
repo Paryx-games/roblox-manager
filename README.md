@@ -89,6 +89,81 @@ $env:RUST_LOG="debug"; cargo run
 >
 > We also allow AI development but please make sure it follows our [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md), otherwise the pull request will not be merged
 
+## Development Commands
+
+Run these commands from the repository root unless noted otherwise.
+
+### Rust workspace
+
+```powershell
+# Format all Rust crates
+cargo fmt --all
+
+# Check the workspace without producing release artifacts
+cargo check
+
+# Run all Rust tests
+cargo test --workspace
+
+# Run the strict CI lint configuration
+cargo clippy --workspace --all-targets -- -D warnings
+
+# Build the complete workspace in release mode
+cargo build --release
+```
+
+### Tauri and React UI
+
+The Tauri UI lives in `ram_ui/` and uses `pnpm`.
+
+```powershell
+# Install frontend dependencies
+pnpm --dir ram_ui install
+
+# Start the Vite frontend only
+pnpm --dir ram_ui dev
+
+# Start the full Tauri desktop app with hot reload
+pnpm --dir ram_ui tauri dev
+
+# Check TypeScript types
+pnpm --dir ram_ui typecheck
+
+# Run ESLint and stylelint
+pnpm --dir ram_ui lint
+
+# Build the production frontend bundle
+pnpm --dir ram_ui build
+
+# Build the optimized Tauri application and installer
+pnpm --dir ram_ui tauri build
+```
+
+> [!TIP]
+> For the quickest local feedback, run `cargo check` and `pnpm --dir ram_ui typecheck` while developing. Use the full validation commands before opening a pull request.
+
+> [!IMPORTANT]
+> Changes under `ram_core/` and the legacy egui UI require special care. The current v2 migration is focused on the Tauri shell and React frontend; do not rewrite core or legacy UI code as part of an unrelated frontend change.
+
+### Pull request validation
+
+Run the same checks used by CI before submitting a change:
+
+```powershell
+cargo fmt --all -- --check
+cargo check
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+pnpm --dir ram_ui lint
+pnpm --dir ram_ui typecheck
+```
+
+> [!NOTE]
+> Use [Conventional Commits](CONVENTIONAL_COMMITS.md) for commit messages. User-facing changes should also be added to the `Unreleased` section of [CHANGELOG.md](CHANGELOG.md).
+
+> [!WARNING]
+> Never include Roblox cookies, authentication tokens, passwords, webhook URLs, account data, logs, or build artifacts in commits, issues, pull requests, or screenshots. Report security vulnerabilities privately through [SECURITY.md](SECURITY.md).
+
 ## Usage
 
 1. **First launch** - Nothing to set up. Encryption configures itself on this PC
