@@ -8,55 +8,357 @@ import {
 } from "./lib/ipc";
 
 function Icon({ name }: { name: string }) {
-  return <img className="account-icon" src={`/icons/${name}.svg`} alt="" aria-hidden="true" />;
+  return (
+    <img
+      className="account-icon"
+      src={`/icons/${name}.svg`}
+      alt=""
+      aria-hidden="true"
+    />
+  );
 }
 
-export function PrivateServersPage({ selectedIds }: { selectedIds: Set<number> }) {
+export function PrivateServersPage({
+  selectedIds,
+}: {
+  selectedIds: Set<number>;
+}) {
   const [servers, setServers] = useState<PrivateServerSummary[]>([]);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<"custom" | "name" | "recent" | "status">(
+    "custom",
+  );
+  const [descending, setDescending] = useState(false);
+  const [showBanner, setShowBanner] = useState(true);
+  const [openPicker, setOpenPicker] = useState<number | null>(null);
 
   async function reload() {
     setLoading(true);
-    try { setServers(await listPrivateServers()); setError(null); }
-    catch { setError("Private servers could not be loaded."); }
-    finally { setLoading(false); }
+    try {
+      setServers(await listPrivateServers());
+      setError(null);
+    } catch {
+      setError("Private servers could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
   }
-  useEffect(() => { void reload(); }, []);
+  useEffect(() => {
+    void reload();
+  }, []);
   const groups = useMemo(() => {
     const map = new Map<number, PrivateServerSummary[]>();
-    servers.forEach((server) => map.set(server.placeId, [...(map.get(server.placeId) ?? []), server]));
-    return [...map.entries()];
-  }, [servers]);
+    const visible = servers.filter((server) =>
+      `${server.name} ${server.placeName}`
+        .toLowerCase()
+        .includes(search.trim().toLowerCase()),
+    );
+    visible.forEach((server) =>
+      map.set(server.placeId, [...(map.get(server.placeId) ?? []), server]),
+    );
+    return [...map.entries()].map(
+      ([placeId, group]) =>
+        [
+          placeId,
+          [...group].sort((left, right) => {
+            if (sort === "name") return left.name.localeCompare(right.name);
+            if (sort === "status") return left.name.localeCompare(right.name);
+            return 0;
+          }),
+        ] as [number, PrivateServerSummary[]],
+    );
+  }, [search, servers, sort]);
+
+  const orderedGroups = descending ? [...groups].reverse() : groups;
   async function addServer() {
-    setSaving(true); setError(null);
-    try { const server = await addPrivateServer(name, url); setServers((current) => [...current, server]); setName(""); setUrl(""); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "The private server could not be added."); }
-    finally { setSaving(false); }
+    setSaving(true);
+    setError(null);
+    try {
+      const server = await addPrivateServer(name, url);
+      setServers((current) => [...current, server]);
+      setName("");
+      setUrl("");
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "The private server could not be added.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
   async function launch(index: number) {
-    try { await launchPrivateServer(index, [...selectedIds]); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "The private server could not be launched."); }
+    try {
+      await launchPrivateServer(index, [...selectedIds]);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "The private server could not be launched.",
+      );
+    }
   }
   async function remove(index: number) {
     if (!window.confirm("Remove this private server?")) return;
-    try { await removePrivateServer(index); await reload(); }
-    catch { setError("The private server could not be removed."); }
+    try {
+      await removePrivateServer(index);
+      await reload();
+    } catch {
+      setError("The private server could not be removed.");
+    }
   }
-  return <>
-    <div className="header-row"><h1 className="header-title">Private Servers</h1></div>
-    <main className="private-servers-page">
-      <section className="private-server-card" aria-labelledby="add-private-server"><h2 id="add-private-server">Add Private Server</h2>
-        <div className="private-server-fields"><label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Grinding Server" /></label><label>URL<input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="Paste private server link" /></label></div>
-        <button className="account-button primary" type="button" disabled={saving || !name.trim() || !url.trim()} onClick={() => void addServer()}><Icon name="add" />{saving ? "Adding..." : "Add Server"}</button>
-      </section>
-      <section className="private-server-card" aria-labelledby="saved-private-servers"><h2 id="saved-private-servers">Saved Private Servers</h2>
-        {error && <p className="private-server-error" role="alert">{error}</p>}
-        {loading ? <p className="common-inventory-summary">Loading private servers...</p> : groups.length === 0 ? <div className="account-empty-inline"><Icon name="game" /><strong>No private servers saved yet</strong><span>Add one above to start launching straight into it.</span></div> : groups.map(([placeId, group]) => <div className="private-server-group" key={placeId}><div className="private-server-group-head"><Icon name="game" /><div><strong>{group[0].placeName || `Place ${placeId}`}</strong><span>{group.length} server{group.length === 1 ? "" : "s"}</span></div></div>{group.map((server) => <div className="private-server-row" key={server.index}><strong>{server.name}</strong><div><button className="account-button primary" type="button" disabled={!selectedIds.size} onClick={() => void launch(server.index)}><Icon name="launch" />Launch</button><button className="icon-button" type="button" aria-label={`Remove ${server.name}`} data-tip="Delete" onClick={() => void remove(server.index)}><Icon name="delete" /></button></div></div>)}</div>)}
-      </section>
-    </main>
-  </>;
+  async function pasteUrl() {
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      if (clipboardText) setUrl(clipboardText);
+    } catch {
+      setError("Clipboard access is unavailable.");
+    }
+  }
+  async function copyLink() {
+    setError("Copy link is not available yet.");
+  }
+  return (
+    <>
+      <div className="header-row">
+        <h1 className="header-title">Private Servers</h1>
+      </div>
+      {showBanner && (
+        <aside className="private-server-banner" role="status">
+          <Icon name="warning" />
+          <span>
+            <strong>Coming soon:</strong> search/sort, status badges, copy link,
+            edit, per-group add, the account picker, paste, and the empty state
+            are reserved for a later update. They&apos;re not implemented yet.
+          </span>
+          <button
+            className="private-server-banner-dismiss"
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setShowBanner(false)}
+          >
+            <Icon name="close" />
+          </button>
+        </aside>
+      )}
+      <main className="private-servers-page">
+        <section
+          className="private-server-card"
+          aria-labelledby="add-private-server"
+        >
+          <h2 id="add-private-server">Add Private Server</h2>
+          <div className="private-server-fields">
+            <label>
+              Name
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="e.g. Grinding Server"
+              />
+            </label>
+            <label>
+              URL
+              <div className="private-server-input-action">
+                <input
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                  placeholder="Paste private server link"
+                />
+                <button
+                  type="button"
+                  aria-label="Paste from clipboard"
+                  data-tip="Paste from clipboard"
+                  onClick={() => void pasteUrl()}
+                >
+                  <Icon name="copy" />
+                </button>
+              </div>
+            </label>
+          </div>
+          <div className="private-server-form-actions">
+            <button
+              className="account-button primary"
+              type="button"
+              disabled={saving || !name.trim() || !url.trim()}
+              onClick={() => void addServer()}
+            >
+              <Icon name="add" />
+              {saving ? "Adding..." : "Add Server"}
+            </button>
+          </div>
+        </section>
+        <section
+          className="private-server-card"
+          aria-labelledby="saved-private-servers"
+        >
+          <h2 id="saved-private-servers">Saved Private Servers</h2>
+          {error && (
+            <p className="private-server-error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="private-server-toolbar">
+            <label className="private-server-search">
+              <Icon name="search" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search saved servers"
+              />
+            </label>
+            <div className="private-server-sort">
+              <span>Sort:</span>
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value as typeof sort)}
+              >
+                <option value="custom">Custom</option>
+                <option value="name">Name</option>
+                <option value="recent">Recently added</option>
+                <option value="status">Status</option>
+              </select>
+              <select
+                value={descending ? "descending" : "ascending"}
+                onChange={(event) =>
+                  setDescending(event.target.value === "descending")
+                }
+              >
+                <option value="ascending">Ascending</option>
+                <option value="descending">Descending</option>
+              </select>
+            </div>
+          </div>
+          {loading ? (
+            <p className="common-inventory-summary">
+              Loading private servers...
+            </p>
+          ) : orderedGroups.length === 0 ? (
+            <div className="account-empty-inline">
+              <Icon name="game" />
+              <strong>No private servers saved yet</strong>
+              <span>Add one above to start launching straight into it.</span>
+            </div>
+          ) : (
+            orderedGroups.map(([placeId, group]) => (
+              <div className="private-server-group" key={placeId}>
+                <div className="private-server-group-head">
+                  <span className="private-server-game-thumb">
+                    <Icon name="game" />
+                  </span>
+                  <div>
+                    <strong>{group[0].placeName || `Place ${placeId}`}</strong>
+                    <span>
+                      {group.length} server{group.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label="Add server under this game"
+                    data-tip="Add server under this game"
+                  >
+                    <Icon name="add" />
+                  </button>
+                </div>
+                {group.map((server) => (
+                  <div className="private-server-row" key={server.index}>
+                    <span
+                      className="private-server-status"
+                      data-tip="Not yet checked"
+                      aria-label="Not yet checked"
+                    >
+                      <Icon name="warning" />
+                    </span>
+                    <strong>{server.name}</strong>
+                    <div className="private-server-account-picker">
+                      <button
+                        className="private-server-account-trigger"
+                        type="button"
+                        onClick={() =>
+                          setOpenPicker(
+                            openPicker === server.index ? null : server.index,
+                          )
+                        }
+                      >
+                        <span className="private-server-avatar">
+                          {selectedIds.size ? "AC" : "--"}
+                        </span>
+                        <span>
+                          {selectedIds.size
+                            ? "Selected account"
+                            : "Select account"}
+                        </span>
+                        <Icon name="chevron-down" />
+                      </button>
+                      {openPicker === server.index && (
+                        <div className="private-server-account-menu">
+                          <button
+                            type="button"
+                            onClick={() => setOpenPicker(null)}
+                          >
+                            <span className="private-server-avatar">AC</span>
+                            Selected account
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setOpenPicker(null)}
+                          >
+                            <span className="private-server-avatar">--</span>No
+                            account
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="private-server-actions">
+                      <button
+                        className="account-button primary"
+                        type="button"
+                        disabled={!selectedIds.size}
+                        onClick={() => void launch(server.index)}
+                      >
+                        <Icon name="launch" />
+                        Launch
+                      </button>
+                      <button
+                        className="icon-button"
+                        type="button"
+                        aria-label={`Copy ${server.name} link`}
+                        data-tip="Copy link"
+                        onClick={() => void copyLink()}
+                      >
+                        <Icon name="copy" />
+                      </button>
+                      <button
+                        className="icon-button"
+                        type="button"
+                        aria-label={`Edit ${server.name}`}
+                        data-tip="Edit"
+                      >
+                        <Icon name="edit" />
+                      </button>
+                      <button
+                        className="icon-button danger"
+                        type="button"
+                        aria-label={`Delete ${server.name}`}
+                        data-tip="Delete"
+                        onClick={() => void remove(server.index)}
+                      >
+                        <Icon name="delete" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </section>
+      </main>
+    </>
+  );
 }
