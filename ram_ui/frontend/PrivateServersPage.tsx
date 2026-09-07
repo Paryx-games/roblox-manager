@@ -56,8 +56,9 @@ export function PrivateServersPage({
   const [serverAccounts, setServerAccounts] = useState<Record<number, number>>(
     {},
   );
-  const [deleteTarget, setDeleteTarget] =
-    useState<PrivateServerSummary | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PrivateServerSummary | null>(
+    null,
+  );
   const [deleting, setDeleting] = useState(false);
   const [editTarget, setEditTarget] = useState<PrivateServerSummary | null>(
     null,
@@ -489,10 +490,14 @@ export function PrivateServersPage({
                         className="icon-button"
                         type="button"
                         aria-label={`Copy ${server.name} link`}
-                        data-tip={copiedIndex === server.index ? "Copied" : "Copy link"}
+                        data-tip={
+                          copiedIndex === server.index ? "Copied" : "Copy link"
+                        }
                         onClick={() => void copyLink(server.index, server.url)}
                       >
-                        <Icon name={copiedIndex === server.index ? "check" : "copy"} />
+                        <Icon
+                          name={copiedIndex === server.index ? "check" : "copy"}
+                        />
                       </button>
                       <button
                         className="icon-button"
@@ -576,13 +581,17 @@ export function PrivateServersPage({
                 maxLength={64}
                 autoComplete="off"
               />
-              <label htmlFor="private-server-edit-url">Private server link</label>
+              <label htmlFor="private-server-edit-url">
+                Private server link
+              </label>
               <input
                 id="private-server-edit-url"
                 value={editUrl}
                 onChange={(event) => setEditUrl(event.target.value)}
                 autoComplete="off"
-                aria-invalid={Boolean(editUrl) && !isValidPrivateServerUrl(editUrl)}
+                aria-invalid={
+                  Boolean(editUrl) && !isValidPrivateServerUrl(editUrl)
+                }
               />
               {editUrl && !isValidPrivateServerUrl(editUrl) && (
                 <p className="private-server-error">
