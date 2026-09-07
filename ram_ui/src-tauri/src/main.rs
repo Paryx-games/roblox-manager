@@ -591,17 +591,12 @@ async fn list_private_servers(
         .collect())
 }
 
-#[tauri::command]
-async fn add_private_server(
-    state: tauri::State<'_, AppState>,
-    name: String,
-    url: String,
-) -> Result<PrivateServerSummary, String> {
-    let name = name.trim();
-    if name.is_empty() || name.chars().count() > 64 {
-        return Err("Server name must be between 1 and 64 characters".to_string());
-    }
-    let mut server = match parse_private_server_url(&url).map_err(str::to_string)? {
+async fn build_private_server(
+    state: &AppState,
+    name: &str,
+    url: &str,
+) -> Result<(PrivateServer, String), String> {
+    let mut server = match parse_private_server_url(url).map_err(str::to_string)? {
         ParsedPrivateServerUrl::Direct {
             place_id,
             link_code,
@@ -647,12 +642,54 @@ async fn add_private_server(
         }
     };
     let icon_url = enrich_private_server(&mut server).await;
+    Ok((server, icon_url))
+}
+
+#[tauri::command]
+async fn add_private_server(
+    state: tauri::State<'_, AppState>,
+    name: String,
+    url: String,
+) -> Result<PrivateServerSummary, String> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 64 {
+        return Err("Server name must be between 1 and 64 characters".to_string());
+    }
+    let (server, icon_url) = build_private_server(&state, name, &url).await?;
     let mut runtime = state
         .runtime
         .lock()
         .map_err(|_| "Application state unavailable".to_string())?;
     let index = runtime.config.private_servers.len();
     runtime.config.private_servers.push(server);
+    save_config(&runtime)?;
+    Ok(private_server_summary(
+        index,
+        &runtime.config.private_servers[index],
+        icon_url,
+    ))
+}
+
+#[tauri::command]
+async fn update_private_server(
+    state: tauri::State<'_, AppState>,
+    index: usize,
+    name: String,
+    url: String,
+) -> Result<PrivateServerSummary, String> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 64 {
+        return Err("Server name must be between 1 and 64 characters".to_string());
+    }
+    let (server, icon_url) = build_private_server(&state, name, &url).await?;
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?;
+    if index >= runtime.config.private_servers.len() {
+        return Err("Private server not found".to_string());
+    }
+    runtime.config.private_servers[index] = server;
     save_config(&runtime)?;
     Ok(private_server_summary(
         index,
@@ -1491,6 +1528,7 @@ fn main() {
             add_private_server,
             remove_private_server,
             rename_private_server,
+            update_private_server,
             launch_private_server,
             fetch_account_inventory,
             search_connection_users,

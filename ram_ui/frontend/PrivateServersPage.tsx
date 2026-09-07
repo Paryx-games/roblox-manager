@@ -4,8 +4,8 @@ import {
   listAccounts,
   launchPrivateServer,
   listPrivateServers,
-  renamePrivateServer,
   removePrivateServer,
+  updatePrivateServer,
   type AccountSummary,
   type PrivateServerSummary,
 } from "./lib/ipc";
@@ -59,6 +59,12 @@ export function PrivateServersPage({
   const [deleteTarget, setDeleteTarget] =
     useState<PrivateServerSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editTarget, setEditTarget] = useState<PrivateServerSummary | null>(
+    null,
+  );
+  const [editName, setEditName] = useState("");
+  const [editUrl, setEditUrl] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
   const addSectionRef = useRef<HTMLElement>(null);
 
   async function reload() {
@@ -164,20 +170,54 @@ export function PrivateServersPage({
       setError("Clipboard access is unavailable.");
     }
   }
-  async function rename(index: number, currentName: string) {
-    const nextName = window
-      .prompt("Rename private server", currentName)
-      ?.trim();
-    if (!nextName || nextName === currentName) return;
+  function openEdit(server: PrivateServerSummary) {
+    setEditTarget(server);
+    setEditName(server.name);
+    setEditUrl(server.url);
+  }
+  function isValidPrivateServerUrl(value: string) {
     try {
-      await renamePrivateServer(index, nextName);
-      await reload();
+      const parsed = new URL(value.trim());
+      const isRobloxHost =
+        parsed.protocol === "https:" &&
+        (parsed.hostname === "roblox.com" ||
+          parsed.hostname.endsWith(".roblox.com"));
+      const hasServerPath =
+        parsed.pathname.includes("/games/") ||
+        parsed.pathname.includes("/share");
+      const hasServerCode =
+        parsed.searchParams.has("privateServerLinkCode") ||
+        parsed.searchParams.has("code");
+      return isRobloxHost && hasServerPath && hasServerCode;
+    } catch {
+      return false;
+    }
+  }
+  async function saveEdit() {
+    if (!editTarget || !editName.trim() || !isValidPrivateServerUrl(editUrl)) {
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const updated = await updatePrivateServer(
+        editTarget.index,
+        editName.trim(),
+        editUrl.trim(),
+      );
+      setServers((current) =>
+        current.map((server) =>
+          server.index === updated.index ? updated : server,
+        ),
+      );
+      setEditTarget(null);
     } catch (reason) {
       setError(
         reason instanceof Error
           ? reason.message
-          : "The private server could not be renamed.",
+          : "The private server could not be updated.",
       );
+    } finally {
+      setEditSaving(false);
     }
   }
   function addUnderGame(placeName: string) {
@@ -454,7 +494,7 @@ export function PrivateServersPage({
                         type="button"
                         aria-label={`Edit ${server.name}`}
                         data-tip="Edit"
-                        onClick={() => void rename(server.index, server.name)}
+                        onClick={() => openEdit(server)}
                       >
                         <Icon name="edit" />
                       </button>
@@ -490,6 +530,76 @@ export function PrivateServersPage({
             if (!deleting) setDeleteTarget(null);
           }}
         />
+      )}
+      {editTarget && (
+        <div
+          className="add-account-modal-backdrop"
+          role="presentation"
+          onClick={() => {
+            if (!editSaving) setEditTarget(null);
+          }}
+        >
+          <section
+            className="add-account-modal private-server-edit-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-private-server-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="add-account-modal-header">
+              <div>
+                <h2 id="edit-private-server-title">Edit private server</h2>
+                <p>Update the saved name or private server link.</p>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                aria-label="Close edit dialog"
+                data-tip="Close"
+                disabled={editSaving}
+                onClick={() => setEditTarget(null)}
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+            <div className="add-account-modal-body">
+              <label htmlFor="private-server-edit-name">Name</label>
+              <input
+                id="private-server-edit-name"
+                value={editName}
+                onChange={(event) => setEditName(event.target.value)}
+                maxLength={64}
+                autoComplete="off"
+              />
+              <label htmlFor="private-server-edit-url">Private server link</label>
+              <input
+                id="private-server-edit-url"
+                value={editUrl}
+                onChange={(event) => setEditUrl(event.target.value)}
+                autoComplete="off"
+                aria-invalid={Boolean(editUrl) && !isValidPrivateServerUrl(editUrl)}
+              />
+              {editUrl && !isValidPrivateServerUrl(editUrl) && (
+                <p className="private-server-error">
+                  Enter a valid Roblox private server link.
+                </p>
+              )}
+              <button
+                className="account-button primary"
+                type="button"
+                disabled={
+                  editSaving ||
+                  !editName.trim() ||
+                  !isValidPrivateServerUrl(editUrl)
+                }
+                onClick={() => void saveEdit()}
+              >
+                <Icon name="save" />
+                {editSaving ? "Saving..." : "Save changes"}
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </>
   );

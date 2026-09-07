@@ -90,6 +90,18 @@ export async function renamePrivateServer(
   return invoke<void>("rename_private_server", { index, name });
 }
 
+export async function updatePrivateServer(
+  index: number,
+  name: string,
+  url: string,
+): Promise<PrivateServerSummary> {
+  return invoke<PrivateServerSummary>("update_private_server", {
+    index,
+    name,
+    url,
+  });
+}
+
 export async function launchPrivateServer(
   index: number,
   userIds: number[],
