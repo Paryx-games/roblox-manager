@@ -1198,6 +1198,7 @@ button:focus-visible {
 }
 
 .account-group.is-ungrouped {
+  --group-color: var(--text-muted);
   margin-top: var(--space-3);
 }
 
@@ -1224,6 +1225,7 @@ button:focus-visible {
   color: var(--text-muted);
 }
 
+.account-group.is-ungrouped .group-marker,
 .account-group-header.is-ungrouped .group-marker {
   background: var(--text-muted);
 }

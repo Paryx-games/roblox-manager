@@ -428,7 +428,11 @@ function AccountGroup({
       className={`account-group group-${group.tone} ${
         isUngrouped && showUngroupedSeparator ? "is-ungrouped" : ""
       }`}
-      style={{ "--group-color": color } as CSSProperties}
+      style={
+        {
+          "--group-color": isUngrouped ? "var(--text-muted)" : color,
+        } as CSSProperties
+      }
     >
       {isUngrouped && showUngroupedSeparator && (
         <div className="special-categories-label" aria-hidden="true">
@@ -525,7 +529,7 @@ function AccountGroup({
                 onDropAccount(sourceId, targetId, position, targetGroup)
               }
               canDragAccounts={canDragAccounts}
-              accentColor={color}
+              accentColor={isUngrouped ? "var(--text-muted)" : color}
               onTogglePin={onTogglePin}
               pinning={pinningIds.has(account.userId)}
               draggingAccountId={draggingAccountId}
