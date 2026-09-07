@@ -1,6 +1,7 @@
 import { useState, type MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
+import { PrivateServersPage } from "./PrivateServersPage";
 
 type NavItem = {
   label: string;
@@ -75,6 +76,7 @@ function WindowButton({
 
 export function App() {
   const [activeNav, setActiveNav] = useState("Accounts");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   function handleTitlebarMouseDown(event: MouseEvent<HTMLElement>) {
     const target = event.target;
@@ -150,7 +152,9 @@ export function App() {
 
         <div className="main-col">
           {activeNav === "Accounts" ? (
-            <AccountsPage />
+            <AccountsPage selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
+          ) : activeNav === "Private Servers" ? (
+            <PrivateServersPage selectedIds={selectedIds} />
           ) : (
             <>
               <div className="header-row">

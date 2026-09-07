@@ -366,6 +366,38 @@ button:focus-visible {
   padding: var(--space-8);
 }
 
+.private-servers-page {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-4);
+}
+
+.private-server-card {
+  max-width: var(--content-max-width);
+  margin: 0 auto var(--space-4);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
+.private-server-card h2 { margin: 0 0 var(--space-4); font-size: var(--text-lg); }
+.private-server-fields { display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-3); margin-bottom: var(--space-4); }
+.private-server-fields label { display: grid; gap: var(--space-2); color: var(--text-muted); font-size: var(--text-xs); }
+.private-server-fields input { height: 36px; padding: 0 var(--space-3); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--bg-raised); font: inherit; }
+.private-server-fields input:focus { outline: 2px solid var(--action-primary); outline-offset: 2px; }
+.private-server-error { color: var(--status-danger); font-size: var(--text-sm); }
+.private-server-group { margin-top: var(--space-3); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); overflow: hidden; }
+.private-server-group-head { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); background: var(--bg-raised); }
+.private-server-group-head .account-icon { width: 24px; height: 24px; }
+.private-server-group-head div { display: grid; gap: var(--space-1); }
+.private-server-group-head span { color: var(--text-muted); font-size: var(--text-xs); }
+.private-server-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border-top: var(--border-width) solid var(--border-default); }
+.private-server-row > strong { font-family: var(--font-mono); font-size: var(--text-sm); }
+.private-server-row > div { display: flex; align-items: center; gap: var(--space-2); }
+
+@media (max-width: 768px) { .private-server-fields { grid-template-columns: 1fr; } }
+
 .empty-state {
   max-width: 560px;
   text-align: center;
@@ -1211,6 +1243,7 @@ button:focus-visible {
 
 .account-group.is-ungrouped {
   --group-color: var(--text-muted);
+
   margin-top: var(--space-3);
 }
 

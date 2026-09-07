@@ -114,7 +114,10 @@ fn parse_private_server_url(input: &str) -> Result<ParsedPrivateServerUrl, &'sta
             .map_err(|_| "Enter a valid Roblox private server URL")?;
         let link_code = private_server_parameter(input, "privateServerLinkCode")
             .ok_or("Enter a valid Roblox private server URL")?;
-        return Ok(ParsedPrivateServerUrl::Direct { place_id, link_code });
+        return Ok(ParsedPrivateServerUrl::Direct {
+            place_id,
+            link_code,
+        });
     }
     if input.contains("/share") || input.contains("type=Server") {
         if let Some(share_code) = private_server_parameter(input, "code") {
@@ -521,8 +524,17 @@ fn save_config(runtime: &state::RuntimeState) -> Result<(), String> {
 fn list_private_servers(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<PrivateServerSummary>, String> {
-    let runtime = state.runtime.lock().map_err(|_| "Application state unavailable".to_string())?;
-    Ok(runtime.config.private_servers.iter().enumerate().map(|(index, server)| private_server_summary(index, server)).collect())
+    let runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?;
+    Ok(runtime
+        .config
+        .private_servers
+        .iter()
+        .enumerate()
+        .map(|(index, server)| private_server_summary(index, server))
+        .collect())
 }
 
 #[tauri::command]
@@ -536,32 +548,72 @@ async fn add_private_server(
         return Err("Server name must be between 1 and 64 characters".to_string());
     }
     let server = match parse_private_server_url(&url).map_err(str::to_string)? {
-        ParsedPrivateServerUrl::Direct { place_id, link_code } => PrivateServer {
-            name: name.to_string(), place_id, universe_id: None, link_code, access_code: String::new(), place_name: String::new(),
+        ParsedPrivateServerUrl::Direct {
+            place_id,
+            link_code,
+        } => PrivateServer {
+            name: name.to_string(),
+            place_id,
+            universe_id: None,
+            link_code,
+            access_code: String::new(),
+            place_name: String::new(),
         },
         ParsedPrivateServerUrl::Share { share_code } => {
             let (cookie, client) = {
-                let runtime = state.runtime.lock().map_err(|_| "Application state unavailable".to_string())?;
-                let user_id = runtime.accounts.accounts.first().map(|account| account.user_id)
+                let runtime = state
+                    .runtime
+                    .lock()
+                    .map_err(|_| "Application state unavailable".to_string())?;
+                let user_id = runtime
+                    .accounts
+                    .accounts
+                    .first()
+                    .map(|account| account.user_id)
                     .ok_or_else(|| "Add an account before using a share link".to_string())?;
-                (account_cookie(&runtime, user_id)?, RobloxClient::new().map_err(|error| error.to_string())?)
+                (
+                    account_cookie(&runtime, user_id)?,
+                    RobloxClient::new().map_err(|error| error.to_string())?,
+                )
             };
-            let (place_id, universe_id, link_code, access_code) = api::resolve_share_link(&client, &cookie, &share_code)
-                .await.map_err(|_| "The private server share link could not be resolved".to_string())?;
-            PrivateServer { name: name.to_string(), place_id, universe_id, link_code, access_code, place_name: String::new() }
+            let (place_id, universe_id, link_code, access_code) =
+                api::resolve_share_link(&client, &cookie, &share_code)
+                    .await
+                    .map_err(|_| {
+                        "The private server share link could not be resolved".to_string()
+                    })?;
+            PrivateServer {
+                name: name.to_string(),
+                place_id,
+                universe_id,
+                link_code,
+                access_code,
+                place_name: String::new(),
+            }
         }
     };
-    let mut runtime = state.runtime.lock().map_err(|_| "Application state unavailable".to_string())?;
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?;
     let index = runtime.config.private_servers.len();
     runtime.config.private_servers.push(server);
     save_config(&runtime)?;
-    Ok(private_server_summary(index, &runtime.config.private_servers[index]))
+    Ok(private_server_summary(
+        index,
+        &runtime.config.private_servers[index],
+    ))
 }
 
 #[tauri::command]
 fn remove_private_server(state: tauri::State<'_, AppState>, index: usize) -> Result<(), String> {
-    let mut runtime = state.runtime.lock().map_err(|_| "Application state unavailable".to_string())?;
-    if index >= runtime.config.private_servers.len() { return Err("Private server not found".to_string()); }
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?;
+    if index >= runtime.config.private_servers.len() {
+        return Err("Private server not found".to_string());
+    }
     runtime.config.private_servers.remove(index);
     save_config(&runtime)
 }
@@ -798,12 +850,32 @@ async fn launch_private_server(
         return Err("Select at least one account before launching".to_string());
     }
     let (place_id, link_code, access_code) = {
-        let runtime = state.runtime.lock().map_err(|_| "Application state unavailable".to_string())?;
-        let server = runtime.config.private_servers.get(index).ok_or_else(|| "Private server not found".to_string())?;
-        (server.place_id, server.link_code.clone(), (!server.access_code.is_empty()).then(|| server.access_code.clone()))
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        let server = runtime
+            .config
+            .private_servers
+            .get(index)
+            .ok_or_else(|| "Private server not found".to_string())?;
+        (
+            server.place_id,
+            server.link_code.clone(),
+            (!server.access_code.is_empty()).then(|| server.access_code.clone()),
+        )
     };
     for user_id in user_ids {
-        launch_account(state.clone(), user_id, place_id, None, None, Some(link_code.clone()), access_code.clone()).await?;
+        launch_account(
+            state.clone(),
+            user_id,
+            place_id,
+            None,
+            None,
+            Some(link_code.clone()),
+            access_code.clone(),
+        )
+        .await?;
     }
     Ok(())
 }

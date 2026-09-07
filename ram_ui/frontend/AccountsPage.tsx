@@ -4,7 +4,9 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type Dispatch,
   type MouseEvent,
+  type SetStateAction,
 } from "react";
 import {
   getStoreStatus,
@@ -544,7 +546,13 @@ function AccountGroup({
   );
 }
 
-export function AccountsPage() {
+export function AccountsPage({
+  selectedIds,
+  setSelectedIds,
+}: {
+  selectedIds: Set<number>;
+  setSelectedIds: Dispatch<SetStateAction<Set<number>>>;
+}) {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [draggingAccountId, setDraggingAccountId] = useState<number | null>(
     null,
@@ -556,7 +564,6 @@ export function AccountsPage() {
     null,
   );
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("custom");
   const [descending, setDescending] = useState(false);
