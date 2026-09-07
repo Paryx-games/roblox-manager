@@ -80,6 +80,8 @@ struct PrivateServerSummary {
     name: String,
     place_id: u64,
     place_name: String,
+    icon_url: String,
+    url: String,
 }
 
 enum ParsedPrivateServerUrl {
@@ -87,13 +89,50 @@ enum ParsedPrivateServerUrl {
     Share { share_code: String },
 }
 
-fn private_server_summary(index: usize, server: &PrivateServer) -> PrivateServerSummary {
+fn private_server_summary(
+    index: usize,
+    server: &PrivateServer,
+    icon_url: String,
+) -> PrivateServerSummary {
     PrivateServerSummary {
         index,
         name: server.name.clone(),
         place_id: server.place_id,
         place_name: server.place_name.clone(),
+        icon_url,
+        url: format!(
+            "https://www.roblox.com/games/{}/game?privateServerLinkCode={}",
+            server.place_id, server.link_code
+        ),
     }
+}
+
+async fn enrich_private_server(server: &mut PrivateServer) -> String {
+    let client = match RobloxClient::new() {
+        Ok(client) => client,
+        Err(_) => return String::new(),
+    };
+    if server.universe_id.is_none() {
+        if let Ok(universe_id) =
+            assets_api::resolve_place_universe(&client, "", server.place_id).await
+        {
+            server.universe_id = Some(universe_id);
+        }
+    }
+    let Some(universe_id) = server.universe_id else {
+        return String::new();
+    };
+    if server.place_name.is_empty() {
+        if let Ok(place_name) = api::resolve_universe_name(&client, universe_id).await {
+            server.place_name = place_name;
+        }
+    }
+    if let Ok(icons) = api::fetch_game_icons(&client, "", &[universe_id]).await {
+        if let Some((_, icon_url)) = icons.into_iter().next() {
+            return icon_url;
+        }
+    }
+    String::new()
 }
 
 fn private_server_parameter(input: &str, name: &str) -> Option<String> {
@@ -521,19 +560,34 @@ fn save_config(runtime: &state::RuntimeState) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn list_private_servers(
+async fn list_private_servers(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<PrivateServerSummary>, String> {
-    let runtime = state
+    let original_servers = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        runtime.config.private_servers.clone()
+    };
+    let mut servers = original_servers.clone();
+    let mut icon_urls = Vec::with_capacity(servers.len());
+    for server in &mut servers {
+        icon_urls.push(enrich_private_server(server).await);
+    }
+    let mut runtime = state
         .runtime
         .lock()
         .map_err(|_| "Application state unavailable".to_string())?;
-    Ok(runtime
-        .config
-        .private_servers
+    if original_servers != servers {
+        runtime.config.private_servers = servers.clone();
+        save_config(&runtime)?;
+    }
+    Ok(servers
         .iter()
         .enumerate()
-        .map(|(index, server)| private_server_summary(index, server))
+        .zip(icon_urls)
+        .map(|((index, server), icon_url)| private_server_summary(index, server, icon_url))
         .collect())
 }
 
@@ -547,7 +601,7 @@ async fn add_private_server(
     if name.is_empty() || name.chars().count() > 64 {
         return Err("Server name must be between 1 and 64 characters".to_string());
     }
-    let server = match parse_private_server_url(&url).map_err(str::to_string)? {
+    let mut server = match parse_private_server_url(&url).map_err(str::to_string)? {
         ParsedPrivateServerUrl::Direct {
             place_id,
             link_code,
@@ -592,6 +646,7 @@ async fn add_private_server(
             }
         }
     };
+    let icon_url = enrich_private_server(&mut server).await;
     let mut runtime = state
         .runtime
         .lock()
@@ -602,6 +657,7 @@ async fn add_private_server(
     Ok(private_server_summary(
         index,
         &runtime.config.private_servers[index],
+        icon_url,
     ))
 }
 
@@ -615,6 +671,29 @@ fn remove_private_server(state: tauri::State<'_, AppState>, index: usize) -> Res
         return Err("Private server not found".to_string());
     }
     runtime.config.private_servers.remove(index);
+    save_config(&runtime)
+}
+
+#[tauri::command]
+fn rename_private_server(
+    state: tauri::State<'_, AppState>,
+    index: usize,
+    name: String,
+) -> Result<(), String> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 64 {
+        return Err("Server name must be between 1 and 64 characters".to_string());
+    }
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?;
+    let server = runtime
+        .config
+        .private_servers
+        .get_mut(index)
+        .ok_or_else(|| "Private server not found".to_string())?;
+    server.name = name.to_string();
     save_config(&runtime)
 }
 
@@ -1411,6 +1490,7 @@ fn main() {
             list_private_servers,
             add_private_server,
             remove_private_server,
+            rename_private_server,
             launch_private_server,
             fetch_account_inventory,
             search_connection_users,

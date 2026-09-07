@@ -599,6 +599,12 @@ button:focus-visible {
   width: 20px;
   height: 20px;
 }
+.private-server-game-thumb > img {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius);
+  object-fit: cover;
+}
 .private-server-row {
   position: relative;
   display: flex;

@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addPrivateServer,
+  listAccounts,
   launchPrivateServer,
   listPrivateServers,
+  renamePrivateServer,
   removePrivateServer,
+  type AccountSummary,
   type PrivateServerSummary,
 } from "./lib/ipc";
 
@@ -36,6 +39,11 @@ export function PrivateServersPage({
   const [descending, setDescending] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
   const [openPicker, setOpenPicker] = useState<number | null>(null);
+  const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [serverAccounts, setServerAccounts] = useState<Record<number, number>>(
+    {},
+  );
+  const addSectionRef = useRef<HTMLElement>(null);
 
   async function reload() {
     setLoading(true);
@@ -50,6 +58,7 @@ export function PrivateServersPage({
   }
   useEffect(() => {
     void reload();
+    void listAccounts().then(setAccounts).catch(() => setAccounts([]));
   }, []);
   const groups = useMemo(() => {
     const map = new Map<number, PrivateServerSummary[]>();
@@ -95,7 +104,11 @@ export function PrivateServersPage({
   }
   async function launch(index: number) {
     try {
-      await launchPrivateServer(index, [...selectedIds]);
+      const selectedAccount = serverAccounts[index];
+      await launchPrivateServer(
+        index,
+        selectedAccount === undefined ? [...selectedIds] : [selectedAccount],
+      );
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -121,8 +134,32 @@ export function PrivateServersPage({
       setError("Clipboard access is unavailable.");
     }
   }
-  async function copyLink() {
-    setError("Copy link is not available yet.");
+  async function copyLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setError(null);
+    } catch {
+      setError("Clipboard access is unavailable.");
+    }
+  }
+  async function rename(index: number, currentName: string) {
+    const nextName = window.prompt("Rename private server", currentName)?.trim();
+    if (!nextName || nextName === currentName) return;
+    try {
+      await renamePrivateServer(index, nextName);
+      await reload();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "The private server could not be renamed.",
+      );
+    }
+  }
+  function addUnderGame(placeName: string) {
+    setName(`${placeName} Server`);
+    addSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setError("Paste a private server link for this game to add it.");
   }
   return (
     <>
@@ -133,9 +170,9 @@ export function PrivateServersPage({
         <aside className="private-server-banner" role="status">
           <Icon name="warning" />
           <span>
-            <strong>Coming soon:</strong> search/sort, status badges, copy link,
-            edit, per-group add, the account picker, paste, and the empty state
-            are reserved for a later update. They&apos;re not implemented yet.
+            <strong>Coming soon:</strong> live private-server link validation is
+            reserved for a later update. Other server management controls are
+            available now.
           </span>
           <button
             className="private-server-banner-dismiss"
@@ -149,6 +186,7 @@ export function PrivateServersPage({
       )}
       <main className="private-servers-page">
         <section
+          ref={addSectionRef}
           className="private-server-card"
           aria-labelledby="add-private-server"
         >
@@ -249,7 +287,11 @@ export function PrivateServersPage({
               <div className="private-server-group" key={placeId}>
                 <div className="private-server-group-head">
                   <span className="private-server-game-thumb">
-                    <Icon name="game" />
+                    {group[0].iconUrl ? (
+                      <img src={group[0].iconUrl} alt="" />
+                    ) : (
+                      <Icon name="game" />
+                    )}
                   </span>
                   <div>
                     <strong>{group[0].placeName || `Place ${placeId}`}</strong>
@@ -262,6 +304,7 @@ export function PrivateServersPage({
                     type="button"
                     aria-label="Add server under this game"
                     data-tip="Add server under this game"
+                    onClick={() => addUnderGame(group[0].placeName || `Place ${placeId}`)}
                   >
                     <Icon name="add" />
                   </button>
@@ -277,7 +320,13 @@ export function PrivateServersPage({
                     </span>
                     <strong>{server.name}</strong>
                     <div className="private-server-account-picker">
-                      <button
+                      {(() => {
+                        const account = accounts.find(
+                          (candidate) => candidate.userId === serverAccounts[server.index],
+                        );
+                        return (
+                          <>
+                            <button
                         className="private-server-account-trigger"
                         type="button"
                         onClick={() =>
@@ -287,39 +336,62 @@ export function PrivateServersPage({
                         }
                       >
                         <span className="private-server-avatar">
-                          {selectedIds.size ? "AC" : "--"}
+                          {account?.username.slice(0, 2).toUpperCase() ?? "--"}
                         </span>
                         <span>
-                          {selectedIds.size
-                            ? "Selected account"
-                            : "Select account"}
+                          {account?.username ?? (selectedIds.size ? "Selected accounts" : "Select account")}
                         </span>
                         <Icon name="chevron-down" />
-                      </button>
-                      {openPicker === server.index && (
+                            </button>
+                            {openPicker === server.index && (
                         <div className="private-server-account-menu">
+                          {accounts.map((candidate) => (
                           <button
+                            key={candidate.userId}
                             type="button"
-                            onClick={() => setOpenPicker(null)}
+                            onClick={() => {
+                              setServerAccounts((current) => ({
+                                ...current,
+                                [server.index]: candidate.userId,
+                              }));
+                              setOpenPicker(null);
+                            }}
                           >
-                            <span className="private-server-avatar">AC</span>
-                            Selected account
+                            <span className="private-server-avatar">
+                              {candidate.username.slice(0, 2).toUpperCase()}
+                            </span>
+                            {candidate.username}
                           </button>
+                          ))}
+                          {!accounts.length && <span className="private-server-account-empty">No accounts available</span>}
                           <button
                             type="button"
-                            onClick={() => setOpenPicker(null)}
+                            onClick={() => {
+                              setServerAccounts((current) => {
+                                const next = { ...current };
+                                delete next[server.index];
+                                return next;
+                              });
+                              setOpenPicker(null);
+                            }}
                           >
                             <span className="private-server-avatar">--</span>No
                             account
                           </button>
                         </div>
-                      )}
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                     <div className="private-server-actions">
                       <button
                         className="account-button primary"
                         type="button"
-                        disabled={!selectedIds.size}
+                        disabled={
+                          !selectedIds.size &&
+                          serverAccounts[server.index] === undefined
+                        }
                         onClick={() => void launch(server.index)}
                       >
                         <Icon name="launch" />
@@ -330,7 +402,7 @@ export function PrivateServersPage({
                         type="button"
                         aria-label={`Copy ${server.name} link`}
                         data-tip="Copy link"
-                        onClick={() => void copyLink()}
+                        onClick={() => void copyLink(server.url)}
                       >
                         <Icon name="copy" />
                       </button>
@@ -339,6 +411,7 @@ export function PrivateServersPage({
                         type="button"
                         aria-label={`Edit ${server.name}`}
                         data-tip="Edit"
+                        onClick={() => void rename(server.index, server.name)}
                       >
                         <Icon name="edit" />
                       </button>

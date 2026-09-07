@@ -64,6 +64,8 @@ export interface PrivateServerSummary {
   name: string;
   placeId: number;
   placeName: string;
+  iconUrl: string;
+  url: string;
 }
 
 export async function listPrivateServers(): Promise<PrivateServerSummary[]> {
@@ -79,6 +81,13 @@ export async function addPrivateServer(
 
 export async function removePrivateServer(index: number): Promise<void> {
   return invoke<void>("remove_private_server", { index });
+}
+
+export async function renamePrivateServer(
+  index: number,
+  name: string,
+): Promise<void> {
+  return invoke<void>("rename_private_server", { index, name });
 }
 
 export async function launchPrivateServer(
