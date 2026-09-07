@@ -65,6 +65,7 @@ export function PrivateServersPage({
   const [editName, setEditName] = useState("");
   const [editUrl, setEditUrl] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const addSectionRef = useRef<HTMLElement>(null);
 
   async function reload() {
@@ -162,10 +163,14 @@ export function PrivateServersPage({
       setError("Clipboard access is unavailable.");
     }
   }
-  async function copyLink(url: string) {
+  async function copyLink(index: number, url: string) {
     try {
       await navigator.clipboard.writeText(url);
       setError(null);
+      setCopiedIndex(index);
+      window.setTimeout(() => {
+        setCopiedIndex((current) => (current === index ? null : current));
+      }, 3000);
     } catch {
       setError("Clipboard access is unavailable.");
     }
@@ -484,10 +489,10 @@ export function PrivateServersPage({
                         className="icon-button"
                         type="button"
                         aria-label={`Copy ${server.name} link`}
-                        data-tip="Copy link"
-                        onClick={() => void copyLink(server.url)}
+                        data-tip={copiedIndex === server.index ? "Copied" : "Copy link"}
+                        onClick={() => void copyLink(server.index, server.url)}
                       >
-                        <Icon name="copy" />
+                        <Icon name={copiedIndex === server.index ? "check" : "copy"} />
                       </button>
                       <button
                         className="icon-button"
