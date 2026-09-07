@@ -34,6 +34,28 @@ function AccountAvatar({ account }: { account: AccountSummary }) {
   );
 }
 
+type OwnershipStatus = "owned" | "unknown" | "not-owned";
+
+const ownershipStatus: OwnershipStatus = "unknown";
+
+function OwnershipBadge({ status }: { status: OwnershipStatus }) {
+  const content = {
+    owned: { icon: "check", label: "You own it" },
+    unknown: { icon: "warning", label: "Ownership unknown" },
+    "not-owned": { icon: "close", label: "You do not own it" },
+  }[status];
+
+  return (
+    <span
+      className={`private-server-ownership private-server-ownership-${status}`}
+      title={content.label}
+    >
+      <Icon name={content.icon} />
+      <span>{content.label}</span>
+    </span>
+  );
+}
+
 export function PrivateServersPage({
   selectedIds,
 }: {
@@ -243,9 +265,9 @@ export function PrivateServersPage({
         <aside className="private-server-banner" role="status">
           <Icon name="warning" />
           <span>
-            <strong>Coming soon:</strong> live private-server link validation is
-            reserved for a later update. Other server management controls are
-            available now.
+            <strong>Coming soon:</strong> live private-server link and ownership
+            validation are reserved for a later update. Other server management
+            controls are available now.
           </span>
           <button
             className="private-server-banner-dismiss"
@@ -394,6 +416,7 @@ export function PrivateServersPage({
                       <Icon name="warning" />
                     </span>
                     <strong>{server.name}</strong>
+                    <OwnershipBadge status={ownershipStatus} />
                     <div className="private-server-account-picker">
                       {(() => {
                         const account = accounts.find(

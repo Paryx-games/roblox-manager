@@ -638,6 +638,30 @@ button:focus-visible {
   width: 16px;
   height: 16px;
 }
+.private-server-ownership {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid currentcolor;
+  border-radius: var(--radius);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.private-server-ownership .account-icon {
+  width: 13px;
+  height: 13px;
+}
+.private-server-ownership-owned {
+  color: var(--status-online);
+}
+.private-server-ownership-unknown {
+  color: var(--status-warning);
+}
+.private-server-ownership-not-owned {
+  color: var(--status-danger);
+}
 .private-server-account-picker {
   position: relative;
   flex-shrink: 0;
