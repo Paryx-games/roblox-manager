@@ -6,7 +6,9 @@ mod state;
 #[allow(dead_code)]
 mod browser_login;
 
+use base64::Engine;
 use ram_core::crypto;
+use ram_core::group_api;
 use ram_core::models::{Account, GroupMeta, LaunchPreset, Presence, PrivateServer};
 use ram_core::{api, assets_api, auth::RobloxClient, process};
 use serde::Serialize;
@@ -84,6 +86,92 @@ struct PrivateServerSummary {
     url: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupSearchResultDto {
+    id: u64,
+    name: String,
+    description: String,
+    member_count: u64,
+    has_verified_badge: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupPosterDto {
+    username: String,
+    display_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupShoutDto {
+    body: String,
+    created: Option<String>,
+    poster: Option<GroupPosterDto>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupAnnouncementDto {
+    id: u64,
+    body: String,
+    created: Option<String>,
+    poster: Option<GroupPosterDto>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupOwnerDto {
+    id: u64,
+    username: String,
+    display_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupInfoDto {
+    id: u64,
+    name: String,
+    description: String,
+    member_count: u64,
+    public_entry_allowed: bool,
+    has_verified_badge: bool,
+    has_social_modules: bool,
+    community_tier: Option<u8>,
+    created: Option<String>,
+    shout: Option<GroupShoutDto>,
+    owner: Option<GroupOwnerDto>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupMembershipDto {
+    user_id: u64,
+    joined: bool,
+    role_name: Option<String>,
+    role_rank: u16,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupWorkspaceDto {
+    group: GroupInfoDto,
+    icon_data_url: Option<String>,
+    announcements: Vec<GroupAnnouncementDto>,
+    memberships: Vec<GroupMembershipDto>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupMembershipResultDto {
+    user_id: u64,
+    join: bool,
+    ok: bool,
+    challenge: bool,
+    message: Option<String>,
+}
+
 enum ParsedPrivateServerUrl {
     Direct { place_id: u64, link_code: String },
     Share { share_code: String },
@@ -104,6 +192,55 @@ fn private_server_summary(
             "https://www.roblox.com/games/{}/game?privateServerLinkCode={}",
             server.place_id, server.link_code
         ),
+    }
+}
+
+fn group_poster_dto(poster: &group_api::GroupPoster) -> GroupPosterDto {
+    GroupPosterDto {
+        username: poster.username.clone(),
+        display_name: poster.display_name.clone(),
+    }
+}
+
+fn group_info_dto(group: &group_api::GroupInfo) -> GroupInfoDto {
+    GroupInfoDto {
+        id: group.id,
+        name: group.name.clone(),
+        description: group.description.clone(),
+        member_count: group.member_count,
+        public_entry_allowed: group.public_entry_allowed,
+        has_verified_badge: group.has_verified_badge,
+        has_social_modules: group.has_social_modules,
+        community_tier: group.community_tier,
+        created: group.created.map(|date| date.to_rfc3339()),
+        shout: group.shout.as_ref().map(|shout| GroupShoutDto {
+            body: shout.body.clone(),
+            created: shout.created.map(|date| date.to_rfc3339()),
+            poster: shout.poster.as_ref().map(group_poster_dto),
+        }),
+        owner: group.owner.as_ref().map(|owner| GroupOwnerDto {
+            id: owner.id,
+            username: owner.username.clone(),
+            display_name: owner.display_name.clone(),
+        }),
+    }
+}
+
+fn group_announcement_dto(announcement: &group_api::GroupAnnouncement) -> GroupAnnouncementDto {
+    GroupAnnouncementDto {
+        id: announcement.id,
+        body: announcement.body.clone(),
+        created: announcement.created.map(|date| date.to_rfc3339()),
+        poster: announcement.poster.as_ref().map(group_poster_dto),
+    }
+}
+
+fn group_membership_dto(membership: &group_api::GroupMembership) -> GroupMembershipDto {
+    GroupMembershipDto {
+        user_id: membership.user_id,
+        joined: membership.joined,
+        role_name: membership.role_name.clone(),
+        role_rank: membership.role_rank,
     }
 }
 
@@ -1480,6 +1617,174 @@ fn reorder_account_groups(
     list_account_groups(state)
 }
 
+#[tauri::command]
+async fn search_groups(keyword: String) -> Result<Vec<GroupSearchResultDto>, String> {
+    let keyword = keyword.trim().to_string();
+    if keyword.is_empty() {
+        return Err("Enter a group name to search".to_string());
+    }
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable".to_string())?;
+    group_api::search_groups(&client, &keyword)
+        .await
+        .map(|groups| {
+            groups
+                .into_iter()
+                .map(|group| GroupSearchResultDto {
+                    id: group.id,
+                    name: group.name,
+                    description: group.description,
+                    member_count: group.member_count,
+                    has_verified_badge: group.has_verified_badge,
+                })
+                .collect()
+        })
+        .map_err(|_| "Roblox group search failed".to_string())
+}
+
+#[tauri::command]
+async fn load_group(
+    state: tauri::State<'_, AppState>,
+    group_id: u64,
+    user_ids: Vec<u64>,
+) -> Result<GroupWorkspaceDto, String> {
+    if group_id == 0 {
+        return Err("Enter a valid Roblox group ID".to_string());
+    }
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable".to_string())?;
+    let group = group_api::fetch_group(&client, group_id)
+        .await
+        .map_err(|_| "Roblox group could not be loaded".to_string())?;
+    let icon_data_url = group_api::fetch_group_icon(&client, group_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|bytes| {
+            format!(
+                "data:image/png;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(bytes)
+            )
+        });
+    let announcements = group_api::fetch_group_announcements(&client, group_id)
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(group_announcement_dto)
+        .collect();
+    let mut memberships = Vec::new();
+    for user_id in user_ids {
+        if let Ok(membership) = group_api::fetch_membership(&client, group_id, user_id).await {
+            memberships.push(group_membership_dto(&membership));
+        }
+    }
+    Ok(GroupWorkspaceDto {
+        group: group_info_dto(&group),
+        icon_data_url,
+        announcements,
+        memberships,
+    })
+}
+
+#[tauri::command]
+async fn change_group_membership(
+    state: tauri::State<'_, AppState>,
+    group_id: u64,
+    join: bool,
+    user_ids: Vec<u64>,
+) -> Result<Vec<GroupMembershipResultDto>, String> {
+    let accounts = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        if !runtime.unlocked {
+            return Err("Unlock the account store before managing groups".to_string());
+        }
+        user_ids
+            .into_iter()
+            .map(|user_id| {
+                runtime
+                    .accounts
+                    .find_by_id(user_id)
+                    .map(|_| user_id)
+                    .ok_or_else(|| "Selected account is no longer available".to_string())
+            })
+            .collect::<Result<Vec<_>, String>>()?
+    };
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable".to_string())?;
+    let mut results = Vec::with_capacity(accounts.len());
+    for user_id in accounts {
+        let cookie = {
+            let runtime = state
+                .runtime
+                .lock()
+                .map_err(|_| "Account state unavailable".to_string())?;
+            account_cookie(&runtime, user_id)
+        };
+        let (ok, challenge) = match cookie {
+            Ok(cookie) => {
+                match group_api::change_membership(&client, &cookie, group_id, user_id, join).await
+                {
+                    Ok(()) => (true, false),
+                    Err(ram_core::CoreError::RobloxApi { message, .. }) => {
+                        (false, message.to_lowercase().contains("challenge"))
+                    }
+                    Err(_) => (false, false),
+                }
+            }
+            Err(_) => (false, false),
+        };
+        results.push(GroupMembershipResultDto {
+            user_id,
+            join,
+            ok,
+            challenge,
+            message: (!ok).then(|| {
+                if challenge {
+                    "Roblox requires additional verification".to_string()
+                } else {
+                    "The group membership request failed".to_string()
+                }
+            }),
+        });
+    }
+    Ok(results)
+}
+
+#[tauri::command]
+async fn open_group_challenge(
+    state: tauri::State<'_, AppState>,
+    group_id: u64,
+    user_id: u64,
+) -> Result<(), String> {
+    let (cookie, label) = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        let account = runtime
+            .accounts
+            .find_by_id(user_id)
+            .ok_or_else(|| "Account not found".to_string())?;
+        (
+            account_cookie(&runtime, user_id)?,
+            account.label().to_string(),
+        )
+    };
+    let profile_dir = std::env::var_os("APPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("RM")
+        .join("webview_browse_as")
+        .join(user_id.to_string());
+    let destination = format!("https://www.roblox.com/communities/{group_id}");
+    tauri::async_runtime::spawn_blocking(move || {
+        browser_login::spawn_browse_as_to(profile_dir, cookie, label, Some(destination))
+    })
+    .await
+    .map_err(|_| "Browser launch task failed".to_string())??;
+    Ok(())
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() >= 4 && args[1] == browser_login::FLAG {
@@ -1545,7 +1850,11 @@ fn main() {
             save_launch_preset,
             list_account_group_colors,
             list_account_groups,
-            reorder_account_groups
+            reorder_account_groups,
+            search_groups,
+            load_group,
+            change_group_membership,
+            open_group_challenge
         ])
         .run(tauri::generate_context!())
         .expect("error while running RM");

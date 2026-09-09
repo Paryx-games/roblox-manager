@@ -1,6 +1,7 @@
 import { useState, type MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
+import { GroupsPage } from "./GroupsPage";
 import { PrivateServersPage } from "./PrivateServersPage";
 
 type NavItem = {
@@ -10,6 +11,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { label: "Accounts", icon: "id-card" },
+  { label: "Groups", icon: "users" },
   { label: "Private Servers", icon: "game" },
 ];
 
@@ -152,7 +154,16 @@ export function App() {
 
         <div className="main-col">
           {activeNav === "Accounts" ? (
-            <AccountsPage selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
+            <AccountsPage
+              selectedIds={selectedIds}
+              setSelectedIds={setSelectedIds}
+            />
+          ) : activeNav === "Groups" ? (
+            <GroupsPage
+              selectedIds={selectedIds}
+              setSelectedIds={setSelectedIds}
+              onNavigateAccounts={() => setActiveNav("Accounts")}
+            />
           ) : activeNav === "Private Servers" ? (
             <PrivateServersPage selectedIds={selectedIds} />
           ) : (

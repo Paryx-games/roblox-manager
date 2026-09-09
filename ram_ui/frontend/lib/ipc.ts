@@ -68,6 +68,74 @@ export interface PrivateServerSummary {
   url: string;
 }
 
+export interface GroupSearchResult {
+  id: number;
+  name: string;
+  description: string;
+  memberCount: number;
+  hasVerifiedBadge: boolean;
+}
+
+export interface GroupPoster {
+  username: string;
+  displayName: string;
+}
+
+export interface GroupShout {
+  body: string;
+  created: string | null;
+  poster: GroupPoster | null;
+}
+
+export interface GroupAnnouncement {
+  id: number;
+  body: string;
+  created: string | null;
+  poster: GroupPoster | null;
+}
+
+export interface GroupOwner {
+  id: number;
+  username: string;
+  displayName: string;
+}
+
+export interface GroupInfo {
+  id: number;
+  name: string;
+  description: string;
+  memberCount: number;
+  publicEntryAllowed: boolean;
+  hasVerifiedBadge: boolean;
+  hasSocialModules: boolean;
+  communityTier: number | null;
+  created: string | null;
+  shout: GroupShout | null;
+  owner: GroupOwner | null;
+}
+
+export interface GroupMembership {
+  userId: number;
+  joined: boolean;
+  roleName: string | null;
+  roleRank: number;
+}
+
+export interface GroupWorkspace {
+  group: GroupInfo;
+  iconDataUrl: string | null;
+  announcements: GroupAnnouncement[];
+  memberships: GroupMembership[];
+}
+
+export interface GroupMembershipResult {
+  userId: number;
+  join: boolean;
+  ok: boolean;
+  challenge: boolean;
+  message: string | null;
+}
+
 export async function listPrivateServers(): Promise<PrivateServerSummary[]> {
   return invoke<PrivateServerSummary[]>("list_private_servers");
 }
@@ -111,6 +179,38 @@ export async function launchPrivateServer(
 
 export async function listAccounts(): Promise<AccountSummary[]> {
   return invoke<AccountSummary[]>("list_accounts");
+}
+
+export async function searchGroups(
+  keyword: string,
+): Promise<GroupSearchResult[]> {
+  return invoke<GroupSearchResult[]>("search_groups", { keyword });
+}
+
+export async function loadGroup(
+  groupId: number,
+  userIds: number[],
+): Promise<GroupWorkspace> {
+  return invoke<GroupWorkspace>("load_group", { groupId, userIds });
+}
+
+export async function changeGroupMembership(
+  groupId: number,
+  join: boolean,
+  userIds: number[],
+): Promise<GroupMembershipResult[]> {
+  return invoke<GroupMembershipResult[]>("change_group_membership", {
+    groupId,
+    join,
+    userIds,
+  });
+}
+
+export async function openGroupChallenge(
+  groupId: number,
+  userId: number,
+): Promise<void> {
+  return invoke<void>("open_group_challenge", { groupId, userId });
 }
 
 export async function listAccountGroupColors(): Promise<

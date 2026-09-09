@@ -10,29 +10,8 @@ import {
   type PrivateServerSummary,
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
-
-function Icon({ name }: { name: string }) {
-  return (
-    <img
-      className="account-icon"
-      src={`/icons/${name}.svg`}
-      alt=""
-      aria-hidden="true"
-    />
-  );
-}
-
-function AccountAvatar({ account }: { account: AccountSummary }) {
-  return (
-    <span className="private-server-avatar">
-      {account.avatarUrl ? (
-        <img src={account.avatarUrl} alt="" />
-      ) : (
-        account.username.slice(0, 2).toUpperCase()
-      )}
-    </span>
-  );
-}
+import { AccountAvatar } from "./components/AccountAvatar";
+import { Icon } from "./components/Icon";
 
 type OwnershipStatus = "owned" | "unknown" | "not-owned";
 
@@ -446,7 +425,10 @@ export function PrivateServersPage({
                               }
                             >
                               {account ? (
-                                <AccountAvatar account={account} />
+                                <AccountAvatar
+                                  account={account}
+                                  className="private-server-avatar"
+                                />
                               ) : (
                                 <span className="private-server-avatar">
                                   --
@@ -474,7 +456,10 @@ export function PrivateServersPage({
                                       setOpenPicker(null);
                                     }}
                                   >
-                                    <AccountAvatar account={candidate} />
+                                    <AccountAvatar
+                                      account={candidate}
+                                      className="private-server-avatar"
+                                    />
                                     {candidate.username}
                                   </button>
                                 ))}
