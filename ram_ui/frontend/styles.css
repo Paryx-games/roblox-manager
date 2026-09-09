@@ -2006,7 +2006,7 @@ button:focus-visible {
   border: 2px solid var(--bg-surface);
   border-radius: 50%;
   color: var(--text-primary);
-  background: var(--text-disabled);
+  background: var(--bg-canvas);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 700;
