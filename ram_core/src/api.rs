@@ -662,7 +662,7 @@ pub async fn resolve_share_link(
         .as_str()
         .to_string();
 
-    tracing::info!("Access code resolved → {access_code}");
+    tracing::info!("Private server access code resolved");
 
     Ok((place_id, universe_id, link_code, access_code))
 }

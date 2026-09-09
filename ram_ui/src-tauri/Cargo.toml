@@ -1,0 +1,26 @@
+[package]
+name = "rm_tauri"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+ram_core = { path = "../../ram_core" }
+serde = { workspace = true }
+tracing = { workspace = true }
+chrono = "0.4"
+tauri = { version = "2", features = [] }
+serde_json = { workspace = true }
+wry = "0.56"
+tao = "0.35"
+webview2-com = "0.38.2"
+windows-core = "0.61.2"
+base64 = "0.23.1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

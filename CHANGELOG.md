@@ -2,16 +2,13 @@
 
 ## Unreleased
 
-### Added
+### Changed
 
-- **Bulk connection actions.** The multi-account panel now includes a Connections section with the same social controls as the single account view, so you can search a Roblox user and apply follow, unfollow, join-game, block, and friend-request actions across every selected account in one pass.
-- **Join-by-user support.** The account panel now includes a user-join flow with direct follow/unfollow controls, a join-their-game action, and startup friend-cache refreshes to keep friends-only joins fast on large account lists.
-
-### Fixed
-
-- **Account-panel sizing.** The selected-account sections now stay within one consistent width so the launch, inventory, and social cards no longer stretch past the viewport on smaller windows.
-- **Tools menu rendering.** The Tools dropdown no longer opens to a blank menu; it now shows the available workspace entries or a clear empty-state message when no tools are enabled.
-- **Account-panel width lock.** The top identity block stays at its original size while every lower card is forced to the exact same width for a consistent, non-clipping layout.
+- **Groups workspace.** Port the groups page from the legacy egui into Tauri + React, including group search and ID loading, live group details, selected-account membership inspection, join/leave actions, account selection, announcements, wall states, loading/error handling, and challenge fallback.
+- **Private Servers workspace.** Add and manage saved Roblox private-server links, then launch every account selected in Accounts.
+- **Workspace navigation.** Accounts now leads the rail, Private Servers has its own workspace entry, and unavailable Instances is retained as a disabled utility action.
+- **Accounts menu rewrite.** Fully rewritten the accounts menu UI in Tauri + React to look cleaner, space easier, and function better.
+- **New UI facelift.** All UI has/being ported from egui to Tauri + React. Details are on [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30)
 
 ## v1.16.0
 

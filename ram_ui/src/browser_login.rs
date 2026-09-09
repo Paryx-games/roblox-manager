@@ -144,6 +144,17 @@ pub fn spawn(profile_dir: PathBuf, tx: Sender<LoginOutcome>) {
     });
 }
 
+/// Run the login helper synchronously for callers that can await it off the
+/// Tauri command thread. The cookie is returned only to the command layer so
+/// it can be encrypted immediately; it never crosses into the frontend.
+pub fn login_blocking(profile_dir: PathBuf) -> Result<Option<String>, String> {
+    match spawn_and_wait(profile_dir)? {
+        LoginOutcome::Success(cookie) => Ok(Some(cookie)),
+        LoginOutcome::Cancelled => Ok(None),
+        LoginOutcome::Failed(error) => Err(error),
+    }
+}
+
 fn spawn_and_wait(profile_dir: PathBuf) -> Result<LoginOutcome, String> {
     let exe = std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?;
     let outfile = profile_dir.join("cookie.out");

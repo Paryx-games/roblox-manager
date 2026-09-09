@@ -1,5 +1,6 @@
 # rust
 /target/
+ram_ui/src-tauri/target/
 
 # local checklist
 TODO.md
@@ -21,3 +22,17 @@ config.json
 # website
 /website/dist/
 /website/node_modules/
+
+# frontend (ram_ui, pnpm + vite)
+ram_ui/node_modules/
+ram_ui/dist/
+ram_ui/.vite/
+node_modules/
+**/node_modules/
+
+# pnpm
+.pnpm-store/
+.pnpm-debug.log*
+
+# tauri build output
+ram_ui/src-tauri/gen/

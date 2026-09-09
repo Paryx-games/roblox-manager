@@ -1,39 +1,66 @@
-name: release
+name: Release
 
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)release, e.g. v1.2.3"
+        required: true
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
+  # falls back to the pushed tag when this wasn't manually dispatched
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
-    name: build
+    name: Build
     runs-on: windows-latest
 
     steps:
-      - name: checkout
-        uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
 
-      - name: setup rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11
 
-      - name: cache cargo
-        uses: Swatinem/rust-cache@v2
+      - name: Setup node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install frontend dependencies
+        working-directory: ram_ui
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup rust
+        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           # tags float on the same commit as their branch, cache key should track the lockfile not the ref
           key: release
+          lookup-only: true
 
-      - name: build
-        run: cargo build --release
+      - name: Build application
+        working-directory: ram_ui
+        run: pnpm tauri build
 
-      - name: upload executable
-        uses: actions/upload-artifact@v4
+      - name: Upload executable
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-executable
           path: target/release/ram_ui.exe
@@ -41,27 +68,40 @@ jobs:
           compression-level: 0
 
   release:
-    name: release
+    name: Release
     needs: build
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
-      - name: checkout
-        uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: download executable
-        uses: actions/download-artifact@v4
+      - name: Resolve tag commit
+        id: resolve-tag
+        shell: pwsh
+        run: |
+          # github.sha / github.workflow_sha point at whatever commit this run was
+          # dispatched from, not the tag - resolve it directly off the checked-out ref instead
+          $sha = git rev-parse "$env:RELEASE_TAG"
+          "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Download executable
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-executable
           path: release
 
-      - name: get previous tag
+      - name: Get previous tag
         id: previous-tag
         shell: pwsh
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "$env:RELEASE_TAG"
           $tags = git tag --sort=-version:refname |
             Where-Object { $_ -ne $currentTag -and $_ -like "v*" }
 
@@ -72,10 +112,10 @@ jobs:
 
           "value=$($tags[0])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: extract changelog
+      - name: Extract changelog
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}"
+          $version = "$env:RELEASE_TAG"
           $path = "CHANGELOG.md"
           $lines = Get-Content $path
 
@@ -103,28 +143,31 @@ jobs:
           $section = ($lines[$start..($end - 1)] -join "`n")
           Set-Content -Path release-notes.md -Value $section
 
-      - name: generate github release notes
+      - name: Generate github release notes
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          STEPS_PREVIOUS_TAG_OUTPUTS_VALUE: ${{ steps.previous-tag.outputs.value }}
+          STEPS_RESOLVE_TAG_OUTPUTS_SHA: ${{ steps.resolve-tag.outputs.sha }}
         run: |
-          $currentTag = "${{ github.ref_name }}"
-          $previousTag = "${{ steps.previous-tag.outputs.value }}"
+          $currentTag = "$env:RELEASE_TAG"
+          $previousTag = "$env:STEPS_PREVIOUS_TAG_OUTPUTS_VALUE"
           $repository = "${{ github.repository }}"
+          $commitish = "$env:STEPS_RESOLVE_TAG_OUTPUTS_SHA"
 
           if ($previousTag) {
             $response = gh api `
               --method POST `
               "repos/$repository/releases/generate-notes" `
               -f "tag_name=$currentTag" `
-              -f "target_commitish=${{ github.sha }}" `
+              -f "target_commitish=$commitish" `
               -f "previous_tag_name=$previousTag"
           } else {
             $response = gh api `
               --method POST `
               "repos/$repository/releases/generate-notes" `
               -f "tag_name=$currentTag" `
-              -f "target_commitish=${{ github.sha }}"
+              -f "target_commitish=$commitish"
           }
 
           $generated = $response | ConvertFrom-Json
@@ -133,7 +176,7 @@ jobs:
           Set-Content -Path github-release-notes.md -Value $notes.Trim()
 
       # rename the built exe to roblox-manager-vX.Y.Z-windows-x64.exe, arch detected from runner env
-      - name: rename executable
+      - name: Rename executable
         id: rename-exe
         shell: pwsh
         run: |
@@ -143,7 +186,7 @@ jobs:
             throw "ram_ui.exe was not found in the release directory."
           }
 
-          $version = "${{ github.ref_name }}" -replace "^v", ""
+          $version = "$env:RELEASE_TAG" -replace "^v", ""
 
           $os = "windows"
           $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
@@ -162,11 +205,12 @@ jobs:
           "path=$newPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       # sha256 for the single release exe
-      - name: generate sha256 checksums
+      - name: Generate sha256 checksums
+        id: checksum
         shell: pwsh
         run: |
-          $exePath = "${{ steps.rename-exe.outputs.path }}"
-          $exeName = "${{ steps.rename-exe.outputs.filename }}"
+          $exePath = "$env:STEPS_RENAME_EXE_OUTPUTS_PATH"
+          $exeName = "$env:STEPS_RENAME_EXE_OUTPUTS_FILENAME"
 
           $hash = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash.ToLower()
 
@@ -180,9 +224,83 @@ jobs:
 
           Set-Content -Path sha256.md -Value ($lines -join "`n")
 
+          "hash=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        env:
+          STEPS_RENAME_EXE_OUTPUTS_PATH: ${{ steps.rename-exe.outputs.path }}
+          STEPS_RENAME_EXE_OUTPUTS_FILENAME: ${{ steps.rename-exe.outputs.filename }}
+
+      # scans the built exe with virustotal and links the report + the exact workflow file
+      # that produced it. scan failures to complete in time don't fail the release, the
+      # report link just finishes populating on virustotal's end
+      - name: Scan with virustotal
+        id: virustotal
+        shell: pwsh
+        env:
+          VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          STEPS_RENAME_EXE_OUTPUTS_PATH: ${{ steps.rename-exe.outputs.path }}
+          STEPS_CHECKSUM_OUTPUTS_HASH: ${{ steps.checksum.outputs.hash }}
+          STEPS_RESOLVE_TAG_OUTPUTS_SHA: ${{ steps.resolve-tag.outputs.sha }}
+        run: |
+          if (-not $env:VT_API_KEY) {
+            throw "VIRUSTOTAL_API_KEY secret is not set."
+          }
+
+          $exePath = "$env:STEPS_RENAME_EXE_OUTPUTS_PATH"
+          $sha256 = "$env:STEPS_CHECKSUM_OUTPUTS_HASH"
+          $headers = @{ "x-apikey" = $env:VT_API_KEY }
+
+          $upload = Invoke-RestMethod -Uri "https://www.virustotal.com/api/v3/files" `
+            -Method Post -Headers $headers -Form @{ file = Get-Item -Path $exePath }
+
+          $analysisId = $upload.data.id
+
+          # fresh binaries usually finish in 30-90s, poll for up to 7.5 minutes
+          $status = "queued"
+          $attempts = 0
+          $maxAttempts = 30
+          $analysis = $null
+
+          while ($status -ne "completed" -and $attempts -lt $maxAttempts) {
+            Start-Sleep -Seconds 15
+            $analysis = Invoke-RestMethod -Uri "https://www.virustotal.com/api/v3/analyses/$analysisId" -Headers $headers
+            $status = $analysis.data.attributes.status
+            $attempts++
+          }
+
+          $reportUrl = "https://www.virustotal.com/gui/file/$sha256"
+
+          if ($status -eq "completed") {
+            $stats = $analysis.data.attributes.stats
+            $flagged = $stats.malicious + $stats.suspicious
+            $total = ($stats.PSObject.Properties | Measure-Object -Property Value -Sum).Sum
+            $summary = "$flagged / $total security vendors flagged this file"
+          } else {
+            $summary = "Scan submitted, results are still processing on VirusTotal"
+          }
+
+          # workflow file path resolved off the checked-out tag ref, not github.workflow_ref,
+          # since a manual dispatch's workflow_ref points at whatever branch triggered it
+          $repository = "${{ github.repository }}"
+          $workflowPath = ".github/workflows/release.yml"
+          $workflowFileName = Split-Path -Path $workflowPath -Leaf
+          $workflowSha = "$env:STEPS_RESOLVE_TAG_OUTPUTS_SHA"
+          $workflowUrl = "https://github.com/$repository/blob/$workflowSha/$workflowPath"
+
+          $lines = @(
+            "## Security"
+            ""
+            "This executable is automatically scanned with [VirusTotal](https://www.virustotal.com/) on every release."
+            ""
+            "- **Scan result:** $summary"
+            "- **Report:** $reportUrl"
+            "- **Build workflow:** [``$workflowFileName``]($workflowUrl)"
+          )
+
+          Set-Content -Path security.md -Value ($lines -join "`n")
+
       # builds the download table from whatever exes are actually in release/, so
       # adding a new arch job later just adds a row here for free, no edits needed
-      - name: build download table
+      - name: Build download table
         shell: pwsh
         run: |
           $archDescriptions = @{
@@ -192,7 +310,7 @@ jobs:
           }
 
           $repository = "${{ github.repository }}"
-          $tag = "${{ github.ref_name }}"
+          $tag = "$env:RELEASE_TAG"
 
           $files = Get-ChildItem -Path release -Filter "*.exe" | Sort-Object Name
 
@@ -221,15 +339,16 @@ jobs:
 
           Set-Content -Path downloads-table.md -Value ($lines -join "`n")
 
-      - name: assemble release notes
+      - name: Assemble release notes
         shell: pwsh
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "$env:RELEASE_TAG"
 
           $changelog = (Get-Content -Path release-notes.md -Raw).Trim()
           $downloadsTable = (Get-Content -Path downloads-table.md -Raw).Trim()
           $githubNotes = (Get-Content -Path github-release-notes.md -Raw).Trim()
           $sha256 = (Get-Content -Path sha256.md -Raw).Trim()
+          $security = (Get-Content -Path security.md -Raw).Trim()
 
           # drop the native "New Contributors" section entirely, not used
           $splitMarker = "## New Contributors"
@@ -275,25 +394,26 @@ jobs:
           "@
           }
 
-          $parts = @($changelog, $downloadsTable, $githubNotesBox.Trim(), $sha256, $prereleaseWarning.Trim()) |
+          $parts = @($changelog, $downloadsTable, $githubNotesBox.Trim(), $sha256, $security, $prereleaseWarning.Trim()) |
             Where-Object { $_ }
 
           $finalNotes = $parts -join "`n`n"
 
           Set-Content -Path final-release-notes.md -Value $finalNotes
 
-      - name: determine release type
+      - name: Determine release type
         id: release-type
         shell: pwsh
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "$env:RELEASE_TAG"
           $isPrerelease = $currentTag -match "-(alpha|beta|rc)"
 
           "prerelease=$($isPrerelease.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: create release
-        uses: softprops/action-gh-release@v2
+      - name: Create release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2 # zizmor: ignore[superfluous-actions] keeping the action, works fine and already pinned
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           files: ${{ steps.rename-exe.outputs.path }}
           body_path: final-release-notes.md
           prerelease: ${{ steps.release-type.outputs.prerelease }}

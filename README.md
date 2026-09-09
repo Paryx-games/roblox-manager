@@ -1,7 +1,16 @@
-<p align="center">
-  <img src="assets/branding/LogoThumb.png" alt="roblox manager" width="650">
-</p>
+<div align="center">
 
+<img src="assets/branding/LogoThumb.png" alt="roblox manager" width="650">
+
+<p><strong><font size="6">Welcome to version 2.0</font></strong></p>
+
+<i>
+v2 introduces a complete UI rework from top to bottom, alongside a migration from egui's immediate-mode rendering to Tauri & React. This change brings a more modern, flexible, and maintainable foundation for the future of the app. You can read more about the reasoning behind the migration in <a href="https://github.com/Paryx-games/roblox-manager/pull/30">#30</a>.
+</i>
+
+<hr>
+
+</div>
 <p align="center">
   <a href="https://github.com/Paryx-games/roblox-manager/actions/workflows/rust.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/rust.yml?label=ci&logo=github&logoColor=white&color=9333ea" alt="ci">
@@ -73,44 +82,6 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 >
 > Never include `.ROBLOSECURITY` cookies, authentication tokens, credentials, encryption keys, or other sensitive account data in issues, pull requests, commits, logs, or screenshots. If you discover a security vulnerability, see [SECURITY.md](SECURITY.md) for how to report it privately.
 
-## Building from Source
-
-### Prerequisites
-
-- [Rust](https://rustup.rs/) (stable)
-- Windows 10/11 (required for Win32 APIs)
-
-### Build
-
-```bash
-# Clone the repository
-git clone https://github.com/Paryx-games/roblox-manager.git
-cd roblox-manager
-
-# Build in release mode
-cargo build --release
-
-# Run
-cargo run --release
-```
-
-The compiled binary will be at `target/release/ram_ui.exe`.
-
-### Development
-
-```powershell
-# Check for errors without building
-cargo check
-
-# Run with debug logging
-$env:RUST_LOG="debug"; cargo run
-```
-
-> [!TIP]
-> If you are developing RM, `cargo check` is the quickest way to catch compilation errors without producing a release build.
->
-> We also allow AI development but please make sure it follows our [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md), otherwise the pull request will not be merged
-
 ## Usage
 
 1. **First launch** - Nothing to set up. Encryption configures itself on this PC
@@ -133,6 +104,117 @@ $env:RUST_LOG="debug"; cargo run
 RM is the spiritual successor to [ByeBanAsync](https://github.com/centerepic/ByeBanAsync), since simply clearing `RobloxCookies.dat` is no longer effective on its own. The project focuses on managing separate Roblox sessions and account data while adapting to changes in Roblox's client behaviour.
 
 Later updates may be made to reinforce account isolation and session management if needed.
+
+## Building from Source
+
+### Prerequisites
+
+- [Rust](https://rustup.rs/) (stable)
+- [Node.js](https://nodejs.org/) 22+
+- [pnpm](https://pnpm.io/) 11+
+- Windows 10/11 (required for Win32 APIs)
+
+### Build
+
+```bash
+# Clone the repository
+git clone https://github.com/Paryx-games/roblox-manager.git
+cd roblox-manager
+
+# Install frontend dependencies
+pnpm --dir ram_ui install
+
+# Build the production Tauri application and installer
+pnpm --dir ram_ui tauri build
+```
+
+The compiled binary will be at `target/release/ram_ui.exe`.
+
+## Development Commands
+
+Run these commands from the repository root unless noted otherwise.
+
+### Rust workspace
+
+```powershell
+# Format all Rust crates
+cargo fmt --all
+
+# Check for errors without building
+cargo check
+
+# Run with debug logging
+$env:RUST_LOG="debug"; cargo run
+
+# Run all Rust tests
+cargo test --workspace
+
+# Run the strict CI lint configuration
+cargo clippy --workspace --all-targets -- -D warnings
+
+# Build the complete workspace in release mode
+cargo build --release
+```
+
+### Tauri and React UI
+
+The Tauri UI lives in `ram_ui/` and uses `pnpm`.
+
+```powershell
+# Install frontend dependencies
+pnpm --dir ram_ui install
+
+# Start the Vite frontend only
+pnpm --dir ram_ui dev
+
+# Start the full Tauri desktop app with hot reload
+pnpm --dir ram_ui tauri dev
+
+# Check TypeScript types
+pnpm --dir ram_ui typecheck
+
+# Run ESLint and stylelint
+pnpm --dir ram_ui lint
+
+# Build the production frontend bundle
+pnpm --dir ram_ui build
+
+# Build the optimized Tauri application and installer
+pnpm --dir ram_ui tauri build
+
+# Build a debug Tauri application
+pnpm --dir ram_ui tauri build --debug
+```
+
+The Tauri command wrapper selects the Windows application icon automatically. Development and debug builds use
+`assets/logos/Development.ico`; versions containing `-alpha` use `Alpha.ico`; versions containing `-beta` use
+`Beta.ico`; and release candidates and stable versions use `Live.ico`. The version is read from the root
+`Cargo.toml`.
+
+> [!TIP]
+> For the quickest local feedback, run `cargo check` and `pnpm --dir ram_ui typecheck` while developing. Use the full validation commands before opening a pull request.
+
+> [!IMPORTANT]
+> Changes under `ram_core/` and the legacy egui UI require special care. The current v2 migration is focused on the Tauri shell and React frontend; do not rewrite core or legacy UI code as part of an unrelated frontend change.
+
+### Pull request validation
+
+Run the same checks used by CI before submitting a change:
+
+```powershell
+cargo fmt --all -- --check
+cargo check
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+pnpm --dir ram_ui lint
+pnpm --dir ram_ui typecheck
+```
+
+> [!NOTE]
+> Use [Conventional Commits](CONVENTIONAL_COMMITS.md) for commit messages. User-facing changes should also be added to the `Unreleased` section of [CHANGELOG.md](CHANGELOG.md).
+
+> [!WARNING]
+> Never include Roblox cookies, authentication tokens, passwords, webhook URLs, account data, logs, or build artifacts in commits, issues, pull requests, or screenshots. Report security vulnerabilities privately through [SECURITY.md](SECURITY.md).
 
 ## License
 
