@@ -438,15 +438,22 @@ export function GroupsPage({
                 onClick={() => setPickerOpen((open) => !open)}
               >
                 <span className="groups-picker-left">
-                  <span className="groups-facepile">
-                    {selectedAccounts.slice(0, 4).map((account) => (
-                      <AccountAvatar
-                        key={account.userId}
-                        account={account}
-                        className="groups-avatar-small"
-                      />
-                    ))}
-                  </span>
+                  {selectedAccounts.length > 0 && (
+                    <span className="groups-facepile">
+                      {selectedAccounts.slice(0, 3).map((account) => (
+                        <AccountAvatar
+                          key={account.userId}
+                          account={account}
+                          className="groups-avatar-small"
+                        />
+                      ))}
+                      {selectedAccounts.length > 3 && (
+                        <span className="groups-avatar-overflow">
+                          +{selectedAccounts.length - 3}
+                        </span>
+                      )}
+                    </span>
+                  )}
                   <span>
                     {selectedAccounts.length
                       ? selectedAccounts

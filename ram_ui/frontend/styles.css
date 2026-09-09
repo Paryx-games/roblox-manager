@@ -1994,6 +1994,23 @@ button:focus-visible {
   margin-left: -8px;
 }
 
+.groups-avatar-overflow {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  margin-left: -8px;
+  border: 2px solid var(--bg-surface);
+  border-radius: 50%;
+  color: var(--text-primary);
+  background: var(--text-disabled);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
 .groups-avatar-small img,
 .groups-avatar-large img {
   width: 100%;
@@ -2010,7 +2027,7 @@ button:focus-visible {
   display: grid;
   gap: var(--space-1);
   max-height: 240px;
-  overflow-y: auto;
+  overflow: hidden auto;
   padding: var(--space-1);
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
@@ -2020,6 +2037,8 @@ button:focus-visible {
 .groups-picker-option,
 .groups-picker-manage {
   display: flex;
+  width: 100%;
+  min-width: 0;
   min-height: 36px;
   align-items: center;
   gap: var(--space-2);
@@ -2029,6 +2048,13 @@ button:focus-visible {
   color: var(--text-primary);
   background: transparent;
   text-align: left;
+}
+
+.groups-picker-option > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .groups-picker-option:hover,
