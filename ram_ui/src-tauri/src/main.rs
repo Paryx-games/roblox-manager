@@ -1642,10 +1642,7 @@ async fn search_groups(keyword: String) -> Result<Vec<GroupSearchResultDto>, Str
 }
 
 #[tauri::command]
-async fn load_group(
-    group_id: u64,
-    user_ids: Vec<u64>,
-) -> Result<GroupWorkspaceDto, String> {
+async fn load_group(group_id: u64, user_ids: Vec<u64>) -> Result<GroupWorkspaceDto, String> {
     if group_id == 0 {
         return Err("Enter a valid Roblox group ID".to_string());
     }
