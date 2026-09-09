@@ -39,12 +39,14 @@ function GroupIdentity({
   group: GroupInfo;
   iconDataUrl: string | null;
 }) {
+  const [iconFailed, setIconFailed] = useState(false);
+
   return (
     <section className="groups-card">
       <div className="groups-identity">
         <span className="groups-avatar-large">
-          {iconDataUrl ? (
-            <img src={iconDataUrl} alt="" />
+          {iconDataUrl && !iconFailed ? (
+            <img src={iconDataUrl} alt="" onError={() => setIconFailed(true)} />
           ) : (
             group.name.slice(0, 1).toUpperCase()
           )}
@@ -58,7 +60,7 @@ function GroupIdentity({
                 data-tip="Verified group"
                 aria-label="Verified group"
               >
-                <Icon name="shield-check" />
+                <img src="/icons/verification.svg" alt="" />
               </span>
             )}
           </div>
@@ -532,7 +534,9 @@ export function GroupsPage({
                   >
                     <span className="groups-result-heading">
                       <strong>{result.name}</strong>
-                      {result.hasVerifiedBadge && <Icon name="shield-check" />}
+                      {result.hasVerifiedBadge && (
+                        <img src="/icons/verification.svg" alt="" />
+                      )}
                     </span>
                     <span>
                       {result.memberCount.toLocaleString()} members
