@@ -38,7 +38,7 @@
   --text-disabled: #5c5c62;
 
   /* action — buttons, links, focus rings, primary interactive elements */
-  --action-primary: #c7c7cc;
+  --action-primary: #3e63f6;
   --action-muted: rgba(255, 255, 255, 0.08);
 
   /* status (RESERVED — see design-system.md rule 1. Never used on
