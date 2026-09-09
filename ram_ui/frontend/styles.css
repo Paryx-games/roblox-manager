@@ -1860,15 +1860,84 @@ button:focus-visible {
   margin-top: var(--space-3);
 }
 
+.groups-results-page {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.groups-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.groups-results-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+}
+
+.groups-results-header p {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.groups-results-page .groups-results {
+  margin-top: 0;
+}
+
 .groups-result {
   display: grid;
+  position: relative;
   gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
   padding: var(--space-2);
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
   color: var(--text-primary);
   background: var(--bg-raised);
   text-align: left;
+}
+
+.groups-result-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.groups-result-heading strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groups-result-heading .account-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  filter: invert(49%) sepia(85%) saturate(1800%) hue-rotate(199deg);
+}
+
+.groups-result-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  justify-self: end;
+  color: var(--action-primary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.groups-result-action .account-icon {
+  width: 13px;
+  height: 13px;
+  transform: rotate(-90deg);
 }
 
 .groups-result:hover,
@@ -1888,6 +1957,36 @@ button:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.groups-back-button {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  color: var(--text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.groups-back-button:hover,
+.groups-back-button:focus-visible {
+  color: var(--text-primary);
+}
+
+.groups-back-button:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
+}
+
+.groups-back-button .account-icon {
+  width: 14px;
+  height: 14px;
+  transform: rotate(90deg);
 }
 
 .groups-error,

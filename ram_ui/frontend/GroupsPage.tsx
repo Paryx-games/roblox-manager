@@ -219,6 +219,7 @@ export function GroupsPage({
     setError(null);
     setActionNotice(null);
     if (mode === "id") {
+      setSearchResults([]);
       const groupId = Number(value);
       if (!Number.isSafeInteger(groupId) || groupId <= 0) {
         setError("Enter a numeric Roblox group ID.");
@@ -396,28 +397,6 @@ export function GroupsPage({
                 {actionNotice}
               </p>
             )}
-            {searchResults.length > 0 && (
-              <div className="groups-results" aria-label="Group search results">
-                {searchResults.map((result) => (
-                  <button
-                    className="groups-result"
-                    key={result.id}
-                    type="button"
-                    onClick={() => {
-                      setInput(String(result.id));
-                      void openGroup(result.id);
-                    }}
-                  >
-                    <strong>{result.name}</strong>
-                    <span>
-                      {result.memberCount.toLocaleString()} members
-                      {result.hasVerifiedBadge ? " · Verified" : ""}
-                    </span>
-                    {result.description && <small>{result.description}</small>}
-                  </button>
-                ))}
-              </div>
-            )}
           </section>
 
           <section className="groups-card">
@@ -527,7 +506,47 @@ export function GroupsPage({
         </aside>
 
         <section className="groups-detail">
-          {!workspace ? (
+          {!workspace && searchResults.length > 0 ? (
+            <section className="groups-results-page">
+              <div className="groups-results-header">
+                <div>
+                  <h2>Search results</h2>
+                  <p>
+                    {searchResults.length} groups found for &quot;{input}&quot;.
+                  </p>
+                </div>
+                <span className="groups-count">
+                  {searchResults.length} results
+                </span>
+              </div>
+              <div className="groups-results" aria-label="Group search results">
+                {searchResults.map((result) => (
+                  <button
+                    className="groups-result"
+                    key={result.id}
+                    type="button"
+                    onClick={() => {
+                      setInput(String(result.id));
+                      void openGroup(result.id);
+                    }}
+                  >
+                    <span className="groups-result-heading">
+                      <strong>{result.name}</strong>
+                      {result.hasVerifiedBadge && <Icon name="shield-check" />}
+                    </span>
+                    <span>
+                      {result.memberCount.toLocaleString()} members
+                      {result.hasVerifiedBadge ? " · Verified" : ""}
+                    </span>
+                    {result.description && <small>{result.description}</small>}
+                    <span className="groups-result-action">
+                      View group <Icon name="chevron-down" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : !workspace ? (
             <section className="groups-card groups-start">
               <Icon name="search" />
               <strong>Find a group to get started</strong>
@@ -538,6 +557,20 @@ export function GroupsPage({
             </section>
           ) : (
             <>
+              {searchResults.length > 0 && (
+                <button
+                  className="groups-back-button"
+                  type="button"
+                  onClick={() => {
+                    setWorkspace(null);
+                    setError(null);
+                    setActionNotice(null);
+                  }}
+                >
+                  <Icon name="chevron-down" />
+                  Back to search results
+                </button>
+              )}
               <GroupIdentity
                 group={workspace.group}
                 iconDataUrl={workspace.iconDataUrl}
