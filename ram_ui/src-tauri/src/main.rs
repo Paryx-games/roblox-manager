@@ -1643,7 +1643,6 @@ async fn search_groups(keyword: String) -> Result<Vec<GroupSearchResultDto>, Str
 
 #[tauri::command]
 async fn load_group(
-    state: tauri::State<'_, AppState>,
     group_id: u64,
     user_ids: Vec<u64>,
 ) -> Result<GroupWorkspaceDto, String> {
