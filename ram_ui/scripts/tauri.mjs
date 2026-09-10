@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url";
 
 const packageDirectory = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const workspaceDirectory = resolve(packageDirectory, "..");
-const cargoManifest = readFileSync(resolve(workspaceDirectory, "Cargo.toml"), "utf8");
+const cargoManifest = readFileSync(
+  resolve(workspaceDirectory, "Cargo.toml"),
+  "utf8",
+);
 const version = cargoManifest.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
 
 if (!version) {
@@ -15,7 +18,8 @@ if (!version) {
 
 const argumentsList = process.argv.slice(2);
 const command = argumentsList[0];
-const isDevelopmentBuild = command === "dev" || argumentsList.includes("--debug");
+const isDevelopmentBuild =
+  command === "dev" || argumentsList.includes("--debug");
 const iconName = isDevelopmentBuild
   ? "Development.ico"
   : version.includes("-alpha")
@@ -25,7 +29,10 @@ const iconName = isDevelopmentBuild
       : "Live.ico";
 const iconPath = `../../assets/logos/${iconName}`;
 const configOverride = JSON.stringify({ bundle: { icon: [iconPath] } });
-const tauriCli = resolve(packageDirectory, "node_modules/@tauri-apps/cli/tauri.js");
+const tauriCli = resolve(
+  packageDirectory,
+  "node_modules/@tauri-apps/cli/tauri.js",
+);
 
 const result = spawnSync(
   process.execPath,
