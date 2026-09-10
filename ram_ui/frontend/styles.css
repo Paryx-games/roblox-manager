@@ -228,6 +228,10 @@ button:focus-visible {
   flex-direction: column;
 }
 
+.page-transition-outgoing {
+  pointer-events: none;
+}
+
 .page-transition-forward-in,
 .page-transition-forward-out,
 .page-transition-backward-in,
@@ -3635,16 +3639,12 @@ button:focus-visible {
 }
 
 .account-button.account-accent-button {
-  border-color: color-mix(
-    in srgb,
-    var(--account-accent, var(--border-default)) 65%,
-    var(--border-default)
-  );
+  border-color: var(--border-default);
 }
 
 .account-button.account-accent-button:hover,
 .account-button.account-accent-button:focus-visible {
-  border-color: var(--account-accent, var(--border-default));
+  border-color: var(--border-default);
   background: color-mix(
     in srgb,
     var(--account-accent, var(--bg-raised)) 14%,

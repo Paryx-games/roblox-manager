@@ -4,6 +4,8 @@
 
 ### Changed
 
+- **Tauri development diagnostics.** `pnpm --dir ram_ui tauri dev` now defaults to info-level Rust tracing output while respecting an existing `RUST_LOG` override, and secondary controls keep their neutral borders.
+- **Navigation interaction fix.** Outgoing page-transition layers no longer intercept clicks intended for the active page.
 - **Groups workspace.** Port the groups page from the legacy egui into Tauri + React, including group search and ID loading, live group details, selected-account membership inspection, join/leave actions, account selection, announcements, wall states, loading/error handling, and challenge fallback.
 - **Private Servers workspace.** Add and manage saved Roblox private-server links, then launch every account selected in Accounts.
 - **Workspace navigation.** Accounts now leads the rail, Private Servers has its own workspace entry, and unavailable Instances is retained as a disabled utility action.

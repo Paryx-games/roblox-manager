@@ -30,7 +30,16 @@ const tauriCli = resolve(packageDirectory, "node_modules/@tauri-apps/cli/tauri.j
 const result = spawnSync(
   process.execPath,
   [tauriCli, ...argumentsList, "--config", configOverride],
-  { cwd: packageDirectory, stdio: "inherit" },
+  {
+    cwd: packageDirectory,
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      ...(isDevelopmentBuild && !process.env.RUST_LOG
+        ? { RUST_LOG: "info" }
+        : {}),
+    },
+  },
 );
 
 if (result.error) {
