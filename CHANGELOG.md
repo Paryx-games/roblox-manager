@@ -4,6 +4,7 @@
 
 ### Changed
 
+- **Private-server controls.** Keep Launch visible while moving secondary actions into an accessible menu, with clearer server-name typography and launch contrast.
 - **Accounts group picker.** Replace the native account-group select with the
 	shared picker, preserving group actions, colors, and account action accents.
 - **Shared account picker.** Groups and private servers now use the same

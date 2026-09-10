@@ -621,7 +621,7 @@ button:focus-visible {
   flex: 1;
   overflow: hidden;
   color: var(--text-primary);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -772,6 +772,31 @@ button:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+}
+
+.private-server-actions .account-button.primary {
+  color: var(--text-primary);
+}
+
+.private-server-menu-anchor {
+  position: relative;
+}
+
+.private-server-menu {
+  top: calc(100% + var(--space-2));
+  right: 0;
+  left: auto;
+  width: 150px;
+}
+
+.private-server-launch-icon {
+  background: currentcolor;
+  mask: url("/icons/launch.svg") center / contain no-repeat;
+}
+
+.private-server-actions .account-button.primary .private-server-launch-icon {
+  filter: none;
+  mix-blend-mode: normal;
 }
 
 .account-picker {

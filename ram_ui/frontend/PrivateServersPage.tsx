@@ -77,7 +77,29 @@ export function PrivateServersPage({
   const [editUrl, setEditUrl] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const addSectionRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (openMenu === null) return;
+
+    function dismissMenu(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setOpenMenu(null);
+      }
+    }
+    function dismissMenuOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenMenu(null);
+    }
+
+    document.addEventListener("pointerdown", dismissMenu);
+    document.addEventListener("keydown", dismissMenuOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissMenu);
+      document.removeEventListener("keydown", dismissMenuOnEscape);
+    };
+  }, [openMenu]);
 
   async function reload() {
     setLoading(true);
@@ -437,40 +459,74 @@ export function PrivateServersPage({
                         }
                         onClick={() => void launch(server.index)}
                       >
-                        <Icon name="launch" />
+                        <span className="account-icon private-server-launch-icon" />
                         Launch
                       </button>
-                      <button
-                        className="icon-button"
-                        type="button"
-                        aria-label={`Copy ${server.name} link`}
-                        data-tip={
-                          copiedIndex === server.index ? "Copied" : "Copy link"
-                        }
-                        onClick={() => void copyLink(server.index, server.url)}
+                      <div
+                        className="private-server-menu-anchor"
+                        ref={openMenu === server.index ? menuRef : undefined}
                       >
-                        <Icon
-                          name={copiedIndex === server.index ? "check" : "copy"}
-                        />
-                      </button>
-                      <button
-                        className="icon-button"
-                        type="button"
-                        aria-label={`Edit ${server.name}`}
-                        data-tip="Edit"
-                        onClick={() => openEdit(server)}
-                      >
-                        <Icon name="edit" />
-                      </button>
-                      <button
-                        className="icon-button danger"
-                        type="button"
-                        aria-label={`Delete ${server.name}`}
-                        data-tip="Delete"
-                        onClick={() => setDeleteTarget(server)}
-                      >
-                        <Icon name="delete" />
-                      </button>
+                        <button
+                          className="icon-button"
+                          type="button"
+                          aria-label={`More actions for ${server.name}`}
+                          aria-expanded={openMenu === server.index}
+                          aria-haspopup="menu"
+                          data-tip="More actions"
+                          onClick={() =>
+                            setOpenMenu((current) =>
+                              current === server.index ? null : server.index,
+                            )
+                          }
+                        >
+                          <Icon name="more" />
+                        </button>
+                        {openMenu === server.index && (
+                          <div className="account-menu private-server-menu" role="menu">
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                void copyLink(server.index, server.url);
+                                setOpenMenu(null);
+                              }}
+                            >
+                              <Icon
+                                name={
+                                  copiedIndex === server.index ? "check" : "copy"
+                                }
+                              />
+                              {copiedIndex === server.index
+                                ? "Copied"
+                                : "Copy link"}
+                            </button>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                openEdit(server);
+                                setOpenMenu(null);
+                              }}
+                            >
+                              <Icon name="edit" />
+                              Edit
+                            </button>
+                            <div className="account-menu-separator" role="separator" />
+                            <button
+                              className="account-menu-danger"
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setDeleteTarget(server);
+                                setOpenMenu(null);
+                              }}
+                            >
+                              <Icon name="delete" />
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
