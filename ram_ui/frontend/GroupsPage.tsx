@@ -80,18 +80,20 @@ function GroupIdentity({
         )}
       </div>
       <div className="groups-chip-row">
-        <span className="groups-status-pill">
-          <Icon name="link" />
+        <span
+          className={`groups-status-pill ${
+            group.publicEntryAllowed ? "is-allowed" : "is-restricted"
+          }`}
+        >
+          <Icon name={group.publicEntryAllowed ? "check" : "close"} />
           {group.publicEntryAllowed
             ? "Public entry allowed"
-            : "Public entry restricted"}
+            : "Allow join only"}
         </span>
-        {group.hasSocialModules && (
-          <span className="groups-status-pill">
-            <Icon name="link" />
-            Social links enabled
-          </span>
-        )}
+        <span className="groups-status-pill">
+          <Icon name={group.hasSocialModules ? "globe" : "globe-off"} />
+          {group.hasSocialModules ? "Social links enabled" : "No social links"}
+        </span>
       </div>
     </section>
   );
@@ -144,6 +146,9 @@ export function GroupsPage({
   const [input, setInput] = useState("");
   const [searchResults, setSearchResults] = useState<GroupSearchResult[]>([]);
   const [workspace, setWorkspace] = useState<GroupWorkspace | null>(null);
+  const [pendingGroup, setPendingGroup] = useState<
+    Pick<GroupSearchResult, "name" | "hasVerifiedBadge"> | null
+  >(null);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [action, setAction] = useState<"join" | "leave" | null>(null);
@@ -240,8 +245,12 @@ export function GroupsPage({
     }
   }
 
-  async function openGroup(groupId: number) {
+  async function openGroup(
+    groupId: number,
+    requestedGroup?: Pick<GroupSearchResult, "name" | "hasVerifiedBadge">,
+  ) {
     setLoading(true);
+    setPendingGroup(requestedGroup ?? null);
     setError(null);
     setActionNotice(null);
     try {
@@ -255,6 +264,7 @@ export function GroupsPage({
       setError("Roblox group could not be loaded.");
     } finally {
       setLoading(false);
+      setPendingGroup(null);
     }
   }
 
@@ -508,7 +518,24 @@ export function GroupsPage({
         </aside>
 
         <section className="groups-detail">
-          {!workspace && searchResults.length > 0 ? (
+          {loading ? (
+            <section className="groups-loading" aria-live="polite" aria-busy="true">
+              <div className="groups-loading-heading">
+                <strong>
+                  {pendingGroup?.name ?? "Loading group"}
+                  {pendingGroup?.hasVerifiedBadge && (
+                    <span
+                      className="groups-verified"
+                      aria-label="Verified group"
+                    >
+                      <img src="/icons/verification.svg" alt="" />
+                    </span>
+                  )}
+                </strong>
+              </div>
+              <span>Loading group details...</span>
+            </section>
+          ) : !workspace && searchResults.length > 0 ? (
             <section className="groups-results-page">
               <div className="groups-results-header">
                 <div>
@@ -529,7 +556,7 @@ export function GroupsPage({
                     type="button"
                     onClick={() => {
                       setInput(String(result.id));
-                      void openGroup(result.id);
+                      void openGroup(result.id, result);
                     }}
                   >
                     <span className="groups-result-heading">
