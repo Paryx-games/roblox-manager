@@ -149,7 +149,7 @@ export function AccountPicker({
         type="button"
         disabled={disabled}
         aria-expanded={open}
-        aria-haspopup="listbox"
+        aria-haspopup="menu"
         onClick={() => onOpenChange(!open)}
       >
         <span className="account-picker-left">
@@ -202,7 +202,7 @@ export function AccountPicker({
       {open && (
         <div
           className="account-picker-menu"
-          role="listbox"
+          role="menu"
           aria-label="Account selection"
           onKeyDown={handleMenuKeyDown}
         >
@@ -219,8 +219,8 @@ export function AccountPicker({
                   optionRefs.current[index] = element;
                 }}
                 type="button"
-                role="option"
-                aria-selected={selected}
+                role="menuitemradio"
+                aria-checked={selected}
                 onClick={() => selectAccount(account.userId)}
               >
                 {mode === "multiple" && (
@@ -243,8 +243,8 @@ export function AccountPicker({
                 optionRefs.current[accounts.length] = element;
               }}
               type="button"
-              role="option"
-              aria-selected={selectedId === undefined}
+              role="menuitemradio"
+              aria-checked={selectedId === undefined}
               onClick={() => selectAccount(undefined)}
             >
               <span className="account-picker-avatar">--</span>
@@ -259,8 +259,8 @@ export function AccountPicker({
                   optionRefs.current[0] = element;
                 }}
                 type="button"
-                role="option"
-                aria-selected={selectedGroup === ""}
+                  role="menuitemradio"
+                  aria-checked={selectedGroup === ""}
                 onClick={() => selectGroup("")}
               >
                 <span
@@ -278,8 +278,8 @@ export function AccountPicker({
                     optionRefs.current[index + 1] = element;
                   }}
                   type="button"
-                  role="option"
-                  aria-selected={selectedGroup === group.name}
+                  role="menuitemradio"
+                  aria-checked={selectedGroup === group.name}
                   onClick={() => selectGroup(group.name)}
                 >
                   <span

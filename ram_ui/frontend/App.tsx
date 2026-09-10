@@ -249,6 +249,7 @@ export function App() {
                 <div
                   className={`page-transition-layer page-transition-outgoing page-transition-${pageTransition.direction}-out`}
                   aria-hidden="true"
+                  ref={(element) => element?.setAttribute("inert", "")}
                 >
                   {renderPage(pageTransition.outgoing)}
                 </div>

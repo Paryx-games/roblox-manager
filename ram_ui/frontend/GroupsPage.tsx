@@ -220,7 +220,10 @@ export function GroupsPage({
         setError("Enter a numeric Roblox group ID.");
         return;
       }
-      await openGroup(groupId);
+      await openGroup(groupId, {
+        name: `Group ${groupId}`,
+        hasVerifiedBadge: false,
+      });
       return;
     }
     setSearching(true);
