@@ -837,6 +837,19 @@ button:focus-visible {
   border-color: var(--action-primary);
 }
 
+.account-picker-groups .account-picker-trigger {
+  width: 100%;
+  max-width: none;
+  height: 36px;
+  font-size: var(--text-sm);
+}
+
+.account-picker-groups .account-picker-menu {
+  right: 0;
+  left: 0;
+  min-width: 190px;
+}
+
 .account-picker-single .account-picker-trigger > .account-picker-left {
   overflow: hidden;
 }
@@ -860,6 +873,14 @@ button:focus-visible {
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.account-picker-group-marker {
+  width: 8px;
+  height: 16px;
+  flex: 0 0 8px;
+  border-radius: var(--radius);
+  background: var(--picker-group-color);
 }
 
 .account-picker-multiple .account-picker-trigger > .account-icon,
@@ -995,6 +1016,21 @@ button:focus-visible {
 .account-picker-manage {
   color: var(--text-muted);
   font-size: var(--text-xs);
+}
+
+.account-picker-manage:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.account-picker-danger {
+  color: var(--status-danger);
+}
+
+.account-picker-danger:hover,
+.account-picker-danger:focus-visible {
+  color: var(--status-danger);
+  background: var(--bg-surface);
 }
 
 @media (max-width: 768px) {
@@ -3476,6 +3512,24 @@ button:focus-visible {
   background: var(--bg-raised);
 }
 
+.account-button.account-accent-button {
+  border-color: color-mix(
+    in srgb,
+    var(--account-accent, var(--border-default)) 65%,
+    var(--border-default)
+  );
+}
+
+.account-button.account-accent-button:hover,
+.account-button.account-accent-button:focus-visible {
+  border-color: var(--account-accent, var(--border-default));
+  background: color-mix(
+    in srgb,
+    var(--account-accent, var(--bg-raised)) 14%,
+    var(--bg-raised)
+  );
+}
+
 .account-button.primary {
   isolation: isolate;
   color: var(--bg-canvas);
@@ -3492,6 +3546,10 @@ button:focus-visible {
   color: var(--text-disabled);
   background: var(--bg-surface);
   cursor: not-allowed;
+}
+
+.account-button.account-accent-button:disabled {
+  border-color: var(--border-default);
 }
 
 .account-button.primary:disabled {
@@ -3579,17 +3637,6 @@ button:focus-visible {
   color: var(--text-primary);
   font-size: var(--text-sm);
   font-weight: 400;
-}
-
-.account-group-select {
-  min-width: 0;
-  padding: var(--space-2);
-  border: var(--border-width) solid var(--border-default);
-  border-radius: 8px;
-  color: var(--text-primary);
-  background: var(--bg-surface);
-  font: inherit;
-  font-size: var(--text-sm);
 }
 
 .connections-card > p {

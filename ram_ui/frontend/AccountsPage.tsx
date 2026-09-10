@@ -47,6 +47,7 @@ import {
   type StoreStatus,
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
+import { AccountPicker } from "./components/AccountPicker";
 import {
   Toast,
   type ToastDuration,
@@ -612,6 +613,7 @@ export function AccountsPage({
   const [pinningIds, setPinningIds] = useState<Set<number>>(new Set());
   const [groupContextMenu, setGroupContextMenu] =
     useState<GroupContextMenu | null>(null);
+  const [groupPickerOpen, setGroupPickerOpen] = useState(false);
   const [groupEditor, setGroupEditor] = useState<GroupEditorState | null>(null);
   const [groupDeleteConfirmation, setGroupDeleteConfirmation] = useState<
     string | null
@@ -882,9 +884,15 @@ export function AccountsPage({
   }, [groupColors, groupOrder, visibleAccounts]);
 
   const hasNamedGroups = groups.some((group) => group.name !== "Ungrouped");
+  const accountGroupOptions = groups
+    .filter((group) => group.name !== "Ungrouped")
+    .map(({ name, color }) => ({ name, color }));
 
   const selectedAccount =
     accounts.find((account) => account.userId === selectedId) ?? null;
+  const selectedGroupColor =
+    groups.find((group) => group.name === selectedAccount?.group)?.color ??
+    "var(--text-muted)";
   const placeIdValid = /^\d+$/.test(placeId.trim());
 
   useEffect(() => {
@@ -2186,7 +2194,11 @@ export function AccountsPage({
           />
         )}
 
-        <section className="accounts-detail-panel" aria-label="Account details">
+        <section
+          className="accounts-detail-panel"
+          aria-label="Account details"
+          style={{ "--account-accent": selectedGroupColor } as CSSProperties}
+        >
           {!selectedAccount ? (
             <div className="accounts-detail-empty">
               <Icon name="id-card" />
@@ -2412,7 +2424,7 @@ export function AccountsPage({
                     Launch
                   </button>
                   <button
-                    className="account-button"
+                    className="account-button account-accent-button"
                     type="button"
                     onClick={() => void browseAs()}
                   >
@@ -2452,7 +2464,7 @@ export function AccountsPage({
                       <Icon name="refresh" />
                     </button>
                     <button
-                      className="account-button"
+                      className="account-button account-accent-button"
                       type="button"
                       onClick={() => void openAccountPage(true)}
                     >
@@ -2501,28 +2513,25 @@ export function AccountsPage({
                 </div>
                 <div>
                   <span>Group</span>
-                  <select
-                    className="account-group-select"
-                    value={selectedAccount.group}
-                    onChange={(event) => void selectGroup(event.target.value)}
-                  >
-                    <option value="">Ungrouped</option>
-                    {[
-                      ...new Set(
-                        accounts
-                          .map((account) => account.group)
-                          .filter(Boolean),
-                      ),
-                    ].map((group) => (
-                      <option value={group} key={group}>
-                        {group}
-                      </option>
-                    ))}
-                    <option value="__new__">Create group...</option>
-                    {selectedAccount.group && (
-                      <option value="__delete__">Delete group...</option>
-                    )}
-                  </select>
+                  <AccountPicker
+                    accounts={[]}
+                    mode="groups"
+                    open={groupPickerOpen}
+                    onOpenChange={setGroupPickerOpen}
+                    groups={accountGroupOptions}
+                    selectedGroup={selectedAccount.group}
+                    onSelectedGroupChange={(group) => void selectGroup(group)}
+                    createGroupLabel="Create group..."
+                    onCreateGroup={() => void createGroup()}
+                    deleteGroupLabel="Delete group..."
+                    onDeleteGroup={() => {
+                      if (selectedAccount.group) {
+                        requestGroupDeletion(selectedAccount.group);
+                      }
+                    }}
+                    disabled={mutationLoading}
+                    className="account-group-picker"
+                  />
                 </div>
                 <div>
                   <span>Last activity</span>
@@ -2561,7 +2570,7 @@ export function AccountsPage({
                     placeholder="Username or user ID"
                   />
                   <button
-                    className="account-button"
+                    className="account-button account-accent-button"
                     type="button"
                     onClick={() => void searchConnections()}
                   >

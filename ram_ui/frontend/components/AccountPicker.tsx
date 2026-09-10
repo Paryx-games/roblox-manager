@@ -1,12 +1,13 @@
 import { useEffect, useRef } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { CSSProperties } from "react";
 import type { AccountSummary } from "../lib/ipc";
 import { AccountAvatar } from "./AccountAvatar";
 import { Icon } from "./Icon";
 
 type AccountPickerProps = {
   accounts: AccountSummary[];
-  mode: "multiple" | "single";
+  mode: "multiple" | "single" | "groups";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedIds?: Set<number>;
@@ -18,6 +19,14 @@ type AccountPickerProps = {
   unselectedLabel?: string;
   manageLabel?: string;
   onManage?: () => void;
+  groups?: Array<{ name: string; color: string }>;
+  selectedGroup?: string;
+  onSelectedGroupChange?: (group: string) => void;
+  createGroupLabel?: string;
+  onCreateGroup?: () => void;
+  deleteGroupLabel?: string;
+  onDeleteGroup?: () => void;
+  disabled?: boolean;
   className?: string;
   avatarClassName?: string;
 };
@@ -36,6 +45,14 @@ export function AccountPicker({
   unselectedLabel = "Select account",
   manageLabel,
   onManage,
+  groups = [],
+  selectedGroup = "",
+  onSelectedGroupChange,
+  createGroupLabel,
+  onCreateGroup,
+  deleteGroupLabel,
+  onDeleteGroup,
+  disabled = false,
   className = "account-picker",
   avatarClassName = "account-picker-avatar",
 }: AccountPickerProps) {
@@ -47,6 +64,9 @@ export function AccountPicker({
     mode === "multiple"
       ? selectedIds.has(account.userId)
       : account.userId === selectedId,
+  );
+  const selectedGroupOption = groups.find(
+    (group) => group.name === selectedGroup,
   );
 
   useEffect(() => {
@@ -91,6 +111,12 @@ export function AccountPicker({
     triggerRef.current?.focus();
   }
 
+  function selectGroup(group: string) {
+    onSelectedGroupChange?.(group);
+    onOpenChange(false);
+    triggerRef.current?.focus();
+  }
+
   function handleMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
     if (!optionRefs.current.length) return;
     const currentIndex = optionRefs.current.findIndex(
@@ -121,6 +147,7 @@ export function AccountPicker({
         className="account-picker-trigger"
         ref={triggerRef}
         type="button"
+        disabled={disabled}
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => onOpenChange(!open)}
@@ -148,8 +175,22 @@ export function AccountPicker({
               className={avatarClassName}
             />
           ) : null}
+          {mode === "groups" && (
+            <span
+              className="account-picker-group-marker"
+              style={
+                {
+                  "--picker-group-color":
+                    selectedGroupOption?.color ?? "var(--text-muted)",
+                } as CSSProperties
+              }
+              aria-hidden="true"
+            />
+          )}
           <span>
-            {mode === "multiple"
+            {mode === "groups"
+              ? selectedGroup || "Ungrouped"
+              : mode === "multiple"
               ? selectedAccounts.length
                 ? selectedAccounts.map((account) => account.username).join(", ")
                 : "No accounts selected"
@@ -165,7 +206,7 @@ export function AccountPicker({
           aria-label="Account selection"
           onKeyDown={handleMenuKeyDown}
         >
-          {accounts.map((account, index) => {
+          {mode !== "groups" && accounts.map((account, index) => {
             const selected =
               mode === "multiple"
                 ? selectedIds.has(account.userId)
@@ -192,7 +233,7 @@ export function AccountPicker({
               </button>
             );
           })}
-          {!accounts.length && (
+          {mode !== "groups" && !accounts.length && (
             <span className="account-picker-empty">{emptyLabel}</span>
           )}
           {mode === "single" && (
@@ -208,6 +249,78 @@ export function AccountPicker({
             >
               <span className="account-picker-avatar">--</span>
               <span>{noAccountLabel}</span>
+            </button>
+          )}
+          {mode === "groups" && (
+            <>
+              <button
+                className={`account-picker-option ${selectedGroup === "" ? "is-selected" : ""}`}
+                ref={(element) => {
+                  optionRefs.current[0] = element;
+                }}
+                type="button"
+                role="option"
+                aria-selected={selectedGroup === ""}
+                onClick={() => selectGroup("")}
+              >
+                <span
+                  className="account-picker-group-marker"
+                  style={{ "--picker-group-color": "var(--text-muted)" } as CSSProperties}
+                  aria-hidden="true"
+                />
+                <span>Ungrouped</span>
+              </button>
+              {groups.map((group, index) => (
+                <button
+                  className={`account-picker-option ${selectedGroup === group.name ? "is-selected" : ""}`}
+                  key={group.name}
+                  ref={(element) => {
+                    optionRefs.current[index + 1] = element;
+                  }}
+                  type="button"
+                  role="option"
+                  aria-selected={selectedGroup === group.name}
+                  onClick={() => selectGroup(group.name)}
+                >
+                  <span
+                    className="account-picker-group-marker"
+                    style={{ "--picker-group-color": group.color } as CSSProperties}
+                    aria-hidden="true"
+                  />
+                  <span>{group.name}</span>
+                </button>
+              ))}
+            </>
+          )}
+          {mode === "groups" && createGroupLabel && onCreateGroup && (
+            <>
+              <div className="account-picker-divider" />
+              <button
+                className="account-picker-manage"
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  onCreateGroup();
+                  onOpenChange(false);
+                }}
+              >
+                <Icon name="add" />
+                {createGroupLabel}
+              </button>
+            </>
+          )}
+          {mode === "groups" && deleteGroupLabel && onDeleteGroup && selectedGroup && (
+            <button
+              className="account-picker-manage account-picker-danger"
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                onDeleteGroup();
+                onOpenChange(false);
+              }}
+            >
+              <Icon name="delete" />
+              {deleteGroupLabel}
             </button>
           )}
           {manageLabel && onManage && (

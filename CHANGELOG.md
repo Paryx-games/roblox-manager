@@ -4,6 +4,8 @@
 
 ### Changed
 
+- **Accounts group picker.** Replace the native account-group select with the
+	shared picker, preserving group actions, colors, and account action accents.
 - **Shared account picker.** Groups and private servers now use the same
 	accessible account-selection control.
 - **Groups loading and access states.** Add a focused detail loading state, clearer group access labels, and social link status icons.
