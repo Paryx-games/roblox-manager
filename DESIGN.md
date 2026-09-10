@@ -183,12 +183,12 @@ No inline `font-size`, no Tailwind arbitrary-value text utility
 
 ### 3.5 Motion
 
-| Token             | Value                        | Usage                                    |
-| ----------------- | ---------------------------- | ---------------------------------------- |
-| `--duration-fast` | 100ms                        | Hover/active background step, focus ring |
-| `--duration-base` | 160ms                        | Panel/sidebar collapse, tooltip          |
+| Token             | Value                        | Usage                                          |
+| ----------------- | ---------------------------- | ---------------------------------------------- |
+| `--duration-fast` | 100ms                        | Hover/active background step, focus ring       |
+| `--duration-base` | 160ms                        | Panel/sidebar collapse, tooltip                |
 | `--duration-slow` | 240ms                        | Modal/popover enter; top-level page transition |
-| `--ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | All of the above                         |
+| `--ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | All of the above                               |
 
 No other easing curve, no spring physics, no duration not on this list. The
 only page-transition exception is a top-level navigation change: the outgoing
