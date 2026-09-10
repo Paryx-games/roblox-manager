@@ -13,6 +13,7 @@ use ram_core::models::{Account, GroupMeta, LaunchPreset, Presence, PrivateServer
 use ram_core::{api, assets_api, auth::RobloxClient, process};
 use serde::Serialize;
 use state::AppState;
+use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1782,6 +1783,12 @@ async fn open_group_challenge(
 }
 
 fn main() {
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_target(false)
+        .init();
+
     let args: Vec<String> = std::env::args().collect();
     if args.len() >= 4 && args[1] == browser_login::FLAG {
         let code = browser_login::run_child(
