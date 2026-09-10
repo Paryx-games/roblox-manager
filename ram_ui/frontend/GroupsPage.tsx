@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   changeGroupMembership,
   listAccounts,
@@ -12,6 +12,7 @@ import {
   type GroupWorkspace,
 } from "./lib/ipc";
 import { AccountAvatar } from "./components/AccountAvatar";
+import { AccountPicker } from "./components/AccountPicker";
 import { Icon } from "./components/Icon";
 
 type GroupMode = "name" | "id";
@@ -155,7 +156,6 @@ export function GroupsPage({
   const [error, setError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void listAccounts()
@@ -170,18 +170,6 @@ export function GroupsPage({
         );
       })
       .catch(() => setAccounts([]));
-  }, []);
-
-  useEffect(() => {
-    function closePicker(event: MouseEvent) {
-      if (
-        pickerRef.current &&
-        !pickerRef.current.contains(event.target as Node)
-      )
-        setPickerOpen(false);
-    }
-    document.addEventListener("mousedown", closePicker);
-    return () => document.removeEventListener("mousedown", closePicker);
   }, []);
 
   const selectedAccounts = accounts.filter((account) =>
@@ -418,82 +406,18 @@ export function GroupsPage({
                 {selectedAccounts.length} selected
               </span>
             </div>
-            <div
-              className={`groups-picker ${pickerOpen ? "is-open" : ""}`}
-              ref={pickerRef}
-            >
-              <button
-                className="groups-picker-trigger"
-                type="button"
-                aria-expanded={pickerOpen}
-                onClick={() => setPickerOpen((open) => !open)}
-              >
-                <span className="groups-picker-left">
-                  {selectedAccounts.length > 0 && (
-                    <span className="groups-facepile">
-                      {selectedAccounts.slice(0, 3).map((account) => (
-                        <AccountAvatar
-                          key={account.userId}
-                          account={account}
-                          className="groups-avatar-small"
-                        />
-                      ))}
-                      {selectedAccounts.length > 3 && (
-                        <span className="groups-avatar-overflow">
-                          +{selectedAccounts.length - 3}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  <span>
-                    {selectedAccounts.length
-                      ? selectedAccounts
-                          .map((account) => account.username)
-                          .join(", ")
-                      : "No accounts selected"}
-                  </span>
-                </span>
-                <Icon name="chevron-down" />
-              </button>
-              {pickerOpen && (
-                <div className="groups-picker-menu">
-                  {accounts.map((account) => {
-                    const checked = selectedIds.has(account.userId);
-                    return (
-                      <button
-                        className={`groups-picker-option ${checked ? "is-checked" : ""}`}
-                        key={account.userId}
-                        type="button"
-                        onClick={() => {
-                          const next = new Set(selectedIds);
-                          if (checked) next.delete(account.userId);
-                          else next.add(account.userId);
-                          setSelectedIds(next);
-                        }}
-                      >
-                        <span className="groups-checkbox">
-                          {checked && <Icon name="check" />}
-                        </span>
-                        <AccountAvatar
-                          account={account}
-                          className="groups-avatar-small"
-                        />
-                        <span>{account.username}</span>
-                      </button>
-                    );
-                  })}
-                  <div className="groups-picker-divider" />
-                  <button
-                    className="groups-picker-manage"
-                    type="button"
-                    onClick={onNavigateAccounts}
-                  >
-                    <Icon name="id-card" />
-                    Manage on Accounts page
-                  </button>
-                </div>
-              )}
-            </div>
+            <AccountPicker
+              accounts={accounts}
+              mode="multiple"
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              selectedIds={selectedIds}
+              onSelectedIdsChange={setSelectedIds}
+              manageLabel="Manage on Accounts page"
+              onManage={onNavigateAccounts}
+              className="groups-picker"
+              avatarClassName="groups-avatar-small"
+            />
             <div className="groups-action-row">
               <button
                 className="groups-button primary"

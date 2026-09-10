@@ -269,6 +269,8 @@ Each backed by tokens only, each with a single default export:
 - `<Badge>` - mono type, for IDs/short data tags
 - `<EmptyState>` / `<ErrorState>` - see §10 writing guidance, §7.3 for
   where `DataTable` must use these
+- `<AccountPicker>` - controlled account selection with multi-select and
+  single-select modes, outside-click dismissal, and keyboard navigation
 
 A new component must be added to this list (and this doc) in the same PR
 that introduces it - §11.3.

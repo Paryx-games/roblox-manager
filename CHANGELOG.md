@@ -4,6 +4,8 @@
 
 ### Changed
 
+- **Shared account picker.** Groups and private servers now use the same
+	accessible account-selection control.
 - **Groups loading and access states.** Add a focused detail loading state, clearer group access labels, and social link status icons.
 - **Groups workspace.** Port the groups page from the legacy egui into Tauri + React, including group search and ID loading, live group details, selected-account membership inspection, join/leave actions, account selection, announcements, wall states, loading/error handling, and challenge fallback.
 - **Private Servers workspace.** Add and manage saved Roblox private-server links, then launch every account selected in Accounts.

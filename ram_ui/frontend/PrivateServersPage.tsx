@@ -10,7 +10,7 @@ import {
   type PrivateServerSummary,
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
-import { AccountAvatar } from "./components/AccountAvatar";
+import { AccountPicker } from "./components/AccountPicker";
 import { Icon } from "./components/Icon";
 
 type OwnershipStatus = "owned" | "unknown" | "not-owned";
@@ -405,91 +405,28 @@ export function PrivateServersPage({
                     </span>
                     <OwnershipBadge status={ownershipStatus} />
                     <strong>{server.name}</strong>
-                    <div className="private-server-account-picker">
-                      {(() => {
-                        const account = accounts.find(
-                          (candidate) =>
-                            candidate.userId === serverAccounts[server.index],
-                        );
-                        return (
-                          <>
-                            <button
-                              className="private-server-account-trigger"
-                              type="button"
-                              onClick={() =>
-                                setOpenPicker(
-                                  openPicker === server.index
-                                    ? null
-                                    : server.index,
-                                )
-                              }
-                            >
-                              {account ? (
-                                <AccountAvatar
-                                  account={account}
-                                  className="private-server-avatar"
-                                />
-                              ) : (
-                                <span className="private-server-avatar">
-                                  --
-                                </span>
-                              )}
-                              <span>
-                                {account?.username ??
-                                  (selectedIds.size
-                                    ? "Selected accounts"
-                                    : "Select account")}
-                              </span>
-                              <Icon name="chevron-down" />
-                            </button>
-                            {openPicker === server.index && (
-                              <div className="private-server-account-menu">
-                                {accounts.map((candidate) => (
-                                  <button
-                                    key={candidate.userId}
-                                    type="button"
-                                    onClick={() => {
-                                      setServerAccounts((current) => ({
-                                        ...current,
-                                        [server.index]: candidate.userId,
-                                      }));
-                                      setOpenPicker(null);
-                                    }}
-                                  >
-                                    <AccountAvatar
-                                      account={candidate}
-                                      className="private-server-avatar"
-                                    />
-                                    {candidate.username}
-                                  </button>
-                                ))}
-                                {!accounts.length && (
-                                  <span className="private-server-account-empty">
-                                    No accounts available
-                                  </span>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setServerAccounts((current) => {
-                                      const next = { ...current };
-                                      delete next[server.index];
-                                      return next;
-                                    });
-                                    setOpenPicker(null);
-                                  }}
-                                >
-                                  <span className="private-server-avatar">
-                                    --
-                                  </span>
-                                  No account
-                                </button>
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
+                    <AccountPicker
+                      accounts={accounts}
+                      mode="single"
+                      open={openPicker === server.index}
+                      onOpenChange={(open) =>
+                        setOpenPicker(open ? server.index : null)
+                      }
+                      selectedId={serverAccounts[server.index]}
+                      unselectedLabel={
+                        selectedIds.size ? "Selected accounts" : "Select account"
+                      }
+                      onSelectedIdChange={(id) =>
+                        setServerAccounts((current) => {
+                          const next = { ...current };
+                          if (id === undefined) delete next[server.index];
+                          else next[server.index] = id;
+                          return next;
+                        })
+                      }
+                      className="private-server-account-picker"
+                      avatarClassName="private-server-avatar"
+                    />
                     <div className="private-server-actions">
                       <button
                         className="account-button primary"
