@@ -213,6 +213,103 @@ button:focus-visible {
   flex-direction: column;
 }
 
+.page-transition-viewport {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.page-transition-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.page-transition-forward-in,
+.page-transition-forward-out,
+.page-transition-backward-in,
+.page-transition-backward-out {
+  animation-duration: var(--duration-slow);
+  animation-timing-function: var(--ease-standard);
+  animation-fill-mode: both;
+}
+
+.page-transition-forward-in {
+  animation-name: page-transition-forward-in;
+}
+
+.page-transition-forward-out {
+  animation-name: page-transition-forward-out;
+}
+
+.page-transition-backward-in {
+  animation-name: page-transition-backward-in;
+}
+
+.page-transition-backward-out {
+  animation-name: page-transition-backward-out;
+}
+
+@keyframes page-transition-forward-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-4));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes page-transition-forward-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--space-4) * -1));
+  }
+}
+
+@keyframes page-transition-backward-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--space-4) * -1));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes page-transition-backward-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(var(--space-4));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition-forward-in,
+  .page-transition-forward-out,
+  .page-transition-backward-in,
+  .page-transition-backward-out {
+    animation: none;
+  }
+}
+
 .sidebar {
   display: flex;
   width: 56px;

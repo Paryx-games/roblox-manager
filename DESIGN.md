@@ -187,11 +187,17 @@ No inline `font-size`, no Tailwind arbitrary-value text utility
 | ----------------- | ---------------------------- | ---------------------------------------- |
 | `--duration-fast` | 100ms                        | Hover/active background step, focus ring |
 | `--duration-base` | 160ms                        | Panel/sidebar collapse, tooltip          |
-| `--duration-slow` | 240ms                        | Modal/popover enter                      |
+| `--duration-slow` | 240ms                        | Modal/popover enter; top-level page transition |
 | `--ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | All of the above                         |
 
-No other easing curve, no spring physics, no duration not on this list. See
-§12 for the motion anti-patterns this scale exists to prevent.
+No other easing curve, no spring physics, no duration not on this list. The
+only page-transition exception is a top-level navigation change: the outgoing
+page and incoming page may crossfade with a 16px directional translation over
+`--duration-slow`, while the shell remains fixed and the page viewport clips
+overflow to prevent scroll reflow. During the overlap, only the incoming page
+may be exposed to assistive technology. Under `prefers-reduced-motion: reduce`,
+the page transition must render without transform or opacity choreography.
+See §12 for the remaining motion anti-patterns this scale exists to prevent.
 
 ### 3.6 Breakpoints
 

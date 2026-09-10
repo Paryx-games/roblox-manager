@@ -96,8 +96,9 @@
      MOTION
      RM is an operations console, not a showcase. Motion answers a
      person's action (opening, expanding, confirming, a status
-     changing) — it does not decorate. No page-transition choreography,
-     no bounce/overshoot easing, no hover scale/glow effects.
+   changing) — it does not decorate. Page transitions are the one bounded
+   choreography exception; see DESIGN.md §3.5. No bounce/overshoot easing,
+   no hover scale/glow effects.
      Always respect prefers-reduced-motion: reduce (drop to 0ms / no-op).
      ========================================================= */
   --duration-fast: 100ms;
