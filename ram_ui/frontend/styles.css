@@ -217,6 +217,7 @@ button:focus-visible {
   position: relative;
   min-height: 0;
   flex: 1;
+  background: var(--bg-canvas);
   overflow: hidden;
 }
 
@@ -226,6 +227,7 @@ button:focus-visible {
   display: flex;
   min-height: 0;
   flex-direction: column;
+  background: var(--bg-canvas);
 }
 
 .page-transition-outgoing {
