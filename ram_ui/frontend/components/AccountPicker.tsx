@@ -191,10 +191,12 @@ export function AccountPicker({
             {mode === "groups"
               ? selectedGroup || "Ungrouped"
               : mode === "multiple"
-              ? selectedAccounts.length
-                ? selectedAccounts.map((account) => account.username).join(", ")
-                : "No accounts selected"
-              : selectedAccounts[0]?.username ?? unselectedLabel}
+                ? selectedAccounts.length
+                  ? selectedAccounts
+                      .map((account) => account.username)
+                      .join(", ")
+                  : "No accounts selected"
+                : (selectedAccounts[0]?.username ?? unselectedLabel)}
           </span>
         </span>
         <Icon name="chevron-down" />
@@ -206,33 +208,37 @@ export function AccountPicker({
           aria-label="Account selection"
           onKeyDown={handleMenuKeyDown}
         >
-          {mode !== "groups" && accounts.map((account, index) => {
-            const selected =
-              mode === "multiple"
-                ? selectedIds.has(account.userId)
-                : account.userId === selectedId;
-            return (
-              <button
-                className={`account-picker-option ${selected ? "is-selected" : ""}`}
-                key={account.userId}
-                ref={(element) => {
-                  optionRefs.current[index] = element;
-                }}
-                type="button"
-                role="menuitemradio"
-                aria-checked={selected}
-                onClick={() => selectAccount(account.userId)}
-              >
-                {mode === "multiple" && (
-                  <span className="account-picker-checkbox">
-                    {selected && <Icon name="check" />}
-                  </span>
-                )}
-                <AccountAvatar account={account} className={avatarClassName} />
-                <span>{account.username}</span>
-              </button>
-            );
-          })}
+          {mode !== "groups" &&
+            accounts.map((account, index) => {
+              const selected =
+                mode === "multiple"
+                  ? selectedIds.has(account.userId)
+                  : account.userId === selectedId;
+              return (
+                <button
+                  className={`account-picker-option ${selected ? "is-selected" : ""}`}
+                  key={account.userId}
+                  ref={(element) => {
+                    optionRefs.current[index] = element;
+                  }}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={selected}
+                  onClick={() => selectAccount(account.userId)}
+                >
+                  {mode === "multiple" && (
+                    <span className="account-picker-checkbox">
+                      {selected && <Icon name="check" />}
+                    </span>
+                  )}
+                  <AccountAvatar
+                    account={account}
+                    className={avatarClassName}
+                  />
+                  <span>{account.username}</span>
+                </button>
+              );
+            })}
           {mode !== "groups" && !accounts.length && (
             <span className="account-picker-empty">{emptyLabel}</span>
           )}
@@ -259,13 +265,17 @@ export function AccountPicker({
                   optionRefs.current[0] = element;
                 }}
                 type="button"
-                  role="menuitemradio"
-                  aria-checked={selectedGroup === ""}
+                role="menuitemradio"
+                aria-checked={selectedGroup === ""}
                 onClick={() => selectGroup("")}
               >
                 <span
                   className="account-picker-group-marker"
-                  style={{ "--picker-group-color": "var(--text-muted)" } as CSSProperties}
+                  style={
+                    {
+                      "--picker-group-color": "var(--text-muted)",
+                    } as CSSProperties
+                  }
                   aria-hidden="true"
                 />
                 <span>Ungrouped</span>
@@ -284,7 +294,9 @@ export function AccountPicker({
                 >
                   <span
                     className="account-picker-group-marker"
-                    style={{ "--picker-group-color": group.color } as CSSProperties}
+                    style={
+                      { "--picker-group-color": group.color } as CSSProperties
+                    }
                     aria-hidden="true"
                   />
                   <span>{group.name}</span>
@@ -309,20 +321,23 @@ export function AccountPicker({
               </button>
             </>
           )}
-          {mode === "groups" && deleteGroupLabel && onDeleteGroup && selectedGroup && (
-            <button
-              className="account-picker-manage account-picker-danger"
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                onDeleteGroup();
-                onOpenChange(false);
-              }}
-            >
-              <Icon name="delete" />
-              {deleteGroupLabel}
-            </button>
-          )}
+          {mode === "groups" &&
+            deleteGroupLabel &&
+            onDeleteGroup &&
+            selectedGroup && (
+              <button
+                className="account-picker-manage account-picker-danger"
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  onDeleteGroup();
+                  onOpenChange(false);
+                }}
+              >
+                <Icon name="delete" />
+                {deleteGroupLabel}
+              </button>
+            )}
           {manageLabel && onManage && (
             <>
               <div className="account-picker-divider" />

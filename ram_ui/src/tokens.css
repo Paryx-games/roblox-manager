@@ -41,9 +41,9 @@
   --action-primary: #3e63f6;
   --action-muted: rgba(255, 255, 255, 0.08);
 
-   /* static access state, not live account or process status */
-   --access-allowed: #4fbf7a;
-   --access-restricted: #e0a93e;
+  /* static access state, not live account or process status */
+  --access-allowed: #4fbf7a;
+  --access-restricted: #e0a93e;
 
   /* status (RESERVED — see design-system.md rule 1. Never used on
      buttons/links/decoration — only to represent live account,

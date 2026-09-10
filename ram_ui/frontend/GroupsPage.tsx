@@ -147,9 +147,10 @@ export function GroupsPage({
   const [input, setInput] = useState("");
   const [searchResults, setSearchResults] = useState<GroupSearchResult[]>([]);
   const [workspace, setWorkspace] = useState<GroupWorkspace | null>(null);
-  const [pendingGroup, setPendingGroup] = useState<
-    Pick<GroupSearchResult, "name" | "hasVerifiedBadge"> | null
-  >(null);
+  const [pendingGroup, setPendingGroup] = useState<Pick<
+    GroupSearchResult,
+    "name" | "hasVerifiedBadge"
+  > | null>(null);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [action, setAction] = useState<"join" | "leave" | null>(null);
@@ -446,7 +447,11 @@ export function GroupsPage({
 
         <section className="groups-detail">
           {loading ? (
-            <section className="groups-loading" aria-live="polite" aria-busy="true">
+            <section
+              className="groups-loading"
+              aria-live="polite"
+              aria-busy="true"
+            >
               <div className="groups-loading-heading">
                 <strong>
                   {pendingGroup?.name ?? "Loading group"}

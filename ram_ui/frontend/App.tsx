@@ -90,8 +90,9 @@ function WindowButton({
 
 export function App() {
   const [activeNav, setActiveNav] = useState<PageName>("Accounts");
-  const [pageTransition, setPageTransition] =
-    useState<PageTransition | null>(null);
+  const [pageTransition, setPageTransition] = useState<PageTransition | null>(
+    null,
+  );
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -261,7 +262,9 @@ export function App() {
                 </div>
               </>
             ) : (
-              <div className="page-transition-layer">{renderPage(activeNav)}</div>
+              <div className="page-transition-layer">
+                {renderPage(activeNav)}
+              </div>
             )}
           </div>
         </div>

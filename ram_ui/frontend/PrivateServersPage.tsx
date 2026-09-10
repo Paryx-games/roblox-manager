@@ -436,7 +436,9 @@ export function PrivateServersPage({
                       }
                       selectedId={serverAccounts[server.index]}
                       unselectedLabel={
-                        selectedIds.size ? "Selected accounts" : "Select account"
+                        selectedIds.size
+                          ? "Selected accounts"
+                          : "Select account"
                       }
                       onSelectedIdChange={(id) =>
                         setServerAccounts((current) => {
@@ -482,7 +484,10 @@ export function PrivateServersPage({
                           <Icon name="more" />
                         </button>
                         {openMenu === server.index && (
-                          <div className="account-menu private-server-menu" role="menu">
+                          <div
+                            className="account-menu private-server-menu"
+                            role="menu"
+                          >
                             <button
                               type="button"
                               role="menuitem"
@@ -493,7 +498,9 @@ export function PrivateServersPage({
                             >
                               <Icon
                                 name={
-                                  copiedIndex === server.index ? "check" : "copy"
+                                  copiedIndex === server.index
+                                    ? "check"
+                                    : "copy"
                                 }
                               />
                               {copiedIndex === server.index
@@ -511,7 +518,10 @@ export function PrivateServersPage({
                               <Icon name="edit" />
                               Edit
                             </button>
-                            <div className="account-menu-separator" role="separator" />
+                            <div
+                              className="account-menu-separator"
+                              role="separator"
+                            />
                             <button
                               className="account-menu-danger"
                               type="button"
