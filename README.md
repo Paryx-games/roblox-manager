@@ -1,3 +1,5 @@
+<a id="readme-top"></a>
+
 <div align="center">
   <a href="https://github.com/Paryx-games/roblox-manager">
     <img src="assets/branding/LogoThumb.png" alt="Logo" width="400">
@@ -31,12 +33,36 @@
     <img src="https://img.shields.io/github/downloads/Paryx-games/roblox-manager/total?label=downloads&logo=github&logoColor=white&color=4f46e5" alt="downloads">
     <img src="https://img.shields.io/github/license/Paryx-games/roblox-manager?label=license&logo=github&logoColor=white&color=3b82f6" alt="license">
     <img src="https://img.shields.io/github/stars/Paryx-games/roblox-manager?style=flat&label=stars&logo=github&logoColor=white&color=0ea5e9" alt="stars">
-    <img src="https://img.shields.io/github/issues/Paryx-games/roblox-manager?label=issues&logo=github&logoColor=white&color=14b8a6" alt="issues">
+    <img src="https://img.shields.io/github/forks/Paryx-games/roblox-manager?style=flat&label=forks&logo=github&logoColor=white&color=14b8a6" alt="forks">
+    <img src="https://img.shields.io/github/issues/Paryx-games/roblox-manager?label=issues&logo=github&logoColor=white&color=10b981" alt="issues">
   </p>
 </div>
 
 > [!NOTE]
 > This repository is a fork of [gitlab.com/centerepic/robloxmanager](https://gitlab.com/centerepic/robloxmanager).
+
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li><a href="#about-the-project">About The Project</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#credits">Credits</a></li>
+    <li>
+      <a href="#building-from-source">Building From Source</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#build">Build</a></li>
+      </ul>
+    </li>
+    <li><a href="#development-commands">Development Commands</a></li>
+    <li><a href="#reporting-issues--requesting-features">Reporting Issues & Requesting Features</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#license">License</a></li>
+  </ol>
+</details>
+
+## About The Project
 
 A fast, lightweight Roblox account manager built with Rust and [egui](https://github.com/emilk/egui). Manage multiple Roblox accounts, launch games, and switch between sessions with ease.
 
@@ -47,6 +73,15 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 
 > [!NOTE]
 > This project is independent and is not affiliated with, endorsed by, or sponsored by Roblox Corporation.
+
+### Built With
+
+- [Rust](https://www.rust-lang.org/)
+- [egui](https://github.com/emilk/egui)
+- [Tauri](https://tauri.app/)
+- [React](https://react.dev/)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Features
 
@@ -68,6 +103,8 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 >
 > Never include `.ROBLOSECURITY` cookies, authentication tokens, credentials, encryption keys, or other sensitive account data in issues, pull requests, commits, logs, or screenshots. If you discover a security vulnerability, see [SECURITY.md](SECURITY.md) for how to report it privately.
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## Usage
 
 1. **First launch** - Nothing to set up. Encryption configures itself on this PC
@@ -79,19 +116,23 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 > [!CAUTION]
 > Multi-instance and privacy features interact with Roblox's local processes and files. Roblox updates may change or break these behaviours, so do not assume that a feature will continue working indefinitely.
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## Credits
 
 - [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of RobloxAccountManager that this repository was forked from
 - [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by [ic3w0lf22](https://github.com/ic3w0lf22) - The original Roblox Account Manager that served as the primary reference for this project
 - [Lucide Icons](https://lucide.dev/icons/) - The icon pack used for icons throughout the app. Licensed under the [ISC License](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
 
-## Background
+### Contributors
 
-RM is the spiritual successor to [ByeBanAsync](https://github.com/centerepic/ByeBanAsync), since simply clearing `RobloxCookies.dat` is no longer effective on its own. The project focuses on managing separate Roblox sessions and account data while adapting to changes in Roblox's client behaviour.
+<a href="https://github.com/Paryx-games/roblox-manager/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Paryx-games/roblox-manager" alt="contributors" />
+</a>
 
-Later updates may be made to reinforce account isolation and session management if needed.
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Building from Source
+## Building From Source
 
 ### Prerequisites
 
@@ -115,6 +156,8 @@ pnpm --dir ram_ui tauri build
 ```
 
 The compiled binary will be at `target/release/ram_ui.exe`.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Development Commands
 
@@ -202,6 +245,35 @@ pnpm --dir ram_ui typecheck
 > [!WARNING]
 > Never include Roblox cookies, authentication tokens, passwords, webhook URLs, account data, logs, or build artifacts in commits, issues, pull requests, or screenshots. Report security vulnerabilities privately through [SECURITY.md](SECURITY.md).
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Reporting Issues & Requesting Features
+
+Found a bug or have an idea for RM? Here's where it goes:
+
+- **Bug report** - [Open a bug report](https://github.com/Paryx-games/roblox-manager/issues/new?template=bug_report.yml) using the bug template. Include your RM version, OS build, and repro steps.
+- **Feature request** - [Open a feature request](https://github.com/Paryx-games/roblox-manager/issues/new?template=feature_request.yml) using the feature template. Explain the use case, not just the feature.
+- **Security vulnerability** - Do not open a public issue. Follow the private disclosure process in [SECURITY.md](SECURITY.md) instead.
+- **Existing issues** - Check the [open issues](https://github.com/Paryx-games/roblox-manager/issues) first in case it's already tracked.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Contributing
+
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement". Read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) first - PRs touching cookie handling, encryption, storage, or process control need extra review.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'feat: add some amazing feature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## License
 
 [MIT](LICENSE)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
