@@ -1,31 +1,39 @@
 <div align="center">
+  <a href="https://github.com/Paryx-games/roblox-manager">
+    <img src="assets/branding/LogoThumb.png" alt="Logo" width="400">
+  </a>
 
-<img src="assets/branding/LogoThumb.png" alt="roblox manager" width="650">
+  <h3 align="center">Roblox Manager</h3>
 
-<p><strong><font size="6">Welcome to version 2.0</font></strong></p>
+  <p align="center">
+    A lightweight multi-account manager using Tauri and Rust, featuring low RAM & CPU usage, easy-to-navigate UI and tons of features.
+    <br />
+    <a href="https://roblox-manager.gitbook.io/docs"><strong>Explore the docs »</strong></a>
+    <br />
+    <br />
+    <a href="https://paryx-games.github.io/roblox-manager/">Our Website</a>
+    &middot;
+    <a href="https://github.com/Paryx-games/roblox-manager/issues/new?template=bug_report.yml">Report Bug</a>
+    &middot;
+    <a href="https://github.com/Paryx-games/roblox-manager/issues/new?template=feature_request.yml">Request Feature</a>
+  </p>
 
-<i>
-v2 introduces a complete UI rework from top to bottom, alongside a migration from egui's immediate-mode rendering to Tauri & React. This change brings a more modern, flexible, and maintainable foundation for the future of the app. You can read more about the reasoning behind the migration in <a href="https://github.com/Paryx-games/roblox-manager/pull/30">#30</a>.
-</i>
-
-<hr>
-
+  <p align="center">
+    <a href="https://github.com/Paryx-games/roblox-manager/actions/workflows/rust.yml">
+      <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/rust.yml?label=ci&logo=github&logoColor=white&color=9333ea" alt="ci">
+    </a>
+    <a href="https://github.com/Paryx-games/roblox-manager/actions/workflows/release.yml">
+      <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/release.yml?label=release&logo=github&logoColor=white&color=7c3aed" alt="release">
+    </a>
+    <a href="https://github.com/Paryx-games/roblox-manager/releases/latest">
+      <img src="https://img.shields.io/github/v/release/Paryx-games/roblox-manager?label=version&logo=github&logoColor=white&color=6366f1" alt="version">
+    </a>
+    <img src="https://img.shields.io/github/downloads/Paryx-games/roblox-manager/total?label=downloads&logo=github&logoColor=white&color=4f46e5" alt="downloads">
+    <img src="https://img.shields.io/github/license/Paryx-games/roblox-manager?label=license&logo=github&logoColor=white&color=3b82f6" alt="license">
+    <img src="https://img.shields.io/github/stars/Paryx-games/roblox-manager?style=flat&label=stars&logo=github&logoColor=white&color=0ea5e9" alt="stars">
+    <img src="https://img.shields.io/github/issues/Paryx-games/roblox-manager?label=issues&logo=github&logoColor=white&color=14b8a6" alt="issues">
+  </p>
 </div>
-<p align="center">
-  <a href="https://github.com/Paryx-games/roblox-manager/actions/workflows/rust.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/rust.yml?label=ci&logo=github&logoColor=white&color=9333ea" alt="ci">
-  </a>
-  <a href="https://github.com/Paryx-games/roblox-manager/actions/workflows/release.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/release.yml?label=release&logo=github&logoColor=white&color=7c3aed" alt="release">
-  </a>
-  <a href="https://github.com/Paryx-games/roblox-manager/releases/latest">
-    <img src="https://img.shields.io/github/v/release/Paryx-games/roblox-manager?label=version&logo=github&logoColor=white&color=6366f1" alt="version">
-  </a>
-  <img src="https://img.shields.io/github/downloads/Paryx-games/roblox-manager/total?label=downloads&logo=github&logoColor=white&color=4f46e5" alt="downloads">
-  <img src="https://img.shields.io/github/license/Paryx-games/roblox-manager?label=license&logo=github&logoColor=white&color=3b82f6" alt="license">
-  <img src="https://img.shields.io/github/stars/Paryx-games/roblox-manager?style=flat&label=stars&logo=github&logoColor=white&color=0ea5e9" alt="stars">
-  <img src="https://img.shields.io/github/issues/Paryx-games/roblox-manager?label=issues&logo=github&logoColor=white&color=14b8a6" alt="issues">
-</p>
 
 > [!NOTE]
 > This repository is a fork of [gitlab.com/centerepic/robloxmanager](https://gitlab.com/centerepic/robloxmanager).
