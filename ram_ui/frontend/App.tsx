@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
 import { GroupsPage } from "./GroupsPage";
 import { PrivateServersPage } from "./PrivateServersPage";
+import { recordUiDiagnostic } from "./lib/ipc";
 
 type NavItem = {
   label: string;
@@ -105,6 +106,20 @@ export function App() {
     }, pageTransitionDurationMs);
 
     return () => window.clearTimeout(timeoutId);
+  }, [pageTransition]);
+
+  useEffect(() => {
+    function recoverTransientUi(event: KeyboardEvent) {
+      if (event.key !== "Escape" || !pageTransition) {
+        return;
+      }
+
+      setPageTransition(null);
+      void recordUiDiagnostic("page-transition-recovery");
+    }
+
+    document.addEventListener("keydown", recoverTransientUi);
+    return () => document.removeEventListener("keydown", recoverTransientUi);
   }, [pageTransition]);
 
   function navigateTo(nextPage: PageName) {
@@ -257,6 +272,7 @@ export function App() {
                 <div
                   className={`page-transition-layer page-transition-incoming page-transition-${pageTransition.direction}-in`}
                   aria-hidden="false"
+                  data-interactive="true"
                 >
                   {renderPage(pageTransition.incoming)}
                 </div>

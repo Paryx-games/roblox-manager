@@ -5071,6 +5071,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tracing",
+ "tracing-appender",
  "tracing-subscriber",
  "webview2-com",
  "windows-core 0.61.2",

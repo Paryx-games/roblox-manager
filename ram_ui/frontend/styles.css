@@ -228,10 +228,16 @@ button:focus-visible {
   min-height: 0;
   flex-direction: column;
   background: var(--bg-canvas);
+  z-index: 0;
 }
 
 .page-transition-outgoing {
   pointer-events: none;
+}
+
+.page-transition-incoming {
+  pointer-events: auto;
+  z-index: 1;
 }
 
 .page-transition-forward-in,

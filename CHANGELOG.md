@@ -4,6 +4,7 @@
 
 ### Changed
 
+- **Input recovery and diagnostics.** Harden transient UI cleanup, restore pointer interaction after page transitions, and write scrubbed startup diagnostics to the rotating RM log file.
 - **Tauri development diagnostics.** `pnpm --dir ram_ui tauri dev` now defaults to info-level Rust tracing output while respecting an existing `RUST_LOG` override, and secondary controls keep their neutral borders.
 - **Tauri tracing output.** The Tauri command process now initializes an info-level subscriber so development diagnostics actually print to the `tauri dev` terminal.
 - **Groups workspace.** Port the groups page from the legacy egui into Tauri + React, including group search and ID loading, live group details, selected-account membership inspection, join/leave actions, account selection, announcements, wall states, loading/error handling, and challenge fallback.

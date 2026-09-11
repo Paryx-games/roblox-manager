@@ -12,6 +12,7 @@ tauri-build = { version = "2", features = [] }
 ram_core = { path = "../../ram_core" }
 serde = { workspace = true }
 tracing = { workspace = true }
+tracing-appender = { workspace = true }
 tracing-subscriber = { workspace = true }
 chrono = "0.4"
 tauri = { version = "2", features = [] }

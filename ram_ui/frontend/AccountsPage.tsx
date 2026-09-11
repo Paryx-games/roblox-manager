@@ -586,6 +586,7 @@ export function AccountsPage({
   const [browserLoginLoading, setBrowserLoginLoading] = useState(false);
   const [browserLoginOverlayVisible, setBrowserLoginOverlayVisible] =
     useState(false);
+  const browserLoginOverlayTimer = useRef<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addFormClosing, setAddFormClosing] = useState(false);
   const addFormCloseTimer = useRef<number | null>(null);
@@ -734,9 +735,23 @@ export function AccountsPage({
   }, [showAddForm, addFormClosing]);
 
   useEffect(() => {
+    if (!groupEditor) return;
+
+    function dismissOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setGroupEditor(null);
+    }
+
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => document.removeEventListener("keydown", dismissOnEscape);
+  }, [groupEditor]);
+
+  useEffect(() => {
     return () => {
       if (addFormCloseTimer.current !== null) {
         window.clearTimeout(addFormCloseTimer.current);
+      }
+      if (browserLoginOverlayTimer.current !== null) {
+        window.clearTimeout(browserLoginOverlayTimer.current);
       }
     };
   }, []);
@@ -1654,7 +1669,13 @@ export function AccountsPage({
       setNotice("Browser login could not add the account.");
     } finally {
       setBrowserLoginLoading(false);
-      window.setTimeout(() => setBrowserLoginOverlayVisible(false), 160);
+      if (browserLoginOverlayTimer.current !== null) {
+        window.clearTimeout(browserLoginOverlayTimer.current);
+      }
+      browserLoginOverlayTimer.current = window.setTimeout(() => {
+        setBrowserLoginOverlayVisible(false);
+        browserLoginOverlayTimer.current = null;
+      }, 160);
       setMutationLoading(false);
     }
   }

@@ -101,6 +101,17 @@ export function PrivateServersPage({
     };
   }, [openMenu]);
 
+  useEffect(() => {
+    if (editTarget === null) return;
+
+    function dismissEditorOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setEditTarget(null);
+    }
+
+    document.addEventListener("keydown", dismissEditorOnEscape);
+    return () => document.removeEventListener("keydown", dismissEditorOnEscape);
+  }, [editTarget]);
+
   async function reload() {
     setLoading(true);
     try {

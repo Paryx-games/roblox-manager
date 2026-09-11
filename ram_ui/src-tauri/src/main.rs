@@ -13,7 +13,99 @@ use ram_core::models::{Account, GroupMeta, LaunchPreset, Presence, PrivateServer
 use ram_core::{api, assets_api, auth::RobloxClient, process};
 use serde::Serialize;
 use state::AppState;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use tracing_subscriber::fmt::writer::MakeWriter;
 use tracing_subscriber::EnvFilter;
+
+const LOG_FILES_KEPT: usize = 7;
+
+fn log_appender(data_dir: &Path) -> Option<tracing_appender::rolling::RollingFileAppender> {
+    tracing_appender::rolling::Builder::new()
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("rm")
+        .filename_suffix("log")
+        .max_log_files(LOG_FILES_KEPT)
+        .build(data_dir)
+        .ok()
+}
+
+struct Scrubbed<M>(M);
+
+impl<'a, M: MakeWriter<'a>> MakeWriter<'a> for Scrubbed<M> {
+    type Writer = ScrubbingWriter<M::Writer>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        ScrubbingWriter::new(self.0.make_writer())
+    }
+
+    fn make_writer_for(&'a self, metadata: &tracing::Metadata<'_>) -> Self::Writer {
+        ScrubbingWriter::new(self.0.make_writer_for(metadata))
+    }
+}
+
+struct ScrubbingWriter<W: Write> {
+    inner: W,
+    buffer: Vec<u8>,
+}
+
+impl<W: Write> ScrubbingWriter<W> {
+    fn new(inner: W) -> Self {
+        Self {
+            inner,
+            buffer: Vec::new(),
+        }
+    }
+}
+
+impl<W: Write> Write for ScrubbingWriter<W> {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.buffer.extend_from_slice(data);
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        if self.buffer.is_empty() {
+            return Ok(());
+        }
+        let text = String::from_utf8_lossy(&self.buffer);
+        self.inner
+            .write_all(ram_core::redact::scrub(&text).as_bytes())?;
+        self.buffer.clear();
+        self.inner.flush()
+    }
+}
+
+impl<W: Write> Drop for ScrubbingWriter<W> {
+    fn drop(&mut self) {
+        let _ = self.flush();
+    }
+}
+
+fn init_logging() {
+    let filter = || EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let data_dir = std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("RM");
+
+    if std::fs::create_dir_all(&data_dir).is_ok() {
+        if let Some(appender) = log_appender(&data_dir) {
+            tracing_subscriber::fmt()
+                .with_env_filter(filter())
+                .with_target(false)
+                .with_ansi(false)
+                .with_writer(Scrubbed(appender))
+                .init();
+            return;
+        }
+    }
+
+    tracing_subscriber::fmt()
+        .with_env_filter(filter())
+        .with_target(false)
+        .init();
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1782,12 +1874,20 @@ async fn open_group_challenge(
     Ok(())
 }
 
+#[tauri::command]
+fn record_ui_diagnostic(event: String) -> Result<(), String> {
+    match event.as_str() {
+        "page-transition-recovery" => {
+            tracing::warn!(event = "page-transition-recovery", "UI recovery requested");
+            Ok(())
+        }
+        _ => Err("Unknown UI diagnostic event".to_string()),
+    }
+}
+
 fn main() {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_target(false)
-        .init();
+    init_logging();
+    tracing::info!(event = "startup", "RM Tauri process started");
 
     let args: Vec<String> = std::env::args().collect();
     if args.len() >= 4 && args[1] == browser_login::FLAG {
@@ -1857,7 +1957,8 @@ fn main() {
             search_groups,
             load_group,
             change_group_membership,
-            open_group_challenge
+            open_group_challenge,
+            record_ui_diagnostic
         ])
         .run(tauri::generate_context!())
         .expect("error while running RM");

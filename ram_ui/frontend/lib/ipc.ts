@@ -136,6 +136,10 @@ export interface GroupMembershipResult {
   message: string | null;
 }
 
+export async function recordUiDiagnostic(event: string): Promise<void> {
+  return invoke<void>("record_ui_diagnostic", { event });
+}
+
 export async function listPrivateServers(): Promise<PrivateServerSummary[]> {
   return invoke<PrivateServerSummary[]>("list_private_servers");
 }
