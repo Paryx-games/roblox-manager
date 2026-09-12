@@ -401,6 +401,10 @@ button:focus-visible {
   background: var(--bg-surface);
 }
 
+.private-server-card + .private-server-card {
+  margin-top: var(--space-3);
+}
+
 .private-server-banner {
   display: flex;
   align-items: center;
@@ -636,6 +640,10 @@ button:focus-visible {
   border-radius: var(--radius);
   background: var(--bg-raised);
 }
+
+.private-server-row:hover {
+  background: var(--bg-surface);
+}
 .private-server-row > strong {
   min-width: 72px;
   flex: 1;
@@ -711,7 +719,23 @@ button:focus-visible {
 }
 .private-server-account-picker {
   position: relative;
+  min-width: 172px;
+  max-width: 220px;
+  flex: 0 1 220px;
   flex-shrink: 0;
+}
+
+.private-server-account-picker.account-picker-multiple {
+  margin-top: 0;
+}
+
+.private-server-account-picker.account-picker-multiple
+  .account-picker-trigger {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 var(--space-2);
+  background: var(--bg-surface);
+  font-size: var(--text-xs);
 }
 .private-server-account-trigger {
   display: flex;
@@ -792,6 +816,11 @@ button:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+}
+
+.private-server-actions .account-button {
+  flex: 0 0 auto;
+  min-width: 88px;
 }
 
 .private-server-actions .account-button.primary {
@@ -1098,6 +1127,9 @@ button:focus-visible {
   }
   .private-server-account-picker {
     margin-left: 28px;
+    min-width: 0;
+    max-width: none;
+    flex-basis: calc(100% - 28px);
   }
   .private-server-actions {
     margin-left: auto;
