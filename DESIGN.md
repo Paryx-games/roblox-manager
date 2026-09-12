@@ -170,13 +170,13 @@ the design is wrong per §1 rule 3, not the token file.
 
 ### 3.4 Typography scale
 
-| Token         | Tailwind    | px / line-height | Family                |
-| ------------- | ----------- | ---------------- | --------------------- |
-| `--text-xs`   | `text-xs`   | 11px / 16px      | sans or mono (see §4) |
-| `--text-sm`   | `text-sm`   | 13px / 20px      | sans or mono          |
-| `--text-base` | `text-base` | 14px / 20px      | sans or mono          |
-| `--text-lg`   | `text-lg`   | 16px / 24px      | sans only             |
-| `--text-xl`   | `text-xl`   | 20px / 28px      | sans only             |
+| Token         | Tailwind    | px / line-height | Family |
+| ------------- | ----------- | ---------------- | ------ |
+| `--text-xs`   | `text-xs`   | 11px / 16px      | Roboto |
+| `--text-sm`   | `text-sm`   | 13px / 20px      | Roboto |
+| `--text-base` | `text-base` | 14px / 20px      | Roboto |
+| `--text-lg`   | `text-lg`   | 16px / 24px      | Roboto |
+| `--text-xl`   | `text-xl`   | 20px / 28px      | Roboto |
 
 No inline `font-size`, no Tailwind arbitrary-value text utility
 (`text-[15px]`) anywhere.
@@ -210,17 +210,11 @@ See §12 for the remaining motion anti-patterns this scale exists to prevent.
 
 ## 4. Type
 
-Two families, each with a fixed job. Don't cross them.
-
-| Family                | Token         | Used for                                                                                                        |
-| --------------------- | ------------- | --------------------------------------------------------------------------------------------------------------- |
-| Sans (Inter)          | `--font-sans` | Headings, body copy, descriptions, button labels, nav labels, empty-state/error copy                            |
-| Mono (JetBrains Mono) | `--font-mono` | Account names/usernames, IDs, place/job IDs, timestamps, table cell values, status badges, log/activity entries |
-
-The test, applied identically every time: **if the value came from data**
-(Roblox, the account store, a process) **it's mono. If it's UI chrome you
-wrote, it's sans.** No third case. If a value is genuinely ambiguous
-(rare), it's mono - data-adjacent defaults to mono, not sans.
+The app uses one typography family: bundled Roboto sans-serif. Use the
+`--font-sans` token for headings, body copy, descriptions, button labels,
+navigation labels, data values, status badges, logs, and activity entries.
+Data should be distinguished through size, weight, spacing, and tabular
+numerals rather than a second font family.
 
 ---
 
@@ -272,7 +266,7 @@ Each backed by tokens only, each with a single default export:
 - `<DataTable>` - for listy/tabular content. See §7 for exactly when.
 - `<Card>` - for grouped, non-listy content. See §7.
 - `<Button variant="primary|secondary|danger" />` - see §6 for required states
-- `<Badge>` - mono type, for IDs/short data tags
+- `<Badge>` - compact type for IDs and short data tags
 - `<EmptyState>` / `<ErrorState>` - see §10 writing guidance, §7.3 for
   where `DataTable` must use these
 - `<AccountPicker>` - controlled account selection with multi-select and

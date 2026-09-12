@@ -174,10 +174,7 @@ export function PrivateServersPage({
   async function launch(index: number) {
     try {
       const selectedAccountIds = serverAccounts[index] ?? selectedIds;
-      await launchPrivateServer(
-        index,
-        [...selectedAccountIds],
-      );
+      await launchPrivateServer(index, [...selectedAccountIds]);
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -445,9 +442,7 @@ export function PrivateServersPage({
                       onOpenChange={(open) =>
                         setOpenPicker(open ? server.index : null)
                       }
-                      selectedIds={
-                        serverAccounts[server.index] ?? selectedIds
-                      }
+                      selectedIds={serverAccounts[server.index] ?? selectedIds}
                       onSelectedIdsChange={(ids) =>
                         setServerAccounts((current) => {
                           return { ...current, [server.index]: ids };

@@ -729,8 +729,7 @@ button:focus-visible {
   margin-top: 0;
 }
 
-.private-server-account-picker.account-picker-multiple
-  .account-picker-trigger {
+.private-server-account-picker.account-picker-multiple .account-picker-trigger {
   min-height: 32px;
   height: 32px;
   padding: 0 var(--space-2);
@@ -2311,7 +2310,7 @@ button:focus-visible {
 
 .groups-data {
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
 }
 
@@ -2723,7 +2722,7 @@ button:focus-visible {
   display: block;
   margin-top: var(--space-1);
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
 }
 
@@ -2743,14 +2742,14 @@ button:focus-visible {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
   white-space: nowrap;
 }
 
 .groups-status-text {
   color: var(--status-online);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
 }
 
@@ -3360,7 +3359,7 @@ button:focus-visible {
 
 .group-color-value {
   color: var(--text-primary);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
 }
 
@@ -3559,7 +3558,7 @@ button:focus-visible {
   border-radius: 4px;
   color: var(--text-muted);
   background: var(--bg-raised);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 .account-action-row {

@@ -61,12 +61,10 @@
   /* =========================================================
      TYPE
      ========================================================= */
-  --font-sans:
-    "Roboto", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
+  --font-sans: "Roboto", sans-serif;
 
   /* type scale — do not introduce sizes outside this list */
-  --text-xs: 11px; /* mono data, timestamps, badges */
+  --text-xs: 11px; /* compact labels, timestamps, badges */
   --text-sm: 13px; /* body, table cells, nav items */
   --text-base: 14px; /* default body */
   --text-lg: 16px; /* section headings */
