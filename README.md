@@ -45,6 +45,12 @@
   <summary>Table of Contents</summary>
   <ol>
     <li><a href="#about-the-project">About The Project</a></li>
+    <li>
+      <a href="#download">Download</a>
+      <ul>
+        <li><a href="#system-requirements">System Requirements</a></li>
+      </ul>
+    </li>
     <li><a href="#features">Features</a></li>
     <li><a href="#usage">Usage</a></li>
     <li><a href="#credits">Credits</a></li>
@@ -80,6 +86,22 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 - [egui](https://github.com/emilk/egui)
 - [Tauri](https://tauri.app/)
 - [React](https://react.dev/)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Download
+
+Grab the latest version from the [Releases page](https://github.com/Paryx-games/roblox-manager/releases/latest). See [CHANGELOG.md](CHANGELOG.md) for what's new in each release. Two options are available for each release:
+
+- **Installer** - Standard Windows installer. Installs RM and creates a Start Menu shortcut. Recommended for most people
+- **Portable** - No installation, no admin rights required. Extract the archive and run `ram_ui.exe` directly. Good for USB drives or shared PCs
+
+No Rust, Node.js, or pnpm required for either option - those are only needed if you're building from source.
+
+### System Requirements
+
+- Windows 10 or 11 (64-bit)
+- Roblox installed
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
