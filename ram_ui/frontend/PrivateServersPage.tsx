@@ -63,9 +63,9 @@ export function PrivateServersPage({
   const [showBanner, setShowBanner] = useState(true);
   const [openPicker, setOpenPicker] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
-  const [serverAccounts, setServerAccounts] = useState<Record<number, number>>(
-    {},
-  );
+  const [serverAccounts, setServerAccounts] = useState<
+    Record<number, Set<number>>
+  >({});
   const [deleteTarget, setDeleteTarget] = useState<PrivateServerSummary | null>(
     null,
   );
@@ -173,10 +173,10 @@ export function PrivateServersPage({
   }
   async function launch(index: number) {
     try {
-      const selectedAccount = serverAccounts[index];
+      const selectedAccountIds = serverAccounts[index] ?? selectedIds;
       await launchPrivateServer(
         index,
-        selectedAccount === undefined ? [...selectedIds] : [selectedAccount],
+        [...selectedAccountIds],
       );
     } catch (reason) {
       setError(
@@ -440,23 +440,17 @@ export function PrivateServersPage({
                     <strong>{server.name}</strong>
                     <AccountPicker
                       accounts={accounts}
-                      mode="single"
+                      mode="multiple"
                       open={openPicker === server.index}
                       onOpenChange={(open) =>
                         setOpenPicker(open ? server.index : null)
                       }
-                      selectedId={serverAccounts[server.index]}
-                      unselectedLabel={
-                        selectedIds.size
-                          ? "Selected accounts"
-                          : "Select account"
+                      selectedIds={
+                        serverAccounts[server.index] ?? selectedIds
                       }
-                      onSelectedIdChange={(id) =>
+                      onSelectedIdsChange={(ids) =>
                         setServerAccounts((current) => {
-                          const next = { ...current };
-                          if (id === undefined) delete next[server.index];
-                          else next[server.index] = id;
-                          return next;
+                          return { ...current, [server.index]: ids };
                         })
                       }
                       className="private-server-account-picker"
@@ -467,8 +461,7 @@ export function PrivateServersPage({
                         className="account-button primary"
                         type="button"
                         disabled={
-                          !selectedIds.size &&
-                          serverAccounts[server.index] === undefined
+                          !(serverAccounts[server.index] ?? selectedIds).size
                         }
                         onClick={() => void launch(server.index)}
                       >
