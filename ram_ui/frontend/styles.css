@@ -968,7 +968,6 @@ button:focus-visible {
   border-radius: 50%;
   color: var(--text-primary);
   background: var(--bg-canvas);
-  font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 700;
 }
@@ -2273,7 +2272,11 @@ button:focus-visible {
 }
 
 .groups-result span,
-.groups-result small,
+.groups-result small {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
 .groups-data {
   color: var(--text-muted);
   font-family: var(--font-mono);
@@ -2346,7 +2349,6 @@ button:focus-visible {
   border-radius: var(--radius);
   color: var(--text-muted);
   background: var(--bg-raised);
-  font-family: var(--font-mono);
   font-size: var(--text-xs);
 }
 
@@ -2433,7 +2435,6 @@ button:focus-visible {
   border-radius: 50%;
   color: var(--text-primary);
   background: var(--bg-canvas);
-  font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 700;
 }
@@ -2598,7 +2599,6 @@ button:focus-visible {
 
 .groups-stat-chip b {
   color: var(--text-primary);
-  font-family: var(--font-mono);
 }
 
 .groups-status-pill {
@@ -3223,7 +3223,6 @@ button:focus-visible {
 
 .confirm-modal-message strong {
   color: var(--text-primary);
-  font-family: var(--font-mono);
   font-weight: 500;
 }
 

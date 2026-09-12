@@ -165,8 +165,11 @@ The short version, expanded fully in that doc:
 - **Status color is reserved** for live account/instance/process state
   only - never decoration, never a button.
 - **No shadows, one radius, one border weight**, everywhere.
-- **Two type families with fixed jobs**: sans for UI chrome, mono for
-  anything that's a data value (IDs, timestamps, account names).
+- **Typography**: use the Roboto sans-serif token for all normal interface
+   text, including headings, buttons, labels, descriptions, and general
+   content. Use the mono token only where fixed-width presentation is useful,
+   such as code, terminal commands, file paths, identifiers, logs, timestamps,
+   or other technical data.
 - **Semantic tokens only** in component code - never a raw hex, and no
   new component that just wraps a single element for the sake of naming
   it.
