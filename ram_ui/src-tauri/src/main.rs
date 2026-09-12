@@ -1874,17 +1874,6 @@ async fn open_group_challenge(
     Ok(())
 }
 
-#[tauri::command]
-fn record_ui_diagnostic(event: String) -> Result<(), String> {
-    match event.as_str() {
-        "page-transition-recovery" => {
-            tracing::warn!(event = "page-transition-recovery", "UI recovery requested");
-            Ok(())
-        }
-        _ => Err("Unknown UI diagnostic event".to_string()),
-    }
-}
-
 fn main() {
     init_logging();
     tracing::info!(event = "startup", "RM Tauri process started");
@@ -1957,8 +1946,7 @@ fn main() {
             search_groups,
             load_group,
             change_group_membership,
-            open_group_challenge,
-            record_ui_diagnostic
+            open_group_challenge
         ])
         .run(tauri::generate_context!())
         .expect("error while running RM");

@@ -1,9 +1,8 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
 import { GroupsPage } from "./GroupsPage";
 import { PrivateServersPage } from "./PrivateServersPage";
-import { recordUiDiagnostic } from "./lib/ipc";
 
 type NavItem = {
   label: string;
@@ -11,22 +10,13 @@ type NavItem = {
   page?: PageName;
 };
 
-const pageOrder = ["Accounts", "Groups", "Private Servers"] as const;
-type PageName = (typeof pageOrder)[number];
+type PageName = "Accounts" | "Groups" | "Private Servers";
 
 const navItems: NavItem[] = [
   { label: "Accounts", icon: "id-card", page: "Accounts" },
   { label: "Groups", icon: "users", page: "Groups" },
   { label: "Private Servers", icon: "game", page: "Private Servers" },
 ];
-
-type PageTransition = {
-  outgoing: PageName;
-  incoming: PageName;
-  direction: "forward" | "backward";
-};
-
-const pageTransitionDurationMs = 240;
 
 function Icon({ name }: { name: string }) {
   return (
@@ -91,52 +81,13 @@ function WindowButton({
 
 export function App() {
   const [activeNav, setActiveNav] = useState<PageName>("Accounts");
-  const [pageTransition, setPageTransition] = useState<PageTransition | null>(
-    null,
-  );
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-
-  useEffect(() => {
-    if (!pageTransition) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setPageTransition(null);
-    }, pageTransitionDurationMs);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [pageTransition]);
-
-  useEffect(() => {
-    function recoverTransientUi(event: KeyboardEvent) {
-      if (event.key !== "Escape" || !pageTransition) {
-        return;
-      }
-
-      setPageTransition(null);
-      void recordUiDiagnostic("page-transition-recovery");
-    }
-
-    document.addEventListener("keydown", recoverTransientUi);
-    return () => document.removeEventListener("keydown", recoverTransientUi);
-  }, [pageTransition]);
 
   function navigateTo(nextPage: PageName) {
     if (nextPage === activeNav) {
       return;
     }
 
-    const direction =
-      pageOrder.indexOf(nextPage) > pageOrder.indexOf(activeNav)
-        ? "forward"
-        : "backward";
-
-    setPageTransition({
-      outgoing: activeNav,
-      incoming: nextPage,
-      direction,
-    });
     setActiveNav(nextPage);
   }
 
@@ -260,28 +211,7 @@ export function App() {
 
         <div className="main-col">
           <div className="page-transition-viewport">
-            {pageTransition ? (
-              <>
-                <div
-                  className={`page-transition-layer page-transition-outgoing page-transition-${pageTransition.direction}-out`}
-                  aria-hidden="true"
-                  ref={(element) => element?.setAttribute("inert", "")}
-                >
-                  {renderPage(pageTransition.outgoing)}
-                </div>
-                <div
-                  className={`page-transition-layer page-transition-incoming page-transition-${pageTransition.direction}-in`}
-                  aria-hidden="false"
-                  data-interactive="true"
-                >
-                  {renderPage(pageTransition.incoming)}
-                </div>
-              </>
-            ) : (
-              <div className="page-transition-layer">
-                {renderPage(activeNav)}
-              </div>
-            )}
+            <div className="page-transition-layer">{renderPage(activeNav)}</div>
           </div>
         </div>
       </div>
