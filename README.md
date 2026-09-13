@@ -91,12 +91,19 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 
 ## Download
 
-Grab the latest version from the [Releases page](https://github.com/Paryx-games/roblox-manager/releases/latest). See [CHANGELOG.md](CHANGELOG.md) for what's new in each release. Two options are available for each release:
+Grab the latest version from the [Releases page](https://github.com/Paryx-games/roblox-manager/releases/latest). See [CHANGELOG.md](CHANGELOG.md) for what's new in each release.
 
-- **Installer** - Standard Windows installer. Installs RM and creates a Start Menu shortcut. Recommended for most people
-- **Portable** - No installation, no admin rights required. Extract the archive and run `ram_ui.exe` directly. Good for USB drives or shared PCs
+Two options are available for each release:
 
-No Rust, Node.js, or pnpm required for either option - those are only needed if you're building from source.
+- **Installer** - Standard Windows installer. Installs Roblox Manager _(RM)_ and creates a Start Menu shortcut. **Recommended for most users.**
+- **Portable** - Runs without installation or admin rights. Extract the archive and run `roblox-manager-vX.X.X-windows-x64-portable.exe` (or similar) directly. Useful for USB drives, shared PCs, or users who don't want to install RM.
+
+> [!TIP]
+> **Portable does not mean fully self-contained.** The portable version still writes application data to `%APPDATA%`, `%LOCALAPPDATA%`, and other relevant Windows locations. These files are not stored entirely alongside the executable.
+>
+> If you stop using the portable version, you may need to remove this application data separately.
+
+No Rust, Node.js, or pnpm installation is required for either option. These are only needed when building Roblox Manager from source.
 
 ### System Requirements
 
