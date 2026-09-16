@@ -560,6 +560,7 @@ button:focus-visible {
 }
 .private-server-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   margin-top: var(--space-3);
@@ -570,7 +571,7 @@ button:focus-visible {
 .private-server-search {
   display: flex;
   flex: 1;
-  min-width: 0;
+  min-width: 180px;
   height: 32px;
   align-items: center;
   gap: var(--space-2);
@@ -599,12 +600,15 @@ button:focus-visible {
 }
 .private-server-sort {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
 .private-server-sort select {
+  max-width: 180px;
+  min-width: 0;
   height: 32px;
   padding: 0 var(--space-6) 0 var(--space-2);
   border: var(--border-width) solid var(--border-default);
@@ -3594,9 +3598,16 @@ button:focus-visible {
 .connections-row input {
   height: 36px;
   padding: 0 var(--space-3);
-  outline: 0;
   font-size: var(--text-sm);
-  border-radius: 8px;
+  border-radius: var(--radius);
+}
+
+.account-field input:focus-visible,
+.account-info-grid input:focus-visible,
+.connections-row input:focus-visible,
+.private-server-sort select:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
 }
 
 .account-field input.has-error {
@@ -3634,7 +3645,7 @@ button:focus-visible {
   gap: var(--space-2);
   padding: 0 var(--space-3);
   border: var(--border-width) solid var(--border-default);
-  border-radius: 8px;
+  border-radius: var(--radius);
   color: var(--text-primary);
   background: var(--bg-surface);
   cursor: pointer;

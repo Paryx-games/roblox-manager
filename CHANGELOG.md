@@ -12,6 +12,7 @@
 
 - **Page transitions.** Restore a restrained horizontal crossfade between Tauri workspace pages, with reduced-motion support.
 - **Restricted account states.** Lock launch controls and clearly surface why an account cannot be used until moderation or credential issues are resolved.
+- **Input and dropdown layout.** Keep sort controls within the page width and restore the standard focus ring on account fields.
 - **Typography consistency.** Standardize the active Tauri/React interface on
   the bundled Roboto sans-serif family instead of mixing in monospace styles.
 - **Groups workspace.** Port the groups page from the legacy egui into Tauri + React, including group search and ID loading, live group details, selected-account membership inspection, join/leave actions, account selection, announcements, wall states, loading/error handling, and challenge fallback.
