@@ -3137,6 +3137,30 @@ button:focus-visible {
   font-size: var(--text-xs);
 }
 
+.launch-card.is-account-restricted {
+  position: relative;
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+}
+
+.launch-card.is-account-restricted::after {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--status-warning);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-canvas) 82%, var(--status-warning));
+  content: "Launch controls locked until this account is revalidated";
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: center;
+}
+
 .account-profile-card {
   position: relative;
   display: flex;

@@ -2399,7 +2399,16 @@ export function AccountsPage({
                 </section>
               )}
 
-              <section className="account-card launch-card">
+              <section
+                className={`account-card launch-card ${
+                  selectedAccount.moderationActive || selectedAccount.cookieExpired
+                    ? "is-account-restricted"
+                    : ""
+                }`}
+                aria-disabled={
+                  selectedAccount.moderationActive || selectedAccount.cookieExpired
+                }
+              >
                 <div className="account-field">
                   <label htmlFor="place-id">Place ID</label>
                   <input
