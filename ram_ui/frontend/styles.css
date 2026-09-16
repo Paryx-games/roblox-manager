@@ -1996,6 +1996,13 @@ button:focus-visible {
   margin-top: var(--space-1);
 }
 
+.account-group {
+  margin-inline: var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
 .account-group-header {
   position: relative;
   display: flex;
@@ -3098,6 +3105,7 @@ button:focus-visible {
 }
 
 .accounts-detail-panel {
+  position: relative;
   display: flex;
   min-width: 0;
   flex: 1;
@@ -3107,10 +3115,41 @@ button:focus-visible {
   padding: 20px;
 }
 
+.accounts-detail-panel.is-account-restricted {
+  overflow: hidden;
+}
+
+.accounts-detail-panel.is-account-restricted::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 35%;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg-canvas) 0%, transparent),
+    color-mix(in srgb, var(--bg-canvas) 92%, transparent)
+  );
+  content: "";
+}
+
+.accounts-detail-panel.is-account-restricted .launch-card {
+  filter: blur(1px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.accounts-detail-panel.is-account-restricted .launch-card ~ .account-card {
+  filter: blur(4px);
+  pointer-events: none;
+  user-select: none;
+}
+
 .account-card {
   padding: var(--space-4);
   border: var(--border-width) solid var(--border-default);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--bg-surface);
 }
 
@@ -3239,6 +3278,10 @@ button:focus-visible {
   top: auto;
   right: auto;
   width: 200px;
+  padding: var(--space-1);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
 }
 
 .account-menu-separator {
@@ -3252,16 +3295,8 @@ button:focus-visible {
 }
 
 .account-menu .account-menu-danger .account-icon {
-  display: none;
-}
-
-.account-menu .account-menu-danger::before {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  background: var(--status-danger);
-  content: "";
-  mask: url("/icons/delete.svg") center / contain no-repeat;
+  filter: brightness(0) saturate(100%) invert(45%) sepia(54%) saturate(1200%)
+    hue-rotate(310deg) brightness(90%);
 }
 
 .account-menu .account-menu-danger:hover,
