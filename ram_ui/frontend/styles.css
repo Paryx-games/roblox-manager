@@ -231,6 +231,42 @@ button:focus-visible {
   flex-direction: column;
   background: var(--bg-canvas);
   z-index: 0;
+  animation: page-transition-enter var(--duration-slow) var(--ease-standard);
+}
+
+.page-transition-layer.is-transitioning {
+  animation-name: page-transition-exit;
+}
+
+@keyframes page-transition-enter {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes page-transition-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition-layer,
+  .page-transition-layer.is-transitioning {
+    animation: none;
+  }
 }
 
 .sidebar {

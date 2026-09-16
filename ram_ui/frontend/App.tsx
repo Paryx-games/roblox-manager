@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
 import { GroupsPage } from "./GroupsPage";
@@ -81,7 +81,21 @@ function WindowButton({
 
 export function App() {
   const [activeNav, setActiveNav] = useState<PageName>("Accounts");
+  const [displayedNav, setDisplayedNav] = useState<PageName>("Accounts");
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (activeNav === displayedNav) return;
+
+    setIsPageTransitioning(true);
+    const transitionTimeout = window.setTimeout(() => {
+      setDisplayedNav(activeNav);
+      setIsPageTransitioning(false);
+    }, 240);
+
+    return () => window.clearTimeout(transitionTimeout);
+  }, [activeNav, displayedNav]);
 
   function navigateTo(nextPage: PageName) {
     if (nextPage === activeNav) {
@@ -211,7 +225,14 @@ export function App() {
 
         <div className="main-col">
           <div className="page-transition-viewport">
-            <div className="page-transition-layer">{renderPage(activeNav)}</div>
+            <div
+              className={`page-transition-layer ${
+                isPageTransitioning ? "is-transitioning" : ""
+              }`}
+              aria-live="polite"
+            >
+              {renderPage(displayedNav)}
+            </div>
           </div>
         </div>
       </div>
