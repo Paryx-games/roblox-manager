@@ -10,6 +10,8 @@
 
 ### Changed
 
+- **Restricted account presentation.** Keep blocked launch content visible but clipped, progressively blurred, and clearly unavailable while leaving recovery actions readable.
+- **Group deletion affordance.** Restore the destructive red delete icon in the group context menu.
 - **Page transitions.** Restore a restrained horizontal crossfade between Tauri workspace pages, with reduced-motion support.
 - **Restricted account states.** Lock launch controls and clearly surface why an account cannot be used until moderation or credential issues are resolved.
 - **Input and dropdown layout.** Keep sort controls within the page width and restore the standard focus ring on account fields.

@@ -3098,6 +3098,7 @@ button:focus-visible {
 }
 
 .accounts-detail-panel {
+  position: relative;
   display: flex;
   min-width: 0;
   flex: 1;
@@ -3105,6 +3106,38 @@ button:focus-visible {
   gap: var(--space-4);
   overflow-y: auto;
   padding: 20px;
+}
+
+.accounts-detail-panel.is-account-restricted {
+  overflow: hidden;
+}
+
+.accounts-detail-panel.is-account-restricted::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 42%;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--bg-canvas) 22%, transparent) 35%,
+    color-mix(in srgb, var(--bg-canvas) 88%, transparent) 100%
+  );
+  content: "";
+}
+
+.accounts-detail-panel.is-account-restricted .launch-card {
+  filter: blur(1px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.accounts-detail-panel.is-account-restricted .launch-card ~ .account-card {
+  filter: blur(5px);
+  pointer-events: none;
+  user-select: none;
 }
 
 .account-card {
@@ -3252,16 +3285,8 @@ button:focus-visible {
 }
 
 .account-menu .account-menu-danger .account-icon {
-  display: none;
-}
-
-.account-menu .account-menu-danger::before {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  background: var(--status-danger);
-  content: "";
-  mask: url("/icons/delete.svg") center / contain no-repeat;
+  filter: brightness(0) saturate(100%) invert(45%) sepia(54%) saturate(1200%)
+    hue-rotate(310deg) brightness(90%);
 }
 
 .account-menu .account-menu-danger:hover,

@@ -2216,7 +2216,12 @@ export function AccountsPage({
         )}
 
         <section
-          className="accounts-detail-panel"
+          className={`accounts-detail-panel ${
+            selectedAccount &&
+            (selectedAccount.moderationActive || selectedAccount.cookieExpired)
+              ? "is-account-restricted"
+              : ""
+          }`}
           aria-label="Account details"
           style={{ "--account-accent": selectedGroupColor } as CSSProperties}
         >
