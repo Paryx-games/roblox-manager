@@ -507,7 +507,7 @@ export function PrivateServersPage({
                         </button>
                         {openMenu === server.index && (
                           <div
-                            className="account-menu private-server-menu"
+                            className="private-server-menu"
                             role="menu"
                           >
                             <button
@@ -541,11 +541,11 @@ export function PrivateServersPage({
                               Edit
                             </button>
                             <div
-                              className="account-menu-separator"
+                              className="private-server-menu-separator"
                               role="separator"
                             />
                             <button
-                              className="account-menu-danger"
+                              className="private-server-menu-danger"
                               type="button"
                               role="menuitem"
                               onClick={() => {

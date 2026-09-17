@@ -3293,7 +3293,9 @@ button:focus-visible {
   gap: var(--space-4);
 }
 
-.account-menu {
+.account-actions-menu,
+.account-group-menu,
+.private-server-menu {
   position: fixed;
   z-index: 30;
   top: var(--menu-top);
@@ -3308,15 +3310,15 @@ button:focus-visible {
   max-height: var(--menu-max-height, 240px);
   overflow-y: auto;
   transform: translateY(var(--menu-transform-y, 0));
-  animation: account-menu-enter var(--duration-base) var(--ease-standard);
+  animation: menu-enter var(--duration-base) var(--ease-standard);
 }
 
-.account-menu-anchor {
+.account-actions-menu-anchor {
   position: relative;
   align-self: flex-start;
 }
 
-@keyframes account-menu-enter {
+@keyframes menu-enter {
   from {
     opacity: 0;
     transform: translateY(calc(var(--space-1) * -1));
@@ -3329,12 +3331,16 @@ button:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .account-menu {
+  .account-actions-menu,
+  .account-group-menu,
+  .private-server-menu {
     animation: none;
   }
 }
 
-.account-menu button {
+.account-actions-menu button,
+.account-group-menu button,
+.private-server-menu button {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -3348,12 +3354,18 @@ button:focus-visible {
   text-align: left;
 }
 
-.account-menu button:hover,
-.account-menu button:focus-visible {
+.account-actions-menu button:hover,
+.account-actions-menu button:focus-visible,
+.account-group-menu button:hover,
+.account-group-menu button:focus-visible,
+.private-server-menu button:hover,
+.private-server-menu button:focus-visible {
   background: var(--bg-surface);
 }
 
-.account-menu .account-icon {
+.account-actions-menu .account-icon,
+.account-group-menu .account-icon,
+.private-server-menu .account-icon {
   width: 14px;
   height: 14px;
 }
@@ -3365,17 +3377,23 @@ button:focus-visible {
   width: 200px;
 }
 
-.account-menu-separator {
+.account-actions-menu-separator,
+.account-group-menu-separator,
+.private-server-menu-separator {
   height: var(--border-width);
   margin: var(--space-1) 0;
   background: var(--border-default);
 }
 
-.account-menu .account-menu-danger {
+.account-actions-menu-danger,
+.account-group-menu-danger,
+.private-server-menu-danger {
   color: var(--status-danger);
 }
 
-.account-menu .account-menu-danger .account-icon {
+.account-actions-menu-danger .account-icon,
+.account-group-menu-danger .account-icon,
+.private-server-menu-danger .account-icon {
   filter: brightness(0) saturate(100%) invert(45%) sepia(54%) saturate(1200%)
     hue-rotate(310deg) brightness(90%);
 }
@@ -3387,13 +3405,19 @@ button:focus-visible {
   mask: url("/icons/delete.svg") center / contain no-repeat;
 }
 
-.account-menu .account-menu-danger .account-icon-current-color,
+.account-actions-menu-danger .account-icon-current-color,
+.account-group-menu-danger .account-icon-current-color,
+.private-server-menu-danger .account-icon-current-color,
 .account-picker-danger .account-icon-current-color {
   filter: none;
 }
 
-.account-menu .account-menu-danger:hover,
-.account-menu .account-menu-danger:focus-visible {
+.account-actions-menu-danger:hover,
+.account-actions-menu-danger:focus-visible,
+.account-group-menu-danger:hover,
+.account-group-menu-danger:focus-visible,
+.private-server-menu-danger:hover,
+.private-server-menu-danger:focus-visible {
   background: var(--bg-surface);
 }
 

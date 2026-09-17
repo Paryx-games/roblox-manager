@@ -1910,7 +1910,7 @@ export function AccountsPage({
           </div>
           {groupContextMenu && (
             <div
-              className="account-menu group-context-menu"
+              className="account-group-menu group-context-menu"
               ref={groupMenuRef}
               role="menu"
               style={{ left: groupContextMenu.x, top: groupContextMenu.y }}
@@ -1923,9 +1923,9 @@ export function AccountsPage({
                 <Icon name="edit" />
                 Rename and color
               </button>
-              <div className="account-menu-separator" role="separator" />
+                <div className="account-group-menu-separator" role="separator" />
               <button
-                className="account-menu-danger"
+                className="account-group-menu-danger"
                 type="button"
                 role="menuitem"
                 onClick={() => void deleteGroupFromMenu(groupContextMenu.name)}
@@ -2291,7 +2291,7 @@ export function AccountsPage({
                     {selectedAccount.presenceText}
                   </span>
                 </div>
-                <div className="account-menu-anchor" ref={accountMenuRef}>
+                <div className="account-actions-menu-anchor" ref={accountMenuRef}>
                   <button
                     className="icon-button"
                     type="button"
@@ -2302,7 +2302,7 @@ export function AccountsPage({
                     <Icon name="more" />
                   </button>
                   {showAccountMenu && (
-                    <div className="account-menu" role="menu">
+                    <div className="account-actions-menu" role="menu">
                       <button
                         type="button"
                         role="menuitem"
