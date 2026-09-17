@@ -453,8 +453,8 @@ export function PrivateServersPage({
                           if (!server.ownerProfileUrl) event.preventDefault();
                         }}
                       >
-                        <Icon name="square-arrow-out-up-right" />
                         @{server.ownerUsername ?? "user"}
+                        <Icon name="square-arrow-out-up-right" />
                       </a>
                     </span>
                     <AccountPicker
