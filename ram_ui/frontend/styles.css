@@ -425,7 +425,7 @@ button:focus-visible {
 .private-servers-page {
   flex: 1;
   overflow: auto;
-  padding: 0 var(--space-6) var(--space-6);
+  padding: 0 var(--space-6) var(--space-8);
 }
 
 .private-server-card {
@@ -551,8 +551,23 @@ button:focus-visible {
 }
 .private-server-form-actions {
   display: flex;
-  justify-content: flex-end;
+  width: 100%;
   margin-top: var(--space-3);
+}
+
+.private-server-form-actions .account-button {
+  width: 100%;
+  min-height: 36px;
+  flex: 1;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.private-server-form-actions .account-button:hover,
+.private-server-form-actions .account-button:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+  background: var(--bg-raised);
 }
 .private-server-error {
   color: var(--status-danger);
@@ -563,7 +578,7 @@ button:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-  margin-top: var(--space-3);
+  margin-top: var(--space-4);
 }
 .private-server-card .account-empty-inline {
   margin-top: var(--space-3);
@@ -571,7 +586,7 @@ button:focus-visible {
 .private-server-search {
   display: flex;
   flex: 1;
-  min-width: 180px;
+  min-width: 260px;
   height: 32px;
   align-items: center;
   gap: var(--space-2);
@@ -607,7 +622,7 @@ button:focus-visible {
   font-size: var(--text-xs);
 }
 .private-server-sort select {
-  max-width: 180px;
+  max-width: 160px;
   min-width: 0;
   height: 32px;
   padding: 0 var(--space-6) 0 var(--space-2);
@@ -629,6 +644,7 @@ button:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-height: 44px;
 }
 .private-server-group-head > div {
   display: grid;
@@ -676,7 +692,7 @@ button:focus-visible {
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-2);
-  padding: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius);
   background: var(--bg-raised);
 }
@@ -864,6 +880,14 @@ button:focus-visible {
 
 .private-server-actions .account-button.primary {
   color: var(--text-primary);
+  border-color: var(--border-default);
+  background: var(--bg-surface);
+}
+
+.private-server-actions .account-button.primary:hover,
+.private-server-actions .account-button.primary:focus-visible {
+  border-color: var(--action-primary);
+  background: var(--bg-raised);
 }
 
 .private-server-menu-anchor {
