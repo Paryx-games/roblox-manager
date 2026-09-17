@@ -126,7 +126,12 @@ export function App() {
     }
 
     if (page === "Private Servers") {
-      return <PrivateServersPage selectedIds={selectedIds} />;
+      return (
+        <PrivateServersPage
+          selectedIds={selectedIds}
+          onNavigateAccounts={() => navigateTo("Accounts")}
+        />
+      );
     }
 
     return (

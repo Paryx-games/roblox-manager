@@ -46,8 +46,10 @@ function OwnershipBadge({
 
 export function PrivateServersPage({
   selectedIds,
+  onNavigateAccounts,
 }: {
   selectedIds: Set<number>;
+  onNavigateAccounts: () => void;
 }) {
   const [servers, setServers] = useState<PrivateServerSummary[]>([]);
   const [name, setName] = useState("");
@@ -448,6 +450,8 @@ export function PrivateServersPage({
                           return { ...current, [server.index]: ids };
                         })
                       }
+                      showManageAccounts={true}
+                      onManageAccounts={onNavigateAccounts}
                       className="private-server-account-picker"
                     />
                     <div className="private-server-actions">

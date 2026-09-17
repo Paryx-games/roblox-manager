@@ -1047,6 +1047,7 @@ button:focus-visible {
 }
 
 .account-picker-empty-selection {
+  padding: 0 var(--space-1);
   font-weight: 500;
 }
 

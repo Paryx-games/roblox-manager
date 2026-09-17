@@ -417,10 +417,9 @@ export function GroupsPage({
               onOpenChange={setPickerOpen}
               selectedIds={selectedIds}
               onSelectedIdsChange={setSelectedIds}
-              manageAccounts={{
-                label: "Manage on Accounts page",
-                onSelect: onNavigateAccounts,
-              }}
+              showManageAccounts={true}
+              onManageAccounts={onNavigateAccounts}
+              manageAccountsLabel="Manage on Accounts page"
             />
             <div className="groups-action-row">
               <button
