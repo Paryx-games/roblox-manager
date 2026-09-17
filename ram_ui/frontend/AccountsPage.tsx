@@ -2266,7 +2266,7 @@ export function AccountsPage({
                       data-tip="Open profile"
                       onClick={() => void openAccountPage(false)}
                     >
-                      <Icon name="link" />
+                      <Icon name="square-arrow-out-up-right" />
                     </button>
                   </div>
                   <div className="account-identity-username">
