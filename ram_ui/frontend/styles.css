@@ -1046,6 +1046,10 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+.account-picker-empty-selection {
+  font-weight: 500;
+}
+
 .account-picker-facepile {
   display: flex;
   flex: 0 0 auto;

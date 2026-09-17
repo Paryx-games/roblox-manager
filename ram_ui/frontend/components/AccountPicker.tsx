@@ -17,8 +17,10 @@ type AccountPickerProps = {
   emptyLabel?: string;
   noAccountLabel?: string;
   unselectedLabel?: string;
-  manageLabel?: string;
-  onManage?: () => void;
+  manageAccounts?: {
+    label?: string;
+    onSelect: () => void;
+  };
   groups?: Array<{ name: string; color: string }>;
   selectedGroup?: string;
   onSelectedGroupChange?: (group: string) => void;
@@ -43,8 +45,7 @@ export function AccountPicker({
   emptyLabel = "No accounts available",
   noAccountLabel = "No account",
   unselectedLabel = "Select account",
-  manageLabel,
-  onManage,
+  manageAccounts,
   groups = [],
   selectedGroup = "",
   onSelectedGroupChange,
@@ -187,7 +188,13 @@ export function AccountPicker({
               aria-hidden="true"
             />
           )}
-          <span>
+          <span
+            className={
+              mode === "multiple" && selectedAccounts.length === 0
+                ? "account-picker-empty-selection"
+                : undefined
+            }
+          >
             {mode === "groups"
               ? selectedGroup || "Ungrouped"
               : mode === "multiple"
@@ -338,19 +345,19 @@ export function AccountPicker({
                 {deleteGroupLabel}
               </button>
             )}
-          {manageLabel && onManage && (
+          {manageAccounts && (
             <>
               <div className="account-picker-divider" />
               <button
                 className="account-picker-manage"
                 type="button"
                 onClick={() => {
-                  onManage();
+                  manageAccounts.onSelect();
                   onOpenChange(false);
                 }}
               >
                 <Icon name="id-card" />
-                {manageLabel}
+                {manageAccounts.label ?? "Manage accounts"}
               </button>
             </>
           )}
