@@ -1139,6 +1139,11 @@ button:focus-visible {
   background: var(--bg-raised);
 }
 
+.account-picker-menu.is-above {
+  top: auto;
+  bottom: calc(100% + var(--space-1));
+}
+
 .account-picker-single .account-picker-menu {
   right: auto;
   min-width: 190px;
@@ -3289,10 +3294,10 @@ button:focus-visible {
 }
 
 .account-menu {
-  position: absolute;
+  position: fixed;
   z-index: 30;
-  top: calc(100% + var(--space-2));
-  right: 0;
+  top: var(--menu-top);
+  left: var(--menu-left);
   display: flex;
   width: 180px;
   flex-direction: column;
@@ -3300,6 +3305,9 @@ button:focus-visible {
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
   background: var(--bg-raised);
+  max-height: var(--menu-max-height, 240px);
+  overflow-y: auto;
+  transform: translateY(var(--menu-transform-y, 0));
   animation: account-menu-enter var(--duration-base) var(--ease-standard);
 }
 

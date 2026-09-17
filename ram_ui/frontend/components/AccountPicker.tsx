@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { CSSProperties } from "react";
 import type { AccountSummary } from "../lib/ipc";
@@ -61,6 +61,27 @@ export function AccountPicker({
   const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [isMenuAbove, setIsMenuAbove] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const updatePlacement = () => {
+      const bounds = triggerRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+      const menuHeight = Math.min(240, window.innerHeight - 16);
+      setIsMenuAbove(
+        bounds.bottom + 4 + menuHeight > window.innerHeight &&
+          bounds.top - 4 > menuHeight,
+      );
+    };
+    updatePlacement();
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
+    return () => {
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
+    };
+  }, [open]);
 
   const selectedAccounts = accounts.filter((account) =>
     mode === "multiple"
@@ -211,7 +232,7 @@ export function AccountPicker({
       </button>
       {open && (
         <div
-          className="account-picker-menu"
+          className={`account-picker-menu ${isMenuAbove ? "is-above" : ""}`}
           role="menu"
           aria-label="Account selection"
           onKeyDown={handleMenuKeyDown}

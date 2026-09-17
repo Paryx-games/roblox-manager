@@ -21,9 +21,16 @@ export function ActionMenu({
       const bounds = trigger?.getBoundingClientRect();
       if (!bounds) return;
 
+      const menuHeight = 240;
+      const gap = 4;
+      const isAbove = bounds.bottom + gap + menuHeight > window.innerHeight &&
+        bounds.top - gap > menuHeight;
+
       setPosition({
-        "--menu-top": `${bounds.bottom + 4}px`,
+        "--menu-top": `${isAbove ? bounds.top - gap : bounds.bottom + gap}px`,
         "--menu-left": `${Math.max(8, bounds.right - 180)}px`,
+        "--menu-transform-y": isAbove ? "-100%" : "0",
+        "--menu-max-height": `${Math.max(96, isAbove ? bounds.top - gap - 8 : window.innerHeight - bounds.bottom - gap - 8)}px`,
         visibility: "visible",
       } as CSSProperties);
     };
