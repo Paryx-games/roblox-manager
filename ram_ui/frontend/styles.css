@@ -700,19 +700,57 @@ button:focus-visible {
 .private-server-row:hover {
   background: var(--bg-surface);
 }
-.private-server-row > strong {
+.private-server-name-block {
+  display: flex;
   min-width: 72px;
   flex: 1;
-  overflow: hidden;
+  align-items: center;
+  gap: var(--space-2);
   margin-left: var(--space-1);
   padding-left: var(--space-2);
   border-left: var(--border-width) solid var(--border-default);
-  color: var(--text-primary);
+}
+
+.private-server-name {
+  min-width: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--text-primary) 72%, var(--text-muted));
   font-family: var(--font-sans);
   font-size: var(--text-sm);
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.private-server-row:hover .private-server-name,
+.private-server-row:focus-within .private-server-name {
+  color: var(--text-primary);
+}
+
+.private-server-owner-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.private-server-owner-link:hover,
+.private-server-owner-link:focus-visible {
+  color: color-mix(in srgb, var(--text-primary) 50%, var(--text-muted));
+}
+
+.private-server-owner-link .account-icon {
+  width: 12px;
+  height: 12px;
+}
+
 .private-server-status {
   position: relative;
   display: flex;
@@ -1207,7 +1245,7 @@ button:focus-visible {
     align-items: flex-start;
     flex-wrap: wrap;
   }
-  .private-server-row > strong {
+  .private-server-name-block {
     flex-basis: calc(100% - 28px);
   }
   .private-server-account-picker {

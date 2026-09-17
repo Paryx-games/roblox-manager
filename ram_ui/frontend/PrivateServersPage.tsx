@@ -436,7 +436,27 @@ export function PrivateServersPage({
                       <Icon name="warning" />
                     </span>
                     <OwnershipBadge status={ownershipStatus} />
-                    <strong>{server.name}</strong>
+                    <span className="private-server-name-block">
+                      <span className="private-server-name">{server.name}</span>
+                      <a
+                        className="private-server-owner-link"
+                        href={server.ownerProfileUrl ?? "#"}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`Open ${server.ownerUsername ?? "user"}'s Roblox profile`}
+                        title={
+                          server.ownerProfileUrl
+                            ? "Open owner profile"
+                            : "Owner profile link will be available after ownership checking"
+                        }
+                        onClick={(event) => {
+                          if (!server.ownerProfileUrl) event.preventDefault();
+                        }}
+                      >
+                        <Icon name="square-arrow-out-up-right" />
+                        @{server.ownerUsername ?? "user"}
+                      </a>
+                    </span>
                     <AccountPicker
                       accounts={accounts}
                       mode="multiple"

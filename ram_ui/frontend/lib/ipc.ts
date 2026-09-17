@@ -66,6 +66,8 @@ export interface PrivateServerSummary {
   placeName: string;
   iconUrl: string;
   url: string;
+  ownerUsername?: string;
+  ownerProfileUrl?: string;
 }
 
 export interface GroupSearchResult {
