@@ -729,8 +729,7 @@ button:focus-visible {
 
 .private-server-owner-link {
   display: inline-flex;
-  min-width: 0;
-  flex: 1;
+  flex: 0 0 auto;
   align-items: center;
   gap: var(--space-1);
   color: var(--text-muted);
@@ -749,7 +748,6 @@ button:focus-visible {
 .private-server-owner-link .account-icon {
   width: 12px;
   height: 12px;
-  margin-left: auto;
 }
 
 .private-server-status {
