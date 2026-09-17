@@ -419,8 +419,6 @@ export function GroupsPage({
               onSelectedIdsChange={setSelectedIds}
               manageLabel="Manage on Accounts page"
               onManage={onNavigateAccounts}
-              className="groups-picker"
-              avatarClassName="groups-avatar-small"
             />
             <div className="groups-action-row">
               <button

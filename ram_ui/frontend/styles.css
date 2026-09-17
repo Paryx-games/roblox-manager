@@ -1003,7 +1003,7 @@ button:focus-visible {
   justify-content: center;
   border-radius: 50%;
   color: var(--text-primary);
-  background: var(--action-primary);
+  background: var(--bg-raised);
   font-size: var(--text-xs);
   font-weight: 700;
 }
@@ -1049,6 +1049,20 @@ button:focus-visible {
 .account-picker-facepile {
   display: flex;
   flex: 0 0 auto;
+}
+
+.account-picker-multiple .account-picker-facepile .account-picker-avatar {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  border: 2px solid var(--bg-surface);
+}
+
+.account-picker-multiple
+  .account-picker-facepile
+  .account-picker-avatar
+  + .account-picker-avatar {
+  margin-left: -8px;
 }
 
 .account-picker-overflow {
