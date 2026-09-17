@@ -449,7 +449,6 @@ export function PrivateServersPage({
                         })
                       }
                       className="private-server-account-picker"
-                      avatarClassName="private-server-avatar"
                     />
                     <div className="private-server-actions">
                       <button
@@ -530,7 +529,7 @@ export function PrivateServersPage({
                                 setOpenMenu(null);
                               }}
                             >
-                              <Icon name="delete" />
+                              <Icon name="delete" tone="current-color" />
                               Delete
                             </button>
                           </div>

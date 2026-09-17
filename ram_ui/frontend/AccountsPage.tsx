@@ -119,7 +119,23 @@ type DropIndicator = {
   position: DropPosition;
 };
 
-function Icon({ name }: { name: string }) {
+function Icon({
+  name,
+  tone = "image",
+}: {
+  name: string;
+  tone?: "image" | "current-color";
+}) {
+  if (tone === "current-color") {
+    return (
+      <span
+        className="account-icon account-icon-current-color"
+        data-icon-name={name}
+        aria-hidden="true"
+      />
+    );
+  }
+
   return (
     <img
       className="account-icon"
@@ -1914,7 +1930,7 @@ export function AccountsPage({
                 role="menuitem"
                 onClick={() => void deleteGroupFromMenu(groupContextMenu.name)}
               >
-                <Icon name="delete" />
+                <Icon name="delete" tone="current-color" />
                 Delete group
               </button>
             </div>
@@ -2321,7 +2337,7 @@ export function AccountsPage({
                           setShowAccountMenu(false);
                         }}
                       >
-                        <Icon name="delete" />
+                        <Icon name="delete" tone="current-color" />
                         Remove account
                       </button>
                       <button

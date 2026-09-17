@@ -690,7 +690,7 @@ button:focus-visible {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   margin-top: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius);
@@ -704,6 +704,9 @@ button:focus-visible {
   min-width: 72px;
   flex: 1;
   overflow: hidden;
+  margin-left: var(--space-1);
+  padding-left: var(--space-2);
+  border-left: var(--border-width) solid var(--border-default);
   color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
@@ -3311,6 +3314,18 @@ button:focus-visible {
 .account-menu .account-menu-danger .account-icon {
   filter: brightness(0) saturate(100%) invert(45%) sepia(54%) saturate(1200%)
     hue-rotate(310deg) brightness(90%);
+}
+
+.account-icon-current-color {
+  display: inline-block;
+  flex: 0 0 auto;
+  background: currentcolor;
+  mask: url("/icons/delete.svg") center / contain no-repeat;
+}
+
+.account-menu .account-menu-danger .account-icon-current-color,
+.account-picker-danger .account-icon-current-color {
+  filter: none;
 }
 
 .account-menu .account-menu-danger:hover,
