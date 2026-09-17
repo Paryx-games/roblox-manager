@@ -3794,14 +3794,13 @@ button:focus-visible {
 
 .account-button.primary {
   isolation: isolate;
-  color: var(--bg-canvas);
+  color: var(--text-primary);
   border-color: var(--action-primary);
   background: var(--action-primary);
 }
 
 .account-button.primary .account-icon {
-  filter: brightness(0) invert(1);
-  mix-blend-mode: difference;
+  filter: invert(95%);
 }
 
 .account-button:disabled {
@@ -3820,7 +3819,6 @@ button:focus-visible {
 
 .account-button.primary:disabled .account-icon {
   filter: invert(65%);
-  mix-blend-mode: normal;
 }
 
 .account-status-button {
