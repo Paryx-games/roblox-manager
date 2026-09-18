@@ -3296,10 +3296,10 @@ button:focus-visible {
 .account-actions-menu,
 .account-group-menu,
 .private-server-menu {
-  position: fixed;
+  position: absolute;
   z-index: 30;
-  top: var(--menu-top);
-  left: var(--menu-left);
+  top: calc(100% + var(--space-2));
+  right: 0;
   display: flex;
   width: 180px;
   flex-direction: column;
@@ -3307,10 +3307,21 @@ button:focus-visible {
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
   background: var(--bg-raised);
-  max-height: var(--menu-max-height, 240px);
+  max-height: min(240px, calc(100vh - var(--space-8)));
   overflow-y: auto;
-  transform: translateY(var(--menu-transform-y, 0));
   animation: menu-enter var(--duration-base) var(--ease-standard);
+}
+
+.account-actions-menu.is-open-right,
+.private-server-menu.is-open-right {
+  right: auto;
+  left: 0;
+}
+
+.account-actions-menu.is-open-up,
+.private-server-menu.is-open-up {
+  top: auto;
+  bottom: calc(100% + var(--space-2));
 }
 
 .account-actions-menu-anchor {

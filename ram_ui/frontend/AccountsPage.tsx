@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -621,6 +622,7 @@ export function AccountsPage({
   >([]);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const [accountMenuPlacement, setAccountMenuPlacement] = useState("");
   const [presenceLoading, setPresenceLoading] = useState(false);
   const [groupColors, setGroupColors] = useState<
     Record<string, [number, number, number]>
@@ -713,6 +715,20 @@ export function AccountsPage({
     document.addEventListener("pointerdown", dismissAccountMenu);
     return () =>
       document.removeEventListener("pointerdown", dismissAccountMenu);
+  }, [showAccountMenu]);
+
+  useLayoutEffect(() => {
+    if (!showAccountMenu) return;
+    const anchor = accountMenuRef.current;
+    const menu = anchor?.querySelector<HTMLElement>(".account-actions-menu");
+    if (!anchor || !menu) return;
+    const bounds = anchor.getBoundingClientRect();
+    const menuBounds = menu.getBoundingClientRect();
+    const isOpenRight = bounds.right - menuBounds.width < 8;
+    const isOpenUp = bounds.bottom + menuBounds.height > window.innerHeight - 8;
+    setAccountMenuPlacement(
+      `${isOpenRight ? "is-open-right" : ""} ${isOpenUp ? "is-open-up" : ""}`.trim(),
+    );
   }, [showAccountMenu]);
 
   useEffect(() => {
@@ -2302,7 +2318,10 @@ export function AccountsPage({
                     <Icon name="more" />
                   </button>
                   {showAccountMenu && (
-                    <div className="account-actions-menu" role="menu">
+                    <div
+                      className={`account-actions-menu ${accountMenuPlacement}`}
+                      role="menu"
+                    >
                       <button
                         type="button"
                         role="menuitem"

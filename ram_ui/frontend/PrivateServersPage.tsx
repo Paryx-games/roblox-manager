@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   addPrivateServer,
   listAccounts,
@@ -81,6 +81,7 @@ export function PrivateServersPage({
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPlacement, setMenuPlacement] = useState("");
   const addSectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -101,6 +102,20 @@ export function PrivateServersPage({
       document.removeEventListener("pointerdown", dismissMenu);
       document.removeEventListener("keydown", dismissMenuOnEscape);
     };
+  }, [openMenu]);
+
+  useLayoutEffect(() => {
+    if (openMenu === null) return;
+    const anchor = menuRef.current;
+    const menu = anchor?.querySelector<HTMLElement>(".private-server-menu");
+    if (!anchor || !menu) return;
+    const bounds = anchor.getBoundingClientRect();
+    const menuBounds = menu.getBoundingClientRect();
+    const isOpenRight = bounds.right - menuBounds.width < 8;
+    const isOpenUp = bounds.bottom + menuBounds.height > window.innerHeight - 8;
+    setMenuPlacement(
+      `${isOpenRight ? "is-open-right" : ""} ${isOpenUp ? "is-open-up" : ""}`.trim(),
+    );
   }, [openMenu]);
 
   useEffect(() => {
@@ -507,7 +522,7 @@ export function PrivateServersPage({
                         </button>
                         {openMenu === server.index && (
                           <div
-                            className="private-server-menu"
+                            className={`private-server-menu ${menuPlacement}`}
                             role="menu"
                           >
                             <button
