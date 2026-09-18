@@ -30,31 +30,138 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  rust:
-    name: rust
+  frontend:
+    name: frontend
     runs-on: windows-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 15
     steps:
       - name: checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11
+
+      - name: setup node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ram_ui/pnpm-lock.yaml
+
+      - name: install frontend dependencies
+        working-directory: ram_ui
+        run: pnpm install --frozen-lockfile
+
+      - name: build frontend
+        working-directory: ram_ui
+        run: pnpm build
+
+      # shared with clippy/test/build jobs so they don't each rebuild it
+      - name: upload frontend dist
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ram_ui-dist
+          path: ram_ui/dist
+          retention-days: 1
+
+  fmt:
+    name: fmt
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: setup rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
         with:
-          components: rustfmt, clippy
-
-      - name: cache rust
-        uses: Swatinem/rust-cache@v2
+          components: rustfmt
 
       - name: check formatting
         run: cargo fmt --all -- --check
 
+  clippy:
+    name: clippy
+    needs: frontend
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: download frontend dist
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ram_ui-dist
+          path: ram_ui/dist
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
+        with:
+          components: clippy
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
       - name: clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
+  test:
+    name: test
+    needs: frontend
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: download frontend dist
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ram_ui-dist
+          path: ram_ui/dist
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
       - name: test
         run: cargo test --workspace --all-features --locked
+
+  build:
+    name: build
+    needs: frontend
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: download frontend dist
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ram_ui-dist
+          path: ram_ui/dist
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       - name: build
         run: cargo build --workspace --all-features --locked

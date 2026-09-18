@@ -4,14 +4,24 @@
 
 ### Added
 
-- **Bulk connection actions.** The multi-account panel now includes a Connections section with the same social controls as the single account view, so you can search a Roblox user and apply follow, unfollow, join-game, block, and friend-request actions across every selected account in one pass.
-- **Join-by-user support.** The account panel now includes a user-join flow with direct follow/unfollow controls, a join-their-game action, and startup friend-cache refreshes to keep friends-only joins fast on large account lists.
+- **Input recovery and diagnostics.** Harden transient UI cleanup, prevent tab-switch interaction races, and write scrubbed startup diagnostics to the rotating RM log file.
+- **Tauri development diagnostics.** `pnpm --dir ram_ui tauri dev` now defaults to info-level Rust tracing output while respecting an existing `RUST_LOG` override, and secondary controls keep their neutral borders.
+- **Tauri tracing output.** The Tauri command process now initializes an info-level subscriber so development diagnostics actually print to the `tauri dev` terminal.
 
-### Fixed
+### Changed
 
-- **Account-panel sizing.** The selected-account sections now stay within one consistent width so the launch, inventory, and social cards no longer stretch past the viewport on smaller windows.
-- **Tools menu rendering.** The Tools dropdown no longer opens to a blank menu; it now shows the available workspace entries or a clear empty-state message when no tools are enabled.
-- **Account-panel width lock.** The top identity block stays at its original size while every lower card is forced to the exact same width for a consistent, non-clipping layout.
+- **Restricted account presentation.** Keep blocked launch content visible but clipped, progressively blurred, and clearly unavailable while leaving recovery actions readable.
+- **Group deletion affordance.** Restore the destructive red delete icon in the group context menu.
+- **Page transitions.** Restore a restrained horizontal crossfade between Tauri workspace pages, with reduced-motion support.
+- **Restricted account states.** Lock launch controls and clearly surface why an account cannot be used until moderation or credential issues are resolved.
+- **Input and dropdown layout.** Keep sort controls within the page width and restore the standard focus ring on account fields.
+- **Typography consistency.** Standardize the active Tauri/React interface on
+  the bundled Roboto sans-serif family instead of mixing in monospace styles.
+- **Groups workspace.** Port the groups page from the legacy egui into Tauri + React, including group search and ID loading, live group details, selected-account membership inspection, join/leave actions, account selection, announcements, wall states, loading/error handling, and challenge fallback.
+- **Private Servers workspace.** Add and manage saved Roblox private-server links, then launch every account selected in Accounts.
+- **Workspace navigation.** Accounts now leads the rail, Private Servers has its own workspace entry, and unavailable Instances is retained as a disabled utility action.
+- **Accounts menu rewrite.** Fully rewritten the accounts menu UI in Tauri + React to look cleaner, space easier, and function better.
+- **New UI facelift.** All UI has/being ported from egui to Tauri + React. Details are on [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30)
 
 ## v1.16.0
 
