@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import type { AccountSummary } from "../lib/ipc";
 import { AccountAvatar } from "./AccountAvatar";
 import { Icon } from "./Icon";
+import { PopupMenu } from "./PopupMenu";
 
 type AccountPickerProps = {
   accounts: AccountSummary[];
@@ -231,10 +232,8 @@ export function AccountPicker({
         <Icon name="chevron-down" />
       </button>
       {open && (
-        <div
+        <PopupMenu
           className={`account-picker-menu ${isMenuAbove ? "is-above" : ""}`}
-          role="menu"
-          aria-label="Account selection"
           onKeyDown={handleMenuKeyDown}
         >
           {mode !== "groups" &&
@@ -383,7 +382,7 @@ export function AccountPicker({
               </button>
             </>
           )}
-        </div>
+        </PopupMenu>
       )}
     </div>
   );

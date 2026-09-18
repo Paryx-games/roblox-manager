@@ -1137,11 +1137,18 @@ button:focus-visible {
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
   background: var(--bg-raised);
+  animation: menu-enter var(--duration-base) var(--ease-standard) both;
 }
 
 .account-picker-menu.is-above {
   top: auto;
   bottom: calc(100% + var(--space-1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-picker-menu {
+    animation: none;
+  }
 }
 
 .account-picker-single .account-picker-menu {

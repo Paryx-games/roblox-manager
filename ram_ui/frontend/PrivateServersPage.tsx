@@ -13,6 +13,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
 import { Icon } from "./components/Icon";
 import { Popup } from "./components/Popup";
+import { PopupMenu } from "./components/PopupMenu";
 
 type OwnershipStatus = "owned" | "unknown" | "not-owned";
 
@@ -522,9 +523,8 @@ export function PrivateServersPage({
                           <Icon name="more" />
                         </button>
                         {openMenu === server.index && (
-                          <div
+                          <PopupMenu
                             className={`private-server-menu ${menuPlacement}`}
-                            role="menu"
                           >
                             <button
                               type="button"
@@ -572,7 +572,7 @@ export function PrivateServersPage({
                               <Icon name="delete" tone="current-color" />
                               Delete
                             </button>
-                          </div>
+                          </PopupMenu>
                         )}
                       </div>
                     </div>

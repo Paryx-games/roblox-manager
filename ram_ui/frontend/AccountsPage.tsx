@@ -50,6 +50,7 @@ import {
 import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
 import { Popup } from "./components/Popup";
+import { PopupMenu } from "./components/PopupMenu";
 import {
   Toast,
   type ToastDuration,
@@ -639,7 +640,7 @@ export function AccountsPage({
     string | null
   >(null);
   const [killAllConfirmation, setKillAllConfirmation] = useState(false);
-  const groupMenuRef = useRef<HTMLDivElement>(null);
+  const groupMenuRef = useRef<HTMLDivElement | null>(null);
 
   function setNotice(
     message: string | null,
@@ -1926,11 +1927,12 @@ export function AccountsPage({
             ))}
           </div>
           {groupContextMenu && (
-            <div
+            <PopupMenu
               className="account-group-menu group-context-menu"
-              ref={groupMenuRef}
-              role="menu"
               style={{ left: groupContextMenu.x, top: groupContextMenu.y }}
+              menuRef={(element) => {
+                groupMenuRef.current = element;
+              }}
             >
               <button
                 type="button"
@@ -1950,7 +1952,7 @@ export function AccountsPage({
                 <Icon name="delete" tone="current-color" />
                 Delete group
               </button>
-            </div>
+            </PopupMenu>
           )}
         </aside>
 
@@ -2307,9 +2309,8 @@ export function AccountsPage({
                     <Icon name="more" />
                   </button>
                   {showAccountMenu && (
-                    <div
+                    <PopupMenu
                       className={`account-actions-menu ${accountMenuPlacement}`}
-                      role="menu"
                     >
                       <button
                         type="button"
@@ -2381,7 +2382,7 @@ export function AccountsPage({
                         <Icon name="kill" />
                         Kill all Roblox
                       </button>
-                    </div>
+                    </PopupMenu>
                   )}
                 </div>
               </section>
@@ -2483,7 +2484,7 @@ export function AccountsPage({
                     Launch
                   </button>
                   <button
-                    className="account-button account-accent-button"
+                    className="account-button"
                     type="button"
                     onClick={() => void browseAs()}
                   >
@@ -2523,7 +2524,7 @@ export function AccountsPage({
                       <Icon name="refresh" />
                     </button>
                     <button
-                      className="account-button account-accent-button"
+                      className="account-button"
                       type="button"
                       onClick={() => void openAccountPage(true)}
                     >
@@ -2629,7 +2630,7 @@ export function AccountsPage({
                     placeholder="Username or user ID"
                   />
                   <button
-                    className="account-button account-accent-button"
+                    className="account-button"
                     type="button"
                     onClick={() => void searchConnections()}
                   >
