@@ -51,6 +51,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
 import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
+import { PromptModal } from "./components/PromptModal";
 import {
   Toast,
   type ToastDuration,
@@ -640,6 +641,13 @@ export function AccountsPage({
     string | null
   >(null);
   const [killAllConfirmation, setKillAllConfirmation] = useState(false);
+  const [removeAccountConfirmation, setRemoveAccountConfirmation] = useState(false);
+  const [sortConfirmation, setSortConfirmation] = useState<SortMode | null>(null);
+  const [promptRequest, setPromptRequest] = useState<{
+    title: string;
+    value?: string;
+  } | null>(null);
+  const promptResolverRef = useRef<((value: string | null) => void) | null>(null);
   const groupMenuRef = useRef<HTMLDivElement | null>(null);
 
   function setNotice(
@@ -1155,12 +1163,19 @@ export function AccountsPage({
     }
   }
 
+  function requestPrompt(title: string, value?: string) {
+    return new Promise<string | null>((resolve) => {
+      promptResolverRef.current = resolve;
+      setPromptRequest({ title, value });
+    });
+  }
+
   async function savePreset() {
     if (!placeIdValid) {
       setAccountNotice("Enter a numeric Place ID before saving a preset.");
       return;
     }
-    const name = window.prompt("Preset name");
+    const name = await requestPrompt("Preset name");
     if (!name) return;
     try {
       await saveLaunchPreset(name, Number(placeId), jobId, launchData);
@@ -1246,7 +1261,7 @@ export function AccountsPage({
 
   async function selectGroup(value: string) {
     if (value === "__new__") {
-      const name = window.prompt("Group name");
+      const name = await requestPrompt("Group name");
       if (!name) return;
       try {
         await createAccountGroup(name);
@@ -1393,8 +1408,7 @@ export function AccountsPage({
   }
 
   async function removeSelectedAccount() {
-    if (!selectedAccount || !window.confirm(`Remove ${selectedAccount.label}?`))
-      return;
+    if (!selectedAccount) return;
     setMutationLoading(true);
     try {
       await removeAccount(selectedAccount.userId);
@@ -1498,7 +1512,7 @@ export function AccountsPage({
   }
 
   async function changeSelectedPath() {
-    const path = window.prompt("Roblox player path", playerPath);
+    const path = await requestPrompt("Roblox player path", playerPath);
     if (path === null) return;
     setMutationLoading(true);
     try {
@@ -1660,13 +1674,8 @@ export function AccountsPage({
   }
 
   function changeSortMode(nextMode: SortMode) {
-    if (
-      sortMode === "custom" &&
-      nextMode !== "custom" &&
-      !window.confirm(
-        "Leave custom order? Drag-and-drop reordering is disabled until Custom sorting is selected again.",
-      )
-    ) {
+    if (sortMode === "custom" && nextMode !== "custom") {
+      setSortConfirmation(nextMode);
       return;
     }
     setSortMode(nextMode);
@@ -2238,6 +2247,50 @@ export function AccountsPage({
           />
         )}
 
+        {removeAccountConfirmation && selectedAccount && (
+          <ConfirmModal
+            title="Remove account?"
+            message={`Remove ${selectedAccount.label}? This cannot be undone.`}
+            confirmLabel="Remove account"
+            confirmDisabled={mutationLoading}
+            onCancel={() => setRemoveAccountConfirmation(false)}
+            onConfirm={() => {
+              setRemoveAccountConfirmation(false);
+              void removeSelectedAccount();
+            }}
+          />
+        )}
+
+        {sortConfirmation && (
+          <ConfirmModal
+            title="Leave custom order?"
+            message="Drag-and-drop reordering is disabled until Custom sorting is selected again."
+            confirmLabel="Change sorting"
+            onCancel={() => setSortConfirmation(null)}
+            onConfirm={() => {
+              setSortMode(sortConfirmation);
+              setSortConfirmation(null);
+            }}
+          />
+        )}
+
+        {promptRequest && (
+          <PromptModal
+            title={promptRequest.title}
+            value={promptRequest.value}
+            onCancel={() => {
+              promptResolverRef.current?.(null);
+              promptResolverRef.current = null;
+              setPromptRequest(null);
+            }}
+            onSubmit={(value) => {
+              promptResolverRef.current?.(value);
+              promptResolverRef.current = null;
+              setPromptRequest(null);
+            }}
+          />
+        )}
+
         <section
           className={`accounts-detail-panel ${
             selectedAccount &&
@@ -2342,7 +2395,7 @@ export function AccountsPage({
                         type="button"
                         role="menuitem"
                         onClick={() => {
-                          void removeSelectedAccount();
+                          setRemoveAccountConfirmation(true);
                           setShowAccountMenu(false);
                         }}
                       >
