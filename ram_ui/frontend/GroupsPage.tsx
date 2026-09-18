@@ -86,13 +86,23 @@ function GroupIdentity({
             group.publicEntryAllowed ? "is-allowed" : "is-restricted"
           }`}
         >
-          <Icon name={group.publicEntryAllowed ? "check" : "close"} />
+          <Icon
+            name={group.publicEntryAllowed ? "check" : "close"}
+            tone="current-color"
+          />
           {group.publicEntryAllowed
             ? "Public entry allowed"
             : "Allow join only"}
         </span>
-        <span className="groups-status-pill">
-          <Icon name={group.hasSocialModules ? "globe" : "globe-off"} />
+        <span
+          className={`groups-status-pill ${
+            group.hasSocialModules ? "is-allowed" : "is-restricted"
+          }`}
+        >
+          <Icon
+            name={group.hasSocialModules ? "globe" : "globe-off"}
+            tone="current-color"
+          />
           {group.hasSocialModules ? "Social links enabled" : "No social links"}
         </span>
       </div>

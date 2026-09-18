@@ -3442,7 +3442,7 @@ button:focus-visible {
   display: inline-block;
   flex: 0 0 auto;
   background: currentcolor;
-  mask: url("/icons/delete.svg") center / contain no-repeat;
+  mask: var(--account-icon-mask) center / contain no-repeat;
 }
 
 .account-actions-menu-danger .account-icon-current-color,
