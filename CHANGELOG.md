@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Settings layout polish.** Expand Settings to the full workspace width, keep section navigation clear of the scroll edge, and align tooltips, typography, spacing, and checkbox controls with the Tauri shell.
 - **Settings workspace.** Port the full legacy Settings page into the Tauri shell with persisted launch, privacy, tiling, identity, data, integration, and account-encryption controls.
 - **Input recovery and diagnostics.** Harden transient UI cleanup, prevent tab-switch interaction races, and write scrubbed startup diagnostics to the rotating RM log file.
 - **Tauri development diagnostics.** `pnpm --dir ram_ui tauri dev` now defaults to info-level Rust tracing output while respecting an existing `RUST_LOG` override, and secondary controls keep their neutral borders.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ConfirmModal } from "./ConfirmModal";
 import { Icon } from "./components/Icon";
 import { Popup } from "./components/Popup";
@@ -97,10 +97,10 @@ function InfoButton({
     <button
       className={`settings-info settings-info-${card.kind}`}
       type="button"
-      aria-label={`${settingTitle(card.kind)} information for ${referenceId}`}
-      title={card.text}
+      aria-label={`${settingTitle(card.kind)}: ${card.text}`}
+      data-tip={card.text}
     >
-      <Icon name="shield-question-mark" />
+      <Icon name="shield-question-mark" tone="current-color" />
     </button>
   );
 }
@@ -144,7 +144,7 @@ function Toggle({
         onChange={(event) => onChange(event.target.checked)}
       />
       <span className="settings-toggle-box" aria-hidden="true">
-        <Icon name="check" />
+        <Icon name="check" tone="current-color" />
       </span>
       <span>{label}</span>
     </label>
@@ -315,6 +315,7 @@ export function SettingsPage() {
   >({});
   const [activeSection, setActiveSection] =
     useState<SettingsSectionId>("account-storage");
+  const settingsPageRef = useRef<HTMLElement>(null);
 
   async function loadSettings() {
     setIsLoading(true);
@@ -332,6 +333,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     void loadSettings();
+    settingsPageRef.current?.scrollTo({ top: 0 });
   }, []);
 
   const passwordsMatch =
@@ -369,14 +371,23 @@ export function SettingsPage() {
       setCollapsedGroups((current) => ({ ...current, [group.id]: false }));
     }
     window.requestAnimationFrame(() => {
-      document
-        .getElementById(`settings-section-${sectionId}`)
-        ?.scrollIntoView({
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? "auto"
-            : "smooth",
-          block: "start",
-        });
+      const page = settingsPageRef.current;
+      const section = document.getElementById(`settings-section-${sectionId}`);
+      if (!page || !section) return;
+      const scrollPadding = Number.parseFloat(
+        window.getComputedStyle(page).scrollPaddingTop,
+      ) || 0;
+      const top =
+        section.getBoundingClientRect().top -
+        page.getBoundingClientRect().top +
+        page.scrollTop -
+        scrollPadding;
+      page.scrollTo({
+        top,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
     });
   }
 
@@ -571,7 +582,7 @@ export function SettingsPage() {
         <div className="header-row">
           <h1 className="header-title">Settings</h1>
         </div>
-        <main className="content settings-page">
+        <main ref={settingsPageRef} className="content settings-page">
           <div className="settings-loading" aria-live="polite">
             <span className="settings-loading-bar" />
             <span className="settings-loading-bar" />
@@ -588,7 +599,7 @@ export function SettingsPage() {
         <div className="header-row">
           <h1 className="header-title">Settings</h1>
         </div>
-        <main className="content settings-page">
+        <main ref={settingsPageRef} className="content settings-page">
           <section className="settings-error" role="alert">
             <h2>Settings unavailable</h2>
             <p>{notice?.message ?? "RM could not load its settings."}</p>
@@ -612,7 +623,7 @@ export function SettingsPage() {
       <div className="header-row">
         <h1 className="header-title">Settings</h1>
       </div>
-      <main className="content settings-page">
+      <main ref={settingsPageRef} className="content settings-page">
         <div className="settings-layout">
           <SettingsSidebar
             collapsedGroups={collapsedGroups}
