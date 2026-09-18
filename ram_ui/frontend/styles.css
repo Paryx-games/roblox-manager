@@ -43,6 +43,8 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-color: var(--text-muted) var(--bg-surface);
+  scrollbar-width: thin;
 }
 
 body {
@@ -50,6 +52,25 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: var(--bg-canvas);
+}
+
+*::-webkit-scrollbar {
+  width: var(--space-2);
+  height: var(--space-2);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid var(--bg-surface);
+  border-radius: var(--radius);
+  background: var(--text-muted);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-primary);
 }
 
 button {
