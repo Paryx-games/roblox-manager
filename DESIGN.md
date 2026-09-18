@@ -266,6 +266,8 @@ Each backed by tokens only, each with a single default export:
 - `<DataTable>` - for listy/tabular content. See §7 for exactly when.
 - `<Card>` - for grouped, non-listy content. See §7.
 - `<Button variant="primary|secondary|danger" />` - see §6 for required states
+- `<Select animated />` - controlled single-select with keyboard navigation,
+  optional token-based menu motion, and reduced-motion fallback
 - `<Badge>` - compact type for IDs and short data tags
 - `<EmptyState>` / `<ErrorState>` - see §10 writing guidance, §7.3 for
   where `DataTable` must use these

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ConfirmModal } from "./ConfirmModal";
 import { Icon } from "./components/Icon";
 import { Popup } from "./components/Popup";
+import Select from "./components/Select";
 import {
   arrangeSettingsWindows,
   changePassword,
@@ -143,9 +144,6 @@ function Toggle({
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
       />
-      <span className="settings-toggle-box" aria-hidden="true">
-        <Icon name="check" tone="current-color" />
-      </span>
       <span>{label}</span>
     </label>
   );
@@ -333,8 +331,15 @@ export function SettingsPage() {
 
   useEffect(() => {
     void loadSettings();
-    settingsPageRef.current?.scrollTo({ top: 0 });
   }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const animationFrame = window.requestAnimationFrame(() => {
+      settingsPageRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [isLoading]);
 
   const passwordsMatch =
     newPassword.length > 0 && newPassword === confirmPassword;
@@ -755,12 +760,23 @@ export function SettingsPage() {
           </SettingRow>
           <div className="settings-indent">
             <SettingRow referenceId="target_display" infoCards={infoCards}>
-              <label className="settings-field-row">
+              <div className="settings-field-row">
                 <span>Target Display:</span>
-                <select
+                <Select
+                  ariaLabel="Target display"
+                  animated
                   value={currentTarget}
-                  onChange={(event) => {
-                    const value = event.target.value;
+                  options={[
+                    { value: "primary", label: "Primary Monitor" },
+                    ...(snapshot.monitors.length > 1
+                      ? [{ value: "all", label: "All Monitors (Distribute / Span)" }]
+                      : []),
+                    ...snapshot.monitors.map((monitor) => ({
+                      value: `index:${monitor.index}`,
+                      label: monitor.name,
+                    })),
+                  ]}
+                  onChange={(value) => {
                     const tilingTargetMonitor: MonitorTarget =
                       value === "all"
                         ? { type: "All" }
@@ -769,26 +785,25 @@ export function SettingsPage() {
                           : { type: "Primary" };
                     updateDraft({ tilingTargetMonitor });
                   }}
-                >
-                  <option value="primary">Primary Monitor</option>
-                  {snapshot.monitors.length > 1 && (
-                    <option value="all">All Monitors (Distribute / Span)</option>
-                  )}
-                  {snapshot.monitors.map((monitor) => (
-                    <option key={monitor.index} value={`index:${monitor.index}`}>
-                      {monitor.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                />
+              </div>
             </SettingRow>
             <SettingRow referenceId="grid_layout" infoCards={infoCards}>
-              <label className="settings-field-row">
+              <div className="settings-field-row">
                 <span>Grid Layout:</span>
-                <select
+                <Select
+                  ariaLabel="Grid layout"
+                  animated
                   value={currentLayout}
-                  onChange={(event) => {
-                    const value = event.target.value;
+                  options={[
+                    { value: "auto", label: "Auto Grid (Square-like)" },
+                    { value: "columns", label: "Fixed Columns" },
+                    { value: "rows", label: "Fixed Rows" },
+                    { value: "custom", label: "Custom Grid (Cols × Rows)" },
+                    { value: "side-by-side", label: "Side-by-Side (1 Row)" },
+                    { value: "stacked", label: "Stacked (1 Column)" },
+                  ]}
+                  onChange={(value) => {
                     const tilingLayoutMode: TilingLayoutMode =
                       value === "columns"
                         ? { type: "FixedColumns", value: draft.tilingCustomCols }
@@ -809,15 +824,8 @@ export function SettingsPage() {
                                 : { type: "Auto" };
                     updateDraft({ tilingLayoutMode });
                   }}
-                >
-                  <option value="auto">Auto Grid (Square-like)</option>
-                  <option value="columns">Fixed Columns</option>
-                  <option value="rows">Fixed Rows</option>
-                  <option value="custom">Custom Grid (Cols × Rows)</option>
-                  <option value="side-by-side">Side-by-Side (1 Row)</option>
-                  <option value="stacked">Stacked (1 Column)</option>
-                </select>
-              </label>
+                />
+              </div>
             </SettingRow>
             {(currentLayout === "columns" || currentLayout === "custom") && (
               <SettingRow referenceId="layout_dimensions" infoCards={infoCards}>
@@ -1033,17 +1041,20 @@ export function SettingsPage() {
               </SettingRow>
               {!draft.macPreserveOui && (
                 <SettingRow referenceId="mac_alternate_oui" infoCards={infoCards}>
-                  <label className="settings-field-row">
+                  <div className="settings-field-row">
                     <span>Alternate OUI:</span>
-                    <select
+                    <Select
+                      ariaLabel="Alternate OUI"
+                      animated
                       value={draft.macAlternateOui}
-                      onChange={(event) => updateDraft({ macAlternateOui: event.target.value })}
-                    >
-                      <option value="00:1B:21">Intel (00:1B:21)</option>
-                      <option value="00:E0:4C">Realtek (00:E0:4C)</option>
-                      <option value="3C:52:82">Microsoft (3C:52:82)</option>
-                    </select>
-                  </label>
+                      options={[
+                        { value: "00:1B:21", label: "Intel (00:1B:21)" },
+                        { value: "00:E0:4C", label: "Realtek (00:E0:4C)" },
+                        { value: "3C:52:82", label: "Microsoft (3C:52:82)" },
+                      ]}
+                      onChange={(macAlternateOui) => updateDraft({ macAlternateOui })}
+                    />
+                  </div>
                 </SettingRow>
               )}
               <button
@@ -1096,26 +1107,26 @@ export function SettingsPage() {
           </SettingRow>
           <h3>Logging</h3>
           <SettingRow referenceId="log_level" infoCards={infoCards}>
-            <label className="settings-field-row">
+            <div className="settings-field-row">
               <span>Log level</span>
-              <select
+              <Select
+                ariaLabel="Log level"
+                animated
                 value={draft.logLevel}
-                onChange={(event) => {
-                  const level = event.target.value as LogLevel;
+                options={availableLogLevels.map((level) => ({
+                  value: level,
+                  label: level,
+                }))}
+                onChange={(value) => {
+                  const level = value as LogLevel;
                   if (level === config.logLevel) {
                     updateDraft({ logLevel: level });
                   } else {
                     setPendingLogLevel(level);
                   }
                 }}
-              >
-                {availableLogLevels.map((level) => (
-                  <option key={level} value={level}>
-                    {level}
-                  </option>
-                ))}
-              </select>
-            </label>
+              />
+            </div>
           </SettingRow>
           <button
             className="account-button"
