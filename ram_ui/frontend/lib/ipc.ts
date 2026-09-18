@@ -138,6 +138,97 @@ export interface GroupMembershipResult {
   message: string | null;
 }
 
+export type LogLevel = "Error" | "Warn" | "Info" | "Debug" | "Trace";
+
+export type MonitorTarget =
+  | { type: "Primary" }
+  | { type: "All" }
+  | { type: "Index"; value: number };
+
+export type TilingLayoutMode =
+  | { type: "Auto" }
+  | { type: "FixedColumns"; value: number }
+  | { type: "FixedRows"; value: number }
+  | { type: "CustomGrid"; value: { cols: number; rows: number } }
+  | { type: "SideBySide" }
+  | { type: "Stacked" };
+
+export interface MonitorGeometry {
+  index: number;
+  name: string;
+  is_primary: boolean;
+  total_x: number;
+  total_y: number;
+  total_w: number;
+  total_h: number;
+  work_x: number;
+  work_y: number;
+  work_w: number;
+  work_h: number;
+}
+
+export interface SettingsConfig {
+  useCredentialManager: boolean;
+  startupWithWindows: boolean;
+  refreshOnStartup: boolean;
+  autoLaunchOnStartup: boolean;
+  autoLaunchAccountId: number | null;
+  multiInstanceEnabled: boolean;
+  killBackgroundRoblox: boolean;
+  confirmKillAll: boolean;
+  launchDelaySecs: number;
+  customGameArgs: string;
+  robloxPlayerPath: string | null;
+  robloxFastFlags: Record<string, string>;
+  privacyMode: boolean;
+  privacyCleanCookies: boolean;
+  privacyCleanLocalStorage: boolean;
+  privacyCleanFullProfile: boolean;
+  privacyCleanOnExit: boolean;
+  privacyClearClipboard: boolean;
+  macRotationEnabled: boolean;
+  macPreserveOui: boolean;
+  macAlternateOui: string;
+  autoArrangeWindows: boolean;
+  tilingTargetMonitor: MonitorTarget;
+  tilingLayoutMode: TilingLayoutMode;
+  tilingCustomCols: number;
+  tilingCustomRows: number;
+  tilingPadding: number;
+  renameRobloxWindows: boolean;
+  anonymizeNames: boolean;
+  developerOptions: boolean;
+  utilityEnabled: boolean;
+  logLevel: LogLevel;
+}
+
+export type SettingsUpdate = Omit<
+  SettingsConfig,
+  "startupWithWindows" | "robloxFastFlags"
+>;
+
+export interface SettingsInfoCard {
+  kind: "info" | "warning" | "caution" | string;
+  text: string;
+}
+
+export interface SettingsSnapshot {
+  config: SettingsConfig;
+  monitors: MonitorGeometry[];
+  hasPassword: boolean;
+  hasDiscordWebhook: boolean;
+  robloxRunning: boolean;
+  infoCards: Record<string, SettingsInfoCard>;
+}
+
+export interface TilingOptions {
+  target_monitor: MonitorTarget;
+  layout_mode: TilingLayoutMode;
+  custom_cols: number;
+  custom_rows: number;
+  padding: number;
+}
+
 export async function listPrivateServers(): Promise<PrivateServerSummary[]> {
   return invoke<PrivateServerSummary[]>("list_private_servers");
 }
@@ -408,4 +499,75 @@ export async function saveLaunchPreset(
     jobId: jobId.trim() || null,
     data: data.trim() || null,
   });
+}
+
+export async function getSettings(): Promise<SettingsSnapshot> {
+  return invoke<SettingsSnapshot>("get_settings");
+}
+
+export async function saveSettings(
+  settings: SettingsUpdate,
+): Promise<SettingsConfig> {
+  return invoke<SettingsConfig>("save_settings", { settings });
+}
+
+export async function setStartupWithWindows(enabled: boolean): Promise<void> {
+  return invoke<void>("set_startup_with_windows", {
+    change: { enabled },
+  });
+}
+
+export async function enableMultiInstance(): Promise<void> {
+  return invoke<void>("enable_multi_instance");
+}
+
+export async function arrangeSettingsWindows(
+  options: TilingOptions,
+): Promise<void> {
+  return invoke<void>("arrange_settings_windows", { options });
+}
+
+export async function rotateMacAddress(
+  preserveOui: boolean,
+  alternateOui: string,
+): Promise<void> {
+  return invoke<void>("rotate_mac_address", {
+    rotation: { preserveOui, alternateOui },
+  });
+}
+
+export async function openDataFolder(): Promise<void> {
+  return invoke<void>("open_data_folder");
+}
+
+export async function cleanOrphanedData(): Promise<number> {
+  return invoke<number>("clean_orphaned_data");
+}
+
+export async function clearApplicationCaches(): Promise<number> {
+  return invoke<number>("clear_application_caches");
+}
+
+export async function restartApp(): Promise<void> {
+  return invoke<void>("restart_app");
+}
+
+export async function saveDiscordWebhook(url: string): Promise<void> {
+  return invoke<void>("save_discord_webhook", { url });
+}
+
+export async function removeDiscordWebhook(): Promise<void> {
+  return invoke<void>("remove_discord_webhook");
+}
+
+export async function testDiscordWebhook(url: string): Promise<void> {
+  return invoke<void>("test_discord_webhook", { url });
+}
+
+export async function changePassword(newPassword: string): Promise<void> {
+  return invoke<void>("change_password", { newPassword });
+}
+
+export async function clearPassword(): Promise<void> {
+  return invoke<void>("clear_password");
 }

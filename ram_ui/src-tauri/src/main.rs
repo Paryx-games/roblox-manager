@@ -6,12 +6,18 @@ mod state;
 #[allow(dead_code)]
 mod browser_login;
 
+#[path = "../../src/startup.rs"]
+mod startup;
+
 use base64::Engine;
 use ram_core::crypto;
 use ram_core::group_api;
-use ram_core::models::{Account, GroupMeta, LaunchPreset, Presence, PrivateServer};
+use ram_core::models::{
+    Account, AppConfig, GroupMeta, LaunchPreset, LogLevel, MonitorGeometry, MonitorTarget,
+    Presence, PrivateServer, TilingLayoutMode, TilingOptions,
+};
 use ram_core::{api, assets_api, auth::RobloxClient, process};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use state::AppState;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -177,6 +183,215 @@ struct PrivateServerSummary {
     place_name: String,
     icon_url: String,
     url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SettingsUpdate {
+    use_credential_manager: bool,
+    refresh_on_startup: bool,
+    auto_launch_on_startup: bool,
+    auto_launch_account_id: Option<u64>,
+    multi_instance_enabled: bool,
+    kill_background_roblox: bool,
+    confirm_kill_all: bool,
+    launch_delay_secs: u32,
+    custom_game_args: String,
+    roblox_player_path: Option<String>,
+    privacy_mode: bool,
+    privacy_clean_cookies: bool,
+    privacy_clean_local_storage: bool,
+    privacy_clean_full_profile: bool,
+    privacy_clean_on_exit: bool,
+    privacy_clear_clipboard: bool,
+    mac_rotation_enabled: bool,
+    mac_preserve_oui: bool,
+    mac_alternate_oui: String,
+    auto_arrange_windows: bool,
+    tiling_target_monitor: MonitorTarget,
+    tiling_layout_mode: TilingLayoutMode,
+    tiling_custom_cols: u32,
+    tiling_custom_rows: u32,
+    tiling_padding: u32,
+    rename_roblox_windows: bool,
+    anonymize_names: bool,
+    developer_options: bool,
+    utility_enabled: bool,
+    log_level: LogLevel,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SettingsConfig {
+    use_credential_manager: bool,
+    startup_with_windows: bool,
+    refresh_on_startup: bool,
+    auto_launch_on_startup: bool,
+    auto_launch_account_id: Option<u64>,
+    multi_instance_enabled: bool,
+    kill_background_roblox: bool,
+    confirm_kill_all: bool,
+    launch_delay_secs: u32,
+    custom_game_args: String,
+    roblox_player_path: Option<String>,
+    roblox_fast_flags: std::collections::HashMap<String, String>,
+    privacy_mode: bool,
+    privacy_clean_cookies: bool,
+    privacy_clean_local_storage: bool,
+    privacy_clean_full_profile: bool,
+    privacy_clean_on_exit: bool,
+    privacy_clear_clipboard: bool,
+    mac_rotation_enabled: bool,
+    mac_preserve_oui: bool,
+    mac_alternate_oui: String,
+    auto_arrange_windows: bool,
+    tiling_target_monitor: MonitorTarget,
+    tiling_layout_mode: TilingLayoutMode,
+    tiling_custom_cols: u32,
+    tiling_custom_rows: u32,
+    tiling_padding: u32,
+    rename_roblox_windows: bool,
+    anonymize_names: bool,
+    developer_options: bool,
+    utility_enabled: bool,
+    log_level: LogLevel,
+}
+
+impl SettingsConfig {
+    fn from_config(config: &AppConfig) -> Self {
+        Self {
+            use_credential_manager: config.use_credential_manager,
+            startup_with_windows: config.startup_with_windows,
+            refresh_on_startup: config.refresh_on_startup,
+            auto_launch_on_startup: config.auto_launch_on_startup,
+            auto_launch_account_id: config.auto_launch_account_id,
+            multi_instance_enabled: config.multi_instance_enabled,
+            kill_background_roblox: config.kill_background_roblox,
+            confirm_kill_all: config.confirm_kill_all,
+            launch_delay_secs: config.launch_delay_secs,
+            custom_game_args: config.custom_game_args.clone(),
+            roblox_player_path: config
+                .roblox_player_path
+                .as_ref()
+                .map(|path| path.display().to_string()),
+            roblox_fast_flags: config.roblox_fast_flags.clone(),
+            privacy_mode: config.privacy_mode,
+            privacy_clean_cookies: config.privacy_clean_cookies,
+            privacy_clean_local_storage: config.privacy_clean_local_storage,
+            privacy_clean_full_profile: config.privacy_clean_full_profile,
+            privacy_clean_on_exit: config.privacy_clean_on_exit,
+            privacy_clear_clipboard: config.privacy_clear_clipboard,
+            mac_rotation_enabled: config.mac_rotation_enabled,
+            mac_preserve_oui: config.mac_preserve_oui,
+            mac_alternate_oui: config.mac_alternate_oui.clone(),
+            auto_arrange_windows: config.auto_arrange_windows,
+            tiling_target_monitor: config.tiling_target_monitor.clone(),
+            tiling_layout_mode: config.tiling_layout_mode.clone(),
+            tiling_custom_cols: config.tiling_custom_cols,
+            tiling_custom_rows: config.tiling_custom_rows,
+            tiling_padding: config.tiling_padding,
+            rename_roblox_windows: config.rename_roblox_windows,
+            anonymize_names: config.anonymize_names,
+            developer_options: config.developer_options,
+            utility_enabled: config.utility_enabled,
+            log_level: config.log_level,
+        }
+    }
+}
+
+impl SettingsUpdate {
+    fn apply_to_config(self, config: &mut AppConfig) -> Result<(), String> {
+        if self.custom_game_args.chars().count() > 4096 || self.custom_game_args.contains('\0') {
+            return Err("Custom Roblox arguments must be 4096 characters or fewer".to_string());
+        }
+        if self
+            .roblox_player_path
+            .as_deref()
+            .is_some_and(|path| path.chars().count() > 32768 || path.contains('\0'))
+        {
+            return Err(
+                "Roblox player path is too long or contains an invalid character".to_string(),
+            );
+        }
+        if self.launch_delay_secs > 300 {
+            return Err("Launch delay must be between 0 and 300 seconds".to_string());
+        }
+        if self.tiling_custom_cols == 0 || self.tiling_custom_cols > 12 {
+            return Err("Tiling columns must be between 1 and 12".to_string());
+        }
+        if self.tiling_custom_rows == 0 || self.tiling_custom_rows > 12 {
+            return Err("Tiling rows must be between 1 and 12".to_string());
+        }
+        if self.tiling_padding > 50 {
+            return Err("Window padding must be between 0 and 50 pixels".to_string());
+        }
+        if !self.log_level.allowed_in_profile() {
+            return Err("That log level is unavailable in this build".to_string());
+        }
+        if !valid_mac_oui(&self.mac_alternate_oui) {
+            return Err("Alternate OUI must use the format 00:1B:21".to_string());
+        }
+
+        config.use_credential_manager = self.use_credential_manager;
+        config.refresh_on_startup = self.refresh_on_startup;
+        config.auto_launch_on_startup = self.auto_launch_on_startup;
+        config.auto_launch_account_id = self.auto_launch_account_id;
+        config.multi_instance_enabled = self.multi_instance_enabled;
+        config.kill_background_roblox = self.kill_background_roblox;
+        config.confirm_kill_all = self.confirm_kill_all;
+        config.launch_delay_secs = self.launch_delay_secs;
+        config.custom_game_args = self.custom_game_args;
+        config.roblox_player_path = self
+            .roblox_player_path
+            .filter(|path| !path.trim().is_empty())
+            .map(std::path::PathBuf::from);
+        config.privacy_mode = self.privacy_mode;
+        config.privacy_clean_cookies = self.privacy_clean_cookies;
+        config.privacy_clean_local_storage = self.privacy_clean_local_storage;
+        config.privacy_clean_full_profile = self.privacy_clean_full_profile;
+        config.privacy_clean_on_exit = self.privacy_clean_on_exit;
+        config.privacy_clear_clipboard = self.privacy_clear_clipboard;
+        config.mac_rotation_enabled = self.mac_rotation_enabled;
+        config.mac_preserve_oui = self.mac_preserve_oui;
+        config.mac_alternate_oui = self.mac_alternate_oui;
+        config.auto_arrange_windows = self.auto_arrange_windows;
+        config.tiling_target_monitor = self.tiling_target_monitor;
+        config.tiling_layout_mode = self.tiling_layout_mode;
+        config.tiling_custom_cols = self.tiling_custom_cols;
+        config.tiling_custom_rows = self.tiling_custom_rows;
+        config.tiling_padding = self.tiling_padding;
+        config.rename_roblox_windows = self.rename_roblox_windows;
+        config.anonymize_names = self.anonymize_names;
+        config.developer_options = self.developer_options;
+        config.utility_enabled = self.utility_enabled;
+        config.log_level = self.log_level;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SettingsInfoCard {
+    kind: String,
+    text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SettingsSnapshot {
+    config: SettingsConfig,
+    monitors: Vec<MonitorGeometry>,
+    has_password: bool,
+    has_discord_webhook: bool,
+    roblox_running: bool,
+    info_cards: std::collections::HashMap<String, SettingsInfoCard>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawSettingsInfoCard {
+    #[serde(rename = "type")]
+    kind: String,
+    text: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -787,6 +1002,372 @@ fn save_config(runtime: &state::RuntimeState) -> Result<(), String> {
         .config
         .save(&runtime.config_path)
         .map_err(|error| error.to_string())
+}
+
+fn settings_info_cards() -> std::collections::HashMap<String, SettingsInfoCard> {
+    serde_json::from_str::<std::collections::HashMap<String, RawSettingsInfoCard>>(include_str!(
+        "../../../infocards.json"
+    ))
+    .unwrap_or_default()
+    .into_iter()
+    .map(|(key, card)| {
+        (
+            key,
+            SettingsInfoCard {
+                kind: card.kind,
+                text: card.text,
+            },
+        )
+    })
+    .collect()
+}
+
+fn valid_discord_webhook_url(url: &str) -> bool {
+    let Some(path) = url.strip_prefix("https://discord.com/api/webhooks/") else {
+        return false;
+    };
+    let Some((webhook_id, token)) = path.split_once('/') else {
+        return false;
+    };
+    webhook_id.len() >= 18
+        && webhook_id
+            .chars()
+            .all(|character| character.is_ascii_digit())
+        && !token.is_empty()
+        && token
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
+}
+
+fn valid_mac_oui(oui: &str) -> bool {
+    oui.len() == 8
+        && oui.chars().enumerate().all(|(index, character)| {
+            (index == 2 || index == 5) && character == ':'
+                || (index != 2 && index != 5 && character.is_ascii_hexdigit())
+        })
+}
+
+fn validate_tiling_options(options: &TilingOptions) -> Result<(), String> {
+    if options.custom_cols == 0 || options.custom_cols > 12 {
+        return Err("Tiling columns must be between 1 and 12".to_string());
+    }
+    if options.custom_rows == 0 || options.custom_rows > 12 {
+        return Err("Tiling rows must be between 1 and 12".to_string());
+    }
+    if options.padding > 50 {
+        return Err("Window padding must be between 0 and 50 pixels".to_string());
+    }
+    match &options.layout_mode {
+        TilingLayoutMode::FixedColumns(columns) if !(1..=12).contains(columns) => {
+            Err("Fixed columns must be between 1 and 12".to_string())
+        }
+        TilingLayoutMode::FixedRows(rows) if !(1..=12).contains(rows) => {
+            Err("Fixed rows must be between 1 and 12".to_string())
+        }
+        TilingLayoutMode::CustomGrid { cols, rows }
+            if !(1..=12).contains(cols) || !(1..=12).contains(rows) =>
+        {
+            Err("Custom grid dimensions must be between 1 and 12".to_string())
+        }
+        _ => Ok(()),
+    }
+}
+
+#[tauri::command]
+fn get_settings(state: tauri::State<'_, AppState>) -> Result<SettingsSnapshot, String> {
+    let runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?;
+    let has_password = runtime
+        .session
+        .as_ref()
+        .is_some_and(|session| session.needs_password());
+    let has_discord_webhook = crypto::discord_webhook()
+        .map_err(|error| error.to_string())?
+        .is_some();
+    Ok(SettingsSnapshot {
+        config: SettingsConfig::from_config(&runtime.config),
+        monitors: process::enumerate_monitors(),
+        has_password,
+        has_discord_webhook,
+        roblox_running: process::is_roblox_running(),
+        info_cards: settings_info_cards(),
+    })
+}
+
+#[tauri::command]
+fn save_settings(
+    state: tauri::State<'_, AppState>,
+    settings: SettingsUpdate,
+) -> Result<SettingsConfig, String> {
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?;
+    let mut candidate = runtime.config.clone();
+    settings.apply_to_config(&mut candidate)?;
+    candidate
+        .save(&runtime.config_path)
+        .map_err(|error| error.to_string())?;
+    runtime.config = candidate;
+    Ok(SettingsConfig::from_config(&runtime.config))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StartupChange {
+    enabled: bool,
+}
+
+#[tauri::command]
+async fn set_startup_with_windows(
+    state: tauri::State<'_, AppState>,
+    change: StartupChange,
+) -> Result<(), String> {
+    let enabled = change.enabled;
+    tauri::async_runtime::spawn_blocking(move || startup::set_enabled(enabled))
+        .await
+        .map_err(|error| format!("Startup task failed: {error}"))?
+        .map_err(|error| error.to_string())?;
+
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?;
+    let previous = runtime.config.startup_with_windows;
+    runtime.config.startup_with_windows = enabled;
+    if let Err(error) = save_config(&runtime) {
+        runtime.config.startup_with_windows = previous;
+        return Err(error);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn enable_multi_instance(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        process::kill_tray_roblox();
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        if process::is_roblox_running() {
+            return Err(
+                "Close all Roblox instances (including tray) before enabling multi-instance."
+                    .to_string(),
+            );
+        }
+        process::enable_multi_instance().map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| format!("Multi-instance task failed: {error}"))??;
+
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?;
+    runtime.config.multi_instance_enabled = true;
+    save_config(&runtime)
+}
+
+#[tauri::command]
+async fn arrange_settings_windows(options: TilingOptions) -> Result<(), String> {
+    validate_tiling_options(&options)?;
+    tauri::async_runtime::spawn_blocking(move || process::arrange_roblox_windows(&options))
+        .await
+        .map_err(|error| format!("Window arrangement task failed: {error}"))?;
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MacAddressRotation {
+    preserve_oui: bool,
+    alternate_oui: String,
+}
+
+#[tauri::command]
+async fn rotate_mac_address(rotation: MacAddressRotation) -> Result<(), String> {
+    if !valid_mac_oui(&rotation.alternate_oui) {
+        return Err("Alternate OUI must use the format 00:1B:21".to_string());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        process::rotate_mac_address(rotation.preserve_oui, &rotation.alternate_oui)
+    })
+    .await
+    .map_err(|error| format!("MAC rotation task failed: {error}"))?
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn open_data_folder() -> Result<(), String> {
+    let data_folder = std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("RM");
+    tauri::async_runtime::spawn_blocking(move || {
+        std::process::Command::new("explorer.exe")
+            .arg(data_folder)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| format!("Folder open task failed: {error}"))?
+}
+
+#[tauri::command]
+async fn clean_orphaned_data(state: tauri::State<'_, AppState>) -> Result<usize, String> {
+    let known_user_ids = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        runtime
+            .accounts
+            .accounts
+            .iter()
+            .map(|account| account.user_id)
+            .collect::<std::collections::HashSet<_>>()
+    };
+    let data_folder = std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("RM");
+    tauri::async_runtime::spawn_blocking(move || {
+        browser_login::clean_orphaned_browse_as_data(&data_folder, &known_user_ids)
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| format!("Orphan cleanup task failed: {error}"))?
+}
+
+#[tauri::command]
+fn clear_application_caches() -> Result<usize, String> {
+    // the tauri frontend keeps reloadable data in memory; no account or browser data is cacheable
+    Ok(0)
+}
+
+#[tauri::command]
+fn restart_app() -> Result<(), String> {
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    std::process::Command::new(executable)
+        .spawn()
+        .map_err(|error| error.to_string())?;
+    std::process::exit(0);
+}
+
+#[tauri::command]
+fn save_discord_webhook(state: tauri::State<'_, AppState>, url: String) -> Result<(), String> {
+    if !valid_discord_webhook_url(&url) {
+        return Err("Enter a valid Discord webhook URL".to_string());
+    }
+    crypto::set_discord_webhook(&url).map_err(|error| error.to_string())?;
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?;
+    runtime.config.discord_webhook_url.clear();
+    Ok(())
+}
+
+#[tauri::command]
+fn remove_discord_webhook() -> Result<(), String> {
+    crypto::delete_discord_webhook().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn test_discord_webhook(url: String) -> Result<(), String> {
+    if !valid_discord_webhook_url(&url) {
+        return Err("Enter a valid Discord webhook URL".to_string());
+    }
+    let avatar = base64::engine::general_purpose::STANDARD
+        .encode(include_bytes!("../../../assets/Logo.png"));
+    let http = reqwest::Client::new();
+    let response = http
+        .patch(&url)
+        .json(&serde_json::json!({
+            "name": "Roblox Manager",
+            "avatar": format!("data:image/png;base64,{avatar}"),
+        }))
+        .send()
+        .await
+        .map_err(|_| "Discord webhook request failed".to_string())?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Discord webhook rejected branding (HTTP {})",
+            response.status().as_u16()
+        ));
+    }
+    let response = http
+        .post(&url)
+        .json(&serde_json::json!({
+            "username": "Roblox Manager",
+            "content": "Roblox Manager webhook connected successfully.",
+        }))
+        .send()
+        .await
+        .map_err(|_| "Discord webhook request failed".to_string())?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Discord webhook rejected test message (HTTP {})",
+            response.status().as_u16()
+        ));
+    }
+    Ok(())
+}
+
+async fn rekey_store(
+    state: tauri::State<'_, AppState>,
+    password: Option<String>,
+) -> Result<(), String> {
+    let (path, accounts, session) = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        (
+            runtime.config.accounts_path.clone(),
+            runtime.accounts.clone(),
+            runtime
+                .session
+                .clone()
+                .ok_or_else(|| "Account store is locked".to_string())?,
+        )
+    };
+    let next_session = tauri::async_runtime::spawn_blocking(move || {
+        let next_session =
+            crypto::rewrap(&session, password.as_deref()).map_err(|error| error.to_string())?;
+        crypto::save_rekeyed(&path, &accounts, &next_session).map_err(|error| error.to_string())?;
+        Ok::<_, String>(next_session)
+    })
+    .await
+    .map_err(|error| format!("Encryption task failed: {error}"))??;
+
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?;
+    runtime.session = Some(next_session);
+    runtime.legacy_store = false;
+    Ok(())
+}
+
+#[tauri::command]
+async fn change_password(
+    state: tauri::State<'_, AppState>,
+    new_password: String,
+) -> Result<(), String> {
+    if new_password.is_empty() {
+        return Err("Enter a password before saving".to_string());
+    }
+    if new_password.chars().count() > 1024 {
+        return Err("Password must be 1024 characters or fewer".to_string());
+    }
+    rekey_store(state, Some(new_password)).await
+}
+
+#[tauri::command]
+async fn clear_password(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    rekey_store(state, None).await
 }
 
 #[tauri::command]
@@ -1910,6 +2491,21 @@ fn main() {
             create_device_store,
             unlock_device,
             unlock_password,
+            get_settings,
+            save_settings,
+            set_startup_with_windows,
+            enable_multi_instance,
+            arrange_settings_windows,
+            rotate_mac_address,
+            open_data_folder,
+            clean_orphaned_data,
+            clear_application_caches,
+            restart_app,
+            save_discord_webhook,
+            remove_discord_webhook,
+            test_discord_webhook,
+            change_password,
+            clear_password,
             update_account_alias,
             toggle_account_pin,
             update_account_group,

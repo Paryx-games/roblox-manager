@@ -5065,6 +5065,7 @@ dependencies = [
  "base64 0.23.1",
  "chrono",
  "ram_core",
+ "reqwest",
  "serde",
  "serde_json",
  "tao",
@@ -5075,6 +5076,7 @@ dependencies = [
  "tracing-subscriber",
  "webview2-com",
  "windows-core 0.61.2",
+ "winreg",
  "wry 0.56.1",
 ]
 

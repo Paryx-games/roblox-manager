@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Settings workspace.** Port the full legacy Settings page into the Tauri shell with persisted launch, privacy, tiling, identity, data, integration, and account-encryption controls.
 - **Input recovery and diagnostics.** Harden transient UI cleanup, prevent tab-switch interaction races, and write scrubbed startup diagnostics to the rotating RM log file.
 - **Tauri development diagnostics.** `pnpm --dir ram_ui tauri dev` now defaults to info-level Rust tracing output while respecting an existing `RUST_LOG` override, and secondary controls keep their neutral borders.
 - **Tauri tracing output.** The Tauri command process now initializes an info-level subscriber so development diagnostics actually print to the `tauri dev` terminal.

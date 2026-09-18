@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
 import { GroupsPage } from "./GroupsPage";
 import { PrivateServersPage } from "./PrivateServersPage";
+import { SettingsPage } from "./SettingsPage";
 
 type NavItem = {
   label: string;
@@ -10,7 +11,7 @@ type NavItem = {
   page?: PageName;
 };
 
-type PageName = "Accounts" | "Groups" | "Private Servers";
+type PageName = "Accounts" | "Groups" | "Private Servers" | "Settings";
 
 const navItems: NavItem[] = [
   { label: "Accounts", icon: "id-card", page: "Accounts" },
@@ -134,6 +135,10 @@ export function App() {
       );
     }
 
+    if (page === "Settings") {
+      return <SettingsPage />;
+    }
+
     return (
       <>
         <div className="header-row">
@@ -225,7 +230,13 @@ export function App() {
             onClick={() => {}}
           />
           <RailButton label="Clear Cache" icon="eraser" onClick={() => {}} />
-          <RailButton label="Settings" icon="settings" onClick={() => {}} />
+          <RailButton
+            label="Settings"
+            icon="settings"
+            page="Settings"
+            active={activeNav === "Settings"}
+            onClick={() => navigateTo("Settings")}
+          />
         </nav>
 
         <div className="main-col">
