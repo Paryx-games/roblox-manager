@@ -2816,6 +2816,10 @@ button:focus-visible {
   height: 14px;
 }
 
+.groups-status-pill .account-icon-current-color {
+  filter: none;
+}
+
 .groups-empty-inline,
 .groups-start {
   display: flex;
