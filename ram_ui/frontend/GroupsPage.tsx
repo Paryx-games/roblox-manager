@@ -549,22 +549,26 @@ export function GroupsPage({
               />
               <section className="groups-card">
                 <h2>About</h2>
-                <div className="groups-copy">
+                <div className="groups-about">
                   {workspace.group.description ? (
-                    <p>{workspace.group.description}</p>
+                    <p className="groups-about-description">
+                      {workspace.group.description}
+                    </p>
                   ) : (
-                    <p className="groups-data">
+                    <p className="groups-about-description groups-data">
                       This group has not provided a description.
                     </p>
                   )}
-                  {workspace.group.communityTier !== null && (
-                    <p className="groups-data">
-                      Community tier {workspace.group.communityTier}
-                      {workspace.group.created
-                        ? ` · Created ${formatDate(workspace.group.created)}`
-                        : ""}
-                    </p>
-                  )}
+                  <div className="groups-about-meta">
+                    {workspace.group.communityTier !== null && (
+                      <span>
+                        Community tier {workspace.group.communityTier}
+                      </span>
+                    )}
+                    {workspace.group.created && (
+                      <span>Created {formatDate(workspace.group.created)}</span>
+                    )}
+                  </div>
                 </div>
               </section>
               <section className="groups-card">
