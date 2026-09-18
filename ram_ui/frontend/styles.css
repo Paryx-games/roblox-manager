@@ -3441,6 +3441,7 @@ button:focus-visible {
   justify-content: center;
   padding: var(--space-8);
   background: var(--bg-canvas);
+  animation: popup-enter var(--duration-base) var(--ease-standard) both;
 }
 
 .group-editor {
@@ -3493,6 +3494,7 @@ button:focus-visible {
   justify-content: center;
   padding: var(--space-8);
   background: var(--bg-canvas);
+  animation: popup-enter var(--duration-base) var(--ease-standard) both;
 }
 
 .confirm-modal {
@@ -3504,6 +3506,27 @@ button:focus-visible {
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
   background: var(--bg-surface);
+  animation: popup-enter var(--duration-base) var(--ease-standard) both;
+}
+
+@keyframes popup-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group-editor-backdrop,
+  .confirm-modal-backdrop,
+  .confirm-modal {
+    animation: none;
+  }
 }
 
 .confirm-modal-header,

@@ -49,6 +49,7 @@ import {
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
+import { Popup } from "./components/Popup";
 import {
   Toast,
   type ToastDuration,
@@ -1954,23 +1955,15 @@ export function AccountsPage({
         </aside>
 
         {showAddForm && (
-          <div
-            className={`add-account-modal-backdrop ${
-              addFormClosing ? "is-closing" : ""
+          <Popup
+            className={`add-account-modal ${
+              browserLoginLoading ? "is-browser-pending" : ""
             }`}
-            role="presentation"
-            onPointerDown={(event) => event.stopPropagation()}
+            backdropClassName="add-account-modal-backdrop"
+            isClosing={addFormClosing}
+            labelledBy="add-account-title"
+            busy={browserLoginLoading}
           >
-            <section
-              className={`add-account-modal ${
-                browserLoginLoading ? "is-browser-pending" : ""
-              }`}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="add-account-title"
-              aria-busy={browserLoginLoading}
-              onClick={(event) => event.stopPropagation()}
-            >
               <div className="add-account-modal-header">
                 <div>
                   <h2 id="add-account-title">Add account</h2>
@@ -2105,18 +2098,15 @@ export function AccountsPage({
                   <span>Waiting for browser login...</span>
                 </div>
               )}
-            </section>
-          </div>
+          </Popup>
         )}
 
         {groupEditor && (
-          <div className="group-editor-backdrop" role="presentation">
-            <section
-              className="group-editor"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="group-editor-title"
-            >
+          <Popup
+            className="group-editor"
+            backdropClassName="group-editor-backdrop"
+            labelledBy="group-editor-title"
+          >
               <div className="group-editor-header">
                 <h2 id="group-editor-title">
                   {groupEditor.originalName ? "Edit group" : "Create group"}
@@ -2205,8 +2195,7 @@ export function AccountsPage({
                   {groupEditor.originalName ? "Save group" : "Create group"}
                 </button>
               </div>
-            </section>
-          </div>
+          </Popup>
         )}
 
         {groupDeleteConfirmation && (

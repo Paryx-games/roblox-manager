@@ -12,6 +12,7 @@ import {
 import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
 import { Icon } from "./components/Icon";
+import { Popup } from "./components/Popup";
 
 type OwnershipStatus = "owned" | "unknown" | "not-owned";
 
@@ -599,20 +600,15 @@ export function PrivateServersPage({
         />
       )}
       {editTarget && (
-        <div
-          className="add-account-modal-backdrop"
-          role="presentation"
-          onClick={() => {
+        <Popup
+          className="add-account-modal private-server-edit-modal"
+          backdropClassName="add-account-modal-backdrop"
+          onClose={() => {
             if (!editSaving) setEditTarget(null);
           }}
+          closeOnBackdrop
+          labelledBy="edit-private-server-title"
         >
-          <section
-            className="add-account-modal private-server-edit-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="edit-private-server-title"
-            onClick={(event) => event.stopPropagation()}
-          >
             <div className="add-account-modal-header">
               <div>
                 <h2 id="edit-private-server-title">Edit private server</h2>
@@ -669,8 +665,7 @@ export function PrivateServersPage({
                 {editSaving ? "Saving..." : "Save changes"}
               </button>
             </div>
-          </section>
-        </div>
+        </Popup>
       )}
     </>
   );

@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { Popup } from "./components/Popup";
 
 type ConfirmModalProps = {
   title: string;
@@ -30,29 +31,16 @@ export function ConfirmModal({
   confirmDisabled = false,
   confirmIcon = "delete",
 }: ConfirmModalProps) {
-  useEffect(() => {
-    function dismissOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") onCancel();
-    }
-
-    document.addEventListener("keydown", dismissOnEscape);
-    return () => document.removeEventListener("keydown", dismissOnEscape);
-  }, [onCancel]);
-
   return (
-    <div
-      className="confirm-modal-backdrop"
-      role="presentation"
-      onClick={onCancel}
+    <Popup
+      className="confirm-modal"
+      backdropClassName="confirm-modal-backdrop"
+      onClose={onCancel}
+      closeOnBackdrop
+      role="alertdialog"
+      labelledBy="confirm-modal-title"
+      describedBy="confirm-modal-message"
     >
-      <section
-        className="confirm-modal"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirm-modal-title"
-        aria-describedby="confirm-modal-message"
-        onClick={(event) => event.stopPropagation()}
-      >
         <div className="confirm-modal-header">
           <h2 id="confirm-modal-title">{title}</h2>
           <button
@@ -83,7 +71,6 @@ export function ConfirmModal({
             {confirmLabel}
           </button>
         </div>
-      </section>
-    </div>
+    </Popup>
   );
 }
