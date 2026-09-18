@@ -3406,7 +3406,8 @@ button:focus-visible {
 .account-actions-menu-danger,
 .account-group-menu-danger,
 .private-server-menu-danger {
-  color: var(--status-danger);
+  color: var(--text-primary);
+  background: var(--status-danger);
 }
 
 .account-actions-menu-danger .account-icon,
@@ -3436,7 +3437,8 @@ button:focus-visible {
 .account-group-menu-danger:focus-visible,
 .private-server-menu-danger:hover,
 .private-server-menu-danger:focus-visible {
-  background: var(--bg-surface);
+  color: var(--text-primary);
+  background: var(--status-danger);
 }
 
 .group-editor-backdrop {

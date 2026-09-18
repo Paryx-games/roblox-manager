@@ -1943,9 +1943,9 @@ export function AccountsPage({
                 groupMenuRef.current = element;
               }}
             >
-              <button
-                type="button"
-                role="menuitem"
+                        <button
+                          type="button"
+                          role="menuitem"
                 onClick={() => openGroupEditor(groupContextMenu.name)}
               >
                 <Icon name="edit" />
@@ -2392,6 +2392,7 @@ export function AccountsPage({
                           : "Pin account"}
                       </button>
                       <button
+                        className="account-actions-menu-danger"
                         type="button"
                         role="menuitem"
                         onClick={() => {
@@ -2425,6 +2426,7 @@ export function AccountsPage({
                         Arrange windows
                       </button>
                       <button
+                        className="account-actions-menu-danger"
                         type="button"
                         role="menuitem"
                         onClick={() => {
