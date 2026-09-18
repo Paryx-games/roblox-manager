@@ -32,6 +32,45 @@ type Notice = {
   message: string;
 };
 
+type SettingsSectionId =
+  | "account-storage"
+  | "launching"
+  | "privacy-identity"
+  | "app-data"
+  | "roblox-installation"
+  | "advanced"
+  | "integrations"
+  | "account-encryption";
+
+type SettingsSectionGroup = {
+  id: "workspace" | "application";
+  label: string;
+  sections: Array<{ id: SettingsSectionId; label: string }>;
+};
+
+const SETTINGS_SECTION_GROUPS: SettingsSectionGroup[] = [
+  {
+    id: "workspace",
+    label: "Workspace",
+    sections: [
+      { id: "account-storage", label: "Account storage" },
+      { id: "launching", label: "Launching" },
+      { id: "privacy-identity", label: "Privacy and identity" },
+    ],
+  },
+  {
+    id: "application",
+    label: "Application",
+    sections: [
+      { id: "app-data", label: "App and data" },
+      { id: "roblox-installation", label: "Roblox installation" },
+      { id: "advanced", label: "Advanced" },
+      { id: "integrations", label: "Integrations" },
+      { id: "account-encryption", label: "Account encryption" },
+    ],
+  },
+];
+
 const LOG_LEVELS: LogLevel[] = ["Error", "Warn", "Info", "Debug", "Trace"];
 
 function draftFromConfig(config: SettingsConfig): SettingsUpdate {
@@ -112,12 +151,117 @@ function Toggle({
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  id,
+  title,
+  isCollapsed,
+  onToggle,
+  children,
+}: {
+  id: SettingsSectionId;
+  title: string;
+  isCollapsed: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
   return (
-    <section className="settings-section">
-      <h2>{title}</h2>
-      {children}
+    <section
+      id={`settings-section-${id}`}
+      className={`settings-section ${isCollapsed ? "is-collapsed" : ""}`}
+    >
+      <h2>
+        <button
+          className="settings-section-toggle"
+          type="button"
+          aria-expanded={!isCollapsed}
+          onClick={onToggle}
+        >
+          <span>{title}</span>
+          <Icon name="chevron-down" />
+        </button>
+      </h2>
+      {!isCollapsed && <div className="settings-section-body">{children}</div>}
     </section>
+  );
+}
+
+function SettingsSidebar({
+  collapsedGroups,
+  collapsedSections,
+  activeSection,
+  onToggleGroup,
+  onToggleSection,
+  onNavigate,
+}: {
+  collapsedGroups: Record<SettingsSectionGroup["id"], boolean>;
+  collapsedSections: Partial<Record<SettingsSectionId, boolean>>;
+  activeSection: SettingsSectionId;
+  onToggleGroup: (groupId: SettingsSectionGroup["id"]) => void;
+  onToggleSection: (sectionId: SettingsSectionId) => void;
+  onNavigate: (sectionId: SettingsSectionId) => void;
+}) {
+  return (
+    <aside className="settings-sidebar" aria-label="Settings sections">
+      <div className="settings-sidebar-heading">Settings sections</div>
+      {SETTINGS_SECTION_GROUPS.map((group) => {
+        const isGroupCollapsed = collapsedGroups[group.id];
+        return (
+          <div
+            className={`settings-sidebar-group ${
+              isGroupCollapsed ? "is-collapsed" : ""
+            }`}
+            key={group.id}
+          >
+            <button
+              className="settings-sidebar-group-toggle"
+              type="button"
+              aria-expanded={!isGroupCollapsed}
+              onClick={() => onToggleGroup(group.id)}
+            >
+              <Icon name="chevron-down" />
+              <span>{group.label}</span>
+            </button>
+            {!isGroupCollapsed && (
+              <div className="settings-sidebar-items">
+                {group.sections.map((section) => {
+                  const isSectionCollapsed = collapsedSections[section.id] ?? false;
+                  return (
+                    <div
+                      className={`settings-sidebar-item ${
+                        isSectionCollapsed ? "is-collapsed" : ""
+                      }`}
+                      key={section.id}
+                    >
+                      <button
+                        className={`settings-sidebar-link ${
+                          activeSection === section.id ? "is-active" : ""
+                        }`}
+                        type="button"
+                        aria-current={
+                          activeSection === section.id ? "location" : undefined
+                        }
+                        onClick={() => onNavigate(section.id)}
+                      >
+                        {section.label}
+                      </button>
+                      <button
+                        className="settings-sidebar-collapse"
+                        type="button"
+                        aria-label={`${isSectionCollapsed ? "Expand" : "Collapse"} ${section.label}`}
+                        aria-expanded={!isSectionCollapsed}
+                        onClick={() => onToggleSection(section.id)}
+                      >
+                        <Icon name="chevron-down" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </aside>
   );
 }
 
@@ -163,6 +307,14 @@ export function SettingsPage() {
   const [webhookModalOpen, setWebhookModalOpen] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [webhookBusy, setWebhookBusy] = useState<"save" | "test" | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<
+    Record<SettingsSectionGroup["id"], boolean>
+  >({ workspace: false, application: false });
+  const [collapsedSections, setCollapsedSections] = useState<
+    Partial<Record<SettingsSectionId, boolean>>
+  >({});
+  const [activeSection, setActiveSection] =
+    useState<SettingsSectionId>("account-storage");
 
   async function loadSettings() {
     setIsLoading(true);
@@ -198,6 +350,34 @@ export function SettingsPage() {
 
   function updateDraft(change: Partial<SettingsUpdate>) {
     setDraft((current) => (current ? { ...current, ...change } : current));
+  }
+
+  function toggleSection(sectionId: SettingsSectionId) {
+    setCollapsedSections((current) => ({
+      ...current,
+      [sectionId]: !(current[sectionId] ?? false),
+    }));
+  }
+
+  function navigateToSection(sectionId: SettingsSectionId) {
+    setActiveSection(sectionId);
+    setCollapsedSections((current) => ({ ...current, [sectionId]: false }));
+    const group = SETTINGS_SECTION_GROUPS.find((candidate) =>
+      candidate.sections.some((section) => section.id === sectionId),
+    );
+    if (group) {
+      setCollapsedGroups((current) => ({ ...current, [group.id]: false }));
+    }
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(`settings-section-${sectionId}`)
+        ?.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
+          block: "start",
+        });
+    });
   }
 
   function showError(error: unknown) {
@@ -433,9 +613,29 @@ export function SettingsPage() {
         <h1 className="header-title">Settings</h1>
       </div>
       <main className="content settings-page">
-        <SettingsNotice notice={notice} />
+        <div className="settings-layout">
+          <SettingsSidebar
+            collapsedGroups={collapsedGroups}
+            collapsedSections={collapsedSections}
+            activeSection={activeSection}
+            onToggleGroup={(groupId) =>
+              setCollapsedGroups((current) => ({
+                ...current,
+                [groupId]: !current[groupId],
+              }))
+            }
+            onToggleSection={toggleSection}
+            onNavigate={navigateToSection}
+          />
+          <div className="settings-content">
+            <SettingsNotice notice={notice} />
 
-        <Section title="Account storage">
+        <Section
+          id="account-storage"
+          title="Account storage"
+          isCollapsed={collapsedSections["account-storage"] ?? false}
+          onToggle={() => toggleSection("account-storage")}
+        >
           <SettingRow referenceId="credential_manager" infoCards={infoCards}>
             <Toggle
               checked={draft.useCredentialManager}
@@ -445,7 +645,12 @@ export function SettingsPage() {
           </SettingRow>
         </Section>
 
-        <Section title="Launching">
+        <Section
+          id="launching"
+          title="Launching"
+          isCollapsed={collapsedSections.launching ?? false}
+          onToggle={() => toggleSection("launching")}
+        >
           <h3>App startup</h3>
           <SettingRow referenceId="startup_with_windows" infoCards={infoCards}>
             <Toggle
@@ -741,7 +946,12 @@ export function SettingsPage() {
           </SettingRow>
         </Section>
 
-        <Section title="Privacy and identity">
+        <Section
+          id="privacy-identity"
+          title="Privacy and identity"
+          isCollapsed={collapsedSections["privacy-identity"] ?? false}
+          onToggle={() => toggleSection("privacy-identity")}
+        >
           <h3>Privacy cleanup</h3>
           <SettingRow referenceId="privacy_mode" infoCards={infoCards}>
             <Toggle
@@ -852,7 +1062,12 @@ export function SettingsPage() {
           </SettingRow>
         </Section>
 
-        <Section title="App and data">
+        <Section
+          id="app-data"
+          title="App and data"
+          isCollapsed={collapsedSections["app-data"] ?? false}
+          onToggle={() => toggleSection("app-data")}
+        >
           <h3>Development</h3>
           <SettingRow referenceId="utility_enabled" infoCards={infoCards}>
             <Toggle
@@ -928,7 +1143,12 @@ export function SettingsPage() {
           </SettingRow>
         </Section>
 
-        <Section title="Roblox installation">
+        <Section
+          id="roblox-installation"
+          title="Roblox installation"
+          isCollapsed={collapsedSections["roblox-installation"] ?? false}
+          onToggle={() => toggleSection("roblox-installation")}
+        >
           <p className="settings-muted">Leave empty for auto-detect:</p>
           <SettingRow referenceId="roblox_player_path" infoCards={infoCards}>
             <input
@@ -941,7 +1161,12 @@ export function SettingsPage() {
           </SettingRow>
         </Section>
 
-        <Section title="Advanced">
+        <Section
+          id="advanced"
+          title="Advanced"
+          isCollapsed={collapsedSections.advanced ?? false}
+          onToggle={() => toggleSection("advanced")}
+        >
           <h3>Launch arguments</h3>
           <SettingRow referenceId="custom_game_args" infoCards={infoCards}>
             <label className="settings-field-row settings-field-grow">
@@ -969,7 +1194,12 @@ export function SettingsPage() {
           <p className="settings-muted">Experimental Roblox ClientSettings toggles; written before launch</p>
         </Section>
 
-        <Section title="Integrations">
+        <Section
+          id="integrations"
+          title="Integrations"
+          isCollapsed={collapsedSections.integrations ?? false}
+          onToggle={() => toggleSection("integrations")}
+        >
           <h3>Discord Notifications</h3>
           <SettingRow referenceId="discord_webhook" infoCards={infoCards}>
             <div className="settings-action-row">
@@ -1013,7 +1243,12 @@ export function SettingsPage() {
 
         <div className="settings-separator" />
 
-        <Section title="Account encryption">
+        <Section
+          id="account-encryption"
+          title="Account encryption"
+          isCollapsed={collapsedSections["account-encryption"] ?? false}
+          onToggle={() => toggleSection("account-encryption")}
+        >
           <p>
             {snapshot.hasPassword
               ? "Accounts are encrypted with your master password."
@@ -1064,6 +1299,8 @@ export function SettingsPage() {
             )}
           </div>
         </Section>
+          </div>
+        </div>
       </main>
 
       {pendingLogLevel && (
