@@ -1225,6 +1225,21 @@ async fn open_data_folder() -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn open_presets_folder() -> Result<(), String> {
+    let presets_folder = ram_core::presets::presets_dir(&preset_data_dir());
+    tauri::async_runtime::spawn_blocking(move || {
+        std::fs::create_dir_all(&presets_folder)?;
+        std::process::Command::new("explorer.exe")
+            .arg(presets_folder)
+            .spawn()
+            .map(|_| ())
+    })
+    .await
+    .map_err(|_| "Preset folder open task failed".to_string())?
+    .map_err(|error: std::io::Error| error.to_string())
+}
+
+#[tauri::command]
 async fn clean_orphaned_data(state: tauri::State<'_, AppState>) -> Result<usize, String> {
     let known_user_ids = {
         let runtime = state
@@ -2606,6 +2621,7 @@ fn main() {
             arrange_settings_windows,
             rotate_mac_address,
             open_data_folder,
+            open_presets_folder,
             clean_orphaned_data,
             clear_application_caches,
             restart_app,

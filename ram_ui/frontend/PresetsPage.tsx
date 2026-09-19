@@ -3,7 +3,7 @@ import {
   launchLaunchPreset,
   listAccounts,
   listLaunchPresets,
-  openDataFolder,
+  openPresetsFolder,
   removeLaunchPreset,
   saveLaunchPreset,
   updateLaunchPreset,
@@ -293,7 +293,7 @@ export function PresetsPage({
               type="button"
               aria-label="Open presets folder"
               data-tip="Open presets folder"
-              onClick={() => void openDataFolder()}
+              onClick={() => void openPresetsFolder()}
             >
               <Icon name="folder" />
               <span className="preset-folder-button-label">Open folder</span>

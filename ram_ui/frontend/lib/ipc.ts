@@ -579,6 +579,10 @@ export async function openDataFolder(): Promise<void> {
   return invoke<void>("open_data_folder");
 }
 
+export async function openPresetsFolder(): Promise<void> {
+  return invoke<void>("open_presets_folder");
+}
+
 export async function cleanOrphanedData(): Promise<number> {
   return invoke<number>("clean_orphaned_data");
 }
