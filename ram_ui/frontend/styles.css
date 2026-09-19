@@ -2220,6 +2220,13 @@ button:focus-visible {
   height: 17px;
 }
 
+.preset-thumb img {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius);
+  object-fit: cover;
+}
+
 .preset-info {
   display: grid;
   min-width: 120px;

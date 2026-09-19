@@ -191,6 +191,7 @@ struct LaunchPresetSummary {
     index: usize,
     name: String,
     place_id: u64,
+    icon_url: String,
     job_id: Option<String>,
     data: Option<String>,
 }
@@ -2234,13 +2235,33 @@ fn preset_data_dir() -> PathBuf {
         .join("RM")
 }
 
-fn preset_summary(index: usize, preset: &LaunchPreset) -> LaunchPresetSummary {
+fn preset_summary(index: usize, preset: &LaunchPreset, icon_url: String) -> LaunchPresetSummary {
     LaunchPresetSummary {
         index,
         name: preset.name.clone(),
         place_id: preset.place_id,
+        icon_url,
         job_id: preset.job_id.clone(),
         data: preset.data.clone(),
+    }
+}
+
+async fn fetch_preset_icon(place_id: u64) -> String {
+    let client = match RobloxClient::new() {
+        Ok(client) => client,
+        Err(_) => return String::new(),
+    };
+    let universe_id = match assets_api::resolve_place_universe(&client, "", place_id).await {
+        Ok(universe_id) => universe_id,
+        Err(_) => return String::new(),
+    };
+    match api::fetch_game_icons(&client, "", &[universe_id]).await {
+        Ok(icons) => icons
+            .into_iter()
+            .next()
+            .map(|(_, icon_url)| icon_url)
+            .unwrap_or_default(),
+        Err(_) => String::new(),
     }
 }
 
@@ -2249,13 +2270,17 @@ fn load_preset_entries() -> Result<ram_core::presets::LoadedPresets, String> {
 }
 
 #[tauri::command]
-fn list_launch_presets() -> Result<Vec<LaunchPresetSummary>, String> {
+async fn list_launch_presets() -> Result<Vec<LaunchPresetSummary>, String> {
     let (presets, _) = load_preset_entries()?;
-    Ok(presets
-        .iter()
-        .enumerate()
-        .map(|(index, (_, preset))| preset_summary(index, preset))
-        .collect())
+    let mut summaries = Vec::with_capacity(presets.len());
+    for (index, (_, preset)) in presets.iter().enumerate() {
+        summaries.push(preset_summary(
+            index,
+            preset,
+            fetch_preset_icon(preset.place_id).await,
+        ));
+    }
+    Ok(summaries)
 }
 
 #[tauri::command]
@@ -2284,7 +2309,7 @@ fn save_launch_preset(
 }
 
 #[tauri::command]
-fn update_launch_preset(
+async fn update_launch_preset(
     index: usize,
     name: String,
     place_id: u64,
@@ -2310,7 +2335,11 @@ fn update_launch_preset(
     };
     ram_core::presets::save(&preset_data_dir(), &preset, Some(path))
         .map_err(|error| error.to_string())?;
-    Ok(preset_summary(index, &preset))
+    Ok(preset_summary(
+        index,
+        &preset,
+        fetch_preset_icon(preset.place_id).await,
+    ))
 }
 
 #[tauri::command]

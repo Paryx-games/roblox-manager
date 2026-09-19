@@ -403,7 +403,11 @@ export function PresetsPage({
                 return (
                   <div className="preset-row" key={preset.index}>
                     <span className="preset-thumb">
-                      <Icon name="game" />
+                      {preset.iconUrl ? (
+                        <img src={preset.iconUrl} alt="" />
+                      ) : (
+                        <Icon name="game" />
+                      )}
                     </span>
                     <div className="preset-info">
                       <strong>{preset.name}</strong>

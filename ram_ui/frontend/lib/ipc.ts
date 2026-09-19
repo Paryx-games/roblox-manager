@@ -74,6 +74,7 @@ export interface LaunchPresetSummary {
   index: number;
   name: string;
   placeId: number;
+  iconUrl: string;
   jobId: string | null;
   data: string | null;
 }
