@@ -2368,6 +2368,8 @@ button:focus-visible {
 }
 
 .preset-menu {
+  position: absolute;
+  z-index: 30;
   top: calc(100% + var(--space-2));
   right: 0;
   left: auto;
