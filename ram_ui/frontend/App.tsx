@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
 import { GroupsPage } from "./GroupsPage";
 import { PrivateServersPage } from "./PrivateServersPage";
+import { PresetsPage } from "./PresetsPage";
 import { SettingsPage } from "./SettingsPage";
 
 type NavItem = {
@@ -11,12 +12,18 @@ type NavItem = {
   page?: PageName;
 };
 
-type PageName = "Accounts" | "Groups" | "Private Servers" | "Settings";
+type PageName =
+  | "Accounts"
+  | "Groups"
+  | "Private Servers"
+  | "Presets"
+  | "Settings";
 
 const navItems: NavItem[] = [
   { label: "Accounts", icon: "id-card", page: "Accounts" },
   { label: "Groups", icon: "users", page: "Groups" },
   { label: "Private Servers", icon: "game", page: "Private Servers" },
+  { label: "Presets", icon: "star", page: "Presets" },
 ];
 
 function Icon({ name }: { name: string }) {
@@ -129,6 +136,15 @@ export function App() {
     if (page === "Private Servers") {
       return (
         <PrivateServersPage
+          selectedIds={selectedIds}
+          onNavigateAccounts={() => navigateTo("Accounts")}
+        />
+      );
+    }
+
+    if (page === "Presets") {
+      return (
+        <PresetsPage
           selectedIds={selectedIds}
           onNavigateAccounts={() => navigateTo("Accounts")}
         />

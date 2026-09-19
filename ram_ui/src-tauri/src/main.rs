@@ -187,6 +187,16 @@ struct PrivateServerSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct LaunchPresetSummary {
+    index: usize,
+    name: String,
+    place_id: u64,
+    job_id: Option<String>,
+    data: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SettingsUpdate {
     use_credential_manager: bool,
     refresh_on_startup: bool,
@@ -2202,6 +2212,37 @@ async fn browse_as_account(
     Ok(())
 }
 
+fn preset_data_dir() -> PathBuf {
+    std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("RM")
+}
+
+fn preset_summary(index: usize, preset: &LaunchPreset) -> LaunchPresetSummary {
+    LaunchPresetSummary {
+        index,
+        name: preset.name.clone(),
+        place_id: preset.place_id,
+        job_id: preset.job_id.clone(),
+        data: preset.data.clone(),
+    }
+}
+
+fn load_preset_entries() -> Result<ram_core::presets::LoadedPresets, String> {
+    ram_core::presets::load_all(&preset_data_dir()).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn list_launch_presets() -> Result<Vec<LaunchPresetSummary>, String> {
+    let (presets, _) = load_preset_entries()?;
+    Ok(presets
+        .iter()
+        .enumerate()
+        .map(|(index, (_, preset))| preset_summary(index, preset))
+        .collect())
+}
+
 #[tauri::command]
 fn save_launch_preset(
     name: String,
@@ -2213,10 +2254,10 @@ fn save_launch_preset(
     if trimmed_name.is_empty() || trimmed_name.chars().count() > 80 {
         return Err("Preset name must be between 1 and 80 characters".to_string());
     }
-    let data_dir = std::env::var_os("APPDATA")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("RM");
+    if place_id == 0 {
+        return Err("Enter a valid Roblox place ID".to_string());
+    }
+    let data_dir = preset_data_dir();
     let preset = LaunchPreset {
         name: trimmed_name.to_string(),
         place_id,
@@ -2224,6 +2265,73 @@ fn save_launch_preset(
         data: data.filter(|value| !value.trim().is_empty()),
     };
     ram_core::presets::save(&data_dir, &preset, None).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn update_launch_preset(
+    index: usize,
+    name: String,
+    place_id: u64,
+    job_id: Option<String>,
+    data: Option<String>,
+) -> Result<LaunchPresetSummary, String> {
+    let trimmed_name = name.trim();
+    if trimmed_name.is_empty() || trimmed_name.chars().count() > 80 {
+        return Err("Preset name must be between 1 and 80 characters".to_string());
+    }
+    if place_id == 0 {
+        return Err("Enter a valid Roblox place ID".to_string());
+    }
+    let (presets, _) = load_preset_entries()?;
+    let (path, _) = presets
+        .get(index)
+        .ok_or_else(|| "Preset not found".to_string())?;
+    let preset = LaunchPreset {
+        name: trimmed_name.to_string(),
+        place_id,
+        job_id: job_id.filter(|value| !value.trim().is_empty()),
+        data: data.filter(|value| !value.trim().is_empty()),
+    };
+    ram_core::presets::save(&preset_data_dir(), &preset, Some(path))
+        .map_err(|error| error.to_string())?;
+    Ok(preset_summary(index, &preset))
+}
+
+#[tauri::command]
+fn remove_launch_preset(index: usize) -> Result<(), String> {
+    let (presets, _) = load_preset_entries()?;
+    let (path, _) = presets
+        .get(index)
+        .ok_or_else(|| "Preset not found".to_string())?;
+    ram_core::presets::delete(path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn launch_launch_preset(
+    state: tauri::State<'_, AppState>,
+    index: usize,
+    user_ids: Vec<u64>,
+) -> Result<(), String> {
+    if user_ids.is_empty() {
+        return Err("Select at least one account before launching".to_string());
+    }
+    let (presets, _) = load_preset_entries()?;
+    let (_, preset) = presets
+        .get(index)
+        .ok_or_else(|| "Preset not found".to_string())?;
+    for user_id in user_ids {
+        launch_account(
+            state.clone(),
+            user_id,
+            preset.place_id,
+            preset.job_id.clone(),
+            preset.data.clone(),
+            None,
+            None,
+        )
+        .await?;
+    }
     Ok(())
 }
 
@@ -2535,7 +2643,11 @@ fn main() {
             add_account_anyway,
             login_and_add_account,
             browse_as_account,
+            list_launch_presets,
             save_launch_preset,
+            update_launch_preset,
+            remove_launch_preset,
+            launch_launch_preset,
             list_account_group_colors,
             list_account_groups,
             reorder_account_groups,

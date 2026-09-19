@@ -70,6 +70,14 @@ export interface PrivateServerSummary {
   ownerProfileUrl?: string;
 }
 
+export interface LaunchPresetSummary {
+  index: number;
+  name: string;
+  placeId: number;
+  jobId: string | null;
+  data: string | null;
+}
+
 export interface GroupSearchResult {
   id: number;
   name: string;
@@ -499,6 +507,37 @@ export async function saveLaunchPreset(
     jobId: jobId.trim() || null,
     data: data.trim() || null,
   });
+}
+
+export async function listLaunchPresets(): Promise<LaunchPresetSummary[]> {
+  return invoke<LaunchPresetSummary[]>("list_launch_presets");
+}
+
+export async function updateLaunchPreset(
+  index: number,
+  name: string,
+  placeId: number,
+  jobId: string,
+  data: string,
+): Promise<LaunchPresetSummary> {
+  return invoke<LaunchPresetSummary>("update_launch_preset", {
+    index,
+    name,
+    placeId,
+    jobId: jobId.trim() || null,
+    data: data.trim() || null,
+  });
+}
+
+export async function removeLaunchPreset(index: number): Promise<void> {
+  return invoke<void>("remove_launch_preset", { index });
+}
+
+export async function launchLaunchPreset(
+  index: number,
+  userIds: number[],
+): Promise<void> {
+  return invoke<void>("launch_launch_preset", { index, userIds });
 }
 
 export async function getSettings(): Promise<SettingsSnapshot> {

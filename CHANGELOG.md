@@ -21,6 +21,7 @@
   the bundled Roboto sans-serif family instead of mixing in monospace styles.
 - **Groups workspace.** Port the groups page from the legacy egui into Tauri + React, including group search and ID loading, live group details, selected-account membership inspection, join/leave actions, account selection, announcements, wall states, loading/error handling, and challenge fallback.
 - **Private Servers workspace.** Add and manage saved Roblox private-server links, then launch every account selected in Accounts.
+- **Presets workspace.** Add, edit, search, copy, delete, and launch saved Roblox place presets for selected accounts.
 - **Workspace navigation.** Accounts now leads the rail, Private Servers has its own workspace entry, and unavailable Instances is retained as a disabled utility action.
 - **Accounts menu rewrite.** Fully rewritten the accounts menu UI in Tauri + React to look cleaner, space easier, and function better.
 - **New UI facelift.** All UI has/being ported from egui to Tauri + React. Details are on [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30)
