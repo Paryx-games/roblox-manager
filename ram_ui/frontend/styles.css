@@ -2249,9 +2249,12 @@ button:focus-visible {
 
 .preset-copy-chip {
   position: relative;
+  display: inline-flex;
   max-width: 180px;
   overflow: hidden;
   height: 20px;
+  align-items: center;
+  gap: var(--space-1);
   padding: 0 var(--space-1);
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
@@ -2261,6 +2264,17 @@ button:focus-visible {
   font: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.preset-copy-chip-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-copy-chip .account-icon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
 }
 
 .preset-copy-chip:hover,

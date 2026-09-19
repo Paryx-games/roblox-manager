@@ -25,6 +25,7 @@
 - **Preset and private-server layout.** Let management cards use the full available workspace width.
 - **Preset folder shortcut.** Keep the folder control compact in the header and collapse it to an icon in narrow layouts.
 - **Preset folder shortcut.** Open the dedicated `%APPDATA%\RM\presets` directory.
+- **Preset copy controls.** Copy place IDs, job IDs, and launch data directly from their detail chips.
 - **Workspace navigation.** Accounts now leads the rail, Private Servers has its own workspace entry, and unavailable Instances is retained as a disabled utility action.
 - **Accounts menu rewrite.** Fully rewritten the accounts menu UI in Tauri + React to look cleaner, space easier, and function better.
 - **New UI facelift.** All UI has/being ported from egui to Tauri + React. Details are on [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30)

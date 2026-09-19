@@ -36,7 +36,8 @@ function PresetDetails({
         data-tip={copiedValue === value ? "Copied" : "Copy"}
         onClick={() => onCopy(value)}
       >
-        {value}
+        <span className="preset-copy-chip-value">{value}</span>
+        <Icon name={copiedValue === value ? "check" : "copy"} />
       </button>
     );
   }
