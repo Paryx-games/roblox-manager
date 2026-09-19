@@ -2065,6 +2065,10 @@ button:focus-visible {
   margin-bottom: 0;
 }
 
+.preset-folder-button {
+  flex: 0 0 auto;
+}
+
 .preset-form {
   display: grid;
   gap: var(--space-3);
@@ -2436,6 +2440,16 @@ button:focus-visible {
   .preset-form label {
     grid-template-columns: 1fr;
     gap: var(--space-2);
+  }
+
+  .preset-folder-button {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+  }
+
+  .preset-folder-button-label {
+    display: none;
   }
 
   .preset-toolbar {

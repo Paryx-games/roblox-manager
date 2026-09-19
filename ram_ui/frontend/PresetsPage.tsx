@@ -289,12 +289,14 @@ export function PresetsPage({
           <div className="preset-card-head">
             <h2 id="new-preset">New preset</h2>
             <button
-              className="account-button"
+              className="account-button preset-folder-button"
               type="button"
+              aria-label="Open presets folder"
+              data-tip="Open presets folder"
               onClick={() => void openDataFolder()}
             >
               <Icon name="folder" />
-              Open folder
+              <span className="preset-folder-button-label">Open folder</span>
             </button>
           </div>
           <div className="preset-form">
