@@ -1191,7 +1191,6 @@ button:focus-visible {
 }
 
 .private-server-card {
-  max-width: 820px;
   margin: var(--space-6) 0 0;
   padding: var(--space-4);
   border: var(--border-width) solid var(--border-default);
@@ -2039,7 +2038,6 @@ button:focus-visible {
 }
 
 .preset-card {
-  max-width: 820px;
   margin: var(--space-6) 0 0;
   padding: var(--space-4);
   border: var(--border-width) solid var(--border-default);
