@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+# commit-msg hook that blocks commits with messages that do not follow conventional commits
+
+commit_msg_type_regex='feat|fix|refactor|style|test|docs|build'
+commit_msg_scope_regex='.{1,20}'
+commit_msg_description_regex='.{1,100}'
+commit_msg_regex="^(${commit_msg_type_regex})(\(${commit_msg_scope_regex}\))?: (${commit_msg_description_regex})$"
+merge_msg_regex="^Merge branch '.+'$"
+
+commit_msg_file="$1"
+commit_msg_header="$(head -n 1 "$commit_msg_file")"
+
+if [[ "$commit_msg_header" =~ $commit_msg_regex ]] || [[ "$commit_msg_header" =~ $merge_msg_regex ]]; then
+  exit 0
+fi
+
+echo "ERROR: Invalid commit message format" >&2
+echo "$commit_msg_header" >&2
+echo >&2
+echo "Expected format:" >&2
+echo "  type(scope): description" >&2
+echo "  type: description" >&2
+echo >&2
+echo "Allowed types:" >&2
+echo "  feat, fix, refactor, style, test, docs, build" >&2
+
+exit 1
