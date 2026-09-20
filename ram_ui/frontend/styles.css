@@ -482,6 +482,7 @@ button:focus-visible {
 .rm-select {
   position: relative;
   width: 100%;
+  min-width: 0;
   max-width: 360px;
   flex: 1;
   font-family: var(--font-sans);
@@ -503,6 +504,13 @@ button:focus-visible {
   font-family: var(--font-sans);
   font-size: var(--text-sm);
   text-align: left;
+}
+
+.rm-select-trigger > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rm-select-trigger:hover,
@@ -2157,9 +2165,30 @@ button:focus-visible {
 }
 
 .account-picker-groups .account-picker-trigger {
+  display: flex;
   width: 100%;
   max-width: none;
   height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+.account-picker-groups .account-picker-trigger:hover,
+.account-picker-groups.is-open .account-picker-trigger {
+  border-color: var(--text-muted);
+}
+
+.account-info-grid .account-picker-trigger span,
+.account-info-grid .account-picker-menu span {
+  color: var(--text-primary);
   font-size: var(--text-sm);
 }
 
@@ -3379,16 +3408,15 @@ button:focus-visible {
   flex: 0 0 auto;
 }
 
-.accounts-sort-row select {
+.accounts-sort-row .rm-select {
   min-width: 0;
-  height: 30px;
   flex: 1;
-  padding: 0 var(--space-2);
-  border: var(--border-width) solid var(--border-default);
-  border-radius: 7px;
-  color: var(--text-primary);
-  background: var(--bg-surface);
-  font: inherit;
+}
+
+.accounts-sort-row .rm-select-trigger,
+.private-server-sort .rm-select-trigger,
+.preset-sort .rm-select-trigger {
+  min-height: var(--space-8);
   font-size: var(--text-xs);
 }
 
@@ -4868,7 +4896,7 @@ button:focus-visible {
 }
 
 .accounts-detail-panel.is-account-restricted .launch-card {
-  filter: blur(1px);
+  filter: blur(5px);
   pointer-events: none;
   user-select: none;
 }
@@ -4899,6 +4927,9 @@ button:focus-visible {
 }
 
 .account-warning > .account-icon {
+  width: var(--space-4);
+  height: var(--space-4);
+  color: var(--text-primary);
   filter: none;
 }
 
@@ -4913,28 +4944,20 @@ button:focus-visible {
   font-size: var(--text-xs);
 }
 
-.launch-card.is-account-restricted {
-  position: relative;
-  opacity: 0.45;
-  pointer-events: none;
-  user-select: none;
+.account-warning .account-warning-actions {
+  flex-flow: row wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
-.launch-card.is-account-restricted::after {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4);
-  border: var(--border-width) solid var(--status-warning);
-  border-radius: var(--radius);
-  color: var(--text-primary);
-  background: color-mix(in srgb, var(--bg-canvas) 82%, var(--status-warning));
-  content: "Launch controls locked until this account is revalidated";
-  font-size: var(--text-sm);
-  font-weight: 700;
-  text-align: center;
+.account-warning-actions .account-button {
+  flex: 0 0 auto;
+}
+
+.launch-card.is-account-restricted {
+  filter: blur(5px);
+  pointer-events: none;
+  user-select: none;
 }
 
 .account-profile-card {
@@ -5050,8 +5073,8 @@ button:focus-visible {
 .account-actions-menu-danger,
 .account-group-menu-danger,
 .private-server-menu-danger {
-  color: var(--text-primary);
-  background: var(--status-danger);
+  color: var(--status-danger);
+  background: transparent;
 }
 
 .account-actions-menu-danger .account-icon,
@@ -5065,6 +5088,7 @@ button:focus-visible {
   display: inline-block;
   flex: 0 0 auto;
   background: currentcolor;
+  filter: none;
   mask: var(--account-icon-mask) center / contain no-repeat;
 }
 
@@ -5081,8 +5105,8 @@ button:focus-visible {
 .account-group-menu-danger:focus-visible,
 .private-server-menu-danger:hover,
 .private-server-menu-danger:focus-visible {
-  color: var(--text-primary);
-  background: var(--status-danger);
+  color: var(--status-danger);
+  background: var(--bg-raised);
 }
 
 .group-editor-backdrop {
@@ -5203,6 +5227,32 @@ button:focus-visible {
   justify-content: flex-end;
 }
 
+.prompt-modal-form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.prompt-modal-form label {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.prompt-modal-form input {
+  min-width: 0;
+  height: 36px;
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  font: inherit;
+}
+
+.prompt-modal-form input:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
+}
+
 .confirm-modal-danger {
   color: var(--text-primary);
   border-color: var(--status-danger);
@@ -5313,12 +5363,16 @@ button:focus-visible {
   min-width: 0;
 }
 
+.account-profile-copy .account-identity-username p {
+  margin-top: 0;
+}
+
 .identity-icon-button {
   position: relative;
   display: inline-flex;
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -5326,7 +5380,6 @@ button:focus-visible {
   color: var(--text-muted);
   background: transparent;
   cursor: pointer;
-  transform: translate(calc(var(--space-1) * -1), var(--space-1));
 }
 
 .identity-icon-button:hover,
@@ -5336,7 +5389,7 @@ button:focus-visible {
 }
 
 .identity-icon-button .account-icon {
-  width: 14px;
+  width: 12px;
   height: 14px;
 }
 
@@ -5651,6 +5704,54 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+.inventory-item-icon {
+  display: flex;
+  width: var(--space-8);
+  height: var(--space-8);
+  flex: 0 0 var(--space-8);
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.inventory-item-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.inventory-item-icon .account-icon {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.inventory-item-name {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.inventory-item-name small {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.inventory-row .inventory-item-details {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-left: var(--space-3);
+  border-left: var(--border-width) solid var(--border-default);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
 .inventory-row > span:last-child,
 .connection-result > div:first-child span {
   color: var(--text-muted);
@@ -5665,8 +5766,46 @@ button:focus-visible {
   gap: var(--space-1);
 }
 
+.connection-avatar {
+  display: flex;
+  width: var(--space-8);
+  height: var(--space-8);
+  flex: 0 0 var(--space-8);
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--bg-raised);
+}
+
+.connection-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.connection-result {
+  flex-wrap: wrap;
+}
+
+.connection-identity {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.connection-identity span {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
 .connection-actions {
   display: flex;
+  width: 100%;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 

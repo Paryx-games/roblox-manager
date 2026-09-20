@@ -32,15 +32,24 @@ export function PromptModal({
         </button>
       </div>
       <form
-        className="confirm-modal-actions"
+        className="prompt-modal-form"
         onSubmit={(event) => {
           event.preventDefault();
           onSubmit(inputValue);
         }}
       >
-        <input autoFocus value={inputValue} onChange={(event) => setInputValue(event.target.value)} />
-        <button className="account-button" type="button" onClick={onCancel}>Cancel</button>
-        <button className="account-button primary" type="submit">Save</button>
+        <label htmlFor="prompt-modal-input">{title}</label>
+        <input
+          id="prompt-modal-input"
+          autoFocus
+          maxLength={80}
+          value={inputValue}
+          onChange={(event) => setInputValue(event.target.value)}
+        />
+        <div className="confirm-modal-actions">
+          <button className="account-button" type="button" onClick={onCancel}>Cancel</button>
+          <button className="account-button primary" type="submit" disabled={!inputValue.trim()}>Save</button>
+        </div>
       </form>
     </Popup>
   );

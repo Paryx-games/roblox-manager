@@ -38,12 +38,15 @@ export interface InventoryItem {
   assetId: number;
   name: string;
   assetType: string;
+  iconUrl: string | null;
+  priceRobux: number | null;
 }
 
 export interface UserSearchResult {
   userId: number;
   username: string;
   displayName: string;
+  avatarUrl: string | null;
 }
 
 export interface PresenceUpdate {

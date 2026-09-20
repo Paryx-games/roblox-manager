@@ -49,6 +49,7 @@ import {
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
+import Select from "./components/Select";
 import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
 import { PromptModal } from "./components/PromptModal";
@@ -959,7 +960,7 @@ export function AccountsPage({
     setInventory([]);
     setCommonInventory([]);
     setConnectionResults([]);
-  }, [selectedAccount]);
+  }, [selectedAccount?.userId]);
 
   function selectAccount(id: number) {
     setSelectedId(id);
@@ -1175,7 +1176,7 @@ export function AccountsPage({
       setAccountNotice("Enter a numeric Place ID before saving a preset.");
       return;
     }
-    const name = await requestPrompt("Preset name");
+    const name = (await requestPrompt("Preset name"))?.trim();
     if (!name) return;
     try {
       await saveLaunchPreset(name, Number(placeId), jobId, launchData);
@@ -1784,29 +1785,27 @@ export function AccountsPage({
             </div>
             <div className="accounts-sort-row">
               <span>Sort:</span>
-              <select
+              <Select
                 value={sortMode}
-                onChange={(event) =>
-                  changeSortMode(event.target.value as SortMode)
-                }
-                aria-label="Sort accounts"
-              >
-                <option value="custom">Custom</option>
-                <option value="username">Username</option>
-                <option value="status">Status</option>
-                <option value="accountAge">Account age</option>
-                <option value="lastActivity">Last used</option>
-              </select>
-              <select
+                onChange={(value) => changeSortMode(value as SortMode)}
+                ariaLabel="Sort accounts"
+                options={[
+                  { value: "custom", label: "Custom" },
+                  { value: "username", label: "Username" },
+                  { value: "status", label: "Status" },
+                  { value: "accountAge", label: "Account age" },
+                  { value: "lastActivity", label: "Last used" },
+                ]}
+              />
+              <Select
                 value={descending ? "descending" : "ascending"}
-                onChange={(event) =>
-                  setDescending(event.target.value === "descending")
-                }
-                aria-label="Sort direction"
-              >
-                <option value="ascending">Ascending</option>
-                <option value="descending">Descending</option>
-              </select>
+                onChange={(value) => setDescending(value === "descending")}
+                ariaLabel="Sort direction"
+                options={[
+                  { value: "ascending", label: "Ascending" },
+                  { value: "descending", label: "Descending" },
+                ]}
+              />
             </div>
             {selectedIds.size > 1 && (
               <div className="bulk-account-actions">
@@ -2434,7 +2433,7 @@ export function AccountsPage({
                           setShowAccountMenu(false);
                         }}
                       >
-                        <Icon name="kill" />
+                        <Icon name="kill" tone="current-color" />
                         Kill all Roblox
                       </button>
                     </PopupMenu>
@@ -2445,7 +2444,7 @@ export function AccountsPage({
               {(selectedAccount.moderationActive ||
                 selectedAccount.cookieExpired) && (
                 <section className="account-warning" role="alert">
-                  <Icon name="warning" />
+                  <Icon name="warning" tone="current-color" />
                   <div>
                     <strong>
                       {selectedAccount.moderationBanned
@@ -2463,23 +2462,25 @@ export function AccountsPage({
                         {formatActivity(selectedAccount.moderationExpiresAt)}
                       </span>
                     )}
-                    <button
-                      className="account-button"
-                      type="button"
-                      onClick={() => void browseAs()}
-                    >
-                      <Icon name="browser" />
-                      Open browser as account
-                    </button>
-                    <button
-                      className="account-button"
-                      type="button"
-                      disabled={mutationLoading}
-                      onClick={() => void revalidate()}
-                    >
-                      <Icon name="refresh" />
-                      Revalidate account
-                    </button>
+                    <div className="account-warning-actions">
+                      <button
+                        className="account-button"
+                        type="button"
+                        onClick={() => void browseAs()}
+                      >
+                        <Icon name="browser" />
+                        Open browser as account
+                      </button>
+                      <button
+                        className="account-button"
+                        type="button"
+                        disabled={mutationLoading}
+                        onClick={() => void revalidate()}
+                      >
+                        <Icon name="refresh" />
+                        Revalidate account
+                      </button>
+                    </div>
                   </div>
                 </section>
               )}
@@ -2605,9 +2606,17 @@ export function AccountsPage({
                   <div className="inventory-list">
                     {inventory.map((item) => (
                       <div className="inventory-row" key={item.assetId}>
-                        <span className="data-value">{item.assetId}</span>
-                        <strong>{item.name}</strong>
-                        <span>{item.assetType}</span>
+                        <span className="inventory-item-icon">
+                          {item.iconUrl ? <img src={item.iconUrl} alt="" /> : <Icon name="inventory" />}
+                        </span>
+                        <span className="inventory-item-name">
+                          <strong>{item.name}</strong>
+                          <small>{item.assetType}</small>
+                        </span>
+                        <span className="inventory-item-details">
+                          <span>{item.priceRobux === null ? "Price unavailable" : `${item.priceRobux.toLocaleString()} Robux`}</span>
+                          <span className="data-value">ID: {item.assetId}</span>
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -2697,9 +2706,17 @@ export function AccountsPage({
                   <div className="connection-results">
                     {connectionResults.map((result) => (
                       <div className="connection-result" key={result.userId}>
-                        <div>
+                        <span className="connection-avatar">
+                          {result.avatarUrl ? (
+                            <img src={result.avatarUrl} alt="" />
+                          ) : (
+                            result.username.slice(0, 1).toUpperCase()
+                          )}
+                        </span>
+                        <div className="connection-identity">
                           <strong>{result.displayName}</strong>
                           <span>@{result.username}</span>
+                          <span>ID: {result.userId}</span>
                         </div>
                         <div className="connection-actions">
                           <button

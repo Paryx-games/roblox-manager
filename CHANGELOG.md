@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Accounts workspace polish.** Improves account warnings, menu icons, preset naming, inventory and connection results, and sorting controls.
 - **Complete UI rewrite.** Roblox Manager v2 is migrating the existing egui/eframe interface to a new Tauri + React/TypeScript frontend, while keeping `ram_core` responsible for authentication, storage, cryptography, Roblox APIs, and Windows process management.
 - **New design system.** Introduces a cleaner, more consistent interface with responsive layouts, shared components, design tokens, animations, improved navigation, toast notifications, and reduced-motion support.
 - **Accounts workspace rewrite.** Rebuilds the Accounts interface with improved account management, restricted-account states, clearer launch controls, responsive sorting and input layouts, and cleaner account presentation.

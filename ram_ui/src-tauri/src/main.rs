@@ -155,6 +155,17 @@ struct InventoryItem {
     asset_id: u64,
     name: String,
     asset_type: String,
+    icon_url: Option<String>,
+    price_robux: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConnectionSearchResult {
+    user_id: u64,
+    username: String,
+    display_name: String,
+    avatar_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1852,6 +1863,68 @@ async fn launch_private_server(
     Ok(())
 }
 
+async fn enrich_inventory_items(client: &RobloxClient, cookie: &str, items: &mut [InventoryItem]) {
+    for batch in items.chunks_mut(50) {
+        let ids = batch
+            .iter()
+            .map(|item| item.asset_id.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        let thumbnail_url = format!(
+            "https://thumbnails.roblox.com/v1/assets?assetIds={ids}&size=150x150&format=Png&isCircular=false"
+        );
+        if let Ok(response) = client
+            .get_json::<serde_json::Value>(&thumbnail_url, "")
+            .await
+        {
+            if let Some(entries) = response.get("data").and_then(serde_json::Value::as_array) {
+                let icons: std::collections::HashMap<u64, String> = entries
+                    .iter()
+                    .filter_map(|entry| {
+                        let id = entry.get("targetId")?.as_u64()?;
+                        let url = entry.get("imageUrl")?.as_str()?;
+                        let parsed = reqwest::Url::parse(url).ok()?;
+                        let host = parsed.host_str()?;
+                        (parsed.scheme() == "https"
+                            && (host == "rbxcdn.com" || host.ends_with(".rbxcdn.com")))
+                        .then(|| (id, url.to_string()))
+                    })
+                    .collect();
+                for item in batch.iter_mut() {
+                    item.icon_url = icons.get(&item.asset_id).cloned();
+                }
+            }
+        }
+
+        let request = serde_json::json!({
+            "items": batch.iter().map(|item| serde_json::json!({
+                "itemType": "Asset",
+                "id": item.asset_id,
+            })).collect::<Vec<_>>()
+        });
+        if let Ok(response) = client
+            .post_json::<serde_json::Value>(
+                "https://catalog.roblox.com/v1/catalog/items/details",
+                cookie,
+                Some(&request),
+            )
+            .await
+        {
+            if let Some(entries) = response.get("data").and_then(serde_json::Value::as_array) {
+                let prices: std::collections::HashMap<u64, u64> = entries
+                    .iter()
+                    .filter_map(|entry| {
+                        Some((entry.get("id")?.as_u64()?, entry.get("price")?.as_u64()?))
+                    })
+                    .collect();
+                for item in batch.iter_mut() {
+                    item.price_robux = prices.get(&item.asset_id).copied();
+                }
+            }
+        }
+    }
+}
+
 #[tauri::command]
 async fn fetch_account_inventory(
     state: tauri::State<'_, AppState>,
@@ -1876,22 +1949,41 @@ async fn fetch_account_inventory(
     }
     items.sort_by_key(|item| item.asset_id);
     items.dedup_by_key(|item| item.asset_id);
-    Ok(items
+    let mut items: Vec<InventoryItem> = items
         .into_iter()
         .map(|item| InventoryItem {
             asset_id: item.asset_id,
             name: item.name,
             asset_type: item.asset_type,
+            icon_url: None,
+            price_robux: None,
         })
-        .collect())
+        .collect();
+    enrich_inventory_items(&client, &cookie, &mut items).await;
+    Ok(items)
 }
 
 #[tauri::command]
-async fn search_connection_users(keyword: String) -> Result<Vec<api::UserSearchResult>, String> {
+async fn search_connection_users(keyword: String) -> Result<Vec<ConnectionSearchResult>, String> {
     let client = RobloxClient::new().map_err(|error| error.to_string())?;
-    api::search_users(&client, &keyword)
+    let users = api::search_users(&client, &keyword)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    let user_ids: Vec<u64> = users.iter().map(|user| user.user_id).collect();
+    let avatars: std::collections::HashMap<u64, String> = api::fetch_avatars(&client, &user_ids)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+    Ok(users
+        .into_iter()
+        .map(|user| ConnectionSearchResult {
+            user_id: user.user_id,
+            username: user.username,
+            display_name: user.display_name,
+            avatar_url: avatars.get(&user.user_id).cloned(),
+        })
+        .collect())
 }
 
 #[tauri::command]
