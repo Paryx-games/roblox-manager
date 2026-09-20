@@ -209,6 +209,7 @@ struct SettingsUpdate {
     launch_delay_secs: u32,
     custom_game_args: String,
     roblox_player_path: Option<String>,
+    roblox_fast_flags: std::collections::HashMap<String, String>,
     privacy_mode: bool,
     privacy_clean_cookies: bool,
     privacy_clean_local_storage: bool,
@@ -324,6 +325,19 @@ impl SettingsUpdate {
                 "Roblox player path is too long or contains an invalid character".to_string(),
             );
         }
+        if self.roblox_fast_flags.len() > 100
+            || self.roblox_fast_flags.iter().any(|(key, value)| {
+                key.is_empty()
+                    || key.len() > 128
+                    || !key
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+                    || value.len() > 4096
+                    || value.contains(['\0', '\n', '\r'])
+            })
+        {
+            return Err("Fast flags must have valid names and values".to_string());
+        }
         if self.launch_delay_secs > 300 {
             return Err("Launch delay must be between 0 and 300 seconds".to_string());
         }
@@ -352,6 +366,7 @@ impl SettingsUpdate {
         config.confirm_kill_all = self.confirm_kill_all;
         config.launch_delay_secs = self.launch_delay_secs;
         config.custom_game_args = self.custom_game_args;
+        config.roblox_fast_flags = self.roblox_fast_flags;
         config.roblox_player_path = self
             .roblox_player_path
             .filter(|path| !path.trim().is_empty())
@@ -391,6 +406,8 @@ struct SettingsInfoCard {
 #[serde(rename_all = "camelCase")]
 struct SettingsSnapshot {
     config: SettingsConfig,
+    app_version: &'static str,
+    system_architecture: &'static str,
     monitors: Vec<MonitorGeometry>,
     has_password: bool,
     has_discord_webhook: bool,
@@ -1099,6 +1116,8 @@ fn get_settings(state: tauri::State<'_, AppState>) -> Result<SettingsSnapshot, S
         .is_some();
     Ok(SettingsSnapshot {
         config: SettingsConfig::from_config(&runtime.config),
+        app_version: env!("CARGO_PKG_VERSION"),
+        system_architecture: std::env::consts::ARCH,
         monitors: process::enumerate_monitors(),
         has_password,
         has_discord_webhook,

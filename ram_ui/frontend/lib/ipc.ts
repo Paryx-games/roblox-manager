@@ -213,7 +213,7 @@ export interface SettingsConfig {
 
 export type SettingsUpdate = Omit<
   SettingsConfig,
-  "startupWithWindows" | "robloxFastFlags"
+  "startupWithWindows"
 >;
 
 export interface SettingsInfoCard {
@@ -223,6 +223,8 @@ export interface SettingsInfoCard {
 
 export interface SettingsSnapshot {
   config: SettingsConfig;
+  appVersion: string;
+  systemArchitecture: string;
   monitors: MonitorGeometry[];
   hasPassword: boolean;
   hasDiscordWebhook: boolean;

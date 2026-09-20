@@ -1,8 +1,20 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import { ConfirmModal } from "./ConfirmModal";
 import { Icon } from "./components/Icon";
 import { Popup } from "./components/Popup";
 import Select from "./components/Select";
+import { Toast, type ToastItem, type ToastKind } from "./Toast";
 import {
   arrangeSettingsWindows,
   changePassword,
@@ -28,10 +40,7 @@ import {
   type TilingLayoutMode,
 } from "./lib/ipc";
 
-type Notice = {
-  kind: "success" | "error" | "info";
-  message: string;
-};
+type SettingsDraft = SettingsUpdate & Pick<SettingsConfig, "startupWithWindows">;
 
 type SettingsSectionId =
   | "account-storage"
@@ -46,7 +55,11 @@ type SettingsSectionId =
 type SettingsSectionGroup = {
   id: "workspace" | "application";
   label: string;
-  sections: Array<{ id: SettingsSectionId; label: string }>;
+  sections: Array<{
+    id: SettingsSectionId;
+    label: string;
+    subsections: Array<{ id: string; label: string }>;
+  }>;
 };
 
 const SETTINGS_SECTION_GROUPS: SettingsSectionGroup[] = [
@@ -54,31 +67,64 @@ const SETTINGS_SECTION_GROUPS: SettingsSectionGroup[] = [
     id: "workspace",
     label: "Workspace",
     sections: [
-      { id: "account-storage", label: "Account storage" },
-      { id: "launching", label: "Launching" },
-      { id: "privacy-identity", label: "Privacy and identity" },
+      { id: "account-storage", label: "Account storage", subsections: [] },
+      {
+        id: "launching",
+        label: "Launching",
+        subsections: [
+          { id: "app-startup", label: "App startup" },
+          { id: "launch-safeguards", label: "Launch safeguards" },
+          { id: "window-layout", label: "Window layout" },
+          { id: "launch-pacing", label: "Launch pacing" },
+        ],
+      },
+      {
+        id: "privacy-identity",
+        label: "Privacy and identity",
+        subsections: [
+          { id: "privacy-cleanup", label: "Privacy cleanup" },
+          { id: "network-identity", label: "Network identity" },
+          { id: "displayed-identity", label: "Displayed identity" },
+        ],
+      },
     ],
   },
   {
     id: "application",
     label: "Application",
     sections: [
-      { id: "app-data", label: "App and data" },
-      { id: "roblox-installation", label: "Roblox installation" },
-      { id: "advanced", label: "Advanced" },
-      { id: "integrations", label: "Integrations" },
-      { id: "account-encryption", label: "Account encryption" },
+      {
+        id: "app-data",
+        label: "App and data",
+        subsections: [
+          { id: "development", label: "Development" },
+          { id: "logging", label: "Logging" },
+          { id: "data-location", label: "Data location" },
+        ],
+      },
+      { id: "roblox-installation", label: "Roblox installation", subsections: [] },
+      {
+        id: "advanced",
+        label: "Advanced",
+        subsections: [
+          { id: "launch-arguments", label: "Launch arguments" },
+          { id: "fast-flags", label: "Fast flags" },
+        ],
+      },
+      {
+        id: "integrations",
+        label: "Integrations",
+        subsections: [{ id: "discord-notifications", label: "Discord notifications" }],
+      },
+      { id: "account-encryption", label: "Account encryption", subsections: [] },
     ],
   },
 ];
 
 const LOG_LEVELS: LogLevel[] = ["Error", "Warn", "Info", "Debug", "Trace"];
 
-function draftFromConfig(config: SettingsConfig): SettingsUpdate {
-  const draft = { ...config } as SettingsUpdate;
-  delete (draft as Partial<SettingsConfig>).startupWithWindows;
-  delete (draft as Partial<SettingsConfig>).robloxFastFlags;
-  return draft;
+function draftFromConfig(config: SettingsConfig): SettingsDraft {
+  return { ...config };
 }
 
 function settingTitle(value: string) {
@@ -93,16 +139,89 @@ function InfoButton({
   infoCards: Record<string, SettingsInfoCard>;
 }) {
   const card = infoCards[referenceId];
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const tooltipId = useId();
+  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    if (!isTooltipVisible) return;
+
+    const positionTooltip = () => {
+      const button = buttonRef.current;
+      const tooltip = tooltipRef.current;
+      if (!button || !tooltip) return;
+
+      const rootStyles = window.getComputedStyle(document.documentElement);
+      const gap = Number.parseFloat(rootStyles.getPropertyValue("--space-2"));
+      const viewportInset = Number.parseFloat(
+        rootStyles.getPropertyValue("--space-2"),
+      );
+      const buttonBounds = button.getBoundingClientRect();
+      const tooltipBounds = tooltip.getBoundingClientRect();
+      const leftCandidate = buttonBounds.left - tooltipBounds.width - gap;
+      const rightCandidate = buttonBounds.right + gap;
+      const left =
+        leftCandidate >= viewportInset
+          ? leftCandidate
+          : Math.min(
+              rightCandidate,
+              window.innerWidth - tooltipBounds.width - viewportInset,
+            );
+      const centeredTop =
+        buttonBounds.top + buttonBounds.height / 2 - tooltipBounds.height / 2;
+      const top = Math.min(
+        Math.max(centeredTop, viewportInset),
+        window.innerHeight - tooltipBounds.height - viewportInset,
+      );
+      setTooltipPosition({ top, left: Math.max(viewportInset, left) });
+    };
+
+    positionTooltip();
+    window.addEventListener("resize", positionTooltip);
+    window.addEventListener("scroll", positionTooltip, true);
+    return () => {
+      window.removeEventListener("resize", positionTooltip);
+      window.removeEventListener("scroll", positionTooltip, true);
+    };
+  }, [isTooltipVisible]);
+
   if (!card) return null;
   return (
-    <button
-      className={`settings-info settings-info-${card.kind}`}
-      type="button"
-      aria-label={`${settingTitle(card.kind)}: ${card.text}`}
-      data-tip={card.text}
-    >
-      <Icon name="shield-question-mark" tone="current-color" />
-    </button>
+    <>
+      <button
+        ref={buttonRef}
+        className={`settings-info settings-info-${card.kind}`}
+        type="button"
+        aria-label={`${settingTitle(card.kind)}: ${card.text}`}
+        aria-describedby={isTooltipVisible ? tooltipId : undefined}
+        onBlur={() => setIsTooltipVisible(false)}
+        onFocus={() => setIsTooltipVisible(true)}
+        onMouseEnter={() => setIsTooltipVisible(true)}
+        onMouseLeave={() => setIsTooltipVisible(false)}
+      >
+        <Icon name="shield-question-mark" tone="current-color" />
+      </button>
+      {isTooltipVisible &&
+        createPortal(
+          <div
+            ref={tooltipRef}
+            id={tooltipId}
+            className="settings-tooltip"
+            role="tooltip"
+            style={
+              {
+                "--settings-tooltip-left": `${tooltipPosition.left}px`,
+                "--settings-tooltip-top": `${tooltipPosition.top}px`,
+              } as CSSProperties
+            }
+          >
+            {card.text}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -152,114 +271,75 @@ function Toggle({
 function Section({
   id,
   title,
-  isCollapsed,
-  onToggle,
   children,
 }: {
   id: SettingsSectionId;
   title: string;
-  isCollapsed: boolean;
-  onToggle: () => void;
   children: ReactNode;
 }) {
   return (
     <section
       id={`settings-section-${id}`}
-      className={`settings-section ${isCollapsed ? "is-collapsed" : ""}`}
+      className="settings-section"
+      data-settings-anchor={id}
     >
-      <h2>
-        <button
-          className="settings-section-toggle"
-          type="button"
-          aria-expanded={!isCollapsed}
-          onClick={onToggle}
-        >
-          <span>{title}</span>
-          <Icon name="chevron-down" />
-        </button>
-      </h2>
-      {!isCollapsed && <div className="settings-section-body">{children}</div>}
+      <h2>{title}</h2>
+      <div className="settings-section-body">{children}</div>
     </section>
   );
 }
 
+function SubsectionHeading({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <h3 id={`settings-subsection-${id}`} data-settings-anchor={id}>
+      {children}
+    </h3>
+  );
+}
+
 function SettingsSidebar({
-  collapsedGroups,
-  collapsedSections,
-  activeSection,
-  onToggleGroup,
-  onToggleSection,
+  activeAnchor,
   onNavigate,
 }: {
-  collapsedGroups: Record<SettingsSectionGroup["id"], boolean>;
-  collapsedSections: Partial<Record<SettingsSectionId, boolean>>;
-  activeSection: SettingsSectionId;
-  onToggleGroup: (groupId: SettingsSectionGroup["id"]) => void;
-  onToggleSection: (sectionId: SettingsSectionId) => void;
-  onNavigate: (sectionId: SettingsSectionId) => void;
+  activeAnchor: string;
+  onNavigate: (anchorId: string) => void;
 }) {
   return (
-    <aside className="settings-sidebar" aria-label="Settings sections">
-      <div className="settings-sidebar-heading">Settings sections</div>
-      {SETTINGS_SECTION_GROUPS.map((group) => {
-        const isGroupCollapsed = collapsedGroups[group.id];
-        return (
-          <div
-            className={`settings-sidebar-group ${
-              isGroupCollapsed ? "is-collapsed" : ""
-            }`}
-            key={group.id}
-          >
-            <button
-              className="settings-sidebar-group-toggle"
-              type="button"
-              aria-expanded={!isGroupCollapsed}
-              onClick={() => onToggleGroup(group.id)}
-            >
-              <Icon name="chevron-down" />
-              <span>{group.label}</span>
-            </button>
-            {!isGroupCollapsed && (
-              <div className="settings-sidebar-items">
-                {group.sections.map((section) => {
-                  const isSectionCollapsed = collapsedSections[section.id] ?? false;
-                  return (
-                    <div
-                      className={`settings-sidebar-item ${
-                        isSectionCollapsed ? "is-collapsed" : ""
-                      }`}
-                      key={section.id}
-                    >
-                      <button
-                        className={`settings-sidebar-link ${
-                          activeSection === section.id ? "is-active" : ""
-                        }`}
-                        type="button"
-                        aria-current={
-                          activeSection === section.id ? "location" : undefined
-                        }
-                        onClick={() => onNavigate(section.id)}
-                      >
-                        {section.label}
-                      </button>
-                      <button
-                        className="settings-sidebar-collapse"
-                        type="button"
-                        aria-label={`${isSectionCollapsed ? "Expand" : "Collapse"} ${section.label}`}
-                        aria-expanded={!isSectionCollapsed}
-                        onClick={() => onToggleSection(section.id)}
-                      >
-                        <Icon name="chevron-down" />
-                      </button>
+    <nav className="settings-sidebar" aria-label="Settings sections">
+      {SETTINGS_SECTION_GROUPS.flatMap((group) => group.sections).map((section) => (
+                <div className="settings-sidebar-item" key={section.id}>
+                  <button
+                    className={`settings-sidebar-link ${
+                      activeAnchor === section.id ? "is-active" : ""
+                    }`}
+                    type="button"
+                    aria-current={activeAnchor === section.id ? "location" : undefined}
+                    onClick={() => onNavigate(section.id)}
+                  >
+                    {section.label}
+                  </button>
+                  {section.subsections.length > 0 && (
+                    <div className="settings-sidebar-subsections">
+                      {section.subsections.map((subsection) => (
+                        <button
+                          className={`settings-sidebar-sublink ${
+                            activeAnchor === subsection.id ? "is-active" : ""
+                          }`}
+                          type="button"
+                          aria-current={
+                            activeAnchor === subsection.id ? "location" : undefined
+                          }
+                          onClick={() => onNavigate(subsection.id)}
+                          key={subsection.id}
+                        >
+                          {subsection.label}
+                        </button>
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </aside>
+                  )}
+                </div>
+      ))}
+    </nav>
   );
 }
 
@@ -282,22 +362,64 @@ function layoutValue(layout: TilingLayoutMode) {
   return "auto";
 }
 
-function SettingsNotice({ notice }: { notice: Notice | null }) {
-  if (!notice) return null;
+function SettingsContext({
+  snapshot,
+  isDirty,
+  isRefreshingStatus,
+  onRefreshStatus,
+}: {
+  snapshot: SettingsSnapshot;
+  isDirty: boolean;
+  isRefreshingStatus: boolean;
+  onRefreshStatus: () => void;
+}) {
+  const primaryMonitor = snapshot.monitors.find((monitor) => monitor.is_primary);
+
   return (
-    <div className={`settings-notice settings-notice-${notice.kind}`} role="status">
-      <Icon name={notice.kind === "error" ? "warning" : "update"} />
-      <span>{notice.message}</span>
-    </div>
+    <aside className="settings-context" aria-label="System and app information">
+      <section className="settings-context-card">
+        <div className="settings-context-heading">
+          <h2>System status</h2>
+          <button className="settings-context-refresh" type="button" disabled={isRefreshingStatus} aria-label="Refresh system status" onClick={onRefreshStatus}>
+            <Icon name="refresh" tone="current-color" />
+          </button>
+        </div>
+        <dl>
+          <div><dt>Roblox</dt><dd>{snapshot.robloxRunning ? "Running" : "Not running"}</dd></div>
+          <div><dt>Displays</dt><dd>{snapshot.monitors.length} connected</dd></div>
+          <div><dt>Settings</dt><dd>{isDirty ? "Unsaved changes" : "Up to date"}</dd></div>
+        </dl>
+      </section>
+      <section className="settings-context-card">
+        <h2>System info</h2>
+        <dl>
+          <div><dt>Platform</dt><dd>Windows</dd></div>
+          <div><dt>Architecture</dt><dd>{snapshot.systemArchitecture}</dd></div>
+          {primaryMonitor && <div><dt>Primary display</dt><dd>{primaryMonitor.total_w} × {primaryMonitor.total_h}</dd></div>}
+        </dl>
+      </section>
+      <section className="settings-context-card">
+        <h2>App info</h2>
+        <dl>
+          <div><dt>Application</dt><dd>Roblox Manager</dd></div>
+          <div><dt>Version</dt><dd>v{snapshot.appVersion}</dd></div>
+          <div><dt>Account lock</dt><dd>{snapshot.hasPassword ? "Password" : "Device"}</dd></div>
+          <div><dt>Discord webhook</dt><dd>{snapshot.hasDiscordWebhook ? "Connected" : "Not configured"}</dd></div>
+        </dl>
+      </section>
+    </aside>
   );
 }
 
 export function SettingsPage() {
   const [snapshot, setSnapshot] = useState<SettingsSnapshot | null>(null);
-  const [draft, setDraft] = useState<SettingsUpdate | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const [draft, setDraft] = useState<SettingsDraft | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [notices, setNotices] = useState<ToastItem[]>([]);
+  const nextNoticeId = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [pendingLogLevel, setPendingLogLevel] = useState<LogLevel | null>(null);
   const [newPassword, setNewPassword] = useState("");
@@ -305,15 +427,20 @@ export function SettingsPage() {
   const [webhookModalOpen, setWebhookModalOpen] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [webhookBusy, setWebhookBusy] = useState<"save" | "test" | null>(null);
-  const [collapsedGroups, setCollapsedGroups] = useState<
-    Record<SettingsSectionGroup["id"], boolean>
-  >({ workspace: false, application: false });
-  const [collapsedSections, setCollapsedSections] = useState<
-    Partial<Record<SettingsSectionId, boolean>>
-  >({});
-  const [activeSection, setActiveSection] =
-    useState<SettingsSectionId>("account-storage");
+  const [newFlagName, setNewFlagName] = useState("");
+  const [newFlagValue, setNewFlagValue] = useState("");
+  const [isAddingFlag, setIsAddingFlag] = useState(false);
+  const [activeAnchor, setActiveAnchor] = useState("account-storage");
   const settingsPageRef = useRef<HTMLElement>(null);
+
+  const notify = useCallback((kind: ToastKind, message: string) => {
+    const id = nextNoticeId.current;
+    nextNoticeId.current += 1;
+    setNotices((current) => [
+      ...current,
+      { id, kind, title: kind === "error" ? "Settings error" : kind === "info" ? "Settings" : "Done", message, duration: "standard" },
+    ]);
+  }, []);
 
   async function loadSettings() {
     setIsLoading(true);
@@ -321,9 +448,9 @@ export function SettingsPage() {
       const nextSnapshot = await getSettings();
       setSnapshot(nextSnapshot);
       setDraft(draftFromConfig(nextSnapshot.config));
-      setNotice(null);
+      setLoadError(null);
     } catch (error) {
-      setNotice({ kind: "error", message: String(error) });
+      setLoadError(String(error));
     } finally {
       setIsLoading(false);
     }
@@ -341,6 +468,25 @@ export function SettingsPage() {
     return () => window.cancelAnimationFrame(animationFrame);
   }, [isLoading]);
 
+  useEffect(() => {
+    const page = settingsPageRef.current;
+    if (!page || isLoading) return;
+
+    const updateViewportHeight = () => {
+      page.style.setProperty(
+        "--settings-scroll-viewport-height",
+        `${page.clientHeight}px`,
+      );
+    };
+    const observer = new ResizeObserver(updateViewportHeight);
+    updateViewportHeight();
+    observer.observe(page);
+    return () => {
+      observer.disconnect();
+      page.style.removeProperty("--settings-scroll-viewport-height");
+    };
+  }, [isLoading]);
+
   const passwordsMatch =
     newPassword.length > 0 && newPassword === confirmPassword;
   const passwordMismatch =
@@ -354,36 +500,56 @@ export function SettingsPage() {
       ),
     [],
   );
+  const savedDraft = useMemo(
+    () => (snapshot ? draftFromConfig(snapshot.config) : null),
+    [snapshot],
+  );
+  const isDirty = useMemo(
+    () =>
+      Boolean(
+        draft && savedDraft && JSON.stringify(draft) !== JSON.stringify(savedDraft),
+      ),
+    [draft, savedDraft],
+  );
 
-  function updateDraft(change: Partial<SettingsUpdate>) {
+  function updateDraft(change: Partial<SettingsDraft>) {
     setDraft((current) => (current ? { ...current, ...change } : current));
   }
 
-  function toggleSection(sectionId: SettingsSectionId) {
-    setCollapsedSections((current) => ({
-      ...current,
-      [sectionId]: !(current[sectionId] ?? false),
-    }));
+  function addFastFlag() {
+    const name = newFlagName.trim();
+    if (!draft || !/^[A-Za-z0-9_]{1,128}$/.test(name) || name in draft.robloxFastFlags ||
+      newFlagValue.length > 4096 || /[\0\r\n]/.test(newFlagValue)) {
+      notify("error", "Enter a unique flag name using letters, numbers, or underscores and a valid value.");
+      return;
+    }
+    updateDraft({ robloxFastFlags: { ...draft.robloxFastFlags, [name]: newFlagValue } });
+    setNewFlagName("");
+    setNewFlagValue("");
+    setIsAddingFlag(false);
+    setNotices([]);
   }
 
-  function navigateToSection(sectionId: SettingsSectionId) {
-    setActiveSection(sectionId);
-    setCollapsedSections((current) => ({ ...current, [sectionId]: false }));
-    const group = SETTINGS_SECTION_GROUPS.find((candidate) =>
-      candidate.sections.some((section) => section.id === sectionId),
-    );
-    if (group) {
-      setCollapsedGroups((current) => ({ ...current, [group.id]: false }));
-    }
+  function removeFastFlag(name: string) {
+    if (!draft) return;
+    const robloxFastFlags = { ...draft.robloxFastFlags };
+    delete robloxFastFlags[name];
+    updateDraft({ robloxFastFlags });
+  }
+
+  function navigateToAnchor(anchorId: string) {
+    setActiveAnchor(anchorId);
     window.requestAnimationFrame(() => {
       const page = settingsPageRef.current;
-      const section = document.getElementById(`settings-section-${sectionId}`);
-      if (!page || !section) return;
+      const anchor = page?.querySelector<HTMLElement>(
+        `[data-settings-anchor="${anchorId}"]`,
+      );
+      if (!page || !anchor) return;
       const scrollPadding = Number.parseFloat(
         window.getComputedStyle(page).scrollPaddingTop,
       ) || 0;
       const top =
-        section.getBoundingClientRect().top -
+        anchor.getBoundingClientRect().top -
         page.getBoundingClientRect().top +
         page.scrollTop -
         scrollPadding;
@@ -396,93 +562,112 @@ export function SettingsPage() {
     });
   }
 
-  function showError(error: unknown) {
-    setNotice({ kind: "error", message: String(error) });
+  function handleCancelChanges() {
+    if (!savedDraft) return;
+    setDraft(savedDraft);
+    setPendingLogLevel(null);
+    setIsAddingFlag(false);
+    setNewFlagName("");
+    setNewFlagValue("");
+    setNotices([]);
   }
 
-  async function handleSave() {
-    if (!draft || !snapshot) return;
+  function showError(error: unknown) {
+    notify("error", String(error));
+  }
+
+  const handleSave = useCallback(async () => {
+    if (!draft || !snapshot || !isDirty || isSaving) return;
     const shouldRestart = draft.logLevel !== snapshot.config.logLevel;
+    const { startupWithWindows, ...settingsUpdate } = draft;
     setIsSaving(true);
     try {
-      const config = await saveSettings(draft);
+      if (draft.multiInstanceEnabled && !snapshot.config.multiInstanceEnabled) {
+        await enableMultiInstance();
+      }
+      if (startupWithWindows !== snapshot.config.startupWithWindows) {
+        await setStartupWithWindows(startupWithWindows);
+      }
+      const config = await saveSettings(settingsUpdate);
       setSnapshot((current) => (current ? { ...current, config } : current));
       setDraft(draftFromConfig(config));
       if (shouldRestart) {
-        setNotice({ kind: "info", message: "Restarting RM to apply the log level" });
+        notify("info", "Restarting RM to apply the log level");
         await restartApp();
       } else {
-        setNotice({ kind: "success", message: "Settings saved" });
+        notify("success", "Settings saved");
       }
     } catch (error) {
-      showError(error);
+      try {
+        setSnapshot(await getSettings());
+      } catch {
+        // keep the last known settings so the draft remains available
+      }
+      notify("error", String(error));
     } finally {
       setIsSaving(false);
     }
-  }
+  }, [draft, snapshot, isDirty, isSaving, notify]);
 
-  async function handleStartupChange(enabled: boolean) {
-    if (!snapshot) return;
-    const previous = snapshot.config.startupWithWindows;
-    setSnapshot((current) =>
-      current
-        ? { ...current, config: { ...current.config, startupWithWindows: enabled } }
-        : current,
-    );
-    setBusyAction("startup");
+  async function refreshSystemStatus() {
+    if (isRefreshingStatus) return;
+    setIsRefreshingStatus(true);
     try {
-      await setStartupWithWindows(enabled);
-      setNotice({ kind: "success", message: "Windows startup setting updated" });
+      const currentStatus = await getSettings();
+      setSnapshot((current) => current ? {
+        ...current,
+        robloxRunning: currentStatus.robloxRunning,
+        monitors: currentStatus.monitors,
+      } : current);
     } catch (error) {
-      setSnapshot((current) =>
-        current
-          ? { ...current, config: { ...current.config, startupWithWindows: previous } }
-          : current,
-      );
       showError(error);
     } finally {
-      setBusyAction(null);
+      setIsRefreshingStatus(false);
     }
   }
 
-  async function handleMultiInstanceChange(enabled: boolean) {
-    if (!draft) return;
-    const nextDraft = { ...draft, multiInstanceEnabled: enabled };
-    updateDraft({ multiInstanceEnabled: enabled });
-    if (!enabled) {
-      setBusyAction("multi-instance");
-      try {
-        await saveSettings(nextDraft);
-        setSnapshot((current) =>
-          current
-            ? { ...current, config: { ...current.config, multiInstanceEnabled: false } }
-            : current,
-        );
-        setNotice({ kind: "success", message: "Multi-instance disabled" });
-      } catch (error) {
-        updateDraft({ multiInstanceEnabled: true });
-        showError(error);
-      } finally {
-        setBusyAction(null);
+  useEffect(() => {
+    const page = settingsPageRef.current;
+    if (!page || isLoading) return;
+
+    const updateActiveAnchor = () => {
+      const scrollPadding = Number.parseFloat(
+        window.getComputedStyle(page).scrollPaddingTop,
+      ) || 0;
+      const threshold = page.getBoundingClientRect().top + scrollPadding;
+      const anchors = Array.from(
+        page.querySelectorAll<HTMLElement>("[data-settings-anchor]"),
+      );
+      const isAtBottom =
+        page.scrollTop + page.clientHeight >= page.scrollHeight - scrollPadding;
+      if (isAtBottom) {
+        const finalAnchorId = anchors[anchors.length - 1]?.dataset.settingsAnchor;
+        if (finalAnchorId) setActiveAnchor(finalAnchorId);
+        return;
       }
-      return;
-    }
-    setBusyAction("multi-instance");
-    try {
-      await enableMultiInstance();
-      setSnapshot((current) =>
-        current
-          ? { ...current, config: { ...current.config, multiInstanceEnabled: true } }
-          : current,
-      );
-      setNotice({ kind: "success", message: "Multi-instance enabled" });
-    } catch (error) {
-      updateDraft({ multiInstanceEnabled: false });
-      showError(error);
-    } finally {
-      setBusyAction(null);
-    }
-  }
+      const visibleAnchor = anchors.reduce<HTMLElement | null>((current, anchor) => {
+        if (anchor.getBoundingClientRect().top > threshold) return current;
+        return anchor;
+      }, anchors[0] ?? null);
+      const anchorId = visibleAnchor?.dataset.settingsAnchor;
+      if (anchorId) setActiveAnchor(anchorId);
+    };
+
+    updateActiveAnchor();
+    page.addEventListener("scroll", updateActiveAnchor, { passive: true });
+    return () => page.removeEventListener("scroll", updateActiveAnchor);
+  }, [isLoading, snapshot]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
+      if (!isDirty || isSaving || !draft || !snapshot) return;
+      event.preventDefault();
+      void handleSave();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleSave, isDirty, isSaving]);
 
   async function handleAction(action: string, callback: () => Promise<unknown>) {
     setBusyAction(action);
@@ -498,7 +683,7 @@ export function SettingsPage() {
               : action === "mac"
                 ? "MAC address rotated"
                 : "Action completed";
-      setNotice({ kind: "success", message });
+      notify("success", message);
     } catch (error) {
       showError(error);
     } finally {
@@ -511,10 +696,10 @@ export function SettingsPage() {
     setBusyAction("password");
     try {
       await changePassword(newPassword);
+      setSnapshot(await getSettings());
       setNewPassword("");
       setConfirmPassword("");
-      setNotice({ kind: "success", message: "Master password updated" });
-      await loadSettings();
+      notify("success", "Master password updated");
     } catch (error) {
       showError(error);
     } finally {
@@ -526,10 +711,10 @@ export function SettingsPage() {
     setBusyAction("password");
     try {
       await clearPassword();
+      setSnapshot(await getSettings());
       setNewPassword("");
       setConfirmPassword("");
-      setNotice({ kind: "success", message: "RM will stop asking for a password" });
-      await loadSettings();
+      notify("success", "RM will stop asking for a password");
     } catch (error) {
       showError(error);
     } finally {
@@ -546,7 +731,7 @@ export function SettingsPage() {
       setSnapshot((current) =>
         current ? { ...current, hasDiscordWebhook: true } : current,
       );
-      setNotice({ kind: "success", message: "Discord webhook saved" });
+      notify("success", "Discord webhook saved");
     } catch (error) {
       showError(error);
     } finally {
@@ -558,7 +743,7 @@ export function SettingsPage() {
     setWebhookBusy("test");
     try {
       await testDiscordWebhook(webhookUrl.trim());
-      setNotice({ kind: "success", message: "Discord webhook test sent" });
+      notify("success", "Discord webhook test sent");
     } catch (error) {
       showError(error);
     } finally {
@@ -573,7 +758,7 @@ export function SettingsPage() {
       setSnapshot((current) =>
         current ? { ...current, hasDiscordWebhook: false } : current,
       );
-      setNotice({ kind: "success", message: "Discord webhook removed" });
+      notify("success", "Discord webhook removed");
     } catch (error) {
       showError(error);
     } finally {
@@ -587,7 +772,7 @@ export function SettingsPage() {
         <div className="header-row">
           <h1 className="header-title">Settings</h1>
         </div>
-        <main ref={settingsPageRef} className="content settings-page">
+        <main className="content settings-page">
           <div className="settings-loading" aria-live="polite">
             <span className="settings-loading-bar" />
             <span className="settings-loading-bar" />
@@ -604,10 +789,10 @@ export function SettingsPage() {
         <div className="header-row">
           <h1 className="header-title">Settings</h1>
         </div>
-        <main ref={settingsPageRef} className="content settings-page">
+        <main className="content settings-page">
           <section className="settings-error" role="alert">
             <h2>Settings unavailable</h2>
-            <p>{notice?.message ?? "RM could not load its settings."}</p>
+            <p>{loadError ?? "RM could not load its settings."}</p>
             <button className="account-button primary" type="button" onClick={() => void loadSettings()}>
               <Icon name="refresh" />
               Retry
@@ -628,29 +813,19 @@ export function SettingsPage() {
       <div className="header-row">
         <h1 className="header-title">Settings</h1>
       </div>
-      <main ref={settingsPageRef} className="content settings-page">
+      <main className={`content settings-page ${isDirty ? "has-unsaved-changes" : ""}`}>
         <div className="settings-layout">
           <SettingsSidebar
-            collapsedGroups={collapsedGroups}
-            collapsedSections={collapsedSections}
-            activeSection={activeSection}
-            onToggleGroup={(groupId) =>
-              setCollapsedGroups((current) => ({
-                ...current,
-                [groupId]: !current[groupId],
-              }))
-            }
-            onToggleSection={toggleSection}
-            onNavigate={navigateToSection}
+            activeAnchor={activeAnchor}
+            onNavigate={navigateToAnchor}
           />
-          <div className="settings-content">
-            <SettingsNotice notice={notice} />
+          <section ref={settingsPageRef} className="settings-content" aria-label="Settings controls">
+            <div className="settings-workspace">
+            <div className="settings-content-inner">
 
         <Section
           id="account-storage"
           title="Account storage"
-          isCollapsed={collapsedSections["account-storage"] ?? false}
-          onToggle={() => toggleSection("account-storage")}
         >
           <SettingRow referenceId="credential_manager" infoCards={infoCards}>
             <Toggle
@@ -664,16 +839,13 @@ export function SettingsPage() {
         <Section
           id="launching"
           title="Launching"
-          isCollapsed={collapsedSections.launching ?? false}
-          onToggle={() => toggleSection("launching")}
         >
-          <h3>App startup</h3>
+          <SubsectionHeading id="app-startup">App startup</SubsectionHeading>
           <SettingRow referenceId="startup_with_windows" infoCards={infoCards}>
             <Toggle
-              checked={config.startupWithWindows}
+              checked={draft.startupWithWindows}
               label="Start RM with Windows"
-              disabled={busyAction === "startup"}
-              onChange={(enabled) => void handleStartupChange(enabled)}
+              onChange={(startupWithWindows) => updateDraft({ startupWithWindows })}
             />
           </SettingRow>
           <SettingRow referenceId="refresh_on_startup" infoCards={infoCards}>
@@ -710,13 +882,12 @@ export function SettingsPage() {
             </div>
           </SettingRow>
 
-          <h3>Launch safeguards</h3>
+          <SubsectionHeading id="launch-safeguards">Launch safeguards</SubsectionHeading>
           <SettingRow referenceId="multi_instance" infoCards={infoCards}>
             <Toggle
               checked={draft.multiInstanceEnabled}
               label="Enable multi-instance"
-              disabled={busyAction === "multi-instance"}
-              onChange={(enabled) => void handleMultiInstanceChange(enabled)}
+              onChange={(multiInstanceEnabled) => updateDraft({ multiInstanceEnabled })}
             />
           </SettingRow>
           {draft.multiInstanceEnabled && (
@@ -750,7 +921,7 @@ export function SettingsPage() {
           )}
 
           <div className="settings-divider" />
-          <h3>Window layout</h3>
+          <SubsectionHeading id="window-layout">Window layout</SubsectionHeading>
           <SettingRow referenceId="auto_arrange_windows" infoCards={infoCards}>
             <Toggle
               checked={draft.autoArrangeWindows}
@@ -912,7 +1083,7 @@ export function SettingsPage() {
               </label>
             </SettingRow>
             <button
-              className="account-button"
+              className="account-button settings-tile-button"
               type="button"
               disabled={busyAction === "tile"}
               onClick={() =>
@@ -944,7 +1115,7 @@ export function SettingsPage() {
             </p>
           )}
           <div className="settings-divider" />
-          <h3>Launch pacing</h3>
+          <SubsectionHeading id="launch-pacing">Launch pacing</SubsectionHeading>
           <SettingRow referenceId="launch_delay" infoCards={infoCards}>
             <label className="settings-field-row">
               <span>Launch delay:</span>
@@ -968,10 +1139,8 @@ export function SettingsPage() {
         <Section
           id="privacy-identity"
           title="Privacy and identity"
-          isCollapsed={collapsedSections["privacy-identity"] ?? false}
-          onToggle={() => toggleSection("privacy-identity")}
         >
-          <h3>Privacy cleanup</h3>
+          <SubsectionHeading id="privacy-cleanup">Privacy cleanup</SubsectionHeading>
           <SettingRow referenceId="privacy_mode" infoCards={infoCards}>
             <Toggle
               checked={draft.privacyMode}
@@ -1022,7 +1191,7 @@ export function SettingsPage() {
             </SettingRow>
           </div>
           <div className="settings-divider" />
-          <h3>Network identity</h3>
+          <SubsectionHeading id="network-identity">Network identity</SubsectionHeading>
           <SettingRow referenceId="mac_rotation" infoCards={infoCards}>
             <Toggle
               checked={draft.macRotationEnabled}
@@ -1074,7 +1243,7 @@ export function SettingsPage() {
               </p>
             </div>
           )}
-          <h3>Displayed identity</h3>
+          <SubsectionHeading id="displayed-identity">Displayed identity</SubsectionHeading>
           <SettingRow referenceId="anonymize_names" infoCards={infoCards}>
             <Toggle
               checked={draft.anonymizeNames}
@@ -1087,10 +1256,13 @@ export function SettingsPage() {
         <Section
           id="app-data"
           title="App and data"
-          isCollapsed={collapsedSections["app-data"] ?? false}
-          onToggle={() => toggleSection("app-data")}
         >
-          <h3>Development</h3>
+          {draft.utilityEnabled && draft.developerOptions && (
+            <WarningText>
+              Uploads are permanent and public. Every asset is moderated under the account that uploaded it.
+            </WarningText>
+          )}
+          <SubsectionHeading id="development">Development</SubsectionHeading>
           <SettingRow referenceId="utility_enabled" infoCards={infoCards}>
             <Toggle
               checked={draft.utilityEnabled}
@@ -1105,7 +1277,7 @@ export function SettingsPage() {
               onChange={(developerOptions) => updateDraft({ developerOptions })}
             />
           </SettingRow>
-          <h3>Logging</h3>
+          <SubsectionHeading id="logging">Logging</SubsectionHeading>
           <SettingRow referenceId="log_level" infoCards={infoCards}>
             <div className="settings-field-row">
               <span>Log level</span>
@@ -1136,23 +1308,16 @@ export function SettingsPage() {
           >
             Clean orphaned data
           </button>
-          {draft.developerOptions && (
-            <>
-              <WarningText>
-                Warning: Uploads are permanent and public. Every asset is moderated under the account that uploaded it.
-              </WarningText>
-              <button
-                className="account-button"
-                type="button"
-                disabled={busyAction === "caches"}
-                onClick={() => void handleAction("caches", clearApplicationCaches)}
-              >
-                Clear application caches
-              </button>
-            </>
-          )}
+          <button
+            className="account-button"
+            type="button"
+            disabled={busyAction === "caches"}
+            onClick={() => void handleAction("caches", clearApplicationCaches)}
+          >
+            Clear application caches
+          </button>
           <div className="settings-divider" />
-          <h3>Data location</h3>
+          <SubsectionHeading id="data-location">Data location</SubsectionHeading>
           <SettingRow referenceId="data_folder" infoCards={infoCards}>
             <button
               className="account-button"
@@ -1168,28 +1333,29 @@ export function SettingsPage() {
         <Section
           id="roblox-installation"
           title="Roblox installation"
-          isCollapsed={collapsedSections["roblox-installation"] ?? false}
-          onToggle={() => toggleSection("roblox-installation")}
         >
-          <p className="settings-muted">Leave empty for auto-detect:</p>
           <SettingRow referenceId="roblox_player_path" infoCards={infoCards}>
-            <input
-              className="settings-wide-input"
-              type="text"
-              value={draft.robloxPlayerPath ?? ""}
-              placeholder="RobloxPlayerBeta.exe or containing folder"
-              onChange={(event) => updateDraft({ robloxPlayerPath: event.target.value || null })}
-            />
+            <label className="settings-field-row settings-field-grow">
+              <span>Player path</span>
+              <input
+                className="settings-wide-input"
+                type="text"
+                value={draft.robloxPlayerPath ?? ""}
+                placeholder="Auto-detect RobloxPlayerBeta.exe"
+                onChange={(event) =>
+                  updateDraft({ robloxPlayerPath: event.target.value || null })
+                }
+              />
+            </label>
           </SettingRow>
+          <p className="settings-muted">Leave empty to detect the latest Roblox installation automatically.</p>
         </Section>
 
         <Section
           id="advanced"
           title="Advanced"
-          isCollapsed={collapsedSections.advanced ?? false}
-          onToggle={() => toggleSection("advanced")}
         >
-          <h3>Launch arguments</h3>
+          <SubsectionHeading id="launch-arguments">Launch arguments</SubsectionHeading>
           <SettingRow referenceId="custom_game_args" infoCards={infoCards}>
             <label className="settings-field-row settings-field-grow">
               <span>Custom Roblox args:</span>
@@ -1201,28 +1367,43 @@ export function SettingsPage() {
             </label>
           </SettingRow>
           <p className="settings-muted">Examples: -a 3 -t username=... (passed directly to RobloxPlayerBeta.exe)</p>
-          <h3>Fast flags</h3>
+          <SubsectionHeading id="fast-flags">Fast flags</SubsectionHeading>
           <SettingRow referenceId="roblox_fast_flags" infoCards={infoCards}>
-            {Object.keys(config.robloxFastFlags).length === 0 ? (
-              <span className="settings-muted">(empty)</span>
+            {Object.keys(draft.robloxFastFlags).length === 0 ? (
+              <span className="settings-code-box">(empty)</span>
             ) : (
               <div className="settings-fast-flags">
-                {Object.entries(config.robloxFastFlags).map(([key, value]) => (
-                  <span key={key}>{key} = {value}</span>
+                {Object.entries(draft.robloxFastFlags).sort(([first], [second]) => first.localeCompare(second)).map(([key, value]) => (
+                  <div className="settings-fast-flag" key={key}>
+                    <span>{key} = {value}</span>
+                    <button type="button" aria-label={`Remove ${key}`} onClick={() => removeFastFlag(key)}>
+                      <Icon name="close" />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
           </SettingRow>
           <p className="settings-muted">Experimental Roblox ClientSettings toggles; written before launch</p>
+          {isAddingFlag ? (
+            <div className="settings-flag-editor">
+              <input aria-label="Flag name" placeholder="Flag name" value={newFlagName} onChange={(event) => setNewFlagName(event.target.value)} />
+              <input aria-label="Flag value" placeholder="Value" value={newFlagValue} onChange={(event) => setNewFlagValue(event.target.value)} />
+              <button className="account-button" type="button" onClick={addFastFlag}>Add</button>
+              <button className="account-button" type="button" onClick={() => setIsAddingFlag(false)}>Cancel</button>
+            </div>
+          ) : (
+            <button className="account-button settings-inline-button" type="button" onClick={() => setIsAddingFlag(true)}>
+              <Icon name="add" /> Add Flag
+            </button>
+          )}
         </Section>
 
         <Section
           id="integrations"
           title="Integrations"
-          isCollapsed={collapsedSections.integrations ?? false}
-          onToggle={() => toggleSection("integrations")}
         >
-          <h3>Discord Notifications</h3>
+          <SubsectionHeading id="discord-notifications">Discord notifications</SubsectionHeading>
           <SettingRow referenceId="discord_webhook" infoCards={infoCards}>
             <div className="settings-action-row">
               <span className={snapshot.hasDiscordWebhook ? "settings-success" : "settings-muted"}>
@@ -1253,23 +1434,9 @@ export function SettingsPage() {
           <p className="settings-muted">Get notifications for launches and account moderation events.</p>
         </Section>
 
-        <button
-          className="account-button primary settings-save-button"
-          type="button"
-          disabled={isSaving}
-          onClick={() => void handleSave()}
-        >
-          <Icon name="save" />
-          {isSaving ? "Saving..." : "Save Settings"}
-        </button>
-
-        <div className="settings-separator" />
-
         <Section
           id="account-encryption"
           title="Account encryption"
-          isCollapsed={collapsedSections["account-encryption"] ?? false}
-          onToggle={() => toggleSection("account-encryption")}
         >
           <p>
             {snapshot.hasPassword
@@ -1321,9 +1488,49 @@ export function SettingsPage() {
             )}
           </div>
         </Section>
-          </div>
+        <div className="settings-save-bar">
+          <button
+            className={`account-button ${isDirty ? "primary" : ""}`}
+            type="button"
+            disabled={!isDirty || isSaving}
+            onClick={() => void handleSave()}
+          >
+            <Icon name="save" />
+            {isSaving ? "Saving..." : "Save Settings"}
+          </button>
+        </div>
+            </div>
+            <SettingsContext
+              snapshot={snapshot}
+              isDirty={isDirty}
+              isRefreshingStatus={isRefreshingStatus}
+              onRefreshStatus={() => void refreshSystemStatus()}
+            />
+            </div>
+          </section>
         </div>
       </main>
+
+      {isDirty && (
+        <div className="settings-unsaved-bar">
+          <span role="status">You have unsaved changes!</span>
+          <div className="settings-unsaved-actions">
+            <button className="account-button" type="button" disabled={isSaving} onClick={handleCancelChanges}>
+              Cancel
+            </button>
+            <button className="account-button primary" type="button" disabled={isSaving} onClick={() => void handleSave()}>
+              <Icon name="save" />
+              {isSaving ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={`toast-stack settings-toast-stack ${isDirty ? "is-above-unsaved" : ""}`} aria-live="polite" aria-label="Notifications">
+        {notices.map((item) => (
+          <Toast key={item.id} item={item} onDismiss={() => setNotices((current) => current.filter((noticeItem) => noticeItem.id !== item.id))} />
+        ))}
+      </div>
 
       {pendingLogLevel && (
         <ConfirmModal
@@ -1334,7 +1541,7 @@ export function SettingsPage() {
           onConfirm={() => {
             updateDraft({ logLevel: pendingLogLevel });
             setPendingLogLevel(null);
-            setNotice({ kind: "info", message: "Save Settings to apply the new log level." });
+            notify("info", "Save Settings to apply the new log level.");
           }}
           message={
             <>
