@@ -177,6 +177,7 @@ No Rust, Node.js, or pnpm installation is required for either option. These are 
 # Clone the repository
 git clone https://github.com/Paryx-games/roblox-manager.git
 cd roblox-manager
+git config core.hooksPath .githooks
 
 # Install frontend dependencies
 pnpm --dir ram_ui install

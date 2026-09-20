@@ -255,9 +255,12 @@ RM is a Windows-only project. Contributions happen through a GitHub fork and pul
 ```powershell
 git clone https://github.com/GITHUB_USERNAME/roblox-manager.git
 cd roblox-manager
+git config core.hooksPath .githooks
 git remote add upstream https://github.com/Paryx-games/roblox-manager.git
 git checkout -b your-feature-name
 ```
+
+After cloning any RM repository, configure `core.hooksPath` as shown above before making changes so the checked-in `.githooks` hooks apply to both human and AI contributors.
 
 Keep `origin` pointed at your fork and `upstream` pointed at RM. Never work directly on `main` for a change you plan to submit.
 
