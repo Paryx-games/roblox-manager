@@ -2,16 +2,7 @@
 
 ## Unreleased
 
-### Added
-
-- **Settings layout polish.** Expand Settings to the full workspace width, keep section navigation clear of the scroll edge, and align responsive navigation, animated dropdowns, typography, compact spacing, and controls with the Tauri shell.
-- **Settings workspace.** Port the full legacy Settings page into the Tauri shell with persisted launch, privacy, tiling, identity, data, integration, and account-encryption controls.
-- **Input recovery and diagnostics.** Harden transient UI cleanup, prevent tab-switch interaction races, and write scrubbed startup diagnostics to the rotating RM log file.
-- **Tauri development diagnostics.** `pnpm --dir ram_ui tauri dev` now defaults to info-level Rust tracing output while respecting an existing `RUST_LOG` override, and secondary controls keep their neutral borders.
-- **Tauri tracing output.** The Tauri command process now initializes an info-level subscriber so development diagnostics actually print to the `tauri dev` terminal.
-
-### Changed
-
+- **Settings editor redesign.** Present configuration in a continuous editor with nested navigation, animated controls, a responsive system and app information panel, clearer spacing and asset warnings, toast notifications, and a cancel/save bar for unsaved changes.
 - **Restricted account presentation.** Keep blocked launch content visible but clipped, progressively blurred, and clearly unavailable while leaving recovery actions readable.
 - **Group deletion affordance.** Restore the destructive red delete icon in the group context menu.
 - **Page transitions.** Restore a restrained horizontal crossfade between Tauri workspace pages, with reduced-motion support.
