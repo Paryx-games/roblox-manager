@@ -14,6 +14,7 @@ import { AccountPicker } from "./components/AccountPicker";
 import { Icon } from "./components/Icon";
 import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
+import Select from "./components/Select";
 
 type OwnershipStatus = "owned" | "unknown" | "not-owned";
 
@@ -346,7 +347,7 @@ export function PrivateServersPage({
                   data-tip="Paste from clipboard"
                   onClick={() => void pasteUrl()}
                 >
-                  <Icon name="copy" />
+                  <Icon name="clipboard" />
                 </button>
               </div>
             </label>
@@ -384,24 +385,26 @@ export function PrivateServersPage({
             </label>
             <div className="private-server-sort">
               <span>Sort:</span>
-              <select
+              <Select
                 value={sort}
-                onChange={(event) => setSort(event.target.value as typeof sort)}
-              >
-                <option value="custom">Custom</option>
-                <option value="name">Name</option>
-                <option value="recent">Recently added</option>
-                <option value="status">Status</option>
-              </select>
-              <select
+                onChange={(value) => setSort(value as typeof sort)}
+                ariaLabel="Sort private servers"
+                options={[
+                  { value: "custom", label: "Custom" },
+                  { value: "name", label: "Name" },
+                  { value: "recent", label: "Recently added" },
+                  { value: "status", label: "Status" },
+                ]}
+              />
+              <Select
                 value={descending ? "descending" : "ascending"}
-                onChange={(event) =>
-                  setDescending(event.target.value === "descending")
-                }
-              >
-                <option value="ascending">Ascending</option>
-                <option value="descending">Descending</option>
-              </select>
+                onChange={(value) => setDescending(value === "descending")}
+                ariaLabel="Sort direction"
+                options={[
+                  { value: "ascending", label: "Ascending" },
+                  { value: "descending", label: "Descending" },
+                ]}
+              />
             </div>
           </div>
           {loading ? (
@@ -411,8 +414,8 @@ export function PrivateServersPage({
           ) : orderedGroups.length === 0 ? (
             <div className="account-empty-inline">
               <Icon name="game" />
-              <strong>No private servers saved yet</strong>
-              <span>Add one above to start launching straight into it.</span>
+              <strong>{search.trim() ? "No search results found" : "No private servers saved yet"}</strong>
+              <span>{search.trim() ? "Try another search term." : "Add one above to start launching straight into it."}</span>
             </div>
           ) : (
             orderedGroups.map(([placeId, group]) => (
@@ -493,7 +496,11 @@ export function PrivateServersPage({
                     />
                     <div className="private-server-actions">
                       <button
-                        className="account-button primary"
+                        className={`account-button ${
+                          (serverAccounts[server.index] ?? selectedIds).size
+                            ? "primary"
+                            : ""
+                        }`}
                         type="button"
                         disabled={
                           !(serverAccounts[server.index] ?? selectedIds).size

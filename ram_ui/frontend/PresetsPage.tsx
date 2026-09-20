@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   launchLaunchPreset,
   listAccounts,
@@ -15,6 +15,7 @@ import { AccountPicker } from "./components/AccountPicker";
 import { Icon } from "./components/Icon";
 import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
+import Select from "./components/Select";
 
 type PresetSort = "custom" | "name" | "recent";
 
@@ -37,7 +38,6 @@ function PresetDetails({
         onClick={() => onCopy(value)}
       >
         <span className="preset-copy-chip-value">{value}</span>
-        <Icon name={copiedValue === value ? "check" : "copy"} />
       </button>
     );
   }
@@ -99,6 +99,8 @@ export function PresetsPage({
   const [editData, setEditData] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPlacement, setMenuPlacement] = useState("");
   const [openPicker, setOpenPicker] = useState<number | null>(null);
   const [copiedValue, setCopiedValue] = useState<string | null>(null);
 
@@ -127,7 +129,7 @@ export function PresetsPage({
     function dismissMenu(event: PointerEvent) {
       if (
         !(event.target instanceof Element) ||
-        !event.target.closest(".preset-menu-anchor")
+        !menuRef.current?.contains(event.target)
       ) {
         setOpenMenu(null);
       }
@@ -142,6 +144,20 @@ export function PresetsPage({
       document.removeEventListener("pointerdown", dismissMenu);
       document.removeEventListener("keydown", dismissMenuOnEscape);
     };
+  }, [openMenu]);
+
+  useLayoutEffect(() => {
+    if (openMenu === null) return;
+    const anchor = menuRef.current;
+    const menu = anchor?.querySelector<HTMLElement>(".private-server-menu");
+    if (!anchor || !menu) return;
+    const bounds = anchor.getBoundingClientRect();
+    const menuBounds = menu.getBoundingClientRect();
+    const isOpenRight = bounds.right - menuBounds.width < 8;
+    const isOpenUp = bounds.bottom + menuBounds.height > window.innerHeight - 8;
+    setMenuPlacement(
+      `${isOpenRight ? "is-open-right" : ""} ${isOpenUp ? "is-open-up" : ""}`.trim(),
+    );
   }, [openMenu]);
 
   useEffect(() => {
@@ -367,23 +383,25 @@ export function PresetsPage({
             </label>
             <div className="preset-sort">
               <span>Sort:</span>
-              <select
+              <Select
                 value={sort}
-                onChange={(event) => setSort(event.target.value as PresetSort)}
-              >
-                <option value="custom">Custom</option>
-                <option value="name">Name</option>
-                <option value="recent">Recently added</option>
-              </select>
-              <select
+                onChange={(value) => setSort(value as PresetSort)}
+                ariaLabel="Sort presets"
+                options={[
+                  { value: "custom", label: "Custom" },
+                  { value: "name", label: "Name" },
+                  { value: "recent", label: "Recently added" },
+                ]}
+              />
+              <Select
                 value={descending ? "descending" : "ascending"}
-                onChange={(event) =>
-                  setDescending(event.target.value === "descending")
-                }
-              >
-                <option value="ascending">Ascending</option>
-                <option value="descending">Descending</option>
-              </select>
+                onChange={(value) => setDescending(value === "descending")}
+                ariaLabel="Sort direction"
+                options={[
+                  { value: "ascending", label: "Ascending" },
+                  { value: "descending", label: "Descending" },
+                ]}
+              />
             </div>
           </div>
 
@@ -437,7 +455,7 @@ export function PresetsPage({
                     />
                     <div className="preset-actions">
                       <button
-                        className="account-button primary"
+                        className={`account-button ${selectedAccountIds.size ? "primary" : ""}`}
                         type="button"
                         disabled={
                           !selectedAccountIds.size || launchingIndex === preset.index
@@ -447,7 +465,10 @@ export function PresetsPage({
                         <Icon name="launch" />
                         {launchingIndex === preset.index ? "Launching..." : "Launch"}
                       </button>
-                      <div className="preset-menu-anchor">
+                      <div
+                        className="preset-menu-anchor"
+                        ref={openMenu === preset.index ? menuRef : undefined}
+                      >
                         <button
                           className="icon-button"
                           type="button"
@@ -464,7 +485,7 @@ export function PresetsPage({
                           <Icon name="more" />
                         </button>
                         {openMenu === preset.index && (
-                          <PopupMenu className="preset-menu">
+                          <PopupMenu className={`private-server-menu ${menuPlacement}`}>
                             <button
                               type="button"
                               role="menuitem"
@@ -495,9 +516,9 @@ export function PresetsPage({
                               <Icon name="edit" />
                               Edit
                             </button>
-                            <div className="preset-menu-separator" role="separator" />
+                            <div className="private-server-menu-separator" role="separator" />
                             <button
-                              className="preset-menu-danger"
+                              className="private-server-menu-danger"
                               type="button"
                               role="menuitem"
                               onClick={() => {
