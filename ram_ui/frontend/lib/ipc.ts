@@ -102,10 +102,24 @@ export interface GroupShout {
 }
 
 export interface GroupAnnouncement {
-  id: number;
+  title: string;
   body: string;
   created: string | null;
-  poster: GroupPoster | null;
+  imageUrl: string | null;
+  reactions: { label: string; count: number }[];
+}
+
+export interface GroupForumCategory {
+  id: string;
+  name: string;
+  posts: {
+    id: string;
+    title: string;
+    body: string;
+    created: string | null;
+    author: string | null;
+    commentCount: number;
+  }[];
 }
 
 export interface GroupOwner {
@@ -138,7 +152,9 @@ export interface GroupMembership {
 export interface GroupWorkspace {
   group: GroupInfo;
   iconDataUrl: string | null;
-  announcements: GroupAnnouncement[];
+  announcement: GroupAnnouncement | null;
+  forums: GroupForumCategory[];
+  forumStatus: string | null;
   memberships: GroupMembership[];
 }
 

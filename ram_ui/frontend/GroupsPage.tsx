@@ -29,10 +29,6 @@ function formatDate(value: string | null) {
   return Number.isNaN(date.valueOf()) ? value : date.toLocaleDateString();
 }
 
-function posterLabel(value: { displayName: string; username: string } | null) {
-  return value?.displayName || value?.username || "Unknown author";
-}
-
 function GroupIdentity({
   group,
   iconDataUrl,
@@ -224,6 +220,7 @@ export function GroupsPage({
     }
     setError(null);
     setActionNotice(null);
+    setWorkspace(null);
     if (mode === "id") {
       setSearchResults([]);
       const groupId = Number(value);
@@ -576,16 +573,24 @@ export function GroupsPage({
                   <Icon name="megaphone" />
                   Announcement
                 </h2>
-                {workspace.group.shout ? (
-                  <div className="groups-post">
-                    <p>{workspace.group.shout.body}</p>
-                    <span>
-                      {posterLabel(workspace.group.shout.poster)}
-                      {workspace.group.shout.created
-                        ? ` · ${formatDate(workspace.group.shout.created)}`
-                        : ""}
-                    </span>
-                  </div>
+                {workspace.announcement ? (
+                  <article className="groups-post groups-announcement">
+                    <strong>{workspace.announcement.title}</strong>
+                    {workspace.announcement.body && <p>{workspace.announcement.body}</p>}
+                    {workspace.announcement.imageUrl && (
+                      <img src={workspace.announcement.imageUrl} alt="Group announcement" />
+                    )}
+                    <div className="groups-announcement-meta">
+                      {workspace.announcement.created && (
+                        <span>{formatDate(workspace.announcement.created)}</span>
+                      )}
+                      {workspace.announcement.reactions.map((reaction) => (
+                        <span key={reaction.label}>
+                          {reaction.label} {reaction.count}
+                        </span>
+                      ))}
+                    </div>
+                  </article>
                 ) : (
                   <EmptyCard
                     icon="megaphone"
@@ -597,25 +602,32 @@ export function GroupsPage({
               <section className="groups-card">
                 <h2>
                   <Icon name="message-square" />
-                  Recent wall posts
+                  Forums
                 </h2>
-                {workspace.announcements.length ? (
-                  <div className="groups-post-list">
-                    {workspace.announcements.map((post) => (
-                      <article className="groups-post" key={post.id}>
-                        <p>{post.body}</p>
-                        <span>
-                          {posterLabel(post.poster)}
-                          {post.created ? ` · ${formatDate(post.created)}` : ""}
-                        </span>
-                      </article>
+                {workspace.forums.length ? (
+                  <div className="groups-forum-list">
+                    {workspace.forums.map((forum) => (
+                      <div className="groups-forum" key={forum.id}>
+                        <h3>{forum.name}</h3>
+                        {forum.posts.length ? forum.posts.map((post) => (
+                          <article className="groups-post" key={post.id}>
+                            <strong>{post.title}</strong>
+                            {post.body && <p>{post.body}</p>}
+                            <span>
+                              {post.author || "Unknown author"}
+                              {post.created ? ` · ${formatDate(post.created)}` : ""}
+                              {` · ${post.commentCount} comments`}
+                            </span>
+                          </article>
+                        )) : <p className="groups-forum-empty">No posts in this forum.</p>}
+                      </div>
                     ))}
                   </div>
                 ) : (
                   <EmptyCard
                     icon="message-square"
-                    title="Wall posts unavailable"
-                    message="Roblox's current public group API does not expose wall posts."
+                    title="Forums unavailable"
+                    message={workspace.forumStatus || "This group has no forums."}
                   />
                 )}
               </section>

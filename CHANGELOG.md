@@ -3,10 +3,11 @@
 ## Unreleased
 
 - **Accounts workspace polish.** Improves account warnings, menu icons, preset naming, inventory and connection results, and sorting controls.
+- **Current group content.** Shows community announcements with text, images, and reactions, and replaces the obsolete wall panel with account-authenticated forum categories and posts.
 - **Complete UI rewrite.** Roblox Manager v2 is migrating the existing egui/eframe interface to a new Tauri + React/TypeScript frontend, while keeping `ram_core` responsible for authentication, storage, cryptography, Roblox APIs, and Windows process management.
 - **New design system.** Introduces a cleaner, more consistent interface with responsive layouts, shared components, design tokens, animations, improved navigation, toast notifications, and reduced-motion support.
 - **Accounts workspace rewrite.** Rebuilds the Accounts interface with improved account management, restricted-account states, clearer launch controls, responsive sorting and input layouts, and cleaner account presentation.
-- **Groups workspace.** Ports group management from the legacy egui interface, including group search, live group information, account membership inspection, join/leave actions, announcements, wall states, and Roblox challenge handling.
+- **Groups workspace.** Ports group management from the legacy egui interface, including group search, live group information, account membership inspection, join/leave actions, announcements, forums, and Roblox challenge handling.
 - **Private Servers workspace.** Adds saved Roblox private-server links that can be managed and launched using the accounts currently selected in the Accounts workspace.
 - **Presets workspace.** Adds searchable saved game presets with place IDs, job IDs, launch data, game thumbnails, copying controls, editing, deletion, and multi-account launching.
 - **Settings redesign.** Replaces the old settings interface with a continuous configuration editor featuring nested navigation, responsive system/app information, validation and asset warnings, and save/cancel handling for unsaved changes.

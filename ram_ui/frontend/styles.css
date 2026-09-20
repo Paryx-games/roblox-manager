@@ -4533,6 +4533,46 @@ button:focus-visible {
   font-size: var(--text-xs);
 }
 
+.groups-announcement > strong,
+.groups-forum h3,
+.groups-forum .groups-post strong {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.groups-announcement img {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  margin-top: var(--space-3);
+  border-radius: var(--radius);
+  object-fit: contain;
+}
+
+.groups-announcement-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.groups-forum-list {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.groups-forum + .groups-forum {
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border-default);
+}
+
+.groups-forum-empty {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
 .groups-membership-list {
   display: grid;
   gap: var(--space-2);
