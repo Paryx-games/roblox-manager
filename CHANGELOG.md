@@ -2,26 +2,18 @@
 
 ## Unreleased
 
-- **Settings editor redesign.** Present configuration in a continuous editor with nested navigation, animated controls, a responsive system and app information panel, clearer spacing and asset warnings, toast notifications, and a cancel/save bar for unsaved changes.
-- **Restricted account presentation.** Keep blocked launch content visible but clipped, progressively blurred, and clearly unavailable while leaving recovery actions readable.
-- **Group deletion affordance.** Restore the destructive red delete icon in the group context menu.
-- **Page transitions.** Restore a restrained horizontal crossfade between Tauri workspace pages, with reduced-motion support.
-- **Restricted account states.** Lock launch controls and clearly surface why an account cannot be used until moderation or credential issues are resolved.
-- **Input and dropdown layout.** Keep sort controls within the page width and restore the standard focus ring on account fields.
-- **Typography consistency.** Standardize the active Tauri/React interface on
-  the bundled Roboto sans-serif family instead of mixing in monospace styles.
-- **Groups workspace.** Port the groups page from the legacy egui into Tauri + React, including group search and ID loading, live group details, selected-account membership inspection, join/leave actions, account selection, announcements, wall states, loading/error handling, and challenge fallback.
-- **Private Servers workspace.** Add and manage saved Roblox private-server links, then launch every account selected in Accounts.
-- **Presets workspace.** Add, edit, search, copy, delete, and launch saved Roblox place presets for selected accounts.
-- **Preset and private-server layout.** Let management cards use the full available workspace width.
-- **Preset folder shortcut.** Keep the folder control compact in the header and collapse it to an icon in narrow layouts.
-- **Preset folder shortcut.** Open the dedicated `%APPDATA%\RM\presets` directory.
-- **Preset copy controls.** Copy place IDs, job IDs, and launch data directly from their detail chips.
-- **Preset game icons.** Load each saved game thumbnail from its Roblox place ID.
-- **Preset overflow menu.** Keep more-actions controls over the row instead of expanding it.
-- **Workspace navigation.** Accounts now leads the rail, Private Servers has its own workspace entry, and unavailable Instances is retained as a disabled utility action.
-- **Accounts menu rewrite.** Fully rewritten the accounts menu UI in Tauri + React to look cleaner, space easier, and function better.
-- **New UI facelift.** All UI has/being ported from egui to Tauri + React. Details are on [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30)
+- **Complete UI rewrite.** Roblox Manager v2 is migrating the existing egui/eframe interface to a new Tauri + React/TypeScript frontend, while keeping `ram_core` responsible for authentication, storage, cryptography, Roblox APIs, and Windows process management.
+- **New design system.** Introduces a cleaner, more consistent interface with responsive layouts, shared components, design tokens, animations, improved navigation, toast notifications, and reduced-motion support.
+- **Accounts workspace rewrite.** Rebuilds the Accounts interface with improved account management, restricted-account states, clearer launch controls, responsive sorting and input layouts, and cleaner account presentation.
+- **Groups workspace.** Ports group management from the legacy egui interface, including group search, live group information, account membership inspection, join/leave actions, announcements, wall states, and Roblox challenge handling.
+- **Private Servers workspace.** Adds saved Roblox private-server links that can be managed and launched using the accounts currently selected in the Accounts workspace.
+- **Presets workspace.** Adds searchable saved game presets with place IDs, job IDs, launch data, game thumbnails, copying controls, editing, deletion, and multi-account launching.
+- **Settings redesign.** Replaces the old settings interface with a continuous configuration editor featuring nested navigation, responsive system/app information, validation and asset warnings, and save/cancel handling for unsaved changes.
+- **Workspace navigation overhaul.** Reorganises the application around dedicated Accounts, Groups, Private Servers, Presets, and Settings workspaces, with unavailable utilities represented separately.
+- **Tauri integration.** Adds the Tauri application shell, Rust command layer, and typed IPC between the React frontend and existing Rust backend.
+- **Frontend tooling overhaul.** Introduces React, TypeScript, Vite, and the supporting project structure and development tooling required for the v2 frontend.
+
+v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/roblox-manager/tree/v2) branch as part of [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30).
 
 ## v1.16.0
 
