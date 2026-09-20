@@ -380,7 +380,7 @@ function SettingsContext({
       <section className="settings-context-card">
         <div className="settings-context-heading">
           <h2>System status</h2>
-          <button className="settings-context-refresh" type="button" disabled={isRefreshingStatus} aria-label="Refresh system status" onClick={onRefreshStatus}>
+          <button className="settings-context-refresh" type="button" disabled={isRefreshingStatus} aria-label="Refresh system status" data-tip="Refresh" onClick={onRefreshStatus}>
             <Icon name="refresh" tone="current-color" />
           </button>
         </div>
@@ -432,6 +432,8 @@ export function SettingsPage() {
   const [isAddingFlag, setIsAddingFlag] = useState(false);
   const [activeAnchor, setActiveAnchor] = useState("account-storage");
   const settingsPageRef = useRef<HTMLElement>(null);
+  const navigationTargetRef = useRef<string | null>(null);
+  const navigationTimeoutRef = useRef<number | null>(null);
 
   const notify = useCallback((kind: ToastKind, message: string) => {
     const id = nextNoticeId.current;
@@ -538,6 +540,14 @@ export function SettingsPage() {
   }
 
   function navigateToAnchor(anchorId: string) {
+    navigationTargetRef.current = anchorId;
+    if (navigationTimeoutRef.current !== null) {
+      window.clearTimeout(navigationTimeoutRef.current);
+    }
+    navigationTimeoutRef.current = window.setTimeout(() => {
+      navigationTargetRef.current = null;
+      navigationTimeoutRef.current = null;
+    }, 1200);
     setActiveAnchor(anchorId);
     window.requestAnimationFrame(() => {
       const page = settingsPageRef.current;
@@ -631,6 +641,7 @@ export function SettingsPage() {
     if (!page || isLoading) return;
 
     const updateActiveAnchor = () => {
+      if (navigationTargetRef.current) return;
       const scrollPadding = Number.parseFloat(
         window.getComputedStyle(page).scrollPaddingTop,
       ) || 0;
@@ -654,9 +665,26 @@ export function SettingsPage() {
     };
 
     updateActiveAnchor();
+    const finishNavigation = () => {
+      navigationTargetRef.current = null;
+      if (navigationTimeoutRef.current !== null) {
+        window.clearTimeout(navigationTimeoutRef.current);
+        navigationTimeoutRef.current = null;
+      }
+    };
     page.addEventListener("scroll", updateActiveAnchor, { passive: true });
-    return () => page.removeEventListener("scroll", updateActiveAnchor);
+    page.addEventListener("scrollend", finishNavigation);
+    return () => {
+      page.removeEventListener("scroll", updateActiveAnchor);
+      page.removeEventListener("scrollend", finishNavigation);
+    };
   }, [isLoading, snapshot]);
+
+  useEffect(() => () => {
+    if (navigationTimeoutRef.current !== null) {
+      window.clearTimeout(navigationTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

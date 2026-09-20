@@ -948,6 +948,7 @@ button:focus-visible {
   width: var(--border-width);
   background: var(--border-default);
   content: "";
+  transition: background-color var(--duration-base) var(--ease-standard);
 }
 
 .settings-sidebar-sublink.is-active {
@@ -1095,7 +1096,7 @@ button:focus-visible {
 }
 
 .settings-field-row > span:first-child {
-  flex: 0 0 130px;
+  flex: 0 0 calc(var(--space-12) * 2);
   color: var(--text-muted);
 }
 
@@ -1134,10 +1135,12 @@ button:focus-visible {
 
 .settings-context {
   position: sticky;
-  top: var(--space-4);
+  top: 0;
   display: grid;
   min-width: 0;
+  max-height: calc(100vh - 36px - var(--space-8));
   gap: var(--space-4);
+  overflow-y: auto;
 }
 
 .settings-context-card {
@@ -1161,6 +1164,7 @@ button:focus-visible {
 }
 
 .settings-context-refresh {
+  position: relative;
   display: inline-flex;
   width: var(--space-6);
   height: var(--space-6);
@@ -1172,6 +1176,28 @@ button:focus-visible {
   color: var(--text-muted);
   background: var(--bg-raised);
   cursor: pointer;
+}
+
+.settings-context-refresh[data-tip]::after {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  content: attr(data-tip);
+  font-size: var(--text-xs);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease-standard);
+}
+
+.settings-context-refresh[data-tip]:hover::after,
+.settings-context-refresh[data-tip]:focus-visible::after {
+  opacity: 1;
 }
 
 .settings-context-refresh:hover:not(:disabled) {
