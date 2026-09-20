@@ -15,18 +15,22 @@
         "title": "RM",
         "width": 1200,
         "height": 760,
-        "minWidth": 640,
-        "minHeight": 480,
+        "minWidth": 1200,
+        "minHeight": 760,
         "decorations": false,
         "resizable": true,
         "dragDropEnabled": false
       }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["../../assets/logos/Live.ico"]
+    "icon": [
+      "../../assets/logos/Live.ico"
+    ]
   }
 }
