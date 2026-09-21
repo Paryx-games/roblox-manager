@@ -2,8 +2,7 @@
 
 ## Unreleased
 
-- **Visible destructive icons.** Renders colour-aware icons inline so delete group, remove account, and kill actions remain visible in the Windows webview.
-- **Destructive icon colour.** Makes destructive action icons inherit the exact same danger red as their labels.
+- **Embedded Lucide destructive icons.** Uses dedicated local Lucide SVG assets for delete group, remove account, and kill actions so the Windows webview renders them reliably.
 - **Saved launch toolbar balance.** Expands the search and sorting controls across the full private-server and preset toolbar width.
 - **Settings navigation weight.** Uses the bundled Roboto medium face throughout the settings sidebar for clearer navigation labels.
 - **Saved launch toolbar spacing.** Keeps private-server and preset sorting on one line and gives the controls more room with compact search bars.

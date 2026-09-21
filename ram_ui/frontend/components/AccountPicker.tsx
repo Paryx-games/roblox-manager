@@ -364,7 +364,7 @@ export function AccountPicker({
                     onOpenChange(false);
                   }}
                 >
-                  <Icon name="delete" tone="current-color" />
+                  <Icon name="delete-danger" />
                   {deleteGroupLabel}
                 </button>
               </>

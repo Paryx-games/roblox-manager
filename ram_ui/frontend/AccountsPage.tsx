@@ -1957,7 +1957,7 @@ export function AccountsPage({
                 role="menuitem"
                 onClick={() => void deleteGroupFromMenu(groupContextMenu.name)}
               >
-                <Icon name="delete" tone="current-color" />
+                <Icon name="delete-danger" />
                 Delete group
               </button>
             </PopupMenu>
@@ -2425,7 +2425,7 @@ export function AccountsPage({
                           setShowAccountMenu(false);
                         }}
                       >
-                        <Icon name="delete" tone="current-color" />
+                        <Icon name="delete-danger" />
                         Remove account
                       </button>
                       <button
@@ -2437,7 +2437,7 @@ export function AccountsPage({
                           setShowAccountMenu(false);
                         }}
                       >
-                        <Icon name="kill" tone="current-color" />
+                        <Icon name="kill-danger" />
                         Kill all Roblox
                       </button>
                     </PopupMenu>

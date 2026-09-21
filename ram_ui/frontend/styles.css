@@ -5105,6 +5105,13 @@ button:focus-visible {
   background: transparent;
 }
 
+.account-actions-menu-danger .account-icon,
+.account-group-menu-danger .account-icon,
+.private-server-menu-danger .account-icon,
+.account-picker-danger .account-icon {
+  filter: none;
+}
+
 .account-icon-current-color {
   display: inline-block;
   flex: 0 0 auto;
