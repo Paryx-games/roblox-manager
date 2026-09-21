@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Saved launch toolbar spacing.** Keeps private-server and preset sorting on one line and gives the controls more room with compact search bars.
 - **Destructive action clarity.** Keeps destructive menu actions red, separates them at the bottom of menus, and restores their icons.
 - **Group picker consistency.** Matches the account group picker surface and border treatment to the player path field.
 - **Accounts workspace polish.** Improves account warnings, menu icons, preset naming, inventory and connection results, and sorting controls.
