@@ -1766,9 +1766,9 @@ button:focus-visible {
 .private-server-search {
   display: flex;
   width: 100%;
-  max-width: 340px;
-  min-width: 180px;
-  flex: 1 1 340px;
+  max-width: none;
+  min-width: 240px;
+  flex: 1 1 360px;
   height: 32px;
   align-items: center;
   gap: var(--space-2);
@@ -1797,7 +1797,7 @@ button:focus-visible {
 }
 .private-server-sort {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 360px;
   flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
@@ -1807,8 +1807,8 @@ button:focus-visible {
 }
 .private-server-sort .rm-select {
   width: auto;
-  max-width: 160px;
-  flex: 0 1 160px;
+  max-width: none;
+  flex: 1 1 180px;
 }
 .private-server-group {
   margin-top: var(--space-3);
@@ -2565,9 +2565,9 @@ button:focus-visible {
 .preset-search {
   display: flex;
   width: 100%;
-  max-width: 340px;
-  min-width: 180px;
-  flex: 1 1 340px;
+  max-width: none;
+  min-width: 240px;
+  flex: 1 1 360px;
   height: 32px;
   align-items: center;
   gap: var(--space-2);
@@ -2601,7 +2601,7 @@ button:focus-visible {
 
 .preset-sort {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 360px;
   flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
@@ -2612,8 +2612,8 @@ button:focus-visible {
 
 .preset-sort .rm-select {
   width: auto;
-  max-width: 160px;
-  flex: 0 1 160px;
+  max-width: none;
+  flex: 1 1 180px;
 }
 
 .preset-error {

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Saved launch toolbar balance.** Expands the search and sorting controls across the full private-server and preset toolbar width.
 - **Settings navigation weight.** Uses the bundled Roboto medium face throughout the settings sidebar for clearer navigation labels.
 - **Saved launch toolbar spacing.** Keeps private-server and preset sorting on one line and gives the controls more room with compact search bars.
 - **Destructive action clarity.** Keeps destructive menu actions red, separates them at the bottom of menus, and restores their icons.
