@@ -576,7 +576,7 @@ export function PrivateServersPage({
                                 setOpenMenu(null);
                               }}
                             >
-                              <Icon name="delete" tone="current-color" />
+                              <Icon name="delete" />
                               Delete
                             </button>
                           </PopupMenu>

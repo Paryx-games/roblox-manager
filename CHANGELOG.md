@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Destructive action clarity.** Keeps destructive menu actions red, separates them at the bottom of menus, and restores their icons.
 - **Group picker consistency.** Matches the account group picker surface and border treatment to the player path field.
 - **Accounts workspace polish.** Improves account warnings, menu icons, preset naming, inventory and connection results, and sorting controls.
 - **Current group content.** Shows community announcements with text, images, and reactions, and replaces the obsolete wall panel with account-authenticated forum categories and posts.

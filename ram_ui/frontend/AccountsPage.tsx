@@ -1957,7 +1957,7 @@ export function AccountsPage({
                 role="menuitem"
                 onClick={() => void deleteGroupFromMenu(groupContextMenu.name)}
               >
-                <Icon name="delete" tone="current-color" />
+                <Icon name="delete" />
                 Delete group
               </button>
             </PopupMenu>
@@ -2391,18 +2391,6 @@ export function AccountsPage({
                           : "Pin account"}
                       </button>
                       <button
-                        className="account-actions-menu-danger"
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setRemoveAccountConfirmation(true);
-                          setShowAccountMenu(false);
-                        }}
-                      >
-                        <Icon name="delete" tone="current-color" />
-                        Remove account
-                      </button>
-                      <button
                         type="button"
                         role="menuitem"
                         onClick={() => {
@@ -2424,6 +2412,22 @@ export function AccountsPage({
                         <Icon name="grid" />
                         Arrange windows
                       </button>
+                      <div
+                        className="account-actions-menu-separator"
+                        role="separator"
+                      />
+                      <button
+                        className="account-actions-menu-danger"
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setRemoveAccountConfirmation(true);
+                          setShowAccountMenu(false);
+                        }}
+                      >
+                        <Icon name="delete" />
+                        Remove account
+                      </button>
                       <button
                         className="account-actions-menu-danger"
                         type="button"
@@ -2433,7 +2437,7 @@ export function AccountsPage({
                           setShowAccountMenu(false);
                         }}
                       >
-                        <Icon name="kill" tone="current-color" />
+                        <Icon name="kill" />
                         Kill all Roblox
                       </button>
                     </PopupMenu>

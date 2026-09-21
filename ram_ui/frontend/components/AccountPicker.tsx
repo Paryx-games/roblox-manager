@@ -353,18 +353,21 @@ export function AccountPicker({
             deleteGroupLabel &&
             onDeleteGroup &&
             selectedGroup && (
-              <button
-                className="account-picker-manage account-picker-danger"
-                type="button"
-                disabled={disabled}
-                onClick={() => {
-                  onDeleteGroup();
-                  onOpenChange(false);
-                }}
-              >
-                <Icon name="delete" tone="current-color" />
-                {deleteGroupLabel}
-              </button>
+              <>
+                <div className="account-picker-divider" />
+                <button
+                  className="account-picker-manage account-picker-danger"
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    onDeleteGroup();
+                    onOpenChange(false);
+                  }}
+                >
+                  <Icon name="delete" />
+                  {deleteGroupLabel}
+                </button>
+              </>
             )}
           {showManageAccounts && onManageAccounts && (
             <>

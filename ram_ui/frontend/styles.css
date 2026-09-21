@@ -5078,16 +5078,17 @@ button:focus-visible {
   background: var(--border-default);
 }
 
-.account-actions-menu-danger,
-.account-group-menu-danger,
-.private-server-menu-danger {
+.account-actions-menu button.account-actions-menu-danger,
+.account-group-menu button.account-group-menu-danger,
+.private-server-menu button.private-server-menu-danger {
   color: var(--status-danger);
   background: transparent;
 }
 
 .account-actions-menu-danger .account-icon,
 .account-group-menu-danger .account-icon,
-.private-server-menu-danger .account-icon {
+.private-server-menu-danger .account-icon,
+.account-picker-danger .account-icon {
   filter: brightness(0) saturate(100%) invert(45%) sepia(54%) saturate(1200%)
     hue-rotate(310deg) brightness(90%);
 }
