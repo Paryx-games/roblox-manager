@@ -2198,14 +2198,14 @@ button:focus-visible {
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
   color: var(--text-primary);
-  background: var(--bg-raised);
+  background: var(--bg-surface);
   font-size: var(--text-sm);
   text-align: left;
 }
 
 .account-picker-groups .account-picker-trigger:hover,
 .account-picker-groups.is-open .account-picker-trigger {
-  border-color: var(--text-muted);
+  border-color: var(--border-default);
 }
 
 .account-info-grid .account-picker-trigger span,
