@@ -5108,11 +5108,7 @@ button:focus-visible {
 .account-icon-current-color {
   display: inline-block;
   flex: 0 0 auto;
-  background: currentcolor;
   filter: none;
-  mask-position: center;
-  mask-repeat: no-repeat;
-  mask-size: contain;
 }
 
 .account-actions-menu-danger .account-icon-current-color,

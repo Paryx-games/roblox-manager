@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Visible destructive icons.** Renders colour-aware icons inline so delete group, remove account, and kill actions remain visible in the Windows webview.
 - **Destructive icon colour.** Makes destructive action icons inherit the exact same danger red as their labels.
 - **Saved launch toolbar balance.** Expands the search and sorting controls across the full private-server and preset toolbar width.
 - **Settings navigation weight.** Uses the bundled Roboto medium face throughout the settings sidebar for clearer navigation labels.
