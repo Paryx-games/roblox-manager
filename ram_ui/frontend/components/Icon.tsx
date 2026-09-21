@@ -11,7 +11,15 @@ export function Icon({ name, tone = "image" }: IconProps) {
       <span
         className="account-icon account-icon-current-color"
         data-icon-name={name}
-        style={{ "--account-icon-mask": `url("/icons/${name}.svg")` } as CSSProperties}
+        style={
+          {
+            WebkitMaskImage: `url("/icons/${name}.svg")`,
+            WebkitMaskPosition: "center",
+            WebkitMaskRepeat: "no-repeat",
+            WebkitMaskSize: "contain",
+            maskImage: `url("/icons/${name}.svg")`,
+          } as CSSProperties
+        }
         aria-hidden="true"
       />
     );

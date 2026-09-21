@@ -5105,20 +5105,14 @@ button:focus-visible {
   background: transparent;
 }
 
-.account-actions-menu-danger .account-icon,
-.account-group-menu-danger .account-icon,
-.private-server-menu-danger .account-icon,
-.account-picker-danger .account-icon {
-  filter: brightness(0) saturate(100%) invert(45%) sepia(54%) saturate(1200%)
-    hue-rotate(310deg) brightness(90%);
-}
-
 .account-icon-current-color {
   display: inline-block;
   flex: 0 0 auto;
   background: currentcolor;
   filter: none;
-  mask: var(--account-icon-mask) center / contain no-repeat;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
 }
 
 .account-actions-menu-danger .account-icon-current-color,

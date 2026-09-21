@@ -526,7 +526,7 @@ export function PresetsPage({
                                 setOpenMenu(null);
                               }}
                             >
-                              <Icon name="delete" />
+                              <Icon name="delete" tone="current-color" />
                               Delete
                             </button>
                           </PopupMenu>
