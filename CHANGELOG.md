@@ -2,25 +2,14 @@
 
 ## Unreleased
 
-- **Authenticated inventory browsing.** Opens account inventories inside their signed-in Roblox browse window.
-- **Embedded Lucide destructive icons.** Uses dedicated local Lucide SVG assets for delete group, remove account, and kill actions so the Windows webview renders them reliably.
-- **Saved launch toolbar balance.** Expands the search and sorting controls across the full private-server and preset toolbar width.
-- **Settings navigation weight.** Uses the bundled Roboto medium face throughout the settings sidebar for clearer navigation labels.
-- **Saved launch toolbar spacing.** Keeps private-server and preset sorting on one line and gives the controls more room with compact search bars.
-- **Destructive action clarity.** Keeps destructive menu actions red, separates them at the bottom of menus, and restores their icons.
-- **Group picker consistency.** Matches the account group picker surface and border treatment to the player path field.
-- **Accounts workspace polish.** Improves account warnings, menu icons, preset naming, inventory and connection results, and sorting controls.
-- **Current group content.** Shows community announcements with text, images, and reactions, and replaces the obsolete wall panel with account-authenticated forum categories and posts.
-- **Saved launch polish.** Aligns private-server and preset launch controls, menus and sorting, and improves empty and tooltip states.
-- **Settings polish.** Brings input controls closer to their labels, aligns and scrolls the information panel, adds a refresh tooltip, and keeps sidebar section selection stable during navigation.
-- **Complete UI rewrite.** Roblox Manager v2 is migrating the existing egui/eframe interface to a new Tauri + React/TypeScript frontend, while keeping `ram_core` responsible for authentication, storage, cryptography, Roblox APIs, and Windows process management.
+- **UI shell rewrite.** Replaces the existing egui/eframe interface with a new Tauri + React/TypeScript frontend while keeping `ram_core` responsible for authentication, storage, cryptography, Roblox APIs, and Windows process management.
 - **New design system.** Introduces a cleaner, more consistent interface with responsive layouts, shared components, design tokens, animations, improved navigation, toast notifications, and reduced-motion support.
 - **Accounts workspace rewrite.** Rebuilds the Accounts interface with improved account management, restricted-account states, clearer launch controls, responsive sorting and input layouts, and cleaner account presentation.
 - **Groups workspace.** Ports group management from the legacy egui interface, including group search, live group information, account membership inspection, join/leave actions, announcements, forums, and Roblox challenge handling.
 - **Private Servers workspace.** Adds saved Roblox private-server links that can be managed and launched using the accounts currently selected in the Accounts workspace.
 - **Presets workspace.** Adds searchable saved game presets with place IDs, job IDs, launch data, game thumbnails, copying controls, editing, deletion, and multi-account launching.
 - **Settings redesign.** Replaces the old settings interface with a continuous configuration editor featuring nested navigation, responsive system/app information, validation and asset warnings, and save/cancel handling for unsaved changes.
-- **Workspace navigation overhaul.** Reorganises the application around dedicated Accounts, Groups, Private Servers, Presets, and Settings workspaces, with unavailable utilities represented separately.
+- **Workspace navigation overhaul.** Reorganises the interface around dedicated Accounts, Groups, Private Servers, Presets, and Settings workspaces, with unavailable utilities represented separately.
 - **Tauri integration.** Adds the Tauri application shell, Rust command layer, and typed IPC between the React frontend and existing Rust backend.
 - **Frontend tooling overhaul.** Introduces React, TypeScript, Vite, and the supporting project structure and development tooling required for the v2 frontend.
 
