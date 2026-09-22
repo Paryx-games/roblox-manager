@@ -2586,7 +2586,7 @@ export function AccountsPage({
                     <button
                       className="account-button"
                       type="button"
-                      onClick={() => void openAccountPage(true)}
+                      onClick={() => void browseAs(true)}
                     >
                       <Icon name="inventory" />
                       Open inventory
