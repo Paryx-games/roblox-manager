@@ -32,7 +32,7 @@ The version lives once in the root `Cargo.toml` and both crates inherit it - do 
 
 ## Publishing a release
 
-Releases are built and published by `.github/workflows/release.yml`, which only runs on pushes of tags matching `v*`. Nothing publishes on a normal push to `main` or any other branch.
+Releases are built and published by `.github/workflows/release.yml`, which runs on pushes of tags matching `v*`, and can also be re-run manually against an existing tag (see [If GitHub is being stubborn](#if-github-is-being-stubborn)). Nothing publishes on a normal push to `main` or any other branch.
 
 1. Bump the version in the root `Cargo.toml`.
 
@@ -71,19 +71,16 @@ Releases are built and published by `.github/workflows/release.yml`, which only 
 
 ## If GitHub is being stubborn
 
-The release workflow currently has **no `workflow_dispatch` trigger** - it only runs on a tag push. So if a run fails or you need to rebuild the same version (e.g. after fixing a stale `Cargo.lock`), re-running the job from the Actions tab won't help if the fix lives in a newer commit than the one the tag points to. In that case, move the tag instead:
+The release workflow has a `workflow_dispatch` trigger that takes the tag to release as an input, so a failed run doesn't require touching the tag at all:
 
-```powershell
-git tag -d vX.Y.Z
-git push origin :refs/tags/vX.Y.Z
-git tag vX.Y.Z
-git push origin vX.Y.Z
-```
+1. Fix whatever broke (stale `Cargo.lock`, a bad changelog heading, etc.) and push the fix to `main` as a normal commit.
+2. Open the **Actions** tab -> **Release** -> **Run workflow**.
+3. Enter the existing tag (e.g. `v2.0.0`) and run it.
 
-This deletes the tag locally and on GitHub, recreates it pointing at your latest commit, and pushes it - which re-triggers the workflow against the fixed commit.
+This runs the workflow fresh - including your fix - and publishes/overwrites the release for that tag, without moving or recreating anything.
 
-> [!WARNING]
+> [!NOTE]
 >
-> Only do this for a tag that hasn't been relied on yet (no one's grabbed the exe, no downstream automation pinned to it). If the release is already public and in use, bump to a new version instead of moving the tag out from under people.
+> Don't delete and re-push the tag to force a rebuild. GitHub Actions treats a moved tag as suspicious and will often refuse to run the workflow against it (or run it inconsistently), so it's not a reliable retry path - use `workflow_dispatch` instead.
 
-If the commit the tag already points to is fine and the run just failed transiently (flaky runner, GitHub API hiccup on the notes-generation step, etc.), you can re-run that exact commit without moving anything: open the failed run under the **Actions** tab and use **Re-run all jobs**.
+If the commit the tag already points to is fine and the run just failed transiently (flaky runner, GitHub API hiccup on the notes-generation step, etc.), you don't even need `workflow_dispatch` - just open the failed run under the **Actions** tab and use **Re-run all jobs**.

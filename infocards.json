@@ -118,7 +118,6 @@
   "auto_launch_on_startup": {
     "type": "caution",
     "text": "Automatically launch a selected account when RM starts. This is an attack surface; only enable if RM runs in a restricted or monitored environment."
-  }
   },
   "discord_webhook": {
     "type": "info",

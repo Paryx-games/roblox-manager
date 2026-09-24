@@ -28,5 +28,6 @@
   },
   "search.exclude": {
     "**/target/**": true
-  }
+  },
+  "codeQL.githubDatabase.update": "never"
 }

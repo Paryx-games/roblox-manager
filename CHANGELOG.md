@@ -2,16 +2,20 @@
 
 ## Unreleased
 
-### Added
+- **Inventories workspace.** Adds a dedicated page for browsing selected account inventories, filtering and searching items, and copying or opening selected asset ids.
 
-- **Bulk connection actions.** The multi-account panel now includes a Connections section with the same social controls as the single account view, so you can search a Roblox user and apply follow, unfollow, join-game, block, and friend-request actions across every selected account in one pass.
-- **Join-by-user support.** The account panel now includes a user-join flow with direct follow/unfollow controls, a join-their-game action, and startup friend-cache refreshes to keep friends-only joins fast on large account lists.
+- **UI shell rewrite.** Replaces the existing egui/eframe interface with a new Tauri + React/TypeScript frontend while keeping `ram_core` responsible for authentication, storage, cryptography, Roblox APIs, and Windows process management.
+- **New design system.** Introduces a cleaner, more consistent interface with responsive layouts, shared components, design tokens, animations, improved navigation, toast notifications, and reduced-motion support.
+- **Accounts workspace rewrite.** Rebuilds the Accounts interface with improved account management, restricted-account states, clearer launch controls, responsive sorting and input layouts, and cleaner account presentation.
+- **Groups workspace.** Ports group management from the legacy egui interface, including group search, live group information, account membership inspection, join/leave actions, announcements, forums, and Roblox challenge handling.
+- **Private Servers workspace.** Adds saved Roblox private-server links that can be managed and launched using the accounts currently selected in the Accounts workspace.
+- **Presets workspace.** Adds searchable saved game presets with place IDs, job IDs, launch data, game thumbnails, copying controls, editing, deletion, and multi-account launching.
+- **Settings redesign.** Replaces the old settings interface with a continuous configuration editor featuring nested navigation, responsive system/app information, validation and asset warnings, and save/cancel handling for unsaved changes.
+- **Workspace navigation overhaul.** Reorganises the interface around dedicated Accounts, Groups, Private Servers, Presets, and Settings workspaces, with unavailable utilities represented separately.
+- **Tauri integration.** Adds the Tauri application shell, Rust command layer, and typed IPC between the React frontend and existing Rust backend.
+- **Frontend tooling overhaul.** Introduces React, TypeScript, Vite, and the supporting project structure and development tooling required for the v2 frontend.
 
-### Fixed
-
-- **Account-panel sizing.** The selected-account sections now stay within one consistent width so the launch, inventory, and social cards no longer stretch past the viewport on smaller windows.
-- **Tools menu rendering.** The Tools dropdown no longer opens to a blank menu; it now shows the available workspace entries or a clear empty-state message when no tools are enabled.
-- **Account-panel width lock.** The top identity block stays at its original size while every lower card is forced to the exact same width for a consistent, non-clipping layout.
+v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/roblox-manager/tree/v2) branch as part of [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30).
 
 ## v1.16.0
 

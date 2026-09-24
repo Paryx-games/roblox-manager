@@ -35,8 +35,11 @@ assets/     Bundled application assets
 ```powershell
 git clone https://github.com/GITHUB_USERNAME/roblox-manager.git
 cd roblox-manager
+git config core.hooksPath .githooks
 git checkout -b your-feature-name
 ```
+
+Configure the repository hooks immediately after cloning so the project's commit and push checks run automatically.
 
 Branch off the default branch. Keep branch names short and descriptive.
 

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/stylelintrc.json",
+  "extends": ["stylelint-config-standard"],
+  "ignoreFiles": ["**/tokens.css"],
+  "rules": {
+    "color-no-hex": true,
+    "declaration-property-value-disallowed-list": {
+      "border-radius": ["/^(?!var\\(--radius\\)$).*/"],
+      "box-shadow": ["/.*/"]
+    },
+    "font-family-no-missing-generic-family-keyword": null,
+    "declaration-property-value-allowed-list": {
+      "font-family": ["/^var\\(--font-(sans|mono)\\)$/"]
+    }
+  },
+  "overrides": [
+    {
+      "files": ["**/*.css"],
+      "rules": {
+        "declaration-property-value-disallowed-list": {
+          "box-shadow": ["/.*/"],
+          "border-radius": ["/^(?!var\\(--radius\\)|0$).*/"]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,547 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# coderabbit configuration for RM (Roblox Manager).
+#
+# AGENTS.md and PR_CONVENTIONS.md are the sources of truth for repository policy.
+# this file configures how coderabbit applies those rules during PR reviews.
+
+language: "en-GB"
+
+# keep experimental behaviour disabled unless there is a specific reason to use it.
+early_access: false
+
+# allows coderabbit's free-tier behaviour where applicable.
+enable_free_tier: true
+
+# keep this short. detailed review policy belongs in path_instructions below.
+tone_instructions: >-
+  Be concise, technical, direct, and evidence-led. No emojis, praise, jokes,
+  poems, filler, or performative commentary. Prefer a few high-confidence,
+  actionable findings over speculative or stylistic feedback.
+
+reviews:
+  # assertive asks coderabbit to look harder.
+  # the instructions below prevent that from turning into endless nitpicks.
+  profile: "assertive"
+
+  # keep coderabbit from automatically approving prs after its findings are resolved.
+  # ci and human reviewers remain the actual merge authority.
+  request_changes_workflow: false
+
+  # keep one useful summary, but remove most of the decorative walkthrough noise.
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+
+  high_level_summary_instructions: >-
+    Summarise the purpose and externally meaningful behaviour of the pull
+    request. Mention important architectural, security, compatibility or
+    regression risks when present. Do not narrate the diff file by file.
+    Do not praise the author. Keep the summary concise.
+
+  # useful when coderabbit proposes or generates a title.
+  auto_title_instructions: >-
+    Use Conventional Commits where appropriate:
+    type(optional-scope): concise imperative summary.
+    Prefer feat, fix, refactor, perf, test, docs, build, ci or chore.
+    Do not add emoji. Do not end with a period.
+
+  # avoid extra review furniture unless it carries useful information.
+  review_status: false
+  review_details: false
+  collapse_walkthrough: true
+  changed_files_summary: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+
+  # expose a github check without allowing coderabbit alone to fail the pr.
+  commit_status: true
+  fail_commit_status: false
+
+  # use issue/pr context when it can explain the intended behaviour.
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+
+  # do not spam labels/reviewer recommendations.
+  suggested_labels: false
+  auto_apply_labels: false
+  suggested_reviewers: false
+  auto_assign_reviewers: false
+
+  # absolutely crucial pieces of cutting-edge software engineering.
+  poem: false
+  in_progress_fortune: false
+
+  # do not automatically post prompts intended for coding agents.
+  enable_prompt_for_ai_agents: false
+
+  # stop work if the pr is closed.
+  abort_on_close: true
+
+  # caching normally improves review speed and context reuse.
+  disable_cache: false
+
+  # generated/binary content is generally useless to review line-by-line.
+  # intentionally do not exclude lockfiles: dependency changes can matter.
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/target/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/coverage/**"
+    - "!**/.next/**"
+    - "!**/.nuxt/**"
+    - "!**/.cache/**"
+    - "!**/out/**"
+    - "!**/*.min.js"
+    - "!**/*.min.css"
+    - "!**/*.map"
+    - "!**/*.{png,jpg,jpeg,gif,webp,ico,bmp}"
+    - "!**/*.{woff,woff2,ttf,otf}"
+    - "!**/*.{mp3,wav,ogg,flac,mp4,webm}"
+
+  path_instructions:
+    # this is the main review policy.
+    #
+    # AGENTS.md contains the actual repository rules. coderabbit should
+    # understand the repository and its invariants before inventing advice.
+    - path: "**"
+      instructions: |
+        Treat AGENTS.md and any applicable nested AGENTS.md files as mandatory repository policy.
+
+        Apply repository guidance before generic preferences. If repository guidance conflicts with a generic best practice, follow the repository guidance unless it creates a concrete correctness or security problem.
+
+        Review the pull request in the context of the existing codebase rather than evaluating changed lines in isolation.
+
+        Before reporting a finding:
+        - inspect enough surrounding code to understand the relevant behaviour;
+        - consider callers, callees, types, tests, configuration and documented invariants;
+        - determine whether the behaviour is intentional;
+        - identify a realistic failure mode;
+        - determine whether the problem was introduced or materially worsened by this pull request.
+
+        Prioritise:
+        - correctness;
+        - security and privacy;
+        - data loss or corruption;
+        - concurrency and lifecycle bugs;
+        - broken error handling;
+        - regressions;
+        - API or compatibility breakage;
+        - incorrect assumptions or invariants;
+        - resource leaks;
+        - important performance regressions;
+        - missing tests for meaningful behaviour changes;
+        - violations of repository policy.
+
+        Do not:
+        - use emojis;
+        - praise the author;
+        - restate the diff;
+        - comment merely to show that code was read;
+        - report purely hypothetical problems without a plausible execution path;
+        - report pre-existing unrelated issues;
+        - suggest large refactors for minor problems;
+        - suggest defensive checks for conditions already guaranteed by an established invariant;
+        - duplicate compiler, formatter or linter diagnostics unless they reveal a deeper issue;
+        - enforce personal style preferences that are not repository policy;
+        - request comments or documentation for obvious code;
+        - recommend abstractions without a concrete benefit.
+
+        Prefer the smallest correct fix that is consistent with the existing architecture.
+
+        When uncertain, lower confidence rather than presenting speculation as fact.
+
+        A small number of high-confidence findings is better than many weak findings.
+
+    # rust-specific review.
+    - path: "**/*.rs"
+      instructions: |
+        Focus on ownership and lifetime correctness, panic paths, error propagation,
+        concurrency, async cancellation behaviour, blocking work in async contexts,
+        resource lifetime, unsafe code, integer conversions, filesystem behaviour and
+        public API compatibility.
+
+        Check Result and Option handling carefully. Do not demand unwrap removal when
+        the invariant genuinely makes failure impossible and the repository permits it.
+
+        Respect existing clippy and rustfmt policy instead of duplicating their style output.
+
+    # javascript/typescript/frontend/backend review.
+    - path: "**/*.{js,jsx,ts,tsx,mjs,cjs}"
+      instructions: |
+        Focus on runtime correctness, type assumptions, asynchronous behaviour,
+        promise rejection handling, stale state, race conditions, input validation,
+        unsafe trust boundaries and server/client separation.
+
+        For TypeScript, do not suggest redundant runtime checks when the value is
+        already guaranteed by an actual runtime boundary or validated invariant.
+
+        Do not duplicate eslint, biome or formatter-only findings.
+
+    # python review.
+    - path: "**/*.py"
+      instructions: |
+        Focus on correctness, exception handling, async behaviour, resource lifetime,
+        unsafe subprocess or shell usage, filesystem boundaries, typing assumptions
+        that affect runtime behaviour and missing failure-path coverage.
+
+        Do not duplicate ruff, black or import-order feedback.
+
+    # web-facing code gets additional trust-boundary scrutiny.
+    - path: "**/*.{html,css,scss,sass}"
+      instructions: |
+        Focus on broken behaviour, accessibility regressions, browser compatibility,
+        security-sensitive markup and maintainability problems that have a concrete
+        impact.
+
+        Ignore subjective visual preferences and formatting.
+
+    # tests should test behaviour rather than implementation trivia.
+    - path: "**/{test,tests,__tests__,spec,specs}/**"
+      instructions: |
+        Check whether tests verify externally meaningful behaviour and realistic
+        failure cases.
+
+        Flag tests that cannot fail when the production behaviour is broken, tests
+        that reproduce the implementation instead of validating it, and brittle
+        tests coupled unnecessarily to implementation details.
+
+        Do not demand tests for trivial mechanical changes.
+
+    - path: "**/*.{test,spec}.{js,jsx,ts,tsx}"
+      instructions: |
+        Check that assertions validate meaningful behaviour rather than only call
+        counts or snapshots with little semantic value.
+
+        Prefer deterministic tests. Flag timing-dependent sleeps and flaky shared
+        state where they create a realistic reliability problem.
+
+    # github actions are a security boundary.
+    - path: ".github/workflows/**"
+      instructions: |
+        Treat workflow changes as security-sensitive.
+
+        Check event triggers, token permissions, secret handling, untrusted pull
+        request input, shell interpolation, artifact handling, cache behaviour,
+        release permissions and third-party actions.
+
+        Flag pull_request_target or write-token workflows that execute untrusted code.
+
+        Prefer least-privilege permissions and pinned third-party actions where the
+        repository policy requires or benefits from them.
+
+    # scripts are frequently overlooked attack/error surfaces.
+    - path: "{scripts,script,bin,tools}/**"
+      instructions: |
+        Focus on command injection, unsafe shell construction, path traversal,
+        unintended destructive operations, weak error handling, environment
+        assumptions, portability expectations and secrets accidentally written to logs.
+
+    # dependency manifests deserve context-aware review.
+    - path: "**/{Cargo.toml,package.json,pyproject.toml,requirements.txt,requirements-dev.txt}"
+      instructions: |
+        Check whether dependency additions are necessary and whether version,
+        feature or permission changes materially affect security, compatibility,
+        binary size or runtime behaviour.
+
+        Pay particular attention to dependencies sourced directly from git,
+        branches, local paths or unexpected registries.
+
+    # lockfiles matter, but line-by-line lockfile narration is useless.
+    - path: "**/{Cargo.lock,pnpm-lock.yaml,package-lock.json,yarn.lock,uv.lock}"
+      instructions: |
+        Do not review generated lockfile structure or formatting line by line.
+
+        Only report meaningful dependency changes such as unexpected packages,
+        suspicious source changes, major-version movement, removed integrity data
+        or changes inconsistent with the corresponding manifest.
+
+    # configuration changes can silently change production behaviour.
+    - path: "**/*.{yaml,yml,toml,json,jsonc}"
+      instructions: |
+        Focus on semantic configuration changes, invalid assumptions, insecure
+        defaults, accidental exposure, environment mismatches and values that
+        contradict application behaviour.
+
+        Ignore formatting and key ordering.
+
+    # database migrations have unusually expensive failure modes.
+    - path: "**/{migrations,migration}/**"
+      instructions: |
+        Treat migrations as data-sensitive changes.
+
+        Check upgrade safety, ordering, destructive operations, backwards
+        compatibility, locking, transactional behaviour, rollback assumptions and
+        whether application code can safely coexist with old and new schemas during
+        deployment.
+
+    # docs still need to agree with reality.
+    - path: "**/*.{md,mdx,rst}"
+      instructions: |
+        Focus on technical accuracy.
+
+        Verify commands, file paths, configuration names, API descriptions and
+        behavioural claims against the implementation when possible.
+
+        Do not nitpick prose style unless meaning is unclear or repository guidance
+        requires a particular style.
+
+    # anything explicitly security-related receives stricter review.
+    - path: "**/{auth,authentication,security,crypto,secrets,credentials}/**"
+      instructions: |
+        Treat this code as security-sensitive.
+
+        Check trust boundaries, authentication and authorisation decisions, secret
+        handling, logging, token validation, timing and expiry behaviour, unsafe
+        defaults, confused-deputy risks and fail-open behaviour.
+
+        Require concrete reasoning for security findings. Do not report vague
+        theoretical concerns without an applicable attack or failure path.
+
+  auto_review:
+    enabled: true
+
+    # review subsequent pushes rather than only the initial pr.
+    auto_incremental_review: true
+
+    # drafts are intentionally unfinished.
+    drafts: false
+
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+      - "DO NOT REVIEW"
+
+    # the repository's pull request workflows target main.
+    base_branches:
+      - "^main$"
+
+    # add bots here if you decide their prs do not need coderabbit.
+    ignore_usernames: []
+
+    # leave empty so normal prs are reviewed regardless of labels.
+    labels: []
+
+  # use CodeRabbit checks that add coverage beyond the repository's existing CI.
+  tools:
+    gitleaks:
+      enabled: true
+
+    semgrep:
+      enabled: true
+
+    osvScanner:
+      # dependency-review.yml already scans dependency changes for known vulnerabilities.
+      enabled: false
+
+    actionlint:
+      enabled: true
+
+    shellcheck:
+      enabled: true
+
+    hadolint:
+      enabled: true
+
+    checkov:
+      enabled: true
+
+    clippy:
+      # rust.yml runs workspace clippy with the project's warning policy.
+      enabled: false
+
+    ruff:
+      enabled: true
+
+    eslint:
+      # the frontend lint script runs eslint as part of CI.
+      enabled: false
+
+    cppcheck:
+      # this workspace has no C or C++ source.
+      enabled: false
+
+    # these tend to create style noise across general-purpose repositories,
+    # so leave them disabled unless the repository explicitly uses them.
+    biome:
+      enabled: false
+
+    markdownlint:
+      enabled: false
+
+    yamllint:
+      enabled: false
+
+    languagetool:
+      enabled: false
+
+    # let coderabbit take existing github checks into account.
+    github-checks:
+      enabled: true
+      timeout_ms: 900000
+
+  # these are advisory gates.
+  # "warning" gives useful feedback without making coderabbit the supreme court.
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+
+    title:
+      mode: "warning"
+      requirements: >-
+        Prefer Conventional Commits:
+        type(optional-scope): concise imperative summary.
+        The title should describe the actual behavioural change, contain no emoji,
+        avoid filler and normally remain under 72 characters.
+
+    description:
+      mode: "warning"
+      requirements: >-
+        Follow PR_CONVENTIONS.md exactly. Include these sections in this order:
+        What changed and why (link related issues, for example closes #NN);
+        User-visible behavior (state explicitly when there is no user-visible
+        change); Gotchas (include risks, tradeoffs, deferred work and Roblox-version
+        assumptions where relevant); How to test (give concrete steps, including
+        manual Windows steps with Roblox installed for UI or launch changes).
+        Include every required checklist item from PR_CONVENTIONS.md explicitly,
+        marked checked or N/A. Keep the description concise and factual.
+
+    issue_assessment:
+      mode: "warning"
+
+    custom_checks:
+      - name: "repository policy compliance"
+        mode: "warning"
+        instructions: |
+          Check the changed code against AGENTS.md and any more-specific nested AGENTS.md
+          that applies to the changed path. For pull request titles and descriptions,
+          also apply PR_CONVENTIONS.md, including its required sections and checklist.
+
+          Pass when the change follows the applicable repository rules.
+
+          Warn only for concrete policy violations. Do not turn optional guidance into
+          mandatory requirements.
+
+      - name: "tests for behaviour changes"
+        mode: "warning"
+        instructions: |
+          Determine whether production behaviour changed.
+
+          Pass when:
+          - behaviour did not materially change;
+          - appropriate existing tests already cover the change;
+          - the pull request adds or updates meaningful tests; or
+          - the pull request gives a reasonable explanation for omitting tests.
+
+          Warn when meaningful new or changed behaviour has no useful regression
+          coverage and no reasonable justification.
+
+      - name: "public contract consistency"
+        mode: "warning"
+        instructions: |
+          Check whether public APIs, user-facing configuration, command-line behaviour,
+          persisted formats or documented interfaces changed.
+
+          Warn when related documentation, migration handling, compatibility behaviour
+          or tests are clearly required but missing.
+
+  # coderabbit can offer generated follow-up work.
+  # keep unsolicited generation disabled - use it deliberately through commands.
+  finishing_touches:
+    docstrings:
+      enabled: false
+
+    unit_tests:
+      enabled: false
+
+    simplify:
+      enabled: false
+
+chat:
+  # allows @coderabbitai questions and follow-up conversations.
+  auto_reply: true
+
+  # no decorative generated art.
+  art: false
+
+knowledge_base:
+  # retain coderabbit's repository context features.
+  opt_out: false
+
+  # allows documentation/current external context when coderabbit decides it is useful.
+  web_search:
+    enabled: true
+
+  # learn useful repository conventions from review interactions.
+  learnings:
+    scope: "auto"
+
+  # use relevant historical issue/pr context.
+  issues:
+    scope: "auto"
+
+  pull_requests:
+    scope: "auto"
+
+  # these files become explicit review guidance.
+  # agents.md should remain the main source of truth.
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
+      - "**/AGENTS.md"
+      - "PR_CONVENTIONS.md"
+      - "CONTRIBUTING.md"
+      - "**/CONTRIBUTING.md"
+      - "CODE_STYLE.md"
+      - "CODING_GUIDELINES.md"
+      - ".github/instructions/**/*.md"
+
+# controls output produced when you explicitly ask coderabbit to generate code.
+code_generation:
+  docstrings:
+    language: "en-GB"
+
+    path_instructions:
+      - path: "**"
+        instructions: |
+          Generate documentation only where it adds information that cannot be
+          understood easily from the declaration itself.
+
+          Explain purpose, invariants, surprising behaviour, side effects, important
+          errors and non-obvious constraints.
+
+          Do not restate parameter names, types or obvious control flow.
+
+  unit_tests:
+    path_instructions:
+      - path: "**"
+        instructions: |
+          Follow the repository's existing test framework, structure and naming.
+
+          Test externally meaningful behaviour rather than implementation details.
+
+          Include regression coverage for the behaviour being changed, including
+          realistic failure paths and boundary cases where relevant.
+
+          Avoid excessive mocking. Prefer deterministic tests that exercise the same
+          interfaces used by production code.
+
+      - path: "**/*.rs"
+        instructions: |
+          Use the repository's existing Rust testing conventions.
+
+          Prefer ordinary unit or integration tests over introducing a new testing
+          dependency unless the repository already uses one.
+
+      - path: "**/*.{js,jsx,ts,tsx}"
+        instructions: |
+          Reuse the repository's existing JavaScript or TypeScript test framework.
+          Do not introduce Jest, Vitest, Playwright or another framework merely
+          because it is familiar.
+
+      - path: "**/*.py"
+        instructions: |
+          Reuse the repository's existing Python test framework and fixtures.
+          Prefer behavioural assertions over implementation-coupled mocks.

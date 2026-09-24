@@ -1,5 +1,5 @@
 [workspace]
-members = ["ram_core", "ram_ui"]
+members = ["ram_core", "ram_ui", "ram_ui/src-tauri"]
 resolver = "2"
 
 [workspace.package]
