@@ -1926,6 +1926,29 @@ fn open_account_url(user_id: u64, inventory: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn open_inventory_assets(asset_ids: Vec<u64>) -> Result<(), String> {
+    if asset_ids.is_empty() || asset_ids.contains(&0) || asset_ids.len() > 20 {
+        return Err("Select between 1 and 20 valid inventory items to open".to_string());
+    }
+
+    #[cfg(windows)]
+    {
+        for asset_id in asset_ids {
+            let url = format!("https://www.roblox.com/catalog/{asset_id}");
+            std::process::Command::new("cmd")
+                .args(["/C", "start", "", &url])
+                .spawn()
+                .map_err(|error| format!("Could not open Roblox: {error}"))?;
+        }
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        Err("Opening Roblox is only supported on Windows".to_string())
+    }
+}
+
+#[tauri::command]
 fn remove_account(state: tauri::State<'_, AppState>, user_id: u64) -> Result<(), String> {
     let mut runtime = state
         .runtime
@@ -3038,6 +3061,7 @@ fn main() {
             delete_account_group,
             update_account_group_meta,
             open_account_url,
+            open_inventory_assets,
             remove_account,
             launch_account,
             list_private_servers,

@@ -454,6 +454,10 @@ export async function fetchAccountInventory(
   return invoke<InventoryItem[]>("fetch_account_inventory", { userId });
 }
 
+export async function openInventoryAssets(assetIds: number[]): Promise<void> {
+  return invoke<void>("open_inventory_assets", { assetIds });
+}
+
 export async function searchConnectionUsers(
   keyword: string,
 ): Promise<UserSearchResult[]> {

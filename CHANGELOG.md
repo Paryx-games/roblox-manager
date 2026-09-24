@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Inventories workspace.** Adds a dedicated page for browsing selected account inventories, filtering and searching items, and copying or opening selected asset ids.
+
 - **UI shell rewrite.** Replaces the existing egui/eframe interface with a new Tauri + React/TypeScript frontend while keeping `ram_core` responsible for authentication, storage, cryptography, Roblox APIs, and Windows process management.
 - **New design system.** Introduces a cleaner, more consistent interface with responsive layouts, shared components, design tokens, animations, improved navigation, toast notifications, and reduced-motion support.
 - **Accounts workspace rewrite.** Rebuilds the Accounts interface with improved account management, restricted-account states, clearer launch controls, responsive sorting and input layouts, and cleaner account presentation.

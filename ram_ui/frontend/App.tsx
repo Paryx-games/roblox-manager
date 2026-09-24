@@ -5,6 +5,7 @@ import { GroupsPage } from "./GroupsPage";
 import { PrivateServersPage } from "./PrivateServersPage";
 import { PresetsPage } from "./PresetsPage";
 import { SettingsPage } from "./SettingsPage";
+import { InventoriesPage } from "./InventoriesPage";
 
 type NavItem = {
   label: string;
@@ -17,6 +18,7 @@ type PageName =
   | "Groups"
   | "Private Servers"
   | "Presets"
+  | "Inventories"
   | "Settings";
 
 const navItems: NavItem[] = [
@@ -24,6 +26,7 @@ const navItems: NavItem[] = [
   { label: "Groups", icon: "users", page: "Groups" },
   { label: "Private Servers", icon: "game", page: "Private Servers" },
   { label: "Presets", icon: "star", page: "Presets" },
+  { label: "Inventories", icon: "inventory", page: "Inventories" },
 ];
 
 function Icon({ name }: { name: string }) {
@@ -153,6 +156,10 @@ export function App() {
 
     if (page === "Settings") {
       return <SettingsPage />;
+    }
+
+    if (page === "Inventories") {
+      return <InventoriesPage initialSelectedIds={selectedIds} />;
     }
 
     return (
