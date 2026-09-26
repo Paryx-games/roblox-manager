@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { AccountAvatar } from "./components/AccountAvatar";
 import { Icon } from "./components/Icon";
 import Select from "./components/Select";
@@ -72,9 +72,12 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const [view, setView] = useState<"grid" | "list">("grid");
   const [gridSize, setGridSize] = useState<InventoryViewSize>("medium");
   const [listSize, setListSize] = useState<InventoryViewSize>("medium");
+  const [isFilterSidebarCollapsed, setIsFilterSidebarCollapsed] = useState(false);
+  const [filterSidebarWidth, setFilterSidebarWidth] = useState(240);
   const [selectedSearch, setSelectedSearch] = useState("");
   const [selectionRectangle, setSelectionRectangle] = useState<SelectionRectangle | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDetailsElement>(null);
   const dragRef = useRef<SelectionDrag | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -224,6 +227,30 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
       else next.add(option);
       return next;
     });
+  }
+
+  function resizeFilterSidebar(nextWidth: number) {
+    setFilterSidebarWidth(Math.max(180, Math.min(360, nextWidth)));
+  }
+
+  function onFilterResizePointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function onFilterResizePointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (event.buttons !== 1 || !workspaceRef.current) return;
+    resizeFilterSidebar(event.clientX - workspaceRef.current.getBoundingClientRect().left);
+  }
+
+  function onFilterResizeKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key === "ArrowLeft") resizeFilterSidebar(filterSidebarWidth - 16);
+    else if (event.key === "ArrowRight") resizeFilterSidebar(filterSidebarWidth + 16);
+    else if (event.key === "Home") resizeFilterSidebar(180);
+    else if (event.key === "End") resizeFilterSidebar(360);
+    else return;
+    event.preventDefault();
   }
 
   function toggleAccount(event: MouseEvent<HTMLButtonElement>, userId: number) {
@@ -386,10 +413,15 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
         </aside>
 
         <section className="inventories-main" aria-labelledby="inventory-title">
-          <div className="inventories-heading">
-            <div className="inventories-title"><h2 id="inventory-title">Roblox inventory</h2><span>{accountIds.size} {accountIds.size === 1 ? "account" : "accounts"}</span></div>
-            <label className="inventories-search"><Icon name="search" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search items or ids" aria-label="Search inventory" /></label>
-          </div>
+          <div className={`inventories-workspace ${isFilterSidebarCollapsed ? "is-filter-collapsed" : ""}`} ref={workspaceRef} style={{ "--inventory-filter-width": `${filterSidebarWidth}px` } as CSSProperties}>
+            <aside className="inventories-filter-sidebar" aria-label="Inventory filters">
+              <div className="inventories-filter-heading">
+                {!isFilterSidebarCollapsed && <h2>Filters</h2>}
+                <button className="inventories-filter-toggle" type="button" aria-label={isFilterSidebarCollapsed ? "Expand inventory filters" : "Collapse inventory filters"} aria-expanded={!isFilterSidebarCollapsed} aria-controls="inventory-filter-options" title={isFilterSidebarCollapsed ? "Expand filters" : "Collapse filters"} onClick={() => setIsFilterSidebarCollapsed((collapsed) => !collapsed)}>
+                  <Icon name="chevron-down" />
+                </button>
+              </div>
+              <div id="inventory-filter-options" hidden={isFilterSidebarCollapsed}>
           <div className="inventories-control-panel">
             <div className="inventories-control-row">
               <div className="inventories-control-group">
@@ -436,6 +468,14 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             </div>
           </div>
           {!itemsLoading && !isComparisonAvailable && <p className="inventories-selection-hint">{accountIds.size < 2 ? "Select multiple accounts to compare inventories." : "Comparison requires every selected inventory to load."}</p>}
+              </div>
+            </aside>
+            {!isFilterSidebarCollapsed && <div className="inventories-filter-resizer" role="separator" aria-label="Resize inventory filters" aria-orientation="vertical" aria-valuemin={180} aria-valuemax={360} aria-valuenow={filterSidebarWidth} tabIndex={0} onPointerDown={onFilterResizePointerDown} onPointerMove={onFilterResizePointerMove} onKeyDown={onFilterResizeKeyDown} />}
+            <div className="inventories-content">
+          <div className="inventories-heading">
+            <div className="inventories-title"><h2 id="inventory-title">Roblox inventory</h2><span>{accountIds.size} {accountIds.size === 1 ? "account" : "accounts"}</span></div>
+            <label className="inventories-search"><Icon name="search" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search items or ids" aria-label="Search inventory" /></label>
+          </div>
           <div className="inventories-toolbar">
             <button className="account-button" type="button" disabled={visibleItems.length === 0 || itemsLoading} onClick={() => setSelectedItemIds((current) => new Set([...current, ...visibleItems.map((item) => item.assetId)]))}>Select all</button>
             <button className="account-button" type="button" disabled={selectedItemIds.size === 0} onClick={() => setSelectedItemIds(new Set())}>Clear selection</button>
@@ -587,6 +627,8 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               </div>
             </div>
           )}
+            </div>
+          </div>
         </section>
       </main>
     </>
