@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Inventory group spacing.** Reduces gaps between account groups and uses more compact headers and spacing when groups are collapsed.
+- **Inventory group spacing.** Reduces gaps between account groups to 8px and uses compact headers with 6px spacing around collapsed groups.
 
 - **Inventory account groups.** Adds collapsible group headers with account counts and follows the saved Accounts group order, with pinned accounts first and custom account ordering within each group. Collapsing a group preserves its selected accounts.
 
