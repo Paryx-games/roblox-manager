@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Inventory display controls.** Adds separate small, medium, and large sizing for grid items and list rows, uses Lucide's list icon, and widens sorting dropdowns to show full labels.
+
 - **Inventory drag interaction.** Disables text selection on helper copy and interface labels so they do not interfere with dragging, while keeping search text and asset IDs selectable.
 
 - **Inventory click selection.** Plain clicks select a single item, while Ctrl-click toggles individual items in a multiple selection. Drag selection and explicit Select all remain available.

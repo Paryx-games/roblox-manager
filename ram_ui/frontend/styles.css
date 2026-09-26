@@ -5925,7 +5925,7 @@ button:focus-visible {
 .inventories-filters button:hover { color: var(--text-primary); background: var(--bg-raised); }
 .inventories-filters button.is-active { color: var(--text-primary); border-color: var(--action-primary); background: var(--action-primary); }
 .inventories-filters button span { font-size: var(--text-xs); }
-.inventories-toolbar { margin-top: var(--space-4); }
+.inventories-toolbar { flex-wrap: wrap; margin-top: var(--space-4); }
 .inventories-toolbar .account-button { flex: 0 0 auto; }
 .inventories-toolbar > span { margin-left: auto; color: var(--text-muted); font-size: var(--text-xs); }
 .inventories-error { margin: var(--space-3) 0 0; color: var(--text-primary); font-size: var(--text-sm); }
@@ -6007,7 +6007,9 @@ button:focus-visible {
 .inventories-comparison { margin-top: 0; }
 .inventories-comparison button:disabled { color: var(--text-disabled); background: var(--bg-surface); cursor: not-allowed; }
 .inventories-sort { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: var(--text-xs); }
-.inventories-sort .rm-select { min-width: 100px; }
+.inventories-sort .rm-select { width: calc(var(--space-12) * 3); min-width: calc(var(--space-12) * 3); flex: 0 0 auto; }
+.inventories-sort .rm-select-trigger { min-height: calc(var(--space-8) + var(--space-1)); padding: 0 var(--space-3); }
+.inventories-sort .rm-select-trigger .account-icon { flex: 0 0 var(--space-4); }
 .inventories-id {
   display: flex;
   width: calc(100% - var(--space-4));
@@ -6082,6 +6084,10 @@ button:focus-visible {
 .inventories-selected-options button:active,
 .inventories-page .account-button:not(:disabled):active { background: var(--action-muted); }
 
+.inventories-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.inventories-size { display: flex; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: var(--text-xs); }
+.inventories-size > span { white-space: nowrap; }
+.inventories-size .rm-select { width: calc(var(--space-12) * 2 + var(--space-4)); min-width: calc(var(--space-12) * 2 + var(--space-4)); flex: 0 0 auto; }
 .inventories-view-switch { display: flex; gap: var(--space-1); }
 .inventories-view-switch button { display: flex; min-height: var(--space-8); align-items: center; gap: var(--space-1); padding: 0 var(--space-2); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); color: var(--text-muted); background: var(--bg-surface); cursor: pointer; font-size: var(--text-xs); }
 .inventories-view-switch button:hover { color: var(--text-primary); background: var(--bg-raised); }
@@ -6090,12 +6096,18 @@ button:focus-visible {
 .inventories-selection-hint { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: var(--text-xs); }
 .inventories-grid.is-dragging { user-select: none; }
 .inventories-marquee { position: absolute; z-index: 2; border: var(--border-width) solid var(--action-primary); background: var(--action-muted); pointer-events: none; }
-.inventories-grid.is-list { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+.inventories-grid:not(.is-list)[data-size="small"] { grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--space-12) * 2)), 1fr)); }
+.inventories-grid:not(.is-list)[data-size="large"] { grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--space-12) * 4 + var(--space-4))), 1fr)); }
+.inventories-grid:not(.is-list)[data-size="small"] .inventories-tile-caption { flex-wrap: wrap; }
+.inventories-grid:not(.is-list)[data-size="small"] .inventories-tile-name { flex-basis: 100%; }
+.inventories-grid.is-list { --inventory-list-thumbnail-size: var(--space-8); --inventory-list-padding: var(--space-3); grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+.inventories-grid.is-list[data-size="small"] { --inventory-list-thumbnail-size: var(--space-6); --inventory-list-padding: var(--space-2); }
+.inventories-grid.is-list[data-size="large"] { --inventory-list-thumbnail-size: var(--space-12); --inventory-list-padding: var(--space-4); }
 .inventories-grid.is-list .inventories-tile { display: flex; align-items: center; background: var(--bg-surface); }
 .inventories-grid.is-list .inventories-tile:hover { background: var(--bg-raised); }
 .inventories-grid.is-list .inventories-tile.is-selected { background: var(--action-muted); }
-.inventories-grid.is-list .inventories-tile-select { min-width: 0; flex: 1; flex-direction: row; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
-.inventories-grid.is-list .inventories-thumbnail { width: var(--space-8); height: var(--space-8); flex: 0 0 var(--space-8); }
+.inventories-grid.is-list .inventories-tile-select { min-width: 0; flex: 1; flex-direction: row; align-items: center; gap: var(--space-3); padding: var(--inventory-list-padding) var(--space-4); }
+.inventories-grid.is-list .inventories-thumbnail { width: var(--inventory-list-thumbnail-size); height: var(--inventory-list-thumbnail-size); flex: 0 0 var(--inventory-list-thumbnail-size); }
 .inventories-grid.is-list .inventories-thumbnail .account-icon { width: var(--space-6); height: var(--space-6); }
 .inventories-grid.is-list .inventories-tile-check { position: static; order: -1; width: var(--space-4); height: var(--space-4); flex: 0 0 var(--space-4); }
 .inventories-grid.is-list .inventories-tile-name { padding: 0; }
@@ -6106,7 +6118,7 @@ button:focus-visible {
 .inventories-grid.is-list .inventories-owner-avatars { min-width: calc(var(--space-12) * 2); justify-content: flex-end; }
 .inventories-grid.is-list .inventories-owner-avatar { width: var(--space-6); height: var(--space-6); flex-basis: var(--space-6); }
 .inventories-grid.is-list .inventories-id { width: calc(var(--space-8) * 4); min-height: var(--space-8); flex: 0 0 calc(var(--space-8) * 4); margin: 0 var(--space-4) 0 0; padding: 0 var(--space-2); }
-.inventories-grid.is-list .inventories-skeleton { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+.inventories-grid.is-list .inventories-skeleton { display: flex; align-items: center; gap: var(--space-3); padding: var(--inventory-list-padding) var(--space-4); }
 .inventories-grid.is-list .inventories-skeleton-label { min-width: var(--space-12); flex: 1; }
 
 @container inventory-content (width < 800px) {

@@ -12,6 +12,7 @@ import {
 } from "./lib/ipc";
 
 type Category = "All" | "Hair & hats" | "Clothing" | "Animations" | "Gear";
+type InventoryViewSize = "small" | "medium" | "large";
 
 const categories: Category[] = ["All", "Hair & hats", "Clothing", "Animations", "Gear"];
 
@@ -51,6 +52,8 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [gridSize, setGridSize] = useState<InventoryViewSize>("medium");
+  const [listSize, setListSize] = useState<InventoryViewSize>("medium");
   const [selectedSearch, setSelectedSearch] = useState("");
   const [selectionRectangle, setSelectionRectangle] = useState<SelectionRectangle | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -360,15 +363,29 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             <button className="account-button" type="button" disabled={visibleItems.length === 0 || itemsLoading} onClick={() => setSelectedItemIds((current) => new Set([...current, ...visibleItems.map((item) => item.assetId)]))}>Select all</button>
             <button className="account-button" type="button" disabled={selectedItemIds.size === 0} onClick={() => setSelectedItemIds(new Set())}>Clear selection</button>
             <span>{visibleItems.length} {visibleItems.length === 1 ? "item" : "items"}</span>
-            <div className="inventories-view-switch" role="group" aria-label="Inventory view">
-              <button type="button" aria-pressed={view === "grid"} onClick={() => setView("grid")}><Icon name="grid" />Grid</button>
-              <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><Icon name="inventory" />List</button>
+            <div className="inventories-view-controls">
+              <div className="inventories-view-switch" role="group" aria-label="Inventory view">
+                <button type="button" aria-pressed={view === "grid"} onClick={() => setView("grid")}><Icon name="grid" />Grid</button>
+                <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><Icon name="list" />List</button>
+              </div>
+              <div className="inventories-size">
+                <span>{view === "grid" ? "Grid size:" : "List size:"}</span>
+                <Select value={view === "grid" ? gridSize : listSize} onChange={(value) => {
+                  if (view === "grid") setGridSize(value as InventoryViewSize);
+                  else setListSize(value as InventoryViewSize);
+                }} ariaLabel={view === "grid" ? "Grid item size" : "List row size"} options={[
+                  { value: "small", label: "Small" },
+                  { value: "medium", label: "Medium" },
+                  { value: "large", label: "Large" },
+                ]} />
+              </div>
             </div>
           </div>
           <p className="inventories-selection-hint">Click to select one item. Ctrl-click to toggle items, or drag to select several. Hold Ctrl while dragging to add to your selection.</p>
           {error && <p className="inventories-error" role="alert">{error}</p>}
           <div
             className={`inventories-grid ${view === "list" ? "is-list" : ""} ${selectionRectangle ? "is-dragging" : ""}`}
+            data-size={view === "grid" ? gridSize : listSize}
             ref={gridRef}
             aria-label="Inventory items"
             aria-busy={itemsLoading}
