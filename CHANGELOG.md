@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Inventory list layout.** Tightens row spacing, improves padding and selection placement, and shows item type, price, and owner avatars in aligned rows that adapt to the available width.
+
 - **Inventory ownership and comparison.** Shows owner avatars beside items with overflow counts, adds shared/unique comparison filters, and supports sorting by name, asset ID, type, or price in either direction.
 
 - **Inventory selection tools.** Adds drag selection with edge scrolling, a searchable selected-ID dropdown, comma-separated ID copying, and grid/list views with grid as the default.

@@ -405,6 +405,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                 return account ? [account] : [];
               });
               const ownerNames = owners.map((account) => account.alias || account.username).join(", ");
+              const priceLabel = item.priceRobux === null ? "Price unavailable" : item.priceRobux === 0 ? "Free" : `${item.priceRobux.toLocaleString()} Robux`;
               return (
               <article
                 className={`inventories-tile ${selectedItemIds.has(item.assetId) ? "is-selected" : ""}`}
@@ -427,6 +428,12 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   </span>
                   <span className="inventories-tile-caption">
                     <strong className="inventories-tile-name">{item.name}</strong>
+                    {view === "list" && (
+                      <span className="inventories-list-details">
+                        <span title={item.assetType}>{item.assetType}</span>
+                        <span title={priceLabel}>{priceLabel}</span>
+                      </span>
+                    )}
                     <span className="inventories-owner-avatars" title={`Owned by: ${ownerNames}`} aria-label={`Owned by: ${ownerNames}`}>
                       {owners.slice(0, 3).map((account) => <AccountAvatar key={account.userId} account={account} className="inventories-owner-avatar" />)}
                       {owners.length > 3 && <span className="inventories-owner-overflow">+{owners.length - 3}</span>}
