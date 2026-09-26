@@ -5952,6 +5952,12 @@ button:focus-visible {
 .inventories-search input { width: 100%; min-width: 0; border: 0; outline: 0; color: var(--text-primary); background: transparent; font-size: var(--text-sm); }
 .inventories-search input::placeholder { color: var(--text-muted); }
 .inventories-filters { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.inventories-control-panel { display: grid; gap: var(--space-3); margin-top: var(--space-4); padding: var(--space-3); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); background: var(--bg-surface); }
+.inventories-control-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.inventories-control-group { display: grid; gap: var(--space-1); }
+.inventories-control-label { color: var(--text-muted); font-size: var(--text-xs); }
+.inventories-control-row .inventories-filters { margin-top: 0; }
+.inventories-control-row-secondary { justify-content: flex-start; padding-top: var(--space-2); border-top: var(--border-width) solid var(--border-default); }
 .inventories-filters button {
   display: flex;
   align-items: center;

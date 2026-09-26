@@ -352,15 +352,21 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             <div className="inventories-title"><h2 id="inventory-title">Roblox inventory</h2><span>{accountIds.size} {accountIds.size === 1 ? "account" : "accounts"}</span></div>
             <label className="inventories-search"><Icon name="search" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search items or ids" aria-label="Search inventory" /></label>
           </div>
-          <div className="inventories-filters" aria-label="Item categories">
-            {categories.map((option) => (
-              <button className={category === option ? "is-active" : ""} type="button" key={option} aria-pressed={category === option} onClick={() => setCategory(option)}>
-                {option}<span>{option === "All" ? items.length : items.filter((item) => getCategory(item.assetType) === option).length}</span>
-              </button>
-            ))}
-          </div>
-          <div className="inventories-browse-controls">
-            <div className="inventories-filters inventories-comparison" role="group" aria-label="Compare inventories">
+          <div className="inventories-control-panel">
+            <div className="inventories-control-row">
+              <div className="inventories-control-group">
+                <span className="inventories-control-label">Filter by type</span>
+                <div className="inventories-filters" role="group" aria-label="Item categories">
+                  {categories.map((option) => (
+                    <button className={category === option ? "is-active" : ""} type="button" key={option} aria-pressed={category === option} onClick={() => setCategory(option)}>
+                      {option}<span>{option === "All" ? items.length : items.filter((item) => getCategory(item.assetType) === option).length}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="inventories-control-group">
+                <span className="inventories-control-label">Compare</span>
+                <div className="inventories-filters inventories-comparison" role="group" aria-label="Compare inventories">
               {([
                 { value: "all", label: "All items" },
                 { value: "shared", label: "Shared by all" },
@@ -371,19 +377,23 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   {(option.value === "all" || isComparisonAvailable) && <span>{items.filter((item) => matchesInventoryComparison(item, option.value, accountIds.size)).length}</span>}
                 </button>
               ))}
+                </div>
+              </div>
             </div>
-            <div className="inventories-sort">
-              <span>Sort:</span>
-              <Select value={sort} onChange={(value) => setSort(value as InventorySort)} ariaLabel="Sort inventory by" options={[
-                { value: "name", label: "Name" },
-                { value: "assetId", label: "Asset ID" },
-                { value: "assetType", label: "Type" },
-                { value: "priceRobux", label: "Price" },
-              ]} />
-              <Select value={sortDirection} onChange={(value) => setSortDirection(value as InventorySortDirection)} ariaLabel="Inventory sort direction" options={[
-                { value: "ascending", label: "Ascending" },
-                { value: "descending", label: "Descending" },
-              ]} />
+            <div className="inventories-control-row inventories-control-row-secondary">
+              <span className="inventories-control-label">Sort items</span>
+              <div className="inventories-sort">
+                <Select value={sort} onChange={(value) => setSort(value as InventorySort)} ariaLabel="Sort inventory by" options={[
+                  { value: "name", label: "Name" },
+                  { value: "assetId", label: "Asset ID" },
+                  { value: "assetType", label: "Type" },
+                  { value: "priceRobux", label: "Price" },
+                ]} />
+                <Select value={sortDirection} onChange={(value) => setSortDirection(value as InventorySortDirection)} ariaLabel="Inventory sort direction" options={[
+                  { value: "ascending", label: "Ascending" },
+                  { value: "descending", label: "Descending" },
+                ]} />
+              </div>
             </div>
           </div>
           {!itemsLoading && !isComparisonAvailable && <p className="inventories-selection-hint">{accountIds.size < 2 ? "Select multiple accounts to compare inventories." : "Comparison requires every selected inventory to load."}</p>}
