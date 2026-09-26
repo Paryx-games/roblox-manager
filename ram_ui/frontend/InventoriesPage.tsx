@@ -75,15 +75,37 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const [isFilterSidebarCollapsed, setIsFilterSidebarCollapsed] = useState(false);
   const [isFilterSidebarResizing, setIsFilterSidebarResizing] = useState(false);
   const [filterSidebarWidth, setFilterSidebarWidth] = useState(240);
+  const [shouldFocusSidebarSearch, setShouldFocusSidebarSearch] = useState(false);
+  const [shouldFocusCompactSearch, setShouldFocusCompactSearch] = useState(false);
+  const [sidebarSectionToFocus, setSidebarSectionToFocus] = useState<"types" | "comparison" | "sort" | null>(null);
   const [selectedSearch, setSelectedSearch] = useState("");
   const [selectionRectangle, setSelectionRectangle] = useState<SelectionRectangle | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const sidebarSearchRef = useRef<HTMLInputElement>(null);
+  const compactSearchRef = useRef<HTMLButtonElement>(null);
+  const filterOptionsRef = useRef<HTMLDivElement>(null);
+  const isSearchAutoExpandedRef = useRef(false);
   const dropdownRef = useRef<HTMLDetailsElement>(null);
   const dragRef = useRef<SelectionDrag | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const suppressClickRef = useRef(false);
   const copyTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isFilterSidebarCollapsed && shouldFocusSidebarSearch) {
+      sidebarSearchRef.current?.focus();
+      setShouldFocusSidebarSearch(false);
+    }
+    if (isFilterSidebarCollapsed && shouldFocusCompactSearch) {
+      compactSearchRef.current?.focus();
+      setShouldFocusCompactSearch(false);
+    }
+    if (!isFilterSidebarCollapsed && sidebarSectionToFocus) {
+      filterOptionsRef.current?.querySelector<HTMLButtonElement>(`[data-filter-section="${sidebarSectionToFocus}"] button`)?.focus();
+      setSidebarSectionToFocus(null);
+    }
+  }, [isFilterSidebarCollapsed, shouldFocusSidebarSearch, shouldFocusCompactSearch, sidebarSectionToFocus]);
 
   useEffect(() => {
     function onDocumentPointerDown(event: globalThis.PointerEvent) {
@@ -232,6 +254,31 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
 
   function resizeFilterSidebar(nextWidth: number) {
     setFilterSidebarWidth(Math.max(180, Math.min(360, nextWidth)));
+  }
+
+  function toggleFilterSidebar() {
+    isSearchAutoExpandedRef.current = false;
+    setIsFilterSidebarCollapsed((collapsed) => !collapsed);
+  }
+
+  function openSidebarSearch() {
+    isSearchAutoExpandedRef.current = isFilterSidebarCollapsed;
+    setIsFilterSidebarCollapsed(false);
+    setShouldFocusSidebarSearch(true);
+  }
+
+  function openFilterSidebar(section: "types" | "comparison" | "sort") {
+    isSearchAutoExpandedRef.current = false;
+    setIsFilterSidebarCollapsed(false);
+    setSidebarSectionToFocus(section);
+  }
+
+  function onSidebarSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (!isSearchAutoExpandedRef.current || !["Enter", "Escape"].includes(event.key) || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    isSearchAutoExpandedRef.current = false;
+    setIsFilterSidebarCollapsed(true);
+    setShouldFocusCompactSearch(true);
   }
 
   function onFilterResizePointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -416,19 +463,34 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
 
         <section className="inventories-main" aria-labelledby="inventory-title">
           <div className={`inventories-workspace ${isFilterSidebarCollapsed ? "is-filter-collapsed" : ""} ${isFilterSidebarResizing ? "is-filter-resizing" : ""}`} ref={workspaceRef} style={{ "--inventory-filter-width": `${filterSidebarWidth}px` } as CSSProperties}>
-            <aside className="inventories-filter-sidebar" aria-label="Inventory filters">
+            <aside className="inventories-filter-sidebar" aria-label="Inventory filters" onBlur={(event) => {
+              if (isSearchAutoExpandedRef.current && !event.currentTarget.contains(event.relatedTarget)) {
+                isSearchAutoExpandedRef.current = false;
+                setIsFilterSidebarCollapsed(true);
+              }
+            }}>
               <div className="inventories-filter-heading">
                 {!isFilterSidebarCollapsed && <h2>Filters</h2>}
-                <button className="inventories-filter-toggle" type="button" aria-label={isFilterSidebarCollapsed ? "Expand inventory filters" : "Collapse inventory filters"} aria-expanded={!isFilterSidebarCollapsed} aria-controls="inventory-filter-options" title={isFilterSidebarCollapsed ? "Expand filters" : "Collapse filters"} onClick={() => setIsFilterSidebarCollapsed((collapsed) => !collapsed)}>
+                <button className="inventories-filter-toggle" type="button" aria-label={isFilterSidebarCollapsed ? "Expand inventory filters" : "Collapse inventory filters"} aria-expanded={!isFilterSidebarCollapsed} aria-controls="inventory-filter-options" title={isFilterSidebarCollapsed ? "Expand filters" : "Collapse filters"} onClick={toggleFilterSidebar}>
                   <Icon name="chevron-down" />
                 </button>
               </div>
-              <div id="inventory-filter-options" hidden={isFilterSidebarCollapsed}>
+              {isFilterSidebarCollapsed && <div className="inventories-filter-rail" aria-label="Collapsed inventory controls">
+                <button ref={compactSearchRef} type="button" aria-label="Search inventory" title="Search inventory" aria-pressed={search.trim().length > 0} onClick={openSidebarSearch}><Icon name="search" /></button>
+                <button type="button" aria-label="Item type filters" title="Item type filters" aria-pressed={selectedCategories.size > 0} onClick={() => openFilterSidebar("types")}><Icon name="inventory" /></button>
+                <button type="button" aria-label="Compare inventories" title="Compare inventories" aria-pressed={effectiveComparison !== "all"} onClick={() => openFilterSidebar("comparison")}><Icon name="users" /></button>
+                <button type="button" aria-label="Sort inventory" title="Sort inventory" onClick={() => openFilterSidebar("sort")}><Icon name="list" tone="current-color" /></button>
+              </div>}
+              <div id="inventory-filter-options" ref={filterOptionsRef} hidden={isFilterSidebarCollapsed}>
           <div className="inventories-control-panel">
+            <div className="inventories-control-group">
+              <span className="inventories-control-label">Search</span>
+              <label className="inventories-search"><Icon name="search" /><input ref={sidebarSearchRef} value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={onSidebarSearchKeyDown} placeholder="Search items or ids" aria-label="Search inventory" /></label>
+            </div>
             <div className="inventories-control-row">
               <div className="inventories-control-group">
                 <span className="inventories-control-label">Filter by type</span>
-                <div className="inventories-filters" role="group" aria-label="Item categories">
+                <div className="inventories-filters" role="group" aria-label="Item categories" data-filter-section="types">
                   {["All" as const, ...categories].filter((option) => option === "All" || (categoryCounts.get(option) ?? 0) > 0).map((option) => {
                     const isActive = option === "All" ? selectedCategories.size === 0 : selectedCategories.has(option);
                     return <button className={isActive ? "is-active" : ""} type="button" key={option} aria-pressed={isActive} onClick={() => toggleCategory(option)}>
@@ -439,7 +501,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               </div>
               <div className="inventories-control-group">
                 <span className="inventories-control-label">Compare</span>
-                <div className="inventories-filters inventories-comparison" role="group" aria-label="Compare inventories">
+                <div className="inventories-filters inventories-comparison" role="group" aria-label="Compare inventories" data-filter-section="comparison">
               {([
                 { value: "all", label: "All items" },
                 { value: "shared", label: "Shared by all" },
@@ -455,7 +517,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             </div>
             <div className="inventories-control-row inventories-control-row-secondary">
               <span className="inventories-control-label">Sort items</span>
-              <div className="inventories-sort">
+              <div className="inventories-sort" data-filter-section="sort">
                 <Select value={sort} onChange={(value) => setSort(value as InventorySort)} ariaLabel="Sort inventory by" options={[
                   { value: "name", label: "Name" },
                   { value: "assetId", label: "Asset ID" },
@@ -476,7 +538,6 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             <div className="inventories-content">
           <div className="inventories-heading">
             <div className="inventories-title"><h2 id="inventory-title">Roblox inventory</h2><span>{accountIds.size} {accountIds.size === 1 ? "account" : "accounts"}</span></div>
-            <label className="inventories-search"><Icon name="search" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search items or ids" aria-label="Search inventory" /></label>
           </div>
           <div className="inventories-toolbar">
             <button className="account-button" type="button" disabled={visibleItems.length === 0 || itemsLoading} onClick={() => setSelectedItemIds((current) => new Set([...current, ...visibleItems.map((item) => item.assetId)]))}>Select all</button>

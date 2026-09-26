@@ -5984,6 +5984,26 @@ button:focus-visible {
 .inventories-filter-toggle .account-icon { width: var(--space-4); height: var(--space-4); transform: rotate(-90deg); transition: transform var(--duration-base) var(--ease-standard); }
 .inventories-workspace.is-filter-collapsed .inventories-filter-heading { justify-content: center; padding-inline: 0; }
 .inventories-workspace.is-filter-collapsed .inventories-filter-toggle .account-icon { transform: rotate(90deg); }
+.inventories-filter-rail { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-1); }
+.inventories-filter-rail button {
+  display: flex;
+  width: var(--space-8);
+  height: var(--space-8);
+  flex: 0 0 var(--space-8);
+  align-items: center;
+  justify-content: center;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.inventories-filter-rail button:hover { color: var(--text-primary); background: var(--bg-raised); }
+.inventories-filter-rail button:active,
+.inventories-filter-rail button[aria-pressed="true"] { color: var(--text-primary); background: var(--action-muted); }
+.inventories-filter-rail button:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; }
+.inventories-filter-rail .account-icon { width: var(--space-4); height: var(--space-4); }
+.inventories-control-panel .inventories-search { width: 100%; }
 .inventories-filter-resizer {
   position: relative;
   z-index: 2;
