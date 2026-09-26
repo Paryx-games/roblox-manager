@@ -412,6 +412,10 @@ first) - silently reflowing columns in arbitrary order is not acceptable.
 - **No emoji as UI icons, anywhere, ever.**
 - Icon-only buttons require an accessible label (`aria-label` or
   equivalent) - not optional, not covered by a tooltip alone.
+- Use distinct icons for different actions or filter meanings visible on the
+  same page. Repeating an icon is appropriate only for the same meaning.
+  For example, reserve the grid icon for grid view rather than also using it
+  for all categories and inventory comparison.
 
 ---
 

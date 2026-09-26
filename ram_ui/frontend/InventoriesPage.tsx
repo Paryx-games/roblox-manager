@@ -18,13 +18,13 @@ type InventoryViewSize = "small" | "medium" | "large";
 
 const categories: Exclude<Category, "All">[] = ["Hats", "Hair", "Face", "Neck", "Shoulder", "Front", "Back", "Waist", "Shirts", "Pants", "T-Shirts", "Animations", "Gear", "Other"];
 const categoryIcons: Record<Category, string> = {
-  All: "grid", Hats: "inventory-hat", Hair: "inventory-hair", Face: "inventory-face",
+  All: "layers", Hats: "inventory-hat", Hair: "inventory-hair", Face: "inventory-face",
   Neck: "inventory-neck", Shoulder: "inventory-shoulder", Front: "inventory-front",
   Back: "inventory-back", Waist: "inventory-waist", Shirts: "inventory-shirt",
   Pants: "inventory-pants", "T-Shirts": "inventory-tshirt", Animations: "launch", Gear: "tools-menu", Other: "more",
 };
 const comparisonOptions = [
-  { value: "all", label: "All items", icon: "grid" },
+  { value: "all", label: "All items", icon: "package" },
   { value: "shared", label: "Shared by all", icon: "users" },
   { value: "unique", label: "Unique to one", icon: "accounts" },
 ] as const;
@@ -502,7 +502,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   ))}
                 </div>
                 <span className="inventories-filter-divider" role="separator" />
-                <button type="button" aria-label="Sort inventory" data-tip="Sort inventory" onClick={() => openFilterSidebar("sort")}><Icon name="list" tone="current-color" /></button>
+                <button type="button" aria-label="Sort inventory" data-tip="Sort inventory" onClick={() => openFilterSidebar("sort")}><Icon name="arrow-down-up" /></button>
               </div>}
               <div id="inventory-filter-options" ref={filterOptionsRef} hidden={isFilterSidebarCollapsed}>
           <div className="inventories-control-panel">
