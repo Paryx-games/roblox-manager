@@ -5824,6 +5824,15 @@ button:focus-visible {
   font-weight: 500;
 }
 
+.inventories-group-toggle { display: flex; width: 100%; min-height: var(--space-8); align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border: 0; border-radius: var(--radius); color: inherit; background: transparent; cursor: pointer; font-size: inherit; font-weight: inherit; text-align: left; }
+.inventories-group-toggle:hover { color: var(--text-primary); background: var(--bg-surface); }
+.inventories-group-toggle:active { background: var(--action-muted); }
+.inventories-group-toggle > span:nth-child(2) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inventories-group-chevron { display: flex; flex: 0 0 var(--space-3); }
+.inventories-group-chevron .account-icon { width: var(--space-3); height: var(--space-3); }
+.inventories-group-chevron.is-collapsed { transform: rotate(-90deg); }
+.inventories-group-count { margin-left: auto; color: var(--text-muted); font-size: var(--text-xs); }
+
 .inventories-account {
   display: flex;
   width: 100%;
@@ -5842,6 +5851,7 @@ button:focus-visible {
 .inventories-account:hover { background: var(--bg-surface); color: var(--text-primary); }
 .inventories-account.is-selected { background: var(--action-muted); color: var(--text-primary); }
 .inventories-account:focus-visible,
+.inventories-group-toggle:focus-visible,
 .inventories-search:focus-within,
 .inventories-filters button:focus-visible,
 .inventories-tile-select:focus-visible,

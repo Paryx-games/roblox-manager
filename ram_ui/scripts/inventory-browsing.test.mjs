@@ -1,6 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mergeAccountInventories, matchesInventoryComparison, sortInventoryItems } from "../frontend/lib/inventoryBrowsing.ts";
+import { buildInventoryAccountGroups, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems } from "../frontend/lib/inventoryBrowsing.ts";
+
+test("inventory groups follow saved order, retain empty groups and trim group names", () => {
+  const accounts = [{ userId: 1, group: " Second ", isPinned: false, sortOrder: 0 }, { userId: 2, group: " ", isPinned: false, sortOrder: 1 }];
+  const groups = buildInventoryAccountGroups(accounts, ["First", "Second"]);
+  assert.deepEqual(groups.map(([name]) => name), ["First", "Second", "Ungrouped"]);
+  assert.equal(groups[0][1].length, 0);
+  assert.deepEqual(groups[1][1].map((account) => account.userId), [1]);
+  assert.equal(accounts[0].group, " Second ");
+});
+
+test("accounts within inventory groups follow pinned and custom ordering without changing the input", () => {
+  const accounts = [{ userId: 1, group: "Group", isPinned: false, sortOrder: 2 }, { userId: 2, group: "Group", isPinned: false, sortOrder: 1 }, { userId: 3, group: "Group", isPinned: true, sortOrder: 3 }];
+  assert.deepEqual(buildInventoryAccountGroups(accounts, ["Group"])[0][1].map((account) => account.userId), [3, 2, 1]);
+  assert.deepEqual(accounts.map((account) => account.userId), [1, 2, 3]);
+});
 
 const first = { assetId: 101, name: "Item 10", assetType: "Hat", iconUrl: null, priceRobux: null };
 const second = { assetId: 102, name: "Item 2", assetType: "Gear", iconUrl: null, priceRobux: 50 };

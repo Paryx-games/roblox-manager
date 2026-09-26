@@ -1,4 +1,16 @@
-import type { InventoryItem } from "./ipc";
+import type { AccountSummary, InventoryItem } from "./ipc";
+
+export function buildInventoryAccountGroups(accounts: readonly AccountSummary[], groupOrder: readonly string[]): [string, AccountSummary[]][] {
+  const grouped = new Map<string, AccountSummary[]>(groupOrder.map((name) => [name, []]));
+  const sortedAccounts = [...accounts].sort((left, right) => Number(right.isPinned) - Number(left.isPinned) || left.sortOrder - right.sortOrder);
+  for (const account of sortedAccounts) {
+    const name = account.group.trim() || "Ungrouped";
+    const members = grouped.get(name) ?? [];
+    members.push(account);
+    grouped.set(name, members);
+  }
+  return [...grouped.entries()];
+}
 
 export type OwnedInventoryItem = InventoryItem & { ownerIds: number[] };
 export type InventoryComparison = "all" | "shared" | "unique";

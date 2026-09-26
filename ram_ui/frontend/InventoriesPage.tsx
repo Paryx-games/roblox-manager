@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { AccountAvatar } from "./components/AccountAvatar";
 import { Icon } from "./components/Icon";
 import Select from "./components/Select";
-import { mergeAccountInventories, matchesInventoryComparison, sortInventoryItems, type OwnedInventoryItem, type InventoryComparison, type InventorySort, type InventorySortDirection } from "./lib/inventoryBrowsing";
+import { buildInventoryAccountGroups, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems, type OwnedInventoryItem, type InventoryComparison, type InventorySort, type InventorySortDirection } from "./lib/inventoryBrowsing";
 import { getSelectionRectangle, selectInventoryAsset, selectInventoryAssets, type SelectionRectangle } from "./lib/inventorySelection";
 import {
   fetchAccountInventory,
   listAccounts,
+  listAccountGroups,
   openInventoryAssets,
   type AccountSummary,
 } from "./lib/ipc";
@@ -37,6 +38,10 @@ function getCategory(assetType: string): Category {
 
 export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Set<number> }) {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [groupOrder, setGroupOrder] = useState<string[]>([]);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [isGroupOrderUnavailable, setIsGroupOrderUnavailable] = useState(false);
+  const groupIdPrefix = useId();
   const [accountIds, setAccountIds] = useState<Set<number>>(() => new Set(initialSelectedIds));
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [items, setItems] = useState<OwnedInventoryItem[]>([]);
@@ -95,9 +100,17 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
 
   useEffect(() => {
     let isCurrent = true;
-    void listAccounts()
-      .then((loaded) => {
+    void Promise.allSettled([listAccounts(), listAccountGroups()])
+      .then(([accountResult, groupResult]) => {
         if (!isCurrent) return;
+        if (accountResult.status === "rejected") {
+          setAccountIds(new Set());
+          setError("Accounts could not be loaded. Reopen this page to retry.");
+          return;
+        }
+        if (groupResult.status === "fulfilled") setGroupOrder(groupResult.value.map((group) => group.name));
+        else setIsGroupOrderUnavailable(true);
+        const loaded = accountResult.value;
         setAccounts(loaded);
         setAccountIds((current) => {
           const available = new Set(loaded.map((account) => account.userId));
@@ -163,14 +176,16 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     return sortInventoryItems(filtered, { field: sort, direction: sortDirection });
   }, [items, category, search, effectiveComparison, accountIds.size, sort, sortDirection]);
 
-  const accountGroups = useMemo(() => {
-    const grouped = new Map<string, AccountSummary[]>();
-    for (const account of accounts) {
-      const name = account.group || "Ungrouped";
-      grouped.set(name, [...(grouped.get(name) ?? []), account]);
-    }
-    return grouped;
-  }, [accounts]);
+  const accountGroups = useMemo(() => buildInventoryAccountGroups(accounts, groupOrder), [accounts, groupOrder]);
+
+  function onGroupToggle(group: string) {
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  }
 
   function toggleAccount(event: MouseEvent<HTMLButtonElement>, userId: number) {
     setAccountIds((current) => {
@@ -297,9 +312,19 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
         <aside className="inventories-accounts" aria-label="Inventory accounts">
           <h2>Accounts</h2>
           <p>Ctrl-click to select multiple accounts</p>
-          {accountsLoading ? <p>Loading accounts...</p> : accounts.length === 0 ? <p>{error ? "Accounts are unavailable." : "No accounts yet. Add one in the Accounts workspace to browse its inventory."}</p> : [...accountGroups].map(([group, members]) => (
+          {isGroupOrderUnavailable && <p role="alert">Saved group order could not be loaded. Reopen this page to retry.</p>}
+          {accountsLoading ? <p>Loading accounts...</p> : accounts.length === 0 ? <p>{error ? "Accounts are unavailable." : "No accounts yet. Add one in the Accounts workspace to browse its inventory."}</p> : accountGroups.map(([group, members], index) => {
+            const isCollapsed = collapsedGroups.has(group);
+            const groupId = `${groupIdPrefix}-${index}`;
+            return (
             <div className="inventories-account-group" key={group}>
-              <h3>{group}</h3>
+              <h3>
+                <button className="inventories-group-toggle" type="button" aria-expanded={!isCollapsed} aria-controls={groupId} onClick={() => onGroupToggle(group)}>
+                  <span className={`inventories-group-chevron ${isCollapsed ? "is-collapsed" : ""}`}><Icon name="chevron-down" /></span>
+                  <span>{group}</span><span className="inventories-group-count">{members.length}</span>
+                </button>
+              </h3>
+              <div id={groupId} hidden={isCollapsed}>
               {members.map((account) => (
                 <button
                   className={`inventories-account ${accountIds.has(account.userId) ? "is-selected" : ""}`}
@@ -312,8 +337,10 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   <span>{account.alias || account.username}</span>
                 </button>
               ))}
+              </div>
             </div>
-          ))}
+            );
+          })}
           <button className="account-button inventories-refresh" type="button" disabled={accountIds.size === 0 || itemsLoading} onClick={() => setRefreshCount((count) => count + 1)}>
             <Icon name="refresh" />{itemsLoading ? "Refreshing..." : "Refresh selected"}
           </button>
