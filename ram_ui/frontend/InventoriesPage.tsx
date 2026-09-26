@@ -190,18 +190,78 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             <span>{visibleItems.length} {visibleItems.length === 1 ? "item" : "items"}</span>
           </div>
           {error && <p className="inventories-error" role="alert">{error}</p>}
-          <div className="inventories-table" role="table" aria-label="Inventory items">
-            <div className="inventories-table-head" role="row"><span role="columnheader">Item</span><span role="columnheader">Type</span><span role="columnheader">Price</span><span role="columnheader">Id</span></div>
-            {itemsLoading ? [0, 1, 2, 3].map((index) => <div className="inventories-skeleton" role="row" key={index} aria-label="Loading inventory"><span role="cell" /><span role="cell" /><span role="cell" /><span role="cell" /></div>) : accountIds.size === 0 ? <div className="inventories-table-state" role="row"><span role="cell" aria-colspan={4}>Select an account to view its inventory.</span></div> : visibleItems.length === 0 ? <div className="inventories-table-state" role="row"><span role="cell" aria-colspan={4}>{items.length === 0 ? "No inventory items found. Refresh selected to try again." : "No items match these filters. Try another category or search."}</span></div> : visibleItems.map((item) => (
-              <div className={`inventories-item ${selectedItemIds.has(item.assetId) ? "is-selected" : ""}`} role="row" key={item.assetId}>
-                <span className="inventories-item-name" role="cell"><input type="checkbox" aria-label={`Select ${item.name}`} checked={selectedItemIds.has(item.assetId)} onChange={() => toggleItem(item.assetId)} /><span className="inventory-item-icon">{item.iconUrl ? <img src={item.iconUrl} alt="" /> : <Icon name="inventory" />}</span><strong title={item.name}>{item.name}</strong></span>
-                <span role="cell">{item.assetType}</span>
-                <span role="cell">{item.priceRobux === null ? "Unavailable" : `${item.priceRobux.toLocaleString()} robux`}</span>
-                <span className="inventories-id" role="cell"><span>{item.assetId}</span><button type="button" aria-label={`Copy id for ${item.name}`} onClick={() => void copyIds([item.assetId])}><Icon name={copiedId === item.assetId ? "check" : "copy"} /></button></span>
-              </div>
+          <div className="inventories-grid" aria-label="Inventory items" aria-busy={itemsLoading}>
+            {itemsLoading ? (
+              Array.from({ length: 8 }, (_, index) => (
+                <div className="inventories-skeleton" key={index} aria-hidden="true">
+                  <span className="inventories-thumbnail" />
+                  <span className="inventories-skeleton-label" />
+                  <span className="inventories-skeleton-label" />
+                </div>
+              ))
+            ) : accountIds.size === 0 ? (
+              <p className="inventories-grid-state">Select an account to view its inventory.</p>
+            ) : visibleItems.length === 0 ? (
+              <p className="inventories-grid-state">
+                {items.length === 0
+                  ? "No inventory items found. Refresh selected to try again."
+                  : "No items match these filters. Try another category or search."}
+              </p>
+            ) : visibleItems.map((item) => (
+              <article
+                className={`inventories-tile ${selectedItemIds.has(item.assetId) ? "is-selected" : ""}`}
+                key={item.assetId}
+              >
+                <button
+                  className="inventories-tile-select"
+                  type="button"
+                  aria-pressed={selectedItemIds.has(item.assetId)}
+                  aria-label={`Select ${item.name}`}
+                  title={`${item.name} · ${item.assetType}${item.priceRobux === null ? "" : ` · ${item.priceRobux.toLocaleString()} Robux`}`}
+                  onClick={() => toggleItem(item.assetId)}
+                >
+                  <span className="inventories-thumbnail">
+                    {item.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <Icon name="inventory" />}
+                  </span>
+                  <span className="inventories-tile-check" aria-hidden="true">
+                    {selectedItemIds.has(item.assetId) && <Icon name="check" />}
+                  </span>
+                  <strong className="inventories-tile-name">{item.name}</strong>
+                </button>
+                <button
+                  className="inventories-id"
+                  type="button"
+                  aria-label={`Copy ID for ${item.name}`}
+                  data-tip={copiedId === item.assetId ? "Copied" : "Copy ID"}
+                  onClick={() => void copyIds([item.assetId])}
+                >
+                  <span>{item.assetId}</span>
+                  <Icon name={copiedId === item.assetId ? "check" : "copy"} />
+                </button>
+              </article>
             ))}
           </div>
-          {selectedItemIds.size > 0 && <div className="inventories-selection" role="status"><strong>{selectedItemIds.size} selected</strong><button className="account-button" type="button" onClick={() => void copyIds([...selectedItemIds])}><Icon name={copiedId === 0 ? "check" : "copy"} />{copiedId === 0 ? "Copied" : "Copy ids"}</button><button className="account-button" type="button" disabled={selectedItemIds.size > 20} title={selectedItemIds.size > 20 ? "Select up to 20 items to open on Roblox" : undefined} onClick={() => void openSelected()}><Icon name="square-arrow-out-up-right" />Open on Roblox</button><button className="account-button" type="button" onClick={() => setSelectedItemIds(new Set())}>Clear</button></div>}
+          {selectedItemIds.size > 0 && (
+            <div className="inventories-selection" aria-label="Selected inventory actions">
+              <strong aria-live="polite">{selectedItemIds.size} selected</strong>
+              <div className="inventories-selected-ids" aria-label="Selected IDs">
+                {[...selectedItemIds].map((id) => (
+                  <button type="button" key={id} aria-label={`Copy ID ${id}`} onClick={() => void copyIds([id])}>
+                    {copiedId === id ? "Copied" : id}
+                  </button>
+                ))}
+              </div>
+              <div className="inventories-dock-actions">
+                <button className="account-button" type="button" onClick={() => void copyIds([...selectedItemIds])}>
+                  <Icon name={copiedId === 0 ? "check" : "copy"} />{copiedId === 0 ? "Copied" : "Copy all"}
+                </button>
+                <button className="account-button" type="button" disabled={selectedItemIds.size > 20} title={selectedItemIds.size > 20 ? "Select up to 20 items to open on Roblox" : undefined} onClick={() => void openSelected()}>
+                  <Icon name="square-arrow-out-up-right" />Open on Roblox
+                </button>
+                <button className="account-button" type="button" onClick={() => setSelectedItemIds(new Set())}>Clear</button>
+              </div>
+            </div>
+          )}
         </section>
       </main>
     </>

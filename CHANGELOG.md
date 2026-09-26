@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Inventory layout refinement.** Matches the inventory reference more closely with square thumbnail tiles, compact filters, copyable asset IDs, and a floating selection dock.
+
 - **Inventories workspace.** Adds a dedicated page for browsing selected account inventories, filtering and searching items, and copying or opening selected asset ids.
 
 - **UI shell rewrite.** Replaces the existing egui/eframe interface with a new Tauri + React/TypeScript frontend while keeping `ram_core` responsible for authentication, storage, cryptography, Roblox APIs, and Windows process management.

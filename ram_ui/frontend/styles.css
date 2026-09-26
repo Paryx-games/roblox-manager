@@ -5844,8 +5844,9 @@ button:focus-visible {
 .inventories-account:focus-visible,
 .inventories-search:focus-within,
 .inventories-filters button:focus-visible,
-.inventories-item input:focus-visible,
-.inventories-id button:focus-visible,
+.inventories-tile-select:focus-visible,
+.inventories-id:focus-visible,
+.inventories-selected-ids button:focus-visible,
 .inventories-page .account-button:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; }
 
 .inventories-avatar {
@@ -5866,11 +5867,13 @@ button:focus-visible {
 .inventories-refresh { flex: 0 0 auto; margin-top: var(--space-6); }
 
 .inventories-main {
+  position: relative;
   display: flex;
   min-width: 0;
+  min-height: 0;
   flex: 1;
   flex-direction: column;
-  overflow: auto;
+  overflow: hidden;
   padding: var(--space-6);
 }
 
@@ -5879,7 +5882,7 @@ button:focus-visible {
 .inventories-toolbar,
 .inventories-selection { display: flex; align-items: center; gap: var(--space-2); }
 .inventories-heading { justify-content: space-between; flex-wrap: wrap; }
-.inventories-title > span { color: var(--text-muted); font-size: var(--text-xs); }
+.inventories-title > span { padding: var(--space-1) var(--space-2); border-radius: var(--radius); color: var(--text-muted); background: var(--action-muted); font-size: var(--text-xs); }
 .inventories-search {
   display: flex;
   width: 220px;
@@ -5911,47 +5914,139 @@ button:focus-visible {
 }
 
 .inventories-filters button:hover { color: var(--text-primary); background: var(--bg-raised); }
-.inventories-filters button.is-active { color: var(--text-primary); background: var(--action-muted); }
+.inventories-filters button.is-active { color: var(--text-primary); border-color: var(--action-primary); background: var(--action-primary); }
 .inventories-filters button span { font-size: var(--text-xs); }
 .inventories-toolbar { margin-top: var(--space-4); }
 .inventories-toolbar .account-button { flex: 0 0 auto; }
 .inventories-toolbar > span { margin-left: auto; color: var(--text-muted); font-size: var(--text-xs); }
 .inventories-error { margin: var(--space-3) 0 0; color: var(--text-primary); font-size: var(--text-sm); }
-.inventories-table { margin-top: var(--space-3); border-top: var(--border-width) solid var(--border-default); }
-.inventories-table-head,
-.inventories-item { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(100px, 130px) minmax(100px, 130px) minmax(110px, 130px); align-items: center; gap: var(--space-3); }
-.inventories-table-head { min-height: 32px; color: var(--text-muted); font-size: var(--text-xs); }
-.inventories-table-head > span:first-child { padding-left: var(--space-3); }
-.inventories-item { min-height: 56px; padding: var(--space-2) 0; border-top: var(--border-width) solid var(--border-default); color: var(--text-muted); font-size: var(--text-sm); }
-.inventories-item:hover { background: var(--bg-surface); }
-.inventories-item.is-selected { background: var(--action-muted); }
-.inventories-item-name { display: flex; min-width: 0; align-items: center; gap: var(--space-2); padding-left: var(--space-3); }
-.inventories-item-name input { flex: 0 0 auto; accent-color: var(--action-primary); }
-.inventories-item-name strong { overflow: hidden; color: var(--text-primary); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.inventories-id { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: var(--space-1); }
-.inventories-id > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.inventories-id button { display: flex; width: var(--space-6); height: var(--space-6); flex: 0 0 var(--space-6); align-items: center; justify-content: center; border: 0; border-radius: var(--radius); background: transparent; cursor: pointer; }
-.inventories-id button:hover { background: var(--bg-raised); }
-.inventories-id .account-icon { width: var(--space-4); height: var(--space-4); }
-.inventories-table-state { padding: var(--space-6) var(--space-3); border-top: var(--border-width) solid var(--border-default); color: var(--text-muted); font-size: var(--text-sm); }
-.inventories-skeleton { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: var(--space-3); padding: var(--space-3); border-top: var(--border-width) solid var(--border-default); }
-.inventories-skeleton span { height: var(--space-4); border-radius: var(--radius); background: var(--bg-surface); animation: inventories-pulse var(--duration-slow) var(--ease-standard) infinite alternate; }
-@keyframes inventories-pulse { to { background: var(--bg-raised); } }
-.inventories-selection { position: sticky; bottom: 0; flex-wrap: wrap; margin-top: auto; padding: var(--space-3); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); background: var(--bg-raised); }
-.inventories-selection strong { margin-right: auto; font-size: var(--text-sm); }
-.inventories-selection .account-button { flex: 0 0 auto; }
-
-@media (width < 1200px) {
-  .inventories-table-head,
-  .inventories-item { grid-template-columns: minmax(160px, 1fr) minmax(100px, 130px) minmax(110px, 130px); }
-  .inventories-table-head > span:nth-child(3),
-  .inventories-item > span:nth-child(3) { display: none; }
+.inventories-grid {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 148px), 1fr));
+  align-content: start;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  overflow: auto;
+  padding: var(--space-1) var(--space-1) calc(var(--space-12) * 2);
 }
 
+.inventories-tile,
+.inventories-skeleton {
+  position: relative;
+  min-width: 0;
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.inventories-tile { transition: border-color var(--duration-fast) var(--ease-standard); }
+.inventories-tile:hover { border-color: var(--text-muted); }
+.inventories-tile.is-selected { border-color: var(--action-primary); }
+.inventories-tile-select {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.inventories-thumbnail {
+  display: flex;
+  width: 100%;
+  aspect-ratio: 1;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
+.inventories-thumbnail > img:not(.account-icon) { width: 100%; height: 100%; object-fit: contain; }
+.inventories-thumbnail .account-icon { width: var(--space-12); height: var(--space-12); }
+.inventories-tile-check {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  width: var(--space-6);
+  height: var(--space-6);
+  align-items: center;
+  justify-content: center;
+  border: var(--border-width) solid var(--text-muted);
+  border-radius: var(--radius);
+  background: var(--bg-canvas);
+}
+
+.inventories-tile.is-selected .inventories-tile-check { border-color: var(--action-primary); background: var(--action-primary); }
+.inventories-tile-check .account-icon { width: var(--space-3); height: var(--space-3); filter: invert(95%); }
+.inventories-tile-name { display: block; width: 100%; overflow: hidden; padding: var(--space-2) var(--space-2) var(--space-1); font-size: var(--text-sm); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.inventories-id {
+  display: flex;
+  width: calc(100% - var(--space-4));
+  min-width: 0;
+  min-height: var(--space-6);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  margin: 0 var(--space-2) var(--space-2);
+  padding: 0 var(--space-1);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  background: var(--action-muted);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.inventories-id > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inventories-id:hover { color: var(--text-primary); background: var(--bg-surface); }
+.inventories-id .account-icon { width: var(--space-3); height: var(--space-3); flex: 0 0 var(--space-3); }
+.inventories-grid-state { grid-column: 1 / -1; padding: var(--space-6) 0; color: var(--text-muted); font-size: var(--text-sm); }
+.inventories-skeleton-label { display: block; height: var(--space-4); margin: var(--space-2); border-radius: var(--radius); }
+.inventories-skeleton span { background: var(--bg-surface); animation: inventories-pulse var(--duration-slow) var(--ease-standard) infinite alternate; }
+@keyframes inventories-pulse { to { background: var(--bg-raised); } }
+.inventories-selection {
+  position: absolute;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  left: var(--space-6);
+  z-index: 1;
+  width: fit-content;
+  max-width: calc(100% - var(--space-12));
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-self: center;
+  gap: var(--space-3);
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.inventories-selection strong { font-size: var(--text-sm); white-space: nowrap; }
+.inventories-selected-ids { display: flex; min-width: 0; max-width: 360px; flex: 1; gap: var(--space-2); overflow: auto; padding: var(--space-1); }
+.inventories-selected-ids button { flex: 0 0 auto; min-height: var(--space-6); padding: 0 var(--space-2); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); color: var(--text-muted); background: var(--bg-surface); cursor: pointer; font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.inventories-selected-ids button:hover { color: var(--text-primary); background: var(--bg-raised); }
+.inventories-dock-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.inventories-selection .account-button { min-height: var(--space-8); flex: 0 0 auto; font-size: var(--text-xs); }
+.inventories-tile-select:active,
+.inventories-selected-ids button:active,
+.inventories-page .account-button:not(:disabled):active { background: var(--action-muted); }
+
 @media (width < 768px) {
-  .inventories-page { flex-direction: column; overflow: auto; }
+  .inventories-page { flex-direction: column; overflow: hidden; }
   .inventories-accounts { width: 100%; max-height: 180px; flex-basis: auto; border-right: 0; border-bottom: var(--border-width) solid var(--border-default); }
-  .inventories-main { overflow: visible; padding: var(--space-4); }
+  .inventories-main { padding: var(--space-4); }
 }
 
 @media (prefers-reduced-motion: reduce) {

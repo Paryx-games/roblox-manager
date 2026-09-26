@@ -348,6 +348,12 @@ density over a card grid is the concept-level default (§1). "It felt more
 like a list" is not a valid reason to skip `DataTable` once the threshold
 is met.
 
+The Inventories workspace is a bounded exception: use the supplied inventory
+reference's thumbnail grid, with selectable square previews, item names, and
+copyable asset IDs. Visual identification is the primary browsing task here.
+Keep the shared color, radius, typography, focus, and motion tokens, and use
+grid-shaped skeletons plus explicit empty and error states.
+
 ### 7.3 `DataTable` loading / empty / error contract
 
 `DataTable` owns all three of these states internally - a page never
