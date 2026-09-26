@@ -6003,6 +6003,7 @@ button:focus-visible {
 .inventories-filter-rail button:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-raised); }
 .inventories-filter-rail button:active,
 .inventories-filter-rail button[aria-pressed="true"] { color: var(--text-primary); background: var(--action-muted); }
+.inventories-filter-rail button[aria-pressed="true"]:not(:disabled) { border-color: var(--action-primary); background: var(--action-primary); }
 .inventories-filter-rail button:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; }
 .inventories-filter-rail button:disabled { color: var(--text-disabled); background: transparent; cursor: not-allowed; }
 .inventories-filter-rail button:disabled .account-icon { opacity: 0.4; }
