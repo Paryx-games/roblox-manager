@@ -309,6 +309,7 @@ function AccountRow({
       className={`account-row ${selected ? "is-selected" : ""}`}
       style={{ "--account-accent": accentColor } as CSSProperties}
       role="button"
+      aria-pressed={selected}
       tabIndex={0}
       draggable={canDragAccounts}
       onDragStart={
@@ -400,7 +401,7 @@ function AccountGroup({
   group,
   collapsed,
   onToggle,
-  selectedId,
+  selectedIds,
   onSelect,
   onDropAccount,
   canDragAccounts,
@@ -419,7 +420,7 @@ function AccountGroup({
 }: {
   group: AccountGroup;
   collapsed: boolean;
-  selectedId: number | null;
+  selectedIds: ReadonlySet<number>;
   onToggle: () => void;
   onSelect: (id: number, event: AccountSelectionEvent) => void;
   onDropAccount: (
@@ -548,7 +549,7 @@ function AccountGroup({
             <AccountRow
               account={account}
               key={account.userId}
-              selected={selectedId === account.userId}
+              selected={selectedIds.has(account.userId)}
               onSelect={(event) => onSelect(account.userId, event)}
               onDropAccount={(sourceId, targetId, position, targetGroup) =>
                 onDropAccount(sourceId, targetId, position, targetGroup)
@@ -1916,7 +1917,7 @@ export function AccountsPage({
                     [group.name]: !current[group.name],
                   }))
                 }
-                selectedId={selectedId}
+                selectedIds={selectedIds}
                 onSelect={selectAccountWithModifiers}
                 onDropAccount={(sourceId, targetId, position, targetGroup) =>
                   void reorderAccount(sourceId, targetId, position, targetGroup)

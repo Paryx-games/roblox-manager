@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Account selection highlights.** Account rows now use the multiple-selection set for visual and accessible selection state, so Ctrl+A and Ctrl-click highlight every selected account instead of only the account open in the details pane.
+
 - **Accounts-only select-all.** Ctrl+A selects accounts matching the current Accounts search. Groups, Presets, Private Servers, Inventories, Settings, and account pickers do not select records with this shortcut.
 
 - **Select-all shortcut boundaries.** Ctrl+A no longer selects interface text on Settings or pages without an explicit selection action. Text fields keep native editing shortcuts, and page changes block selection of the outgoing page.
