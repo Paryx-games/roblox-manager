@@ -241,7 +241,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
 
   function onFilterResizePointerMove(event: PointerEvent<HTMLDivElement>) {
     if (event.buttons !== 1 || !workspaceRef.current) return;
-    resizeFilterSidebar(event.clientX - workspaceRef.current.getBoundingClientRect().left);
+    resizeFilterSidebar(workspaceRef.current.getBoundingClientRect().right - event.clientX);
   }
 
   function onFilterResizeKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
