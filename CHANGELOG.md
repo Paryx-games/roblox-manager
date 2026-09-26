@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Inventory group spacing.** Reduces gaps between account groups and uses more compact headers and spacing when groups are collapsed.
+
 - **Inventory account groups.** Adds collapsible group headers with account counts and follows the saved Accounts group order, with pinned accounts first and custom account ordering within each group. Collapsing a group preserves its selected accounts.
 
 - **Account selection highlights.** Account rows now use the multiple-selection set for visual and accessible selection state, so Ctrl+A and Ctrl-click highlight every selected account instead of only the account open in the details pane.

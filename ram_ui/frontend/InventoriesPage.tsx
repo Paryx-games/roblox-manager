@@ -317,7 +317,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             const isCollapsed = collapsedGroups.has(group);
             const groupId = `${groupIdPrefix}-${index}`;
             return (
-            <div className="inventories-account-group" key={group}>
+            <div className={`inventories-account-group ${isCollapsed ? "is-collapsed" : ""}`} key={group}>
               <h3>
                 <button className="inventories-group-toggle" type="button" aria-expanded={!isCollapsed} aria-controls={groupId} onClick={() => onGroupToggle(group)}>
                   <span className={`inventories-group-chevron ${isCollapsed ? "is-collapsed" : ""}`}><Icon name="chevron-down" /></span>
