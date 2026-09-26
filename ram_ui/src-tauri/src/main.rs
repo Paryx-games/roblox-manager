@@ -159,6 +159,66 @@ struct InventoryItem {
     price_robux: Option<u64>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InventoryBrowserTarget {
+    user_id: u64,
+    destination: InventoryBrowserDestination,
+}
+
+#[derive(Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+enum InventoryBrowserDestination {
+    Category { asset_type: String },
+    Marketplace { asset_id: u64 },
+}
+
+fn inventory_browser_destination(
+    target: &InventoryBrowserTarget,
+) -> Result<(String, String), String> {
+    if target.user_id == 0 {
+        return Err("Select a valid inventory account".to_string());
+    }
+    match &target.destination {
+        InventoryBrowserDestination::Category { asset_type } => {
+            let category = match asset_type.as_str() {
+                "Hat" => "accessories/head",
+                "HairAccessory" => "hair-accessories/hair",
+                "FaceAccessory" => "accessories/face",
+                "NeckAccessory" => "accessories/neck",
+                "ShoulderAccessory" => "accessories/shoulder",
+                "FrontAccessory" => "accessories/front",
+                "BackAccessory" => "accessories/back",
+                "WaistAccessory" => "accessories/waist",
+                "Gear" => "accessories/gear",
+                "TShirt" => "classic-clothing/classic-t-shirts",
+                "Shirt" => "classic-clothing/classic-shirts",
+                "Pants" => "classic-clothing/classic-pants",
+                "EmoteAnimation" => "emote-animations/emotes",
+                _ => return Err("This inventory category is unsupported".to_string()),
+            };
+            Ok((
+                format!("inventory-category-{}-{asset_type}", target.user_id),
+                format!(
+                    "https://www.roblox.com/users/{}/inventory#!/{category}",
+                    target.user_id
+                ),
+            ))
+        }
+        InventoryBrowserDestination::Marketplace { asset_id } if *asset_id > 0 => Ok((
+            format!("inventory-marketplace-{}-{asset_id}", target.user_id),
+            format!("https://www.roblox.com/catalog/{asset_id}"),
+        )),
+        InventoryBrowserDestination::Marketplace { .. } => {
+            Err("Select a valid marketplace item".to_string())
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ConnectionSearchResult {
@@ -1935,25 +1995,45 @@ fn open_account_url(user_id: u64, inventory: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn open_inventory_assets(app: tauri::AppHandle, asset_ids: Vec<u64>) -> Result<(), String> {
-    if asset_ids.is_empty() || asset_ids.contains(&0) || asset_ids.len() > 20 {
-        return Err("Select between 1 and 20 valid inventory items to open".to_string());
+async fn open_inventory_assets(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    targets: Vec<InventoryBrowserTarget>,
+) -> Result<(), String> {
+    if targets.is_empty() || targets.len() > 20 {
+        return Err("Select between 1 and 20 inventory browser destinations".to_string());
     }
 
+    let destinations = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        targets
+            .iter()
+            .map(|target| {
+                let account = runtime
+                    .accounts
+                    .find_by_id(target.user_id)
+                    .ok_or_else(|| "Account not found".to_string())?;
+                let (label, url) = inventory_browser_destination(target)?;
+                Ok((label, url, format!("Roblox - {}", account.label())))
+            })
+            .collect::<Result<Vec<_>, String>>()?
+    };
     use tauri::Manager;
-    for asset_id in asset_ids {
-        let label = format!("inventory-asset-{asset_id}");
+    for (label, url, title) in destinations {
         if let Some(window) = app.get_webview_window(&label) {
             window
                 .set_focus()
                 .map_err(|_| "The Roblox item window could not be focused".to_string())?;
             continue;
         }
-        let url = format!("https://www.roblox.com/catalog/{asset_id}")
+        let url = url
             .parse()
             .map_err(|_| "The Roblox item URL is invalid".to_string())?;
         tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::External(url))
-            .title("Roblox item")
+            .title(title)
             .inner_size(1000.0, 760.0)
             .incognito(true)
             .build()

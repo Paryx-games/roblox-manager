@@ -1,4 +1,4 @@
-import type { AccountSummary, InventoryItem } from "./ipc";
+import type { AccountSummary, InventoryItem, InventoryBrowserTarget } from "./ipc";
 
 export function buildInventoryAccountGroups(accounts: readonly AccountSummary[], groupOrder: readonly string[]): [string, AccountSummary[]][] {
   const grouped = new Map<string, AccountSummary[]>(groupOrder.map((name) => [name, []]));
@@ -16,6 +16,21 @@ export type OwnedInventoryItem = InventoryItem & { ownerIds: number[] };
 export type InventoryComparison = "all" | "shared" | "unique";
 export type InventorySort = "name" | "assetId" | "assetType" | "priceRobux";
 export type InventorySortDirection = "ascending" | "descending";
+
+export function buildInventoryBrowserTargets(items: readonly OwnedInventoryItem[], accountIds: ReadonlySet<number>, selectedItemIds: ReadonlySet<number>): InventoryBrowserTarget[] {
+  const targets = new Map<string, InventoryBrowserTarget>();
+  for (const userId of accountIds) {
+    for (const item of items) {
+      if (!selectedItemIds.has(item.assetId)) continue;
+      if (item.ownerIds.includes(userId)) {
+        targets.set(`${userId}:category:${item.assetType}`, { userId, destination: { kind: "category", assetType: item.assetType } });
+      } else {
+        targets.set(`${userId}:marketplace:${item.assetId}`, { userId, destination: { kind: "marketplace", assetId: item.assetId } });
+      }
+    }
+  }
+  return [...targets.values()];
+}
 
 export function mergeAccountInventories(inventories: readonly { userId: number; items: InventoryItem[] }[]): OwnedInventoryItem[] {
   const merged = new Map<number, OwnedInventoryItem>();

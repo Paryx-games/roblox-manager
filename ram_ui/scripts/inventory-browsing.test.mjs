@@ -1,6 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildInventoryAccountGroups, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems } from "../frontend/lib/inventoryBrowsing.ts";
+import { buildInventoryAccountGroups, buildInventoryBrowserTargets, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems } from "../frontend/lib/inventoryBrowsing.ts";
+
+test("browser destinations use each selected account's ownership and group shared categories", () => {
+  const items = [
+    { assetId: 101, assetType: "Hat", ownerIds: [1, 2] },
+    { assetId: 102, assetType: "Hat", ownerIds: [1] },
+    { assetId: 103, assetType: "HairAccessory", ownerIds: [2] },
+  ];
+  assert.deepEqual(buildInventoryBrowserTargets(items, new Set([1, 2]), new Set([101, 102, 103])), [
+    { userId: 1, destination: { kind: "category", assetType: "Hat" } },
+    { userId: 1, destination: { kind: "marketplace", assetId: 103 } },
+    { userId: 2, destination: { kind: "category", assetType: "Hat" } },
+    { userId: 2, destination: { kind: "marketplace", assetId: 102 } },
+    { userId: 2, destination: { kind: "category", assetType: "HairAccessory" } },
+  ]);
+  assert.deepEqual(buildInventoryBrowserTargets(items, new Set([2]), new Set([102])), [
+    { userId: 2, destination: { kind: "marketplace", assetId: 102 } },
+  ]);
+  assert.deepEqual(buildInventoryBrowserTargets(items, new Set([1]), new Set()), []);
+});
 
 test("inventory groups follow saved order, retain empty groups and trim group names", () => {
   const accounts = [{ userId: 1, group: " Second ", isPinned: false, sortOrder: 0 }, { userId: 2, group: " ", isPinned: false, sortOrder: 1 }];

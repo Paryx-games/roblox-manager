@@ -458,8 +458,13 @@ export async function fetchAccountInventory(
   return invoke<InventoryItem[]>("fetch_account_inventory", { userId });
 }
 
-export async function openInventoryAssets(assetIds: number[]): Promise<void> {
-  return invoke<void>("open_inventory_assets", { assetIds });
+export type InventoryBrowserTarget = {
+  userId: number;
+  destination: { kind: "category"; assetType: string } | { kind: "marketplace"; assetId: number };
+};
+
+export async function openInventoryAssets(targets: InventoryBrowserTarget[]): Promise<void> {
+  return invoke<void>("open_inventory_assets", { targets });
 }
 
 export async function searchConnectionUsers(
