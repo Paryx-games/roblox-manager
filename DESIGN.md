@@ -276,6 +276,10 @@ Each backed by tokens only, each with a single default export:
   single-select modes, outside-click dismissal, and keyboard navigation
 - `<TooltipProvider>` - one shared portal for every `data-tip` hint, including
   disabled controls, with pointer and keyboard support and viewport clamping
+- `<Toast>` - bottom-right notifications with a severity-coloured left strip,
+  circular icon, action-specific title, secondary description, and dismiss
+  button. Use `--notification-info/success/warning/error` for operation outcomes.
+  Retain timed dismissal and reduced-motion support; do not add a countdown bar.
 - `<LoadingSkeleton layout label />` - accessible placeholders matching the
   pending region's rows, thumbnail grid, or panels. Render only while that
   region's data request is pending, retain surrounding controls, and show

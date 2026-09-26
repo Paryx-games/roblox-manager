@@ -1118,9 +1118,14 @@ export function AccountsPage({
             updated.find((item) => item.userId === account.userId) ?? account,
         ),
       );
-      setNotice("Account credentials revalidated.");
+      const invalidAccounts = updated.filter((account) => account.cookieExpired);
+      if (invalidAccounts.length) {
+        setNotice("Your credentials are still invalid.", "warning", "standard", "Account needs revalidation");
+      } else {
+        setNotice("The account credentials are valid again.", "success", "standard", "Credentials revalidated");
+      }
     } catch {
-      setNotice("Account validation could not be completed.");
+      setNotice("Account validation could not be completed. Try again.", "error", "standard", "Failed to revalidate account");
     } finally {
       setMutationLoading(false);
     }
@@ -1222,7 +1227,7 @@ export function AccountsPage({
           account.userId === updated.userId ? updated : account,
         ),
       );
-      setNotice("Alias saved.");
+      setNotice("Changes have been saved.", "info", "standard", "Account information updated");
     } catch {
       setNotice("The alias could not be saved.");
     } finally {

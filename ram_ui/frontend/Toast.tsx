@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "./components/Icon";
 
 export type ToastKind = "info" | "success" | "warning" | "error";
 export type ToastDuration = "short" | "standard" | "long";
@@ -17,19 +18,8 @@ const DURATION_MS: Record<ToastDuration, number> = {
   long: 8000,
 };
 
-function Icon({ name }: { name: string }) {
-  return (
-    <img
-      className="account-icon"
-      src={`/icons/${name}.svg`}
-      alt=""
-      aria-hidden="true"
-    />
-  );
-}
-
 function kindIcon(kind: ToastKind) {
-  return kind === "warning" || kind === "error" ? "warning" : "update";
+  return kind === "success" ? "check" : kind === "info" ? "info-mark" : "exclamation";
 }
 
 export function Toast({
@@ -65,7 +55,7 @@ export function Toast({
       role={item.kind === "error" ? "alert" : "status"}
     >
       <span className="toast-icon">
-        <Icon name={kindIcon(item.kind)} />
+        <Icon name={kindIcon(item.kind)} tone="current-color" />
       </span>
       <div className="toast-copy">
         <strong>{item.title}</strong>
@@ -77,9 +67,8 @@ export function Toast({
         aria-label="Dismiss notification"
         onClick={onDismiss}
       >
-        <Icon name="close" />
+        <Icon name="close" tone="current-color" />
       </button>
-      <span className="toast-timer" aria-hidden="true" />
     </div>
   );
 }

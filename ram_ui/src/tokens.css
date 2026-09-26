@@ -41,6 +41,11 @@
   --action-primary: #3e63f6;
   --action-muted: rgba(255, 255, 255, 0.08);
 
+  --notification-info: var(--action-primary);
+  --notification-success: var(--status-online);
+  --notification-warning: var(--status-warning);
+  --notification-error: var(--status-danger);
+
   /* static access state, not live account or process status */
   --access-allowed: #4fbf7a;
   --access-restricted: #e0a93e;

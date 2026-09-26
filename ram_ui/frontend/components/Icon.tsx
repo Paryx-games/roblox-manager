@@ -5,6 +5,10 @@ type IconProps = {
 
 function getCurrentColorIconContent(name: string) {
   switch (name) {
+    case "info-mark":
+      return <><path d="M12 11v7" /><path d="M12 6h.01" /></>;
+    case "exclamation":
+      return <><path d="M12 5v9" /><path d="M12 18h.01" /></>;
     case "list":
       return (
         <>
