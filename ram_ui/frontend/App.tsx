@@ -6,6 +6,7 @@ import { PrivateServersPage } from "./PrivateServersPage";
 import { PresetsPage } from "./PresetsPage";
 import { SettingsPage } from "./SettingsPage";
 import { InventoriesPage } from "./InventoriesPage";
+import { isSelectAllShortcut, isTextSelectionTarget } from "./lib/selectAllShortcut";
 
 type NavItem = {
   label: string;
@@ -95,6 +96,23 @@ export function App() {
   const [displayedNav, setDisplayedNav] = useState<PageName>("Accounts");
   const [isPageTransitioning, setIsPageTransitioning] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (isSelectAllShortcut(event) && !isTextSelectionTarget(event.target)) event.preventDefault();
+    }
+    function onTransitionKeyDown(event: KeyboardEvent) {
+      if (activeNav === displayedNav || !isSelectAllShortcut(event) || isTextSelectionTarget(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    window.addEventListener("keydown", onTransitionKeyDown, true);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onTransitionKeyDown, true);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [activeNav, displayedNav]);
 
   useEffect(() => {
     if (activeNav === displayedNav) return;

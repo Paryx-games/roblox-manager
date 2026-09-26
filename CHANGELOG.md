@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Select-all shortcut boundaries.** Ctrl+A no longer selects interface text on Settings or pages without an explicit selection action. Text fields keep native editing shortcuts, and page changes block selection of the outgoing page.
+
 - **Inventory list icon.** Renders the supplied Lucide list SVG inline so it follows the button text colour and does not depend on an external image loading.
 
 - **Inventory display controls.** Adds separate small, medium, and large sizing for grid items and list rows, uses Lucide's list icon, and widens sorting dropdowns to show full labels.
