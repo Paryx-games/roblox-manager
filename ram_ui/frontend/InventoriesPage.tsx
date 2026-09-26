@@ -17,6 +17,17 @@ type Category = "All" | "Hats" | "Hair" | "Face" | "Neck" | "Shoulder" | "Front"
 type InventoryViewSize = "small" | "medium" | "large";
 
 const categories: Exclude<Category, "All">[] = ["Hats", "Hair", "Face", "Neck", "Shoulder", "Front", "Back", "Waist", "Shirts", "Pants", "T-Shirts", "Animations", "Gear", "Other"];
+const categoryIcons: Record<Category, string> = {
+  All: "grid", Hats: "inventory-hat", Hair: "inventory-hair", Face: "inventory-face",
+  Neck: "inventory-neck", Shoulder: "inventory-shoulder", Front: "inventory-front",
+  Back: "inventory-back", Waist: "inventory-waist", Shirts: "inventory-shirt",
+  Pants: "inventory-pants", "T-Shirts": "inventory-tshirt", Animations: "launch", Gear: "tools-menu", Other: "more",
+};
+const comparisonOptions = [
+  { value: "all", label: "All items", icon: "grid" },
+  { value: "shared", label: "Shared by all", icon: "users" },
+  { value: "unique", label: "Unique to one", icon: "accounts" },
+] as const;
 
 type SelectionDrag = {
   pointerId: number;
@@ -211,6 +222,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     }
     return counts;
   }, [items]);
+  const visibleCategories = (["All", ...categories] as Category[]).filter((option) => option === "All" || (categoryCounts.get(option) ?? 0) > 0);
   const accountsById = useMemo(() => new Map(accounts.map((account) => [account.userId, account])), [accounts]);
 
   const visibleItems = useMemo(() => {
@@ -477,8 +489,19 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               </div>
               {isFilterSidebarCollapsed && <div className="inventories-filter-rail" aria-label="Collapsed inventory controls">
                 <button ref={compactSearchRef} type="button" aria-label="Search inventory" title="Search inventory" aria-pressed={search.trim().length > 0} onClick={openSidebarSearch}><Icon name="search" /></button>
-                <button type="button" aria-label="Item type filters" title="Item type filters" aria-pressed={selectedCategories.size > 0} onClick={() => openFilterSidebar("types")}><Icon name="inventory" /></button>
-                <button type="button" aria-label="Compare inventories" title="Compare inventories" aria-pressed={effectiveComparison !== "all"} onClick={() => openFilterSidebar("comparison")}><Icon name="users" /></button>
+                <span className="inventories-filter-divider" role="separator" />
+                <div className="inventories-filter-rail-section" role="group" aria-label="Item categories">
+                  {visibleCategories.map((option) => (
+                    <button type="button" key={option} aria-label={option} title={`${option} (${categoryCounts.get(option) ?? 0})`} aria-pressed={option === "All" ? selectedCategories.size === 0 : selectedCategories.has(option)} onClick={() => toggleCategory(option)}><Icon name={categoryIcons[option]} /></button>
+                  ))}
+                </div>
+                <span className="inventories-filter-divider" role="separator" />
+                <div className="inventories-filter-rail-section" role="group" aria-label="Compare inventories">
+                  {comparisonOptions.map((option) => (
+                    <button type="button" key={option.value} aria-label={option.label} title={option.label} aria-pressed={effectiveComparison === option.value} disabled={option.value !== "all" && !isComparisonAvailable} onClick={() => setComparison(option.value)}><Icon name={option.icon} /></button>
+                  ))}
+                </div>
+                <span className="inventories-filter-divider" role="separator" />
                 <button type="button" aria-label="Sort inventory" title="Sort inventory" onClick={() => openFilterSidebar("sort")}><Icon name="list" tone="current-color" /></button>
               </div>}
               <div id="inventory-filter-options" ref={filterOptionsRef} hidden={isFilterSidebarCollapsed}>
@@ -491,7 +514,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               <div className="inventories-control-group">
                 <span className="inventories-control-label">Filter by type</span>
                 <div className="inventories-filters" role="group" aria-label="Item categories" data-filter-section="types">
-                  {["All" as const, ...categories].filter((option) => option === "All" || (categoryCounts.get(option) ?? 0) > 0).map((option) => {
+                  {visibleCategories.map((option) => {
                     const isActive = option === "All" ? selectedCategories.size === 0 : selectedCategories.has(option);
                     return <button className={isActive ? "is-active" : ""} type="button" key={option} aria-pressed={isActive} onClick={() => toggleCategory(option)}>
                       {option}<span>{categoryCounts.get(option) ?? 0}</span>
@@ -502,11 +525,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               <div className="inventories-control-group">
                 <span className="inventories-control-label">Compare</span>
                 <div className="inventories-filters inventories-comparison" role="group" aria-label="Compare inventories" data-filter-section="comparison">
-              {([
-                { value: "all", label: "All items" },
-                { value: "shared", label: "Shared by all" },
-                { value: "unique", label: "Unique to one" },
-              ] as const).map((option) => (
+              {comparisonOptions.map((option) => (
                 <button type="button" key={option.value} className={effectiveComparison === option.value ? "is-active" : ""} aria-pressed={effectiveComparison === option.value} disabled={option.value !== "all" && !isComparisonAvailable} onClick={() => setComparison(option.value)}>
                   {option.label}
                   {(option.value === "all" || isComparisonAvailable) && <span>{items.filter((item) => matchesInventoryComparison(item, option.value, accountIds.size)).length}</span>}
