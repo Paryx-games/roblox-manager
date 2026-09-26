@@ -464,7 +464,7 @@ export function PrivateServersPage({
                         target="_blank"
                         rel="noreferrer"
                         aria-label={`Open ${server.ownerUsername ?? "user"}'s Roblox profile`}
-                        title={
+                        data-tip={
                           server.ownerProfileUrl
                             ? "Open owner profile"
                             : "Owner profile link will be available after ownership checking"

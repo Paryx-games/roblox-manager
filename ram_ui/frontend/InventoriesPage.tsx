@@ -483,26 +483,26 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             }}>
               <div className="inventories-filter-heading">
                 {!isFilterSidebarCollapsed && <h2>Filters</h2>}
-                <button className="inventories-filter-toggle" type="button" aria-label={isFilterSidebarCollapsed ? "Expand inventory filters" : "Collapse inventory filters"} aria-expanded={!isFilterSidebarCollapsed} aria-controls="inventory-filter-options" title={isFilterSidebarCollapsed ? "Expand filters" : "Collapse filters"} onClick={toggleFilterSidebar}>
+                <button className="inventories-filter-toggle" type="button" aria-label={isFilterSidebarCollapsed ? "Expand inventory filters" : "Collapse inventory filters"} aria-expanded={!isFilterSidebarCollapsed} aria-controls="inventory-filter-options" data-tip={isFilterSidebarCollapsed ? "Expand filters" : "Collapse filters"} onClick={toggleFilterSidebar}>
                   <Icon name="chevron-down" />
                 </button>
               </div>
               {isFilterSidebarCollapsed && <div className="inventories-filter-rail" aria-label="Collapsed inventory controls">
-                <button ref={compactSearchRef} type="button" aria-label="Search inventory" title="Search inventory" aria-pressed={search.trim().length > 0} onClick={openSidebarSearch}><Icon name="search" /></button>
+                <button ref={compactSearchRef} type="button" aria-label="Search inventory" data-tip="Search inventory" aria-pressed={search.trim().length > 0} onClick={openSidebarSearch}><Icon name="search" /></button>
                 <span className="inventories-filter-divider" role="separator" />
                 <div className="inventories-filter-rail-section" role="group" aria-label="Item categories">
                   {visibleCategories.map((option) => (
-                    <button type="button" key={option} aria-label={option} title={`${option} (${categoryCounts.get(option) ?? 0})`} aria-pressed={option === "All" ? selectedCategories.size === 0 : selectedCategories.has(option)} onClick={() => toggleCategory(option)}><Icon name={categoryIcons[option]} /></button>
+                    <button type="button" key={option} aria-label={option} data-tip={`${option} (${categoryCounts.get(option) ?? 0})`} aria-pressed={option === "All" ? selectedCategories.size === 0 : selectedCategories.has(option)} onClick={() => toggleCategory(option)}><Icon name={categoryIcons[option]} /></button>
                   ))}
                 </div>
                 <span className="inventories-filter-divider" role="separator" />
                 <div className="inventories-filter-rail-section" role="group" aria-label="Compare inventories">
                   {comparisonOptions.map((option) => (
-                    <button type="button" key={option.value} aria-label={option.label} title={option.label} aria-pressed={effectiveComparison === option.value} disabled={option.value !== "all" && !isComparisonAvailable} onClick={() => setComparison(option.value)}><Icon name={option.icon} /></button>
+                    <button type="button" key={option.value} aria-label={option.label} data-tip={option.label} aria-pressed={effectiveComparison === option.value} disabled={option.value !== "all" && !isComparisonAvailable} onClick={() => setComparison(option.value)}><Icon name={option.icon} /></button>
                   ))}
                 </div>
                 <span className="inventories-filter-divider" role="separator" />
-                <button type="button" aria-label="Sort inventory" title="Sort inventory" onClick={() => openFilterSidebar("sort")}><Icon name="list" tone="current-color" /></button>
+                <button type="button" aria-label="Sort inventory" data-tip="Sort inventory" onClick={() => openFilterSidebar("sort")}><Icon name="list" tone="current-color" /></button>
               </div>}
               <div id="inventory-filter-options" ref={filterOptionsRef} hidden={isFilterSidebarCollapsed}>
           <div className="inventories-control-panel">
@@ -632,7 +632,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   type="button"
                   aria-pressed={selectedItemIds.has(item.assetId)}
                   aria-label={`Select ${item.name}`}
-                  title={`${item.name} · ${item.assetType}${item.priceRobux === null ? "" : ` · ${item.priceRobux.toLocaleString()} Robux`}`}
+                  data-tip={`${item.name} · ${item.assetType}${item.priceRobux === null ? "" : ` · ${item.priceRobux.toLocaleString()} Robux`}`}
                   onClick={(event) => onItemClick(event, item.assetId)}
                 >
                   <span className="inventories-thumbnail">
@@ -645,11 +645,11 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                     <strong className="inventories-tile-name">{item.name}</strong>
                     {view === "list" && (
                       <span className="inventories-list-details">
-                        <span title={item.assetType}>{item.assetType}</span>
-                        <span title={priceLabel}>{priceLabel}</span>
+                        <span data-tip={item.assetType}>{item.assetType}</span>
+                        <span data-tip={priceLabel}>{priceLabel}</span>
                       </span>
                     )}
-                    <span className="inventories-owner-avatars" title={`Owned by: ${ownerNames}`} aria-label={`Owned by: ${ownerNames}`}>
+                    <span className="inventories-owner-avatars" data-tip={`Owned by: ${ownerNames}`} aria-label={`Owned by: ${ownerNames}`}>
                       {owners.slice(0, 3).map((account) => <AccountAvatar key={account.userId} account={account} className="inventories-owner-avatar" />)}
                       {owners.length > 3 && <span className="inventories-owner-overflow">+{owners.length - 3}</span>}
                     </span>
@@ -702,7 +702,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                 <button className="account-button" type="button" onClick={() => void copyIds([...selectedItemIds], { feedback: "all" })}>
                   <Icon name={copiedId === 0 ? "check" : "copy"} />{copiedId === 0 ? "Copied" : "Copy all (CSV)"}
                 </button>
-                <button className="account-button" type="button" disabled={selectedItemIds.size > 20} title={selectedItemIds.size > 20 ? "Select up to 20 items to open on Roblox" : undefined} onClick={() => void openSelected()}>
+                <button className="account-button" type="button" disabled={selectedItemIds.size > 20} data-tip={selectedItemIds.size > 20 ? "Select up to 20 items to open on Roblox" : undefined} onClick={() => void openSelected()}>
                   <Icon name="square-arrow-out-up-right" />Open on Roblox
                 </button>
                 <button className="account-button" type="button" onClick={() => setSelectedItemIds(new Set())}>Clear</button>

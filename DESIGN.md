@@ -273,6 +273,8 @@ Each backed by tokens only, each with a single default export:
   where `DataTable` must use these
 - `<AccountPicker>` - controlled account selection with multi-select and
   single-select modes, outside-click dismissal, and keyboard navigation
+- `<TooltipProvider>` - one shared portal for every `data-tip` hint, including
+  disabled controls, with pointer and keyboard support and viewport clamping
 
 A new component must be added to this list (and this doc) in the same PR
 that introduces it - §11.3.
@@ -280,6 +282,17 @@ that introduces it - §11.3.
 ---
 
 ## 6. Interaction states
+
+### Tooltips
+
+Every tooltip in the active React app must use the shared custom tooltip.
+Set `data-tip` on the element that owns the hint. Never use native HTML
+`title` attributes or create a separate CSS or page-specific tooltip.
+Component props named `title` for visible headings are unaffected.
+The shared renderer uses the existing raised surface, border, type, and
+motion tokens, supports hover and focus, closes on Escape, and renders in
+a portal so scrolling containers cannot clip it. Keep an accessible label
+on icon-only controls; a tooltip does not replace one.
 
 Every interactive component defines behavior for **every** state in its row
 below - not just default/hover. No partial credit; a missing state is a

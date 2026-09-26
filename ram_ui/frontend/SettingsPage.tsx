@@ -1,15 +1,11 @@
 import {
   useCallback,
   useEffect,
-  useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
 import { ConfirmModal } from "./ConfirmModal";
 import { Icon } from "./components/Icon";
 import { Popup } from "./components/Popup";
@@ -139,89 +135,16 @@ function InfoButton({
   infoCards: Record<string, SettingsInfoCard>;
 }) {
   const card = infoCards[referenceId];
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const tooltipId = useId();
-  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
-  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
-
-  useLayoutEffect(() => {
-    if (!isTooltipVisible) return;
-
-    const positionTooltip = () => {
-      const button = buttonRef.current;
-      const tooltip = tooltipRef.current;
-      if (!button || !tooltip) return;
-
-      const rootStyles = window.getComputedStyle(document.documentElement);
-      const gap = Number.parseFloat(rootStyles.getPropertyValue("--space-2"));
-      const viewportInset = Number.parseFloat(
-        rootStyles.getPropertyValue("--space-2"),
-      );
-      const buttonBounds = button.getBoundingClientRect();
-      const tooltipBounds = tooltip.getBoundingClientRect();
-      const leftCandidate = buttonBounds.left - tooltipBounds.width - gap;
-      const rightCandidate = buttonBounds.right + gap;
-      const left =
-        leftCandidate >= viewportInset
-          ? leftCandidate
-          : Math.min(
-              rightCandidate,
-              window.innerWidth - tooltipBounds.width - viewportInset,
-            );
-      const centeredTop =
-        buttonBounds.top + buttonBounds.height / 2 - tooltipBounds.height / 2;
-      const top = Math.min(
-        Math.max(centeredTop, viewportInset),
-        window.innerHeight - tooltipBounds.height - viewportInset,
-      );
-      setTooltipPosition({ top, left: Math.max(viewportInset, left) });
-    };
-
-    positionTooltip();
-    window.addEventListener("resize", positionTooltip);
-    window.addEventListener("scroll", positionTooltip, true);
-    return () => {
-      window.removeEventListener("resize", positionTooltip);
-      window.removeEventListener("scroll", positionTooltip, true);
-    };
-  }, [isTooltipVisible]);
-
   if (!card) return null;
   return (
-    <>
-      <button
-        ref={buttonRef}
-        className={`settings-info settings-info-${card.kind}`}
-        type="button"
-        aria-label={`${settingTitle(card.kind)}: ${card.text}`}
-        aria-describedby={isTooltipVisible ? tooltipId : undefined}
-        onBlur={() => setIsTooltipVisible(false)}
-        onFocus={() => setIsTooltipVisible(true)}
-        onMouseEnter={() => setIsTooltipVisible(true)}
-        onMouseLeave={() => setIsTooltipVisible(false)}
-      >
-        <Icon name="shield-question-mark" tone="current-color" />
-      </button>
-      {isTooltipVisible &&
-        createPortal(
-          <div
-            ref={tooltipRef}
-            id={tooltipId}
-            className="settings-tooltip"
-            role="tooltip"
-            style={
-              {
-                "--settings-tooltip-left": `${tooltipPosition.left}px`,
-                "--settings-tooltip-top": `${tooltipPosition.top}px`,
-              } as CSSProperties
-            }
-          >
-            {card.text}
-          </div>,
-          document.body,
-        )}
-    </>
+    <button
+      className={`settings-info settings-info-${card.kind}`}
+      type="button"
+      aria-label={`${settingTitle(card.kind)}: ${card.text}`}
+      data-tip={card.text}
+    >
+      <Icon name="shield-question-mark" tone="current-color" />
+    </button>
   );
 }
 

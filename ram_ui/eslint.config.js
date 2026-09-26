@@ -18,7 +18,11 @@ export default [
     plugins: { "@typescript-eslint": tsPlugin },
     rules: {
       "no-unused-vars": "off",
-      "@typescript-eslint/no-unused-vars": "error"
+      "@typescript-eslint/no-unused-vars": "error",
+      "no-restricted-syntax": ["error", {
+        selector: "JSXOpeningElement[name.name=/^[a-z]/] > JSXAttribute[name.name='title']",
+        message: "Use data-tip and the shared custom tooltip instead of a native title tooltip."
+      }]
     }
   }
 ];
