@@ -1935,26 +1935,31 @@ fn open_account_url(user_id: u64, inventory: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_inventory_assets(asset_ids: Vec<u64>) -> Result<(), String> {
+async fn open_inventory_assets(app: tauri::AppHandle, asset_ids: Vec<u64>) -> Result<(), String> {
     if asset_ids.is_empty() || asset_ids.contains(&0) || asset_ids.len() > 20 {
         return Err("Select between 1 and 20 valid inventory items to open".to_string());
     }
 
-    #[cfg(windows)]
-    {
-        for asset_id in asset_ids {
-            let url = format!("https://www.roblox.com/catalog/{asset_id}");
-            std::process::Command::new("cmd")
-                .args(["/C", "start", "", &url])
-                .spawn()
-                .map_err(|error| format!("Could not open Roblox: {error}"))?;
+    use tauri::Manager;
+    for asset_id in asset_ids {
+        let label = format!("inventory-asset-{asset_id}");
+        if let Some(window) = app.get_webview_window(&label) {
+            window
+                .set_focus()
+                .map_err(|_| "The Roblox item window could not be focused".to_string())?;
+            continue;
         }
-        Ok(())
+        let url = format!("https://www.roblox.com/catalog/{asset_id}")
+            .parse()
+            .map_err(|_| "The Roblox item URL is invalid".to_string())?;
+        tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::External(url))
+            .title("Roblox item")
+            .inner_size(1000.0, 760.0)
+            .incognito(true)
+            .build()
+            .map_err(|_| "The Roblox item window could not be opened".to_string())?;
     }
-    #[cfg(not(windows))]
-    {
-        Err("Opening Roblox is only supported on Windows".to_string())
-    }
+    Ok(())
 }
 
 #[tauri::command]

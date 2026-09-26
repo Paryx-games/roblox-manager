@@ -7,6 +7,7 @@ import { buildInventoryAccountGroups, mergeAccountInventories, matchesInventoryC
 import { getSelectionRectangle, selectInventoryAsset, selectInventoryAssets, type SelectionRectangle } from "./lib/inventorySelection";
 import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
 import {
+  browseAsAccount,
   fetchAccountInventory,
   listAccounts,
   listAccountGroups,
@@ -75,6 +76,8 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const [sort, setSort] = useState<InventorySort>("name");
   const [sortDirection, setSortDirection] = useState<InventorySortDirection>("ascending");
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [isOpeningInventory, setIsOpeningInventory] = useState(false);
+  const [isOpeningItems, setIsOpeningItems] = useState(false);
   const isFilterDataLoading = accountsLoading || itemsLoading;
   const [error, setError] = useState<string | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
@@ -346,10 +349,26 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   }
 
   async function openSelected() {
+    if (isOpeningItems) return;
+    setIsOpeningItems(true);
     try {
       await openInventoryAssets([...selectedItemIds]);
     } catch {
       setError("Selected items could not be opened on Roblox.");
+    } finally {
+      setIsOpeningItems(false);
+    }
+  }
+
+  async function openFullInventory() {
+    if (isOpeningInventory) return;
+    setIsOpeningInventory(true);
+    try {
+      for (const userId of accountIds) await browseAsAccount(userId, true);
+    } catch {
+      setError("The full Roblox inventory could not be opened.");
+    } finally {
+      setIsOpeningInventory(false);
     }
   }
 
@@ -473,6 +492,16 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
           <button className="account-button inventories-refresh" type="button" disabled={accountIds.size === 0 || itemsLoading} onClick={() => setRefreshCount((count) => count + 1)}>
             <Icon name="refresh" />{itemsLoading ? "Refreshing..." : "Refresh selected"}
           </button>
+          <div className="inventories-general-actions" aria-label="General inventory actions">
+            <h3>Actions</h3>
+            <button className="account-button" type="button" disabled={accountIds.size === 0 || accountsLoading || isOpeningInventory} onClick={() => void openFullInventory()}>
+              <Icon name="browser" />{isOpeningInventory ? "Opening inventory..." : "Open full inventory"}
+            </button>
+            {/* disabled until the inventory action flows are implemented */}
+            <button className="account-button" type="button" disabled data-tip="Disabled for now"><Icon name="save" />Export inventory</button>
+            <button className="account-button" type="button" disabled data-tip="Disabled for now"><Icon name="inventory" />Inventory value</button>
+            <button className="account-button" type="button" disabled data-tip="Disabled for now"><Icon name="inventory-shirt" />Manage outfits</button>
+          </div>
         </aside>
 
         <section className="inventories-main" aria-labelledby="inventory-title">
@@ -696,8 +725,8 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                 <button className="account-button" type="button" onClick={() => void copyIds([...selectedItemIds], { feedback: "all" })}>
                   <Icon name={copiedId === 0 ? "check" : "copy"} />{copiedId === 0 ? "Copied" : "Copy all (CSV)"}
                 </button>
-                <button className="account-button" type="button" disabled={selectedItemIds.size > 20} data-tip={selectedItemIds.size > 20 ? "Select up to 20 items to open on Roblox" : undefined} onClick={() => void openSelected()}>
-                  <Icon name="square-arrow-out-up-right" />Open on Roblox
+                <button className="account-button" type="button" disabled={selectedItemIds.size > 20 || isOpeningItems} data-tip={selectedItemIds.size > 20 ? "Select up to 20 items to open on Roblox" : undefined} onClick={() => void openSelected()}>
+                  <Icon name="browser" />{isOpeningItems ? "Opening..." : "Open on Roblox"}
                 </button>
                 <button className="account-button" type="button" onClick={() => setSelectedItemIds(new Set())}>Clear</button>
               </div>
