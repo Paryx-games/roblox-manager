@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { AccountAvatar } from "./components/AccountAvatar";
 import { Icon } from "./components/Icon";
+import { getSelectionRectangle, selectInventoryAssets, type SelectionRectangle } from "./lib/inventorySelection";
 import {
   fetchAccountInventory,
   listAccounts,
@@ -12,6 +13,18 @@ import {
 type Category = "All" | "Hair & hats" | "Clothing" | "Animations" | "Gear";
 
 const categories: Category[] = ["All", "Hair & hats", "Clothing", "Animations", "Gear"];
+
+type SelectionDrag = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  clientX: number;
+  clientY: number;
+  originalIds: Set<number>;
+  baseIds: Set<number>;
+  isDragging: boolean;
+  tiles: { assetId: number; left: number; top: number; right: number; bottom: number }[];
+};
 
 function getCategory(assetType: string): Category {
   if (assetType === "Gear") return "Gear";
@@ -32,6 +45,45 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const [search, setSearch] = useState("");
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [view, setView] = useState<"grid" | "list">("grid");
+  const [selectedSearch, setSelectedSearch] = useState("");
+  const [selectionRectangle, setSelectionRectangle] = useState<SelectionRectangle | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDetailsElement>(null);
+  const dragRef = useRef<SelectionDrag | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const suppressClickRef = useRef(false);
+  const copyTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    function onDocumentPointerDown(event: globalThis.PointerEvent) {
+      if (event.target instanceof Node && !dropdownRef.current?.contains(event.target)) {
+        if (dropdownRef.current) dropdownRef.current.open = false;
+      }
+    }
+    function onDocumentKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      if (dropdownRef.current?.open) {
+        dropdownRef.current.open = false;
+        dropdownRef.current.querySelector("summary")?.focus();
+      }
+      const drag = dragRef.current;
+      if (drag) {
+        setSelectedItemIds(drag.originalIds);
+        finishDrag();
+      }
+    }
+    document.addEventListener("pointerdown", onDocumentPointerDown);
+    document.addEventListener("pointerup", finishDrag);
+    document.addEventListener("keydown", onDocumentKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onDocumentPointerDown);
+      document.removeEventListener("pointerup", finishDrag);
+      document.removeEventListener("keydown", onDocumentKeyDown);
+      if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
+      if (copyTimeoutRef.current !== null) window.clearTimeout(copyTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     let isCurrent = true;
@@ -61,6 +113,8 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   useEffect(() => {
     if (accountsLoading || accountIds.size === 0) {
       setItems([]);
+      setItemsLoading(false);
+      setSelectedItemIds(new Set());
       return;
     }
 
@@ -117,6 +171,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   }
 
   function toggleItem(assetId: number) {
+    if (suppressClickRef.current) return;
     setSelectedItemIds((current) => {
       const next = new Set(current);
       if (next.has(assetId)) next.delete(assetId);
@@ -125,11 +180,12 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     });
   }
 
-  async function copyIds(ids: number[]) {
+  async function copyIds(ids: number[], options: { feedback: "individual" | "all" } = { feedback: "individual" }) {
     try {
-      await navigator.clipboard.writeText(ids.join("\n"));
-      setCopiedId(ids.length === 1 ? ids[0] : 0);
-      window.setTimeout(() => setCopiedId(null), 1600);
+      await navigator.clipboard.writeText(ids.join(","));
+      setCopiedId(options.feedback === "all" ? 0 : ids[0]);
+      if (copyTimeoutRef.current !== null) window.clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = window.setTimeout(() => setCopiedId(null), 1600);
     } catch {
       setError("Clipboard access is unavailable.");
     }
@@ -142,6 +198,87 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
       setError("Selected items could not be opened on Roblox.");
     }
   }
+
+  function finishDrag() {
+    const drag = dragRef.current;
+    if (drag && gridRef.current?.hasPointerCapture(drag.pointerId)) {
+      gridRef.current.releasePointerCapture(drag.pointerId);
+    }
+    dragRef.current = null;
+    if (animationFrameRef.current !== null) window.cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = null;
+    setSelectionRectangle(null);
+    window.requestAnimationFrame(() => { suppressClickRef.current = false; });
+  }
+
+  function updateDragSelection() {
+    const grid = gridRef.current;
+    const drag = dragRef.current;
+    if (!grid || !drag?.isDragging) return;
+    const bounds = grid.getBoundingClientRect();
+    const isNearTop = drag.clientY < bounds.top + 24;
+    const isNearBottom = drag.clientY > bounds.bottom - 24;
+    if (isNearTop) grid.scrollTop -= 12;
+    else if (isNearBottom) grid.scrollTop += 12;
+    const currentX = Math.max(0, Math.min(grid.clientWidth, drag.clientX - bounds.left)) + grid.scrollLeft;
+    const currentY = Math.max(0, Math.min(grid.clientHeight, drag.clientY - bounds.top)) + grid.scrollTop;
+    const rectangle = getSelectionRectangle({ x: drag.startX, y: drag.startY }, { x: currentX, y: currentY });
+    setSelectionRectangle(rectangle);
+    setSelectedItemIds(selectInventoryAssets(rectangle, drag.tiles, drag.baseIds));
+    animationFrameRef.current = window.requestAnimationFrame(updateDragSelection);
+  }
+
+  function onSelectionPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || event.pointerType === "touch" || itemsLoading) return;
+    if (event.target instanceof Element && event.target.closest(".inventories-id")) return;
+    const grid = event.currentTarget;
+    const bounds = grid.getBoundingClientRect();
+    if (event.clientX >= bounds.left + grid.clientWidth) return;
+    suppressClickRef.current = false;
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX - bounds.left + grid.scrollLeft,
+      startY: event.clientY - bounds.top + grid.scrollTop,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      originalIds: new Set(selectedItemIds),
+      baseIds: event.ctrlKey || event.metaKey ? new Set(selectedItemIds) : new Set(),
+      isDragging: false,
+      tiles: [...grid.querySelectorAll<HTMLElement>(".inventories-tile")].map((tile) => {
+        const tileBounds = tile.getBoundingClientRect();
+        return {
+          assetId: Number(tile.dataset.assetId),
+          left: tileBounds.left - bounds.left + grid.scrollLeft,
+          top: tileBounds.top - bounds.top + grid.scrollTop,
+          right: tileBounds.right - bounds.left + grid.scrollLeft,
+          bottom: tileBounds.bottom - bounds.top + grid.scrollTop,
+        };
+      }),
+    };
+  }
+
+  function onSelectionPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const distance = Math.hypot(
+      event.clientX - bounds.left + event.currentTarget.scrollLeft - drag.startX,
+      event.clientY - bounds.top + event.currentTarget.scrollTop - drag.startY,
+    );
+    drag.clientX = event.clientX;
+    drag.clientY = event.clientY;
+    if (!drag.isDragging && distance > 5) {
+      drag.isDragging = true;
+      suppressClickRef.current = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      updateDragSelection();
+    }
+  }
+
+  const selectedItems = items.filter((item) => selectedItemIds.has(item.assetId));
+  const matchingSelectedItems = selectedItems.filter((item) =>
+    `${item.name} ${item.assetId}`.toLowerCase().includes(selectedSearch.trim().toLowerCase()),
+  );
 
   return (
     <>
@@ -188,9 +325,27 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             <button className="account-button" type="button" disabled={visibleItems.length === 0 || itemsLoading} onClick={() => setSelectedItemIds((current) => new Set([...current, ...visibleItems.map((item) => item.assetId)]))}>Select all</button>
             <button className="account-button" type="button" disabled={selectedItemIds.size === 0} onClick={() => setSelectedItemIds(new Set())}>Clear selection</button>
             <span>{visibleItems.length} {visibleItems.length === 1 ? "item" : "items"}</span>
+            <div className="inventories-view-switch" role="group" aria-label="Inventory view">
+              <button type="button" aria-pressed={view === "grid"} onClick={() => setView("grid")}><Icon name="grid" />Grid</button>
+              <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><Icon name="inventory" />List</button>
+            </div>
           </div>
+          <p className="inventories-selection-hint">Drag to select items. Hold Ctrl to add to your selection.</p>
           {error && <p className="inventories-error" role="alert">{error}</p>}
-          <div className="inventories-grid" aria-label="Inventory items" aria-busy={itemsLoading}>
+          <div
+            className={`inventories-grid ${view === "list" ? "is-list" : ""} ${selectionRectangle ? "is-dragging" : ""}`}
+            ref={gridRef}
+            aria-label="Inventory items"
+            aria-busy={itemsLoading}
+            onPointerDown={onSelectionPointerDown}
+            onPointerMove={onSelectionPointerMove}
+            onPointerCancel={() => {
+              if (dragRef.current) setSelectedItemIds(dragRef.current.originalIds);
+              finishDrag();
+            }}
+            onDragStart={(event) => event.preventDefault()}
+          >
+            {selectionRectangle && <span className="inventories-marquee" aria-hidden="true" style={selectionRectangle} />}
             {itemsLoading ? (
               Array.from({ length: 8 }, (_, index) => (
                 <div className="inventories-skeleton" key={index} aria-hidden="true">
@@ -211,6 +366,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               <article
                 className={`inventories-tile ${selectedItemIds.has(item.assetId) ? "is-selected" : ""}`}
                 key={item.assetId}
+                data-asset-id={item.assetId}
               >
                 <button
                   className="inventories-tile-select"
@@ -244,16 +400,35 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
           {selectedItemIds.size > 0 && (
             <div className="inventories-selection" aria-label="Selected inventory actions">
               <strong aria-live="polite">{selectedItemIds.size} selected</strong>
-              <div className="inventories-selected-ids" aria-label="Selected IDs">
-                {[...selectedItemIds].map((id) => (
-                  <button type="button" key={id} aria-label={`Copy ID ${id}`} onClick={() => void copyIds([id])}>
-                    {copiedId === id ? "Copied" : id}
-                  </button>
-                ))}
-              </div>
+              <details className="inventories-selected-dropdown" ref={dropdownRef} onToggle={(event) => {
+                if (event.currentTarget.open) {
+                  setSelectedSearch("");
+                  event.currentTarget.querySelector("input")?.focus();
+                }
+              }}>
+                <summary className="account-button">Selected IDs<Icon name="chevron-down" /></summary>
+                <div className="popup-menu inventories-selected-menu">
+                  <label className="inventories-search">
+                    <Icon name="search" />
+                    <input value={selectedSearch} onChange={(event) => setSelectedSearch(event.target.value)} placeholder="Find a selected item" aria-label="Search selected IDs" />
+                  </label>
+                  <div className="inventories-selected-options">
+                    {matchingSelectedItems.map((item) => (
+                      <button type="button" key={item.assetId} onClick={() => {
+                        void copyIds([item.assetId]);
+                        if (dropdownRef.current) dropdownRef.current.open = false;
+                        dropdownRef.current?.querySelector("summary")?.focus();
+                      }}>
+                        <span>{item.name}</span><small>{item.assetId}</small><Icon name={copiedId === item.assetId ? "check" : "copy"} />
+                      </button>
+                    ))}
+                    {matchingSelectedItems.length === 0 && <p>No selected items match this search.</p>}
+                  </div>
+                </div>
+              </details>
               <div className="inventories-dock-actions">
-                <button className="account-button" type="button" onClick={() => void copyIds([...selectedItemIds])}>
-                  <Icon name={copiedId === 0 ? "check" : "copy"} />{copiedId === 0 ? "Copied" : "Copy all"}
+                <button className="account-button" type="button" onClick={() => void copyIds([...selectedItemIds], { feedback: "all" })}>
+                  <Icon name={copiedId === 0 ? "check" : "copy"} />{copiedId === 0 ? "Copied" : "Copy all (CSV)"}
                 </button>
                 <button className="account-button" type="button" disabled={selectedItemIds.size > 20} title={selectedItemIds.size > 20 ? "Select up to 20 items to open on Roblox" : undefined} onClick={() => void openSelected()}>
                   <Icon name="square-arrow-out-up-right" />Open on Roblox
