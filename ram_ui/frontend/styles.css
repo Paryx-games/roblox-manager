@@ -5850,6 +5850,13 @@ button:focus-visible {
 .inventories-view-switch button:focus-visible,
 .inventories-page .account-button:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; }
 
+.inventories-header,
+.inventories-page { user-select: none; }
+.inventories-page input,
+.inventories-id > span,
+.inventories-selected-options small { user-select: text; }
+.inventories-grid.is-dragging .inventories-id > span { user-select: none; }
+
 .inventories-avatar {
   display: flex;
   width: var(--space-6);

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Inventory drag interaction.** Disables text selection on helper copy and interface labels so they do not interfere with dragging, while keeping search text and asset IDs selectable.
+
 - **Inventory click selection.** Plain clicks select a single item, while Ctrl-click toggles individual items in a multiple selection. Drag selection and explicit Select all remain available.
 
 - **Inventory list layout.** Tightens row spacing, improves padding and selection placement, and shows item type, price, and owner avatars in aligned rows that adapt to the available width.

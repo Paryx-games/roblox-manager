@@ -289,7 +289,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
 
   return (
     <>
-      <div className="header-row"><h1 className="header-title">Inventories</h1></div>
+      <div className="header-row inventories-header"><h1 className="header-title">Inventories</h1></div>
       <main className="inventories-page">
         <aside className="inventories-accounts" aria-label="Inventory accounts">
           <h2>Accounts</h2>
