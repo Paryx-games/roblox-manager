@@ -1907,6 +1907,15 @@ fn update_account_group_meta(
 }
 
 #[tauri::command]
+fn open_account_guide() -> Result<(), String> {
+    std::process::Command::new("explorer.exe")
+        .arg("https://roblox-manager.gitbook.io/docs/guides/manage-accounts")
+        .spawn()
+        .map(|_| ())
+        .map_err(|_| "Could not open the account guide".to_string())
+}
+
+#[tauri::command]
 fn open_account_url(user_id: u64, inventory: bool) -> Result<(), String> {
     let path = if inventory { "inventory" } else { "profile" };
     let url = format!("https://www.roblox.com/users/{user_id}/{path}");
@@ -3061,6 +3070,7 @@ fn main() {
             delete_account_group,
             update_account_group_meta,
             open_account_url,
+            open_account_guide,
             open_inventory_assets,
             remove_account,
             launch_account,

@@ -1,3 +1,5 @@
+import { Icon as SharedIcon } from "./components/Icon";
+import { openAccountGuide } from "./lib/ipc";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import {
   useEffect,
@@ -2460,42 +2462,34 @@ export function AccountsPage({
               {(selectedAccount.moderationActive ||
                 selectedAccount.cookieExpired) && (
                 <section className="account-warning" role="alert">
-                  <Icon name="warning" tone="current-color" />
-                  <div>
-                    <strong>
-                      {selectedAccount.moderationBanned
-                        ? "Warning: Account terminated"
+                  <div className="account-warning-heading">
+                    <span className="account-warning-symbol"><SharedIcon name="warning" tone="current-color" /></span>
+                    <div className="account-warning-copy">
+                      <h2>{selectedAccount.moderationBanned
+                        ? "Account terminated"
                         : selectedAccount.cookieExpired
-                          ? "Account credential expired"
-                          : "Warning: Account moderated"}
-                    </strong>
-                    {selectedAccount.moderationReason && (
-                      <span>{selectedAccount.moderationReason}</span>
-                    )}
-                    {selectedAccount.moderationExpiresAt && (
-                      <span>
-                        Expires:{" "}
-                        {formatActivity(selectedAccount.moderationExpiresAt)}
-                      </span>
-                    )}
+                          ? "Account credentials expired"
+                          : "Account moderated"}</h2>
+                      {selectedAccount.cookieExpired && <p>The saved login cookies for this account are no longer valid. This can happen when you change your password, log out on another device, or Roblox invalidates the session.</p>}
+                      {selectedAccount.moderationReason && <p>{selectedAccount.moderationReason}</p>}
+                      {selectedAccount.moderationExpiresAt && <p>Expires: {formatActivity(selectedAccount.moderationExpiresAt)}</p>}
+                    </div>
+                  </div>
+                  <div className="account-warning-recovery">
+                    <h3>What you can do</h3>
                     <div className="account-warning-actions">
-                      <button
-                        className="account-button"
-                        type="button"
-                        onClick={() => void browseAs()}
-                      >
-                        <Icon name="browser" />
-                        Open browser as account
+                      <button className="account-warning-action is-primary" type="button" disabled={mutationLoading} onClick={() => void browseAs()}>
+                        <span className="account-warning-action-icon"><SharedIcon name="globe" tone="current-color" /></span>
+                        <span><strong>Open browser as account</strong><small>Log in to Roblox with this account</small></span>
                       </button>
-                      <button
-                        className="account-button"
-                        type="button"
-                        disabled={mutationLoading}
-                        onClick={() => void revalidate()}
-                      >
-                        <Icon name="refresh" />
-                        Revalidate account
+                      <button className="account-warning-action" type="button" disabled={mutationLoading} onClick={() => void revalidate()}>
+                        <span className="account-warning-action-icon"><SharedIcon name="refresh" tone="current-color" /></span>
+                        <span><strong>Revalidate account</strong><small>Check if the credentials are valid again</small></span>
                       </button>
+                    </div>
+                    <div className="account-warning-help">
+                      <div><h3>Need help?</h3><p>If you recently changed your password, you'll need to log in again. Your saved account data (name, ID, etc.) will be kept.</p></div>
+                      <button className="account-button" type="button" onClick={() => void openAccountGuide().catch(() => setNotice("The account guide could not be opened."))}><SharedIcon name="square-arrow-out-up-right" />Learn more</button>
                     </div>
                   </div>
                 </section>

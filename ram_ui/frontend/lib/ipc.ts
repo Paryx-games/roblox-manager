@@ -430,6 +430,10 @@ export async function openAccountUrl(
   return invoke<void>("open_account_url", { userId, inventory });
 }
 
+export async function openAccountGuide(): Promise<void> {
+  return invoke<void>("open_account_guide");
+}
+
 export async function removeAccount(userId: number): Promise<void> {
   return invoke<void>("remove_account", { userId });
 }
