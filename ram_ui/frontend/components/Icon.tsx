@@ -8,7 +8,7 @@ function getCurrentColorIconContent(name: string) {
     case "info-mark":
       return <><path d="M12 11v7" /><path d="M12 6h.01" /></>;
     case "exclamation":
-      return <><path d="M12 5v9" /><path d="M12 18h.01" /></>;
+      return <><path d="M9.8 6a2.2 2.2 0 0 1 4.4 0l-.65 7.6a1.55 1.55 0 0 1-3.1 0Z" fill="currentColor" stroke="none" /><circle cx="12" cy="18.2" r="1.65" fill="currentColor" stroke="none" /></>;
     case "list":
       return (
         <>

@@ -3307,6 +3307,7 @@ button:focus-visible {
 .toast-icon { display: flex; width: var(--space-6); height: var(--space-6); align-items: center; justify-content: center; background: var(--toast-accent); color: var(--bg-canvas); clip-path: circle(50%); }
 .toast-success .toast-icon { color: var(--text-primary); }
 .toast-icon .account-icon { width: var(--space-6); height: var(--space-6); }
+.toast-icon [data-icon-name="check"] { stroke-width: 3; stroke-linecap: square; stroke-linejoin: miter; }
 .toast-copy { display: grid; min-width: 0; gap: var(--space-1); }
 .toast-copy strong { font-size: var(--text-sm); font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .toast-copy p { margin: 0; color: var(--text-muted); font-size: var(--text-xs); line-height: 1.4; overflow-wrap: anywhere; }
