@@ -12,10 +12,10 @@ import {
   type AccountSummary,
 } from "./lib/ipc";
 
-type Category = "All" | "Hair & hats" | "Clothing" | "Animations" | "Gear";
+type Category = "All" | "Hats" | "Hair" | "Face" | "Neck" | "Shoulder" | "Front" | "Back" | "Waist" | "Shirts" | "Pants" | "T-Shirts" | "Animations" | "Gear" | "Other";
 type InventoryViewSize = "small" | "medium" | "large";
 
-const categories: Category[] = ["All", "Hair & hats", "Clothing", "Animations", "Gear"];
+const categories: Exclude<Category, "All">[] = ["Hats", "Hair", "Face", "Neck", "Shoulder", "Front", "Back", "Waist", "Shirts", "Pants", "T-Shirts", "Animations", "Gear", "Other"];
 
 type SelectionDrag = {
   pointerId: number;
@@ -30,10 +30,22 @@ type SelectionDrag = {
 };
 
 function getCategory(assetType: string): Category {
-  if (assetType === "Gear") return "Gear";
-  if (assetType === "EmoteAnimation") return "Animations";
-  if (["Shirt", "Pants", "TShirt"].includes(assetType)) return "Clothing";
-  return "Hair & hats";
+  const categoriesByAssetType: Record<string, Exclude<Category, "All">> = {
+    Hat: "Hats",
+    HairAccessory: "Hair",
+    FaceAccessory: "Face",
+    NeckAccessory: "Neck",
+    ShoulderAccessory: "Shoulder",
+    FrontAccessory: "Front",
+    BackAccessory: "Back",
+    WaistAccessory: "Waist",
+    Shirt: "Shirts",
+    Pants: "Pants",
+    TShirt: "T-Shirts",
+    EmoteAnimation: "Animations",
+    Gear: "Gear",
+  };
+  return categoriesByAssetType[assetType] ?? "Other";
 }
 
 export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Set<number> }) {
@@ -164,6 +176,14 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
 
   const isComparisonAvailable = accountIds.size > 1 && loadedAccountCount === accountIds.size && !itemsLoading;
   const effectiveComparison = isComparisonAvailable ? comparison : "all";
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<Category, number>([["All", items.length]]);
+    for (const item of items) {
+      const itemCategory = getCategory(item.assetType);
+      counts.set(itemCategory, (counts.get(itemCategory) ?? 0) + 1);
+    }
+    return counts;
+  }, [items]);
   const accountsById = useMemo(() => new Map(accounts.map((account) => [account.userId, account])), [accounts]);
 
   const visibleItems = useMemo(() => {
@@ -357,9 +377,9 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               <div className="inventories-control-group">
                 <span className="inventories-control-label">Filter by type</span>
                 <div className="inventories-filters" role="group" aria-label="Item categories">
-                  {categories.map((option) => (
+                  {["All" as const, ...categories].filter((option) => option === "All" || (categoryCounts.get(option) ?? 0) > 0).map((option) => (
                     <button className={category === option ? "is-active" : ""} type="button" key={option} aria-pressed={category === option} onClick={() => setCategory(option)}>
-                      {option}<span>{option === "All" ? items.length : items.filter((item) => getCategory(item.assetType) === option).length}</span>
+                      {option}<span>{categoryCounts.get(option) ?? 0}</span>
                     </button>
                   ))}
                 </div>
