@@ -3295,12 +3295,12 @@ button:focus-visible {
   padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
   border: var(--border-width) solid color-mix(in srgb, var(--toast-accent) 22%, var(--border-default));
   border-radius: var(--radius);
-  background: linear-gradient(110deg, color-mix(in srgb, var(--toast-accent) 5%, var(--bg-surface)), var(--bg-surface));
+  background: linear-gradient(110deg, color-mix(in srgb, var(--toast-accent) 10%, var(--bg-surface)), color-mix(in srgb, var(--toast-accent) 6%, var(--bg-surface)));
   color: var(--text-primary);
-  animation: toast-enter var(--duration-base) var(--ease-standard) both;
+  animation: toast-enter var(--duration-slow) var(--ease-standard) both;
   pointer-events: auto;
 }
-.toast::before { position: absolute; inset: 0; border-radius: inherit; background: var(--toast-accent); clip-path: inset(0 calc(100% - var(--space-2)) 0 0); content: ""; }
+.toast::before { position: absolute; inset: 0; border-radius: inherit; background: var(--toast-accent); clip-path: inset(0 calc(100% - (var(--space-1) + var(--space-2)) / 2) 0 0); content: ""; }
 .toast-success { --toast-accent: var(--notification-success); }
 .toast-warning { --toast-accent: var(--notification-warning); }
 .toast-error { --toast-accent: var(--notification-error); }

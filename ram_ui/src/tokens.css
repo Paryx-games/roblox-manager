@@ -42,7 +42,7 @@
   --action-muted: rgba(255, 255, 255, 0.08);
 
   --notification-info: var(--action-primary);
-  --notification-success: var(--status-online);
+  --notification-success: #32b85c;
   --notification-warning: var(--status-warning);
   --notification-error: #ff383e;
 
