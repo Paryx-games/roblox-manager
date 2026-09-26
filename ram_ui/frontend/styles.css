@@ -1245,7 +1245,7 @@ button:focus-visible {
   background: var(--bg-raised);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
-  animation: settings-unsaved-enter var(--duration-base) var(--ease-standard);
+  animation: dock-enter var(--duration-slow) var(--ease-standard) both;
 }
 
 .settings-unsaved-actions {
@@ -1272,10 +1272,10 @@ button:focus-visible {
   }
 }
 
-@keyframes settings-unsaved-enter {
+@keyframes dock-enter {
   from {
     opacity: 0;
-    transform: translateY(var(--space-2));
+    transform: translateY(calc(100% + var(--space-6)));
   }
 
   to {
@@ -5869,6 +5869,7 @@ button:focus-visible {
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
   background: var(--bg-raised);
+  animation: dock-enter var(--duration-slow) var(--ease-standard) both;
 }
 
 .inventories-selection strong { font-size: var(--text-sm); white-space: nowrap; }
@@ -6017,6 +6018,8 @@ button:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .settings-unsaved-bar,
+  .inventories-selection { animation: none; }
   .inventories-skeleton span { animation: none; }
   .inventories-workspace,
   .inventories-filter-toggle .account-icon { transition: none; }

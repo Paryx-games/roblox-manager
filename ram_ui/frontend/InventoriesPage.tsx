@@ -499,7 +499,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             </button>
             {/* disabled until the inventory action flows are implemented */}
             <button className="account-button" type="button" disabled data-tip="Disabled for now"><Icon name="save" />Export inventory</button>
-            <button className="account-button" type="button" disabled data-tip="Disabled for now"><Icon name="inventory" />Inventory value</button>
+            <button className="account-button" type="button" disabled data-tip="Disabled for now"><Icon name="robux" />Inventory value</button>
             <button className="account-button" type="button" disabled data-tip="Disabled for now"><Icon name="inventory-shirt" />Manage outfits</button>
           </div>
         </aside>
