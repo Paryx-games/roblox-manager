@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Account picker select-all.** Ctrl+A selects all available accounts in an open multiple-account picker, including the pickers for Private Servers and Presets. Closed and single-account pickers do not claim the shortcut.
+
 - **Page select-all actions.** Ctrl+A selects accounts matching the current Accounts search, all accounts in Groups, or inventory items matching the current filters. Within the inventory account rail, it selects accounts instead.
 
 - **Select-all shortcut boundaries.** Ctrl+A no longer selects interface text on Settings or pages without an explicit selection action. Text fields keep native editing shortcuts, and page changes block selection of the outgoing page.
