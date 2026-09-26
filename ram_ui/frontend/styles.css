@@ -1072,15 +1072,14 @@ button:focus-visible {
   border-left: calc(var(--border-width) * 2) solid var(--text-primary);
   content: "";
   opacity: 0;
-  transform: rotate(-45deg) scale(0.6);
-  transition:
-    opacity var(--duration-base) var(--ease-standard),
-    transform var(--duration-base) var(--ease-standard);
+  transform: rotate(-45deg);
+  clip-path: inset(0 0 100% 100%);
+  transition: clip-path var(--duration-base) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
 }
 
 .settings-toggle input:checked::after {
   opacity: 1;
-  transform: rotate(-45deg) scale(1);
+  clip-path: inset(0);
 }
 
 .settings-toggle input:disabled,
@@ -2386,6 +2385,7 @@ button:focus-visible {
 }
 
 .account-picker-checkbox {
+  position: relative;
   display: inline-flex;
   width: 16px;
   height: 16px;
@@ -2399,6 +2399,32 @@ button:focus-visible {
 .account-picker-option.is-selected .account-picker-checkbox {
   border-color: var(--action-primary);
   background: var(--action-primary);
+}
+
+.account-picker-checkbox .account-icon,
+.groups-checkbox .account-icon,
+.inventories-tile-check .account-icon { visibility: hidden; }
+
+.account-picker-checkbox::after,
+.groups-checkbox::after,
+.inventories-tile-check::after {
+  position: absolute;
+  width: var(--space-1);
+  height: var(--space-2);
+  border-right: calc(var(--border-width) * 2) solid var(--text-primary);
+  border-bottom: calc(var(--border-width) * 2) solid var(--text-primary);
+  content: "";
+  opacity: 0;
+  transform: rotate(45deg);
+  clip-path: inset(0 0 100% 100%);
+  transition: clip-path var(--duration-base) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
+}
+
+.account-picker-option.is-selected .account-picker-checkbox::after,
+.groups-picker-option.is-checked .groups-checkbox::after,
+.inventories-tile.is-selected .inventories-tile-check::after {
+  opacity: 1;
+  clip-path: inset(0);
 }
 
 .account-picker-checkbox .account-icon {
@@ -4300,6 +4326,7 @@ button:focus-visible {
 }
 
 .groups-checkbox {
+  position: relative;
   display: inline-flex;
   width: 16px;
   height: 16px;
