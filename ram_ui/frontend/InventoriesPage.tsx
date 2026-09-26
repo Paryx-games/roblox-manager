@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { AccountAvatar } from "./components/AccountAvatar";
 import { Icon } from "./components/Icon";
+import Select from "./components/Select";
+import { mergeAccountInventories, matchesInventoryComparison, sortInventoryItems, type OwnedInventoryItem, type InventoryComparison, type InventorySort, type InventorySortDirection } from "./lib/inventoryBrowsing";
 import { getSelectionRectangle, selectInventoryAssets, type SelectionRectangle } from "./lib/inventorySelection";
 import {
   fetchAccountInventory,
   listAccounts,
   openInventoryAssets,
   type AccountSummary,
-  type InventoryItem,
 } from "./lib/ipc";
 
 type Category = "All" | "Hair & hats" | "Clothing" | "Animations" | "Gear";
@@ -37,7 +38,11 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [accountIds, setAccountIds] = useState<Set<number>>(() => new Set(initialSelectedIds));
   const [accountsLoading, setAccountsLoading] = useState(true);
-  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [items, setItems] = useState<OwnedInventoryItem[]>([]);
+  const [loadedAccountCount, setLoadedAccountCount] = useState(0);
+  const [comparison, setComparison] = useState<InventoryComparison>("all");
+  const [sort, setSort] = useState<InventorySort>("name");
+  const [sortDirection, setSortDirection] = useState<InventorySortDirection>("ascending");
   const [itemsLoading, setItemsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
@@ -113,6 +118,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   useEffect(() => {
     if (accountsLoading || accountIds.size === 0) {
       setItems([]);
+      setLoadedAccountCount(0);
       setItemsLoading(false);
       setSelectedItemIds(new Set());
       return;
@@ -120,18 +126,15 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
 
     let isCurrent = true;
     setItemsLoading(true);
+    setLoadedAccountCount(0);
     setError(null);
     setSelectedItemIds(new Set());
-    void Promise.allSettled([...accountIds].map((id) => fetchAccountInventory(id)))
+    void Promise.allSettled([...accountIds].map(async (userId) => ({ userId, items: await fetchAccountInventory(userId) })))
       .then((results) => {
         if (!isCurrent) return;
-        const merged = new Map<number, InventoryItem>();
-        for (const result of results) {
-          if (result.status === "fulfilled") {
-            for (const item of result.value) merged.set(item.assetId, item);
-          }
-        }
-        setItems([...merged.values()].sort((left, right) => left.name.localeCompare(right.name)));
+        const loaded = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+        setItems(mergeAccountInventories(loaded));
+        setLoadedAccountCount(loaded.length);
         const failures = results.filter((result) => result.status === "rejected").length;
         if (failures) {
           setError(`${failures} ${failures === 1 ? "account inventory" : "account inventories"} could not be loaded. Refresh selected to retry.`);
@@ -143,13 +146,19 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     return () => { isCurrent = false; };
   }, [accountIds, accountsLoading, refreshCount]);
 
+  const isComparisonAvailable = accountIds.size > 1 && loadedAccountCount === accountIds.size && !itemsLoading;
+  const effectiveComparison = isComparisonAvailable ? comparison : "all";
+  const accountsById = useMemo(() => new Map(accounts.map((account) => [account.userId, account])), [accounts]);
+
   const visibleItems = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return items.filter((item) =>
+    const filtered = items.filter((item) =>
       (category === "All" || getCategory(item.assetType) === category) &&
+      matchesInventoryComparison(item, effectiveComparison, accountIds.size) &&
       (!query || `${item.name} ${item.assetId}`.toLowerCase().includes(query)),
     );
-  }, [items, category, search]);
+    return sortInventoryItems(filtered, { field: sort, direction: sortDirection });
+  }, [items, category, search, effectiveComparison, accountIds.size, sort, sortDirection]);
 
   const accountGroups = useMemo(() => {
     const grouped = new Map<string, AccountSummary[]>();
@@ -321,6 +330,34 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               </button>
             ))}
           </div>
+          <div className="inventories-browse-controls">
+            <div className="inventories-filters inventories-comparison" role="group" aria-label="Compare inventories">
+              {([
+                { value: "all", label: "All items" },
+                { value: "shared", label: "Shared by all" },
+                { value: "unique", label: "Unique to one" },
+              ] as const).map((option) => (
+                <button type="button" key={option.value} className={effectiveComparison === option.value ? "is-active" : ""} aria-pressed={effectiveComparison === option.value} disabled={option.value !== "all" && !isComparisonAvailable} onClick={() => setComparison(option.value)}>
+                  {option.label}
+                  {(option.value === "all" || isComparisonAvailable) && <span>{items.filter((item) => matchesInventoryComparison(item, option.value, accountIds.size)).length}</span>}
+                </button>
+              ))}
+            </div>
+            <div className="inventories-sort">
+              <span>Sort:</span>
+              <Select value={sort} onChange={(value) => setSort(value as InventorySort)} ariaLabel="Sort inventory by" options={[
+                { value: "name", label: "Name" },
+                { value: "assetId", label: "Asset ID" },
+                { value: "assetType", label: "Type" },
+                { value: "priceRobux", label: "Price" },
+              ]} />
+              <Select value={sortDirection} onChange={(value) => setSortDirection(value as InventorySortDirection)} ariaLabel="Inventory sort direction" options={[
+                { value: "ascending", label: "Ascending" },
+                { value: "descending", label: "Descending" },
+              ]} />
+            </div>
+          </div>
+          {!itemsLoading && !isComparisonAvailable && <p className="inventories-selection-hint">{accountIds.size < 2 ? "Select multiple accounts to compare inventories." : "Comparison requires every selected inventory to load."}</p>}
           <div className="inventories-toolbar">
             <button className="account-button" type="button" disabled={visibleItems.length === 0 || itemsLoading} onClick={() => setSelectedItemIds((current) => new Set([...current, ...visibleItems.map((item) => item.assetId)]))}>Select all</button>
             <button className="account-button" type="button" disabled={selectedItemIds.size === 0} onClick={() => setSelectedItemIds(new Set())}>Clear selection</button>
@@ -362,7 +399,13 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   ? "No inventory items found. Refresh selected to try again."
                   : "No items match these filters. Try another category or search."}
               </p>
-            ) : visibleItems.map((item) => (
+            ) : visibleItems.map((item) => {
+              const owners = item.ownerIds.flatMap((id) => {
+                const account = accountsById.get(id);
+                return account ? [account] : [];
+              });
+              const ownerNames = owners.map((account) => account.alias || account.username).join(", ");
+              return (
               <article
                 className={`inventories-tile ${selectedItemIds.has(item.assetId) ? "is-selected" : ""}`}
                 key={item.assetId}
@@ -382,7 +425,13 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   <span className="inventories-tile-check" aria-hidden="true">
                     {selectedItemIds.has(item.assetId) && <Icon name="check" />}
                   </span>
-                  <strong className="inventories-tile-name">{item.name}</strong>
+                  <span className="inventories-tile-caption">
+                    <strong className="inventories-tile-name">{item.name}</strong>
+                    <span className="inventories-owner-avatars" title={`Owned by: ${ownerNames}`} aria-label={`Owned by: ${ownerNames}`}>
+                      {owners.slice(0, 3).map((account) => <AccountAvatar key={account.userId} account={account} className="inventories-owner-avatar" />)}
+                      {owners.length > 3 && <span className="inventories-owner-overflow">+{owners.length - 3}</span>}
+                    </span>
+                  </span>
                 </button>
                 <button
                   className="inventories-id"
@@ -395,7 +444,8 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   <Icon name={copiedId === item.assetId ? "check" : "copy"} />
                 </button>
               </article>
-            ))}
+              );
+            })}
           </div>
           {selectedItemIds.size > 0 && (
             <div className="inventories-selection" aria-label="Selected inventory actions">

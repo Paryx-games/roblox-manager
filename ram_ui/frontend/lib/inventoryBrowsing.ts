@@ -1,0 +1,46 @@
+import type { InventoryItem } from "./ipc";
+
+export type OwnedInventoryItem = InventoryItem & { ownerIds: number[] };
+export type InventoryComparison = "all" | "shared" | "unique";
+export type InventorySort = "name" | "assetId" | "assetType" | "priceRobux";
+export type InventorySortDirection = "ascending" | "descending";
+
+export function mergeAccountInventories(inventories: readonly { userId: number; items: InventoryItem[] }[]): OwnedInventoryItem[] {
+  const merged = new Map<number, OwnedInventoryItem>();
+  for (const inventory of inventories) {
+    for (const item of inventory.items) {
+      const existing = merged.get(item.assetId);
+      if (!existing) {
+        merged.set(item.assetId, { ...item, ownerIds: [inventory.userId] });
+      } else {
+        if (!existing.ownerIds.includes(inventory.userId)) existing.ownerIds.push(inventory.userId);
+        existing.iconUrl ??= item.iconUrl;
+        existing.priceRobux ??= item.priceRobux;
+      }
+    }
+  }
+  return [...merged.values()];
+}
+
+export function matchesInventoryComparison(item: OwnedInventoryItem, comparison: InventoryComparison, accountCount: number): boolean {
+  if (comparison === "shared") return item.ownerIds.length === accountCount;
+  if (comparison === "unique") return item.ownerIds.length === 1;
+  return true;
+}
+
+export function sortInventoryItems(items: readonly OwnedInventoryItem[], options: { field: InventorySort; direction: InventorySortDirection }): OwnedInventoryItem[] {
+  return [...items].sort((left, right) => {
+    let difference = 0;
+    if (options.field === "priceRobux") {
+      if (left.priceRobux === null && right.priceRobux !== null) return 1;
+      if (right.priceRobux === null && left.priceRobux !== null) return -1;
+      difference = (left.priceRobux ?? 0) - (right.priceRobux ?? 0);
+    } else if (options.field === "assetId") {
+      difference = left.assetId - right.assetId;
+    } else {
+      difference = left[options.field].localeCompare(right[options.field], undefined, { numeric: true, sensitivity: "base" });
+    }
+    const order = options.direction === "descending" ? -1 : 1;
+    return difference * order || left.name.localeCompare(right.name) || left.assetId - right.assetId;
+  });
+}

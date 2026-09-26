@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Inventory ownership and comparison.** Shows owner avatars beside items with overflow counts, adds shared/unique comparison filters, and supports sorting by name, asset ID, type, or price in either direction.
+
 - **Inventory selection tools.** Adds drag selection with edge scrolling, a searchable selected-ID dropdown, comma-separated ID copying, and grid/list views with grid as the default.
 
 - **Inventory layout refinement.** Matches the inventory reference more closely with square thumbnail tiles, compact filters, copyable asset IDs, and a floating selection dock.

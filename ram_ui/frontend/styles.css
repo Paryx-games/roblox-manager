@@ -5989,7 +5989,17 @@ button:focus-visible {
 
 .inventories-tile.is-selected .inventories-tile-check { border-color: var(--action-primary); background: var(--action-primary); }
 .inventories-tile-check .account-icon { width: var(--space-3); height: var(--space-3); filter: invert(95%); }
-.inventories-tile-name { display: block; width: 100%; overflow: hidden; padding: var(--space-2) var(--space-2) var(--space-1); font-size: var(--text-sm); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.inventories-tile-caption { display: flex; width: 100%; min-width: 0; align-items: center; gap: var(--space-1); padding: var(--space-2) var(--space-2) var(--space-1); }
+.inventories-tile-name { display: block; min-width: 0; flex: 1; overflow: hidden; font-size: var(--text-sm); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.inventories-owner-avatars { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-1); }
+.inventories-owner-avatar { display: flex; width: var(--space-4); height: var(--space-4); flex: 0 0 var(--space-4); align-items: center; justify-content: center; overflow: hidden; border-radius: var(--radius); font-size: var(--text-xs); }
+.inventories-owner-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.inventories-owner-overflow { color: var(--text-muted); font-size: var(--text-xs); white-space: nowrap; }
+.inventories-browse-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-3); }
+.inventories-comparison { margin-top: 0; }
+.inventories-comparison button:disabled { color: var(--text-disabled); background: var(--bg-surface); cursor: not-allowed; }
+.inventories-sort { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: var(--text-xs); }
+.inventories-sort .rm-select { min-width: 100px; }
 .inventories-id {
   display: flex;
   width: calc(100% - var(--space-4));
@@ -6079,6 +6089,7 @@ button:focus-visible {
 .inventories-grid.is-list .inventories-thumbnail .account-icon { width: var(--space-6); height: var(--space-6); }
 .inventories-grid.is-list .inventories-tile-check { position: static; flex: 0 0 var(--space-6); }
 .inventories-grid.is-list .inventories-tile-name { padding: 0; }
+.inventories-grid.is-list .inventories-tile-caption { flex: 1; padding: 0; }
 .inventories-grid.is-list .inventories-id { width: 160px; flex: 0 0 160px; margin: 0 var(--space-2) 0 0; }
 .inventories-grid.is-list .inventories-skeleton { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); }
 .inventories-grid.is-list .inventories-skeleton-label { min-width: var(--space-12); flex: 1; }
