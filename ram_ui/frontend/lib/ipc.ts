@@ -460,7 +460,7 @@ export async function fetchAccountInventory(
 
 export type InventoryBrowserTarget = {
   userId: number;
-  destination: { kind: "category"; assetType: string } | { kind: "marketplace"; assetId: number };
+  assetId: number;
 };
 
 export async function openInventoryAssets(targets: InventoryBrowserTarget[]): Promise<void> {

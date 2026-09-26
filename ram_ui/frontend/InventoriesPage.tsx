@@ -230,7 +230,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const visibleCategories = (["All", ...categories] as Category[]).filter((option) => option === "All" || (categoryCounts.get(option) ?? 0) > 0);
   const accountsById = useMemo(() => new Map(accounts.map((account) => [account.userId, account])), [accounts]);
   const browserTargets = useMemo(() => buildInventoryBrowserTargets(items, accountIds, selectedItemIds), [items, accountIds, selectedItemIds]);
-  const canOpenSelectedItems = !itemsLoading && loadedAccountCount === accountIds.size && browserTargets.length > 0 && browserTargets.length <= 20;
+  const canOpenSelectedItems = !itemsLoading && browserTargets.length > 0 && browserTargets.length <= 20;
 
   const visibleItems = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -727,7 +727,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                 <button className="account-button" type="button" onClick={() => void copyIds([...selectedItemIds], { feedback: "all" })}>
                   <Icon name={copiedId === 0 ? "check" : "copy"} />{copiedId === 0 ? "Copied" : "Copy all (CSV)"}
                 </button>
-                <button className="account-button" type="button" disabled={!canOpenSelectedItems || isOpeningItems} data-tip={browserTargets.length > 20 ? "Select fewer items or accounts to open up to 20 browser windows" : loadedAccountCount !== accountIds.size ? "Refresh selected to load every account's inventory first" : undefined} onClick={() => void openSelected()}>
+                <button className="account-button" type="button" disabled={!canOpenSelectedItems || isOpeningItems} data-tip={browserTargets.length > 20 ? "Select fewer items or accounts to open up to 20 browser windows" : undefined} onClick={() => void openSelected()}>
                   <Icon name="browser" />{isOpeningItems ? "Opening..." : "Open on Roblox"}
                 </button>
                 <button className="account-button" type="button" onClick={() => setSelectedItemIds(new Set())}>Clear</button>

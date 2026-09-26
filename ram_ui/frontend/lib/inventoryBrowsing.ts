@@ -22,11 +22,7 @@ export function buildInventoryBrowserTargets(items: readonly OwnedInventoryItem[
   for (const userId of accountIds) {
     for (const item of items) {
       if (!selectedItemIds.has(item.assetId)) continue;
-      if (item.ownerIds.includes(userId)) {
-        targets.set(`${userId}:category:${item.assetType}`, { userId, destination: { kind: "category", assetType: item.assetType } });
-      } else {
-        targets.set(`${userId}:marketplace:${item.assetId}`, { userId, destination: { kind: "marketplace", assetId: item.assetId } });
-      }
+      targets.set(`${userId}:${item.assetId}`, { userId, assetId: item.assetId });
     }
   }
   return [...targets.values()];

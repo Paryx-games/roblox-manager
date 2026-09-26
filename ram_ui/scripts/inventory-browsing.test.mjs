@@ -2,21 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildInventoryAccountGroups, buildInventoryBrowserTargets, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems } from "../frontend/lib/inventoryBrowsing.ts";
 
-test("browser destinations use each selected account's ownership and group shared categories", () => {
+test("browser destinations always use the marketplace regardless of account ownership", () => {
   const items = [
     { assetId: 101, assetType: "Hat", ownerIds: [1, 2] },
     { assetId: 102, assetType: "Hat", ownerIds: [1] },
     { assetId: 103, assetType: "HairAccessory", ownerIds: [2] },
   ];
   assert.deepEqual(buildInventoryBrowserTargets(items, new Set([1, 2]), new Set([101, 102, 103])), [
-    { userId: 1, destination: { kind: "category", assetType: "Hat" } },
-    { userId: 1, destination: { kind: "marketplace", assetId: 103 } },
-    { userId: 2, destination: { kind: "category", assetType: "Hat" } },
-    { userId: 2, destination: { kind: "marketplace", assetId: 102 } },
-    { userId: 2, destination: { kind: "category", assetType: "HairAccessory" } },
+    { userId: 1, assetId: 101 },
+    { userId: 1, assetId: 102 },
+    { userId: 1, assetId: 103 },
+    { userId: 2, assetId: 101 },
+    { userId: 2, assetId: 102 },
+    { userId: 2, assetId: 103 },
   ]);
   assert.deepEqual(buildInventoryBrowserTargets(items, new Set([2]), new Set([102])), [
-    { userId: 2, destination: { kind: "marketplace", assetId: 102 } },
+    { userId: 2, assetId: 102 },
   ]);
   assert.deepEqual(buildInventoryBrowserTargets(items, new Set([1]), new Set()), []);
 });
