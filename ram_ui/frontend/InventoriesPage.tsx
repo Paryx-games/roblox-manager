@@ -366,7 +366,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             <div className="inventories-view-controls">
               <div className="inventories-view-switch" role="group" aria-label="Inventory view">
                 <button type="button" aria-pressed={view === "grid"} onClick={() => setView("grid")}><Icon name="grid" />Grid</button>
-                <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><Icon name="list" />List</button>
+                <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><Icon name="list" tone="current-color" />List</button>
               </div>
               <div className="inventories-size">
                 <span>{view === "grid" ? "Grid size:" : "List size:"}</span>
