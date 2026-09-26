@@ -1445,6 +1445,8 @@ button:focus-visible {
   .settings-toggle input::after {
     transition: none;
   }
+
+  .inventories-tile { animation: none; }
 }
 
 .sidebar {
@@ -5993,7 +5995,12 @@ button:focus-visible {
   background: var(--bg-raised);
 }
 
-.inventories-tile { transition: border-color var(--duration-fast) var(--ease-standard); }
+.inventories-tile {
+  animation: inventory-tile-enter var(--duration-base) var(--ease-standard) both;
+  animation-delay: min(calc(var(--inventory-index) * 8ms), var(--duration-slow));
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+@keyframes inventory-tile-enter { from { opacity: 0; } to { opacity: 1; } }
 .inventories-tile:hover { border-color: var(--text-muted); }
 .inventories-tile.is-selected { border-color: var(--action-primary); }
 .inventories-tile-select {

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import { AccountAvatar } from "./components/AccountAvatar";
 import { Icon } from "./components/Icon";
 import Select from "./components/Select";
@@ -175,6 +175,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     );
     return sortInventoryItems(filtered, { field: sort, direction: sortDirection });
   }, [items, category, search, effectiveComparison, accountIds.size, sort, sortDirection]);
+  const filterAnimationKey = `${category}:${effectiveComparison}:${search}`;
 
   const accountGroups = useMemo(() => buildInventoryAccountGroups(accounts, groupOrder), [accounts, groupOrder]);
 
@@ -441,7 +442,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   ? "No inventory items found. Refresh selected to try again."
                   : "No items match these filters. Try another category or search."}
               </p>
-            ) : visibleItems.map((item) => {
+            ) : visibleItems.map((item, index) => {
               const owners = item.ownerIds.flatMap((id) => {
                 const account = accountsById.get(id);
                 return account ? [account] : [];
@@ -451,8 +452,9 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               return (
               <article
                 className={`inventories-tile ${selectedItemIds.has(item.assetId) ? "is-selected" : ""}`}
-                key={item.assetId}
+                key={`${filterAnimationKey}:${item.assetId}`}
                 data-asset-id={item.assetId}
+                style={{ "--inventory-index": index } as CSSProperties}
               >
                 <button
                   className="inventories-tile-select"
