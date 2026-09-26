@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getSelectionRectangle, selectInventoryAssets } from "../frontend/lib/inventorySelection.ts";
+import { getSelectionRectangle, selectInventoryAsset, selectInventoryAssets } from "../frontend/lib/inventorySelection.ts";
+
+test("plain clicks replace the selection, including when clicking an already selected item", () => {
+  const original = new Set([101, 102]);
+  assert.deepEqual([...selectInventoryAsset(original, { assetId: 103, mode: "replace" })], [103]);
+  assert.deepEqual([...selectInventoryAsset(original, { assetId: 101, mode: "replace" })], [101]);
+  assert.deepEqual([...original], [101, 102]);
+});
+
+test("modified clicks add or remove individual items without mutating the selection", () => {
+  const original = new Set([101, 102]);
+  assert.deepEqual([...selectInventoryAsset(original, { assetId: 103, mode: "toggle" })], [101, 102, 103]);
+  assert.deepEqual([...selectInventoryAsset(original, { assetId: 101, mode: "toggle" })], [102]);
+  assert.deepEqual([...original], [101, 102]);
+});
 
 const tiles = [
   { assetId: 101, left: 10, top: 10, right: 50, bottom: 50 },

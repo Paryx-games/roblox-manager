@@ -2,6 +2,14 @@ export type SelectionRectangle = { left: number; top: number; width: number; hei
 type SelectionPoint = { x: number; y: number };
 type InventoryTileBounds = { assetId: number; left: number; top: number; right: number; bottom: number };
 
+export function selectInventoryAsset(selectedIds: ReadonlySet<number>, options: { assetId: number; mode: "replace" | "toggle" }): Set<number> {
+  if (options.mode === "replace") return new Set([options.assetId]);
+  const next = new Set(selectedIds);
+  if (next.has(options.assetId)) next.delete(options.assetId);
+  else next.add(options.assetId);
+  return next;
+}
+
 export function getSelectionRectangle(start: SelectionPoint, current: SelectionPoint): SelectionRectangle {
   return {
     left: Math.min(start.x, current.x),

@@ -3,7 +3,7 @@ import { AccountAvatar } from "./components/AccountAvatar";
 import { Icon } from "./components/Icon";
 import Select from "./components/Select";
 import { mergeAccountInventories, matchesInventoryComparison, sortInventoryItems, type OwnedInventoryItem, type InventoryComparison, type InventorySort, type InventorySortDirection } from "./lib/inventoryBrowsing";
-import { getSelectionRectangle, selectInventoryAssets, type SelectionRectangle } from "./lib/inventorySelection";
+import { getSelectionRectangle, selectInventoryAsset, selectInventoryAssets, type SelectionRectangle } from "./lib/inventorySelection";
 import {
   fetchAccountInventory,
   listAccounts,
@@ -179,14 +179,12 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     });
   }
 
-  function toggleItem(assetId: number) {
+  function onItemClick(event: MouseEvent<HTMLButtonElement>, assetId: number) {
     if (suppressClickRef.current) return;
-    setSelectedItemIds((current) => {
-      const next = new Set(current);
-      if (next.has(assetId)) next.delete(assetId);
-      else next.add(assetId);
-      return next;
-    });
+    setSelectedItemIds((current) => selectInventoryAsset(current, {
+      assetId,
+      mode: event.ctrlKey || event.metaKey ? "toggle" : "replace",
+    }));
   }
 
   async function copyIds(ids: number[], options: { feedback: "individual" | "all" } = { feedback: "individual" }) {
@@ -367,7 +365,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><Icon name="inventory" />List</button>
             </div>
           </div>
-          <p className="inventories-selection-hint">Drag to select items. Hold Ctrl to add to your selection.</p>
+          <p className="inventories-selection-hint">Click to select one item. Ctrl-click to toggle items, or drag to select several. Hold Ctrl while dragging to add to your selection.</p>
           {error && <p className="inventories-error" role="alert">{error}</p>}
           <div
             className={`inventories-grid ${view === "list" ? "is-list" : ""} ${selectionRectangle ? "is-dragging" : ""}`}
@@ -418,7 +416,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   aria-pressed={selectedItemIds.has(item.assetId)}
                   aria-label={`Select ${item.name}`}
                   title={`${item.name} · ${item.assetType}${item.priceRobux === null ? "" : ` · ${item.priceRobux.toLocaleString()} Robux`}`}
-                  onClick={() => toggleItem(item.assetId)}
+                  onClick={(event) => onItemClick(event, item.assetId)}
                 >
                   <span className="inventories-thumbnail">
                     {item.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <Icon name="inventory" />}
