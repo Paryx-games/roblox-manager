@@ -4,6 +4,7 @@ import { Icon } from "./components/Icon";
 import Select from "./components/Select";
 import { buildInventoryAccountGroups, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems, type OwnedInventoryItem, type InventoryComparison, type InventorySort, type InventorySortDirection } from "./lib/inventoryBrowsing";
 import { getSelectionRectangle, selectInventoryAsset, selectInventoryAssets, type SelectionRectangle } from "./lib/inventorySelection";
+import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
 import {
   fetchAccountInventory,
   listAccounts,
@@ -196,6 +197,10 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     return sortInventoryItems(filtered, { field: sort, direction: sortDirection });
   }, [items, selectedCategories, search, effectiveComparison, accountIds.size, sort, sortDirection]);
   const filterAnimationKey = `${[...selectedCategories].sort().join(",")}:${effectiveComparison}:${search}`;
+
+  useSelectAllShortcut(() => {
+    setSelectedItemIds((current) => new Set([...current, ...visibleItems.map((item) => item.assetId)]));
+  }, { isEnabled: !itemsLoading && visibleItems.length > 0 });
 
   const accountGroups = useMemo(() => buildInventoryAccountGroups(accounts, groupOrder), [accounts, groupOrder]);
 

@@ -2,13 +2,15 @@
 
 ## Unreleased
 
+- **Inventory browsing refinements.** Animates checkbox ticks and item entry, improves browse controls, adds specific and combined asset type filters while hiding empty categories, allows repeat clicks to deselect cards, and enables Ctrl+A for the visible inventory results.
+
 - **Inventory group spacing.** Reduces gaps between account groups to 8px and uses compact headers with 6px spacing around collapsed groups.
 
 - **Inventory account groups.** Adds collapsible group headers with account counts and follows the saved Accounts group order, with pinned accounts first and custom account ordering within each group. Collapsing a group preserves its selected accounts.
 
 - **Account selection highlights.** Account rows now use the multiple-selection set for visual and accessible selection state, so Ctrl+A and Ctrl-click highlight every selected account instead of only the account open in the details pane.
 
-- **Accounts-only select-all.** Ctrl+A selects accounts matching the current Accounts search. Groups, Presets, Private Servers, Inventories, Settings, and account pickers do not select records with this shortcut.
+- **Page-specific select-all.** Ctrl+A selects accounts matching the Accounts search or visible items matching the inventory filters. Groups, Presets, Private Servers, Settings, and account pickers do not select records with this shortcut.
 
 - **Select-all shortcut boundaries.** Ctrl+A no longer selects interface text on Settings or pages without an explicit selection action. Text fields keep native editing shortcuts, and page changes block selection of the outgoing page.
 
