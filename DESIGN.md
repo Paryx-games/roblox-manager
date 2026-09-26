@@ -292,7 +292,9 @@ Component props named `title` for visible headings are unaffected.
 The shared renderer uses the existing raised surface, border, type, and
 motion tokens, supports hover and focus, closes on Escape, and renders in
 a portal so scrolling containers cannot clip it. Keep an accessible label
-on icon-only controls; a tooltip does not replace one.
+on icon-only controls; a tooltip does not replace one. Hover hints appear
+after 500ms and cancel when the pointer leaves. Keyboard focus shows the
+hint immediately. Inventory cards and their contents have no tooltips.
 
 Every interactive component defines behavior for **every** state in its row
 below - not just default/hover. No partial credit; a missing state is a

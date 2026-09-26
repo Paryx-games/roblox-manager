@@ -11,12 +11,25 @@ export function TooltipProvider() {
   useEffect(() => {
     let hoveredTarget: HTMLElement | null = null;
     let focusedTarget: HTMLElement | null = null;
+    let pendingTarget: HTMLElement | null = null;
+    let hoverTimer: number | undefined;
     function findTarget(node: EventTarget | null) {
       return node instanceof Element ? node.closest<HTMLElement>("[data-tip]") : null;
     }
     function updateTarget() {
       const nextTarget = hoveredTarget ?? focusedTarget;
-      setTarget(nextTarget?.isConnected ? nextTarget : null);
+      if (nextTarget === pendingTarget) return;
+      window.clearTimeout(hoverTimer);
+      pendingTarget = nextTarget;
+      setTarget(null);
+      if (!nextTarget?.isConnected) return;
+      if (nextTarget === focusedTarget) {
+        setTarget(nextTarget);
+        return;
+      }
+      hoverTimer = window.setTimeout(() => {
+        if (nextTarget.isConnected) setTarget(nextTarget);
+      }, 500);
     }
     function onPointerOver(event: PointerEvent) {
       hoveredTarget = findTarget(event.target);
@@ -37,6 +50,8 @@ export function TooltipProvider() {
     function dismissTooltip() {
       hoveredTarget = null;
       focusedTarget = null;
+      pendingTarget = null;
+      window.clearTimeout(hoverTimer);
       setTarget(null);
     }
     function onKeyDown(event: KeyboardEvent) {
@@ -50,6 +65,7 @@ export function TooltipProvider() {
     document.addEventListener("keydown", onKeyDown);
     window.addEventListener("blur", dismissTooltip);
     return () => {
+      window.clearTimeout(hoverTimer);
       document.removeEventListener("pointerover", onPointerOver);
       document.removeEventListener("pointerout", onPointerOut);
       document.removeEventListener("focusin", onFocusIn);

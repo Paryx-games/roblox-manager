@@ -632,7 +632,6 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   type="button"
                   aria-pressed={selectedItemIds.has(item.assetId)}
                   aria-label={`Select ${item.name}`}
-                  data-tip={`${item.name} · ${item.assetType}${item.priceRobux === null ? "" : ` · ${item.priceRobux.toLocaleString()} Robux`}`}
                   onClick={(event) => onItemClick(event, item.assetId)}
                 >
                   <span className="inventories-thumbnail">
@@ -645,11 +644,11 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                     <strong className="inventories-tile-name">{item.name}</strong>
                     {view === "list" && (
                       <span className="inventories-list-details">
-                        <span data-tip={item.assetType}>{item.assetType}</span>
-                        <span data-tip={priceLabel}>{priceLabel}</span>
+                        <span>{item.assetType}</span>
+                        <span>{priceLabel}</span>
                       </span>
                     )}
-                    <span className="inventories-owner-avatars" data-tip={`Owned by: ${ownerNames}`} aria-label={`Owned by: ${ownerNames}`}>
+                    <span className="inventories-owner-avatars" aria-label={`Owned by: ${ownerNames}`}>
                       {owners.slice(0, 3).map((account) => <AccountAvatar key={account.userId} account={account} className="inventories-owner-avatar" />)}
                       {owners.length > 3 && <span className="inventories-owner-overflow">+{owners.length - 3}</span>}
                     </span>
@@ -659,7 +658,6 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                   className="inventories-id"
                   type="button"
                   aria-label={`Copy ID for ${item.name}`}
-                  data-tip={copiedId === item.assetId ? "Copied" : "Copy ID"}
                   onClick={() => void copyIds([item.assetId])}
                 >
                   <span>{item.assetId}</span>
