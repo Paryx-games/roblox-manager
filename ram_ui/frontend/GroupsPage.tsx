@@ -13,7 +13,6 @@ import {
 } from "./lib/ipc";
 import { AccountAvatar } from "./components/AccountAvatar";
 import { AccountPicker } from "./components/AccountPicker";
-import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
 import { Icon } from "./components/Icon";
 
 type GroupMode = "name" | "id";
@@ -164,10 +163,6 @@ export function GroupsPage({
   const [error, setError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-
-  useSelectAllShortcut(() => {
-    setSelectedIds(new Set(accounts.map((account) => account.userId)));
-  }, { isEnabled: accounts.length > 0 && action === null });
 
   useEffect(() => {
     void listAccounts()

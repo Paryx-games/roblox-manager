@@ -5,7 +5,6 @@ import type { AccountSummary } from "../lib/ipc";
 import { AccountAvatar } from "./AccountAvatar";
 import { Icon } from "./Icon";
 import { PopupMenu } from "./PopupMenu";
-import { useSelectAllShortcut } from "../hooks/useSelectAllShortcut";
 
 type AccountPickerProps = {
   accounts: AccountSummary[];
@@ -64,10 +63,6 @@ export function AccountPicker({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [isMenuAbove, setIsMenuAbove] = useState(false);
-
-  useSelectAllShortcut(() => {
-    onSelectedIdsChange?.(new Set(accounts.map((account) => account.userId)));
-  }, { isEnabled: open && mode === "multiple" && !disabled && Boolean(onSelectedIdsChange), scopeRef: pickerRef });
 
   useLayoutEffect(() => {
     if (!open) return;
