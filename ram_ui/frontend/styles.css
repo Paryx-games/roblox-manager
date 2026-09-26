@@ -3280,19 +3280,19 @@ button:focus-visible {
   bottom: var(--space-4);
   z-index: 20;
   display: grid;
-  width: min(440px, calc(100vw - var(--space-8)));
-  gap: var(--space-3);
+  width: min(360px, calc(100vw - var(--space-8)));
+  gap: var(--space-2);
   pointer-events: none;
 }
 .toast {
   --toast-accent: var(--notification-info);
   position: relative;
   display: grid;
-  grid-template-columns: var(--space-12) minmax(0, 1fr) var(--space-6);
-  min-height: calc(var(--space-12) * 2);
+  grid-template-columns: var(--space-8) minmax(0, 1fr) var(--space-4);
+  min-height: var(--space-12);
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-6);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
   border: var(--border-width) solid color-mix(in srgb, var(--toast-accent) 22%, var(--border-default));
   border-radius: var(--radius);
   background: linear-gradient(110deg, color-mix(in srgb, var(--toast-accent) 5%, var(--bg-surface)), var(--bg-surface));
@@ -3304,13 +3304,13 @@ button:focus-visible {
 .toast-success { --toast-accent: var(--notification-success); }
 .toast-warning { --toast-accent: var(--notification-warning); }
 .toast-error { --toast-accent: var(--notification-error); }
-.toast-icon { display: flex; width: calc(var(--space-8) + var(--space-2)); height: calc(var(--space-8) + var(--space-2)); align-items: center; justify-content: center; background: var(--toast-accent); color: var(--bg-canvas); clip-path: circle(50%); }
+.toast-icon { display: flex; width: var(--space-8); height: var(--space-8); align-items: center; justify-content: center; background: var(--toast-accent); color: var(--bg-canvas); clip-path: circle(50%); }
 .toast-success .toast-icon { color: var(--text-primary); }
-.toast-icon .account-icon { width: var(--space-6); height: var(--space-6); }
-.toast-copy { display: grid; min-width: 0; gap: var(--space-2); }
-.toast-copy strong { font-size: var(--text-lg); font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
-.toast-copy p { margin: 0; color: var(--text-muted); font-size: var(--text-sm); line-height: 1.5; overflow-wrap: anywhere; }
-.toast-dismiss { display: flex; width: var(--space-6); height: var(--space-6); align-self: start; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: var(--radius); background: transparent; color: var(--text-muted); cursor: pointer; }
+.toast-icon .account-icon { width: var(--space-4); height: var(--space-4); }
+.toast-copy { display: grid; min-width: 0; gap: var(--space-1); }
+.toast-copy strong { font-size: var(--text-sm); font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.toast-copy p { margin: 0; color: var(--text-muted); font-size: var(--text-xs); line-height: 1.4; overflow-wrap: anywhere; }
+.toast-dismiss { display: flex; width: var(--space-4); height: var(--space-4); align-self: start; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: var(--radius); background: transparent; color: var(--text-muted); cursor: pointer; }
 .toast-dismiss:hover { color: var(--text-primary); background: var(--bg-raised); }
 .toast-dismiss:active { background: var(--action-muted); }
 .toast-dismiss .account-icon { width: var(--space-4); height: var(--space-4); }
