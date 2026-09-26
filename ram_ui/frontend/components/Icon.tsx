@@ -39,6 +39,15 @@ function getCurrentColorIconContent(name: string) {
           <circle cx="9" cy="12" r="1" />
         </>
       );
+    case "octagon-alert":
+      return (
+        <>
+          <path d="M12 16h.01" />
+          <path d="M12 8v4" />
+          <path d="m7.86 2-5.86 5.86v8.28L7.86 22h8.28L22 16.14V7.86L16.14 2z" />
+        </>
+      );
+    case "triangle-alert":
     case "warning":
       return (
         <>

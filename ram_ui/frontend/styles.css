@@ -3300,14 +3300,16 @@ button:focus-visible {
   animation: toast-enter var(--duration-base) var(--ease-standard) both;
   pointer-events: auto;
 }
-.toast::before { position: absolute; top: 0; bottom: 0; left: 0; width: var(--space-1); background: var(--toast-accent); content: ""; }
+.toast::before { position: absolute; inset: 0; border-radius: inherit; background: var(--toast-accent); clip-path: inset(0 calc(100% - var(--space-2)) 0 0); content: ""; }
 .toast-success { --toast-accent: var(--notification-success); }
 .toast-warning { --toast-accent: var(--notification-warning); }
 .toast-error { --toast-accent: var(--notification-error); }
 .toast-icon { display: flex; width: var(--space-6); height: var(--space-6); align-items: center; justify-content: center; background: var(--toast-accent); color: var(--bg-canvas); clip-path: circle(50%); }
 .toast-success .toast-icon { color: var(--text-primary); }
 .toast-icon .account-icon { width: var(--space-6); height: var(--space-6); }
-.toast-icon [data-icon-name="check"] { stroke-width: 3; stroke-linecap: square; stroke-linejoin: miter; }
+.toast-icon [data-icon-name="check"] { width: calc(var(--space-6) - var(--space-1)); height: calc(var(--space-6) - var(--space-1)); stroke-width: 3; stroke-linecap: square; stroke-linejoin: miter; }
+.toast-icon [data-icon-name="triangle-alert"],
+.toast-icon [data-icon-name="octagon-alert"] { width: var(--space-4); height: var(--space-4); }
 .toast-copy { display: grid; min-width: 0; gap: var(--space-1); }
 .toast-copy strong { font-size: var(--text-sm); font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .toast-copy p { margin: 0; color: var(--text-muted); font-size: var(--text-xs); line-height: 1.4; overflow-wrap: anywhere; }

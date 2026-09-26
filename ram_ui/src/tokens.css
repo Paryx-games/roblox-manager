@@ -44,7 +44,7 @@
   --notification-info: var(--action-primary);
   --notification-success: var(--status-online);
   --notification-warning: var(--status-warning);
-  --notification-error: var(--status-danger);
+  --notification-error: #ff383e;
 
   /* static access state, not live account or process status */
   --access-allowed: #4fbf7a;

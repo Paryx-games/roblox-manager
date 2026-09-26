@@ -19,7 +19,13 @@ const DURATION_MS: Record<ToastDuration, number> = {
 };
 
 function kindIcon(kind: ToastKind) {
-  return kind === "success" ? "check" : kind === "info" ? "info-mark" : "exclamation";
+  const icons: Record<ToastKind, string> = {
+    success: "check",
+    info: "info-mark",
+    warning: "triangle-alert",
+    error: "octagon-alert",
+  };
+  return icons[kind];
 }
 
 export function Toast({
