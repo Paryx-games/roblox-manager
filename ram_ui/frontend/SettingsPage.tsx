@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import {
   useCallback,
   useEffect,
@@ -307,11 +308,11 @@ function SettingsContext({
             <Icon name="refresh" tone="current-color" />
           </button>
         </div>
-        <dl>
+        {isRefreshingStatus ? <LoadingSkeleton layout="status" label="Refreshing system status" count={3} /> : <dl>
           <div><dt>Roblox</dt><dd>{snapshot.robloxRunning ? "Running" : "Not running"}</dd></div>
           <div><dt>Displays</dt><dd>{snapshot.monitors.length} connected</dd></div>
           <div><dt>Settings</dt><dd>{isDirty ? "Unsaved changes" : "Up to date"}</dd></div>
-        </dl>
+        </dl>}
       </section>
       <section className="settings-context-card">
         <h2>System info</h2>
@@ -724,11 +725,7 @@ export function SettingsPage() {
           <h1 className="header-title">Settings</h1>
         </div>
         <main className="content settings-page">
-          <div className="settings-loading" aria-live="polite">
-            <span className="settings-loading-bar" />
-            <span className="settings-loading-bar" />
-            <span className="settings-loading-bar" />
-          </div>
+          <LoadingSkeleton layout="settings" label="Loading settings" />
         </main>
       </>
     );

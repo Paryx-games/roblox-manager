@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   launchLaunchPreset,
@@ -72,6 +73,7 @@ export function PresetsPage({
 }) {
   const [presets, setPresets] = useState<LaunchPresetSummary[]>([]);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [isAccountsLoading, setIsAccountsLoading] = useState(true);
   const [presetAccounts, setPresetAccounts] = useState<
     Record<number, Set<number>>
   >({});
@@ -120,7 +122,8 @@ export function PresetsPage({
     void reload();
     void listAccounts()
       .then(setAccounts)
-      .catch(() => setAccounts([]));
+      .catch(() => setAccounts([]))
+      .finally(() => setIsAccountsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -406,7 +409,7 @@ export function PresetsPage({
           </div>
 
           {loading ? (
-            <p className="common-inventory-summary">Loading presets...</p>
+            <LoadingSkeleton layout="presets" label="Loading presets" />
           ) : orderedPresets.length === 0 ? (
             <div className="account-empty-inline preset-empty">
               <Icon name="game" />
@@ -437,6 +440,7 @@ export function PresetsPage({
                     </div>
                     <AccountPicker
                       accounts={accounts}
+                      isLoading={isAccountsLoading}
                       mode="multiple"
                       open={openPicker === preset.index}
                       onOpenChange={(open) =>

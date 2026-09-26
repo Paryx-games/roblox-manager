@@ -29,6 +29,7 @@ type AccountPickerProps = {
   deleteGroupLabel?: string;
   onDeleteGroup?: () => void;
   disabled?: boolean;
+  isLoading?: boolean;
   className?: string;
   avatarClassName?: string;
 };
@@ -56,6 +57,7 @@ export function AccountPicker({
   deleteGroupLabel,
   onDeleteGroup,
   disabled = false,
+  isLoading = false,
   className = "account-picker",
   avatarClassName = "account-picker-avatar",
 }: AccountPickerProps) {
@@ -171,12 +173,15 @@ export function AccountPicker({
         className="account-picker-trigger"
         ref={triggerRef}
         type="button"
-        disabled={disabled}
+        disabled={disabled || isLoading}
+        aria-busy={isLoading}
+        aria-label={isLoading ? "Loading accounts" : undefined}
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => onOpenChange(!open)}
       >
         <span className="account-picker-left">
+          {isLoading ? <span className="loading-skeleton-block loading-skeleton-picker" /> : <>
           {mode === "multiple" && selectedAccounts.length > 0 && (
             <span className="account-picker-facepile">
               {selectedAccounts.slice(0, 3).map((account) => (
@@ -228,6 +233,7 @@ export function AccountPicker({
                   : "No accounts selected"
                 : (selectedAccounts[0]?.username ?? unselectedLabel)}
           </span>
+          </>}
         </span>
         <Icon name="chevron-down" />
       </button>

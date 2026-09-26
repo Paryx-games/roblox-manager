@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import {
   useEffect,
   useLayoutEffect,
@@ -623,6 +624,7 @@ export function AccountsPage({
   const [addError, setAddError] = useState<string | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [isConnectionSearchLoading, setIsConnectionSearchLoading] = useState(false);
   const [connectionResults, setConnectionResults] = useState<
     UserSearchResult[]
   >([]);
@@ -1450,9 +1452,12 @@ export function AccountsPage({
       return;
     }
     try {
+      setIsConnectionSearchLoading(true);
       setConnectionResults(await searchConnectionUsers(connectionQuery));
     } catch {
       setNotice("Roblox user search failed.");
+    } finally {
+      setIsConnectionSearchLoading(false);
     }
   }
 
@@ -1859,7 +1864,8 @@ export function AccountsPage({
                 </button>
               </div>
             )}
-            {commonInventory.length > 0 && (
+            {commonInventoryLoading && <LoadingSkeleton layout="inventory" label="Loading common inventory" count={3} />}
+            {!commonInventoryLoading && commonInventory.length > 0 && (
               <p className="common-inventory-summary">
                 {commonInventory.length} common inventory item(s)
               </p>
@@ -1867,7 +1873,7 @@ export function AccountsPage({
           </div>
           <div className="accounts-groups">
             {loading && (
-              <p className="accounts-list-message">Loading accounts...</p>
+              <LoadingSkeleton layout="accounts" label="Loading accounts" count={6} />
             )}
             {!loading && error && (
               <div className="accounts-list-message accounts-error">
@@ -1906,7 +1912,7 @@ export function AccountsPage({
                 No accounts match this search.
               </p>
             )}
-            {groups.map((group) => (
+            {!loading && groups.map((group) => (
               <AccountGroup
                 group={group}
                 key={group.name}
@@ -2306,7 +2312,7 @@ export function AccountsPage({
           aria-label="Account details"
           style={{ "--account-accent": selectedGroupColor } as CSSProperties}
         >
-          {!selectedAccount ? (
+          {loading ? <LoadingSkeleton layout="account" label="Loading account details" /> : !selectedAccount ? (
             <div className="accounts-detail-empty">
               <Icon name="id-card" />
               <h2>Select an account</h2>
@@ -2600,9 +2606,7 @@ export function AccountsPage({
                   </div>
                 </div>
                 {inventoryLoading ? (
-                  <div className="account-empty-inline">
-                    <strong>Loading inventory...</strong>
-                  </div>
+                  <LoadingSkeleton layout="inventory" label="Loading inventory" />
                 ) : inventory.length === 0 ? (
                   <div className="account-empty-inline">
                     <Icon name="inventory" />
@@ -2707,12 +2711,14 @@ export function AccountsPage({
                     className="account-button"
                     type="button"
                     onClick={() => void searchConnections()}
+                    disabled={isConnectionSearchLoading}
                   >
                     <Icon name="search" />
                     Search Roblox
                   </button>
                 </div>
-                {connectionResults.length > 0 && (
+                {isConnectionSearchLoading && <LoadingSkeleton layout="results" label="Searching Roblox users" count={3} />}
+                {!isConnectionSearchLoading && connectionResults.length > 0 && (
                   <div className="connection-results">
                     {connectionResults.map((result) => (
                       <div className="connection-result" key={result.userId}>

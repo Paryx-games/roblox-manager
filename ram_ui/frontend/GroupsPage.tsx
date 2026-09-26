@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useState } from "react";
 import {
   changeGroupMembership,
@@ -149,6 +150,7 @@ export function GroupsPage({
   onNavigateAccounts,
 }: GroupsPageProps) {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [isAccountsLoading, setIsAccountsLoading] = useState(true);
   const [mode, setMode] = useState<GroupMode>("name");
   const [input, setInput] = useState("");
   const [searchResults, setSearchResults] = useState<GroupSearchResult[]>([]);
@@ -176,7 +178,8 @@ export function GroupsPage({
           ),
         );
       })
-      .catch(() => setAccounts([]));
+      .catch(() => setAccounts([]))
+      .finally(() => setIsAccountsLoading(false));
   }, []);
 
   const selectedAccounts = accounts.filter((account) =>
@@ -419,6 +422,7 @@ export function GroupsPage({
             </div>
             <AccountPicker
               accounts={accounts}
+              isLoading={isAccountsLoading}
               mode="multiple"
               open={pickerOpen}
               onOpenChange={setPickerOpen}
@@ -452,27 +456,10 @@ export function GroupsPage({
         </aside>
 
         <section className="groups-detail">
-          {loading ? (
-            <section
-              className="groups-loading"
-              aria-live="polite"
-              aria-busy="true"
-            >
-              <div className="groups-loading-heading">
-                <strong>
-                  {pendingGroup?.name ?? "Loading group"}
-                  {pendingGroup?.hasVerifiedBadge && (
-                    <span
-                      className="groups-verified"
-                      aria-label="Verified group"
-                    >
-                      <img src="/icons/verification.svg" alt="" />
-                    </span>
-                  )}
-                </strong>
-              </div>
-              <span>Loading group details...</span>
-            </section>
+          {searching ? (
+            <LoadingSkeleton layout="results" label="Searching groups" />
+          ) : loading ? (
+            <LoadingSkeleton layout="group" label={`Loading ${pendingGroup?.name ?? "group details"}`} />
           ) : !workspace && searchResults.length > 0 ? (
             <section className="groups-results-page">
               <div className="groups-results-header">

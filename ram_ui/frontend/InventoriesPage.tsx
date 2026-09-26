@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { AccountAvatar } from "./components/AccountAvatar";
 import { Icon } from "./components/Icon";
@@ -440,7 +441,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
           <h2>Accounts</h2>
           <p>Ctrl-click to select multiple accounts</p>
           {isGroupOrderUnavailable && <p role="alert">Saved group order could not be loaded. Reopen this page to retry.</p>}
-          {accountsLoading ? <p>Loading accounts...</p> : accounts.length === 0 ? <p>{error ? "Accounts are unavailable." : "No accounts yet. Add one in the Accounts workspace to browse its inventory."}</p> : accountGroups.map(([group, members], index) => {
+          {accountsLoading ? <LoadingSkeleton layout="accounts" label="Loading accounts" count={6} /> : accounts.length === 0 ? <p>{error ? "Accounts are unavailable." : "No accounts yet. Add one in the Accounts workspace to browse its inventory."}</p> : accountGroups.map(([group, members], index) => {
             const isCollapsed = collapsedGroups.has(group);
             const groupId = `${groupIdPrefix}-${index}`;
             return (
@@ -598,13 +599,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
           >
             {selectionRectangle && <span className="inventories-marquee" aria-hidden="true" style={selectionRectangle} />}
             {itemsLoading ? (
-              Array.from({ length: 8 }, (_, index) => (
-                <div className="inventories-skeleton" key={index} aria-hidden="true">
-                  <span className="inventories-thumbnail" />
-                  <span className="inventories-skeleton-label" />
-                  <span className="inventories-skeleton-label" />
-                </div>
-              ))
+              <LoadingSkeleton layout="inventory-grid" label="Loading inventory items" count={12} />
             ) : accountIds.size === 0 ? (
               <p className="inventories-grid-state">Select an account to view its inventory.</p>
             ) : visibleItems.length === 0 ? (

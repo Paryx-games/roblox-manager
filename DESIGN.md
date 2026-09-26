@@ -188,6 +188,7 @@ No inline `font-size`, no Tailwind arbitrary-value text utility
 | `--duration-fast` | 100ms                        | Hover/active background step, focus ring       |
 | `--duration-base` | 160ms                        | Panel/sidebar collapse, tooltip                |
 | `--duration-slow` | 240ms                        | Modal/popover enter; top-level page transition |
+| `--duration-loading` | 1200ms                    | Gentle pulse while a data request is pending |
 | `--ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | All of the above                               |
 
 No other easing curve, no spring physics, no duration not on this list. The
@@ -275,6 +276,11 @@ Each backed by tokens only, each with a single default export:
   single-select modes, outside-click dismissal, and keyboard navigation
 - `<TooltipProvider>` - one shared portal for every `data-tip` hint, including
   disabled controls, with pointer and keyboard support and viewport clamping
+- `<LoadingSkeleton layout label />` - accessible placeholders matching the
+  pending region's rows, thumbnail grid, or panels. Render only while that
+  region's data request is pending, retain surrounding controls, and show
+  the real empty or error state once the request settles. Loading pulses use
+  `--duration-loading` (1200ms) and stop under reduced motion.
 
 A new component must be added to this list (and this doc) in the same PR
 that introduces it - §11.3.
@@ -378,7 +384,7 @@ hand-rolls a loading spinner or empty message inside a table region:
 | ------- | --------------------------------------------------------------- |
 | Loading | Skeleton rows (3-5, matching column count) using `bg-surface` → |
 
-             `bg-raised` pulse on `--duration-slow`, never a full-page spinner swap |
+             `bg-raised` pulse on `--duration-loading`, never a full-page spinner swap |
 
 | Empty | Table chrome (header row) stays, body region renders `<EmptyState>` |
 | Error | Table chrome stays, body region renders `<ErrorState>` with a retry action if the fetch is retriable |

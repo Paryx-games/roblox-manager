@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   addPrivateServer,
@@ -68,6 +69,7 @@ export function PrivateServersPage({
   const [showBanner, setShowBanner] = useState(true);
   const [openPicker, setOpenPicker] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [isAccountsLoading, setIsAccountsLoading] = useState(true);
   const [serverAccounts, setServerAccounts] = useState<
     Record<number, Set<number>>
   >({});
@@ -147,7 +149,8 @@ export function PrivateServersPage({
     void reload();
     void listAccounts()
       .then(setAccounts)
-      .catch(() => setAccounts([]));
+      .catch(() => setAccounts([]))
+      .finally(() => setIsAccountsLoading(false));
   }, []);
   const groups = useMemo(() => {
     const map = new Map<number, PrivateServerSummary[]>();
@@ -408,9 +411,7 @@ export function PrivateServersPage({
             </div>
           </div>
           {loading ? (
-            <p className="common-inventory-summary">
-              Loading private servers...
-            </p>
+            <LoadingSkeleton layout="servers" label="Loading private servers" />
           ) : orderedGroups.length === 0 ? (
             <div className="account-empty-inline">
               <Icon name="game" />
@@ -479,6 +480,7 @@ export function PrivateServersPage({
                     </span>
                     <AccountPicker
                       accounts={accounts}
+                      isLoading={isAccountsLoading}
                       mode="multiple"
                       open={openPicker === server.index}
                       onOpenChange={(open) =>
