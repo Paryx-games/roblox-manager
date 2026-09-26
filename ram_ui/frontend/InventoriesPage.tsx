@@ -201,7 +201,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     if (suppressClickRef.current) return;
     setSelectedItemIds((current) => selectInventoryAsset(current, {
       assetId,
-      mode: event.ctrlKey || event.metaKey ? "toggle" : "replace",
+      mode: event.ctrlKey || event.metaKey || current.has(assetId) ? "toggle" : "replace",
     }));
   }
 
