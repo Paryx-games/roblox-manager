@@ -73,6 +73,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const [gridSize, setGridSize] = useState<InventoryViewSize>("medium");
   const [listSize, setListSize] = useState<InventoryViewSize>("medium");
   const [isFilterSidebarCollapsed, setIsFilterSidebarCollapsed] = useState(false);
+  const [isFilterSidebarResizing, setIsFilterSidebarResizing] = useState(false);
   const [filterSidebarWidth, setFilterSidebarWidth] = useState(240);
   const [selectedSearch, setSelectedSearch] = useState("");
   const [selectionRectangle, setSelectionRectangle] = useState<SelectionRectangle | null>(null);
@@ -237,6 +238,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     if (event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    setIsFilterSidebarResizing(true);
   }
 
   function onFilterResizePointerMove(event: PointerEvent<HTMLDivElement>) {
@@ -413,7 +415,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
         </aside>
 
         <section className="inventories-main" aria-labelledby="inventory-title">
-          <div className={`inventories-workspace ${isFilterSidebarCollapsed ? "is-filter-collapsed" : ""}`} ref={workspaceRef} style={{ "--inventory-filter-width": `${filterSidebarWidth}px` } as CSSProperties}>
+          <div className={`inventories-workspace ${isFilterSidebarCollapsed ? "is-filter-collapsed" : ""} ${isFilterSidebarResizing ? "is-filter-resizing" : ""}`} ref={workspaceRef} style={{ "--inventory-filter-width": `${filterSidebarWidth}px` } as CSSProperties}>
             <aside className="inventories-filter-sidebar" aria-label="Inventory filters">
               <div className="inventories-filter-heading">
                 {!isFilterSidebarCollapsed && <h2>Filters</h2>}
@@ -470,7 +472,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
           {!itemsLoading && !isComparisonAvailable && <p className="inventories-selection-hint">{accountIds.size < 2 ? "Select multiple accounts to compare inventories." : "Comparison requires every selected inventory to load."}</p>}
               </div>
             </aside>
-            {!isFilterSidebarCollapsed && <div className="inventories-filter-resizer" role="separator" aria-label="Resize inventory filters" aria-orientation="vertical" aria-valuemin={180} aria-valuemax={360} aria-valuenow={filterSidebarWidth} tabIndex={0} onPointerDown={onFilterResizePointerDown} onPointerMove={onFilterResizePointerMove} onKeyDown={onFilterResizeKeyDown} />}
+            {!isFilterSidebarCollapsed && <div className="inventories-filter-resizer" role="separator" aria-label="Resize inventory filters" aria-orientation="vertical" aria-valuemin={180} aria-valuemax={360} aria-valuenow={filterSidebarWidth} tabIndex={0} onPointerDown={onFilterResizePointerDown} onPointerMove={onFilterResizePointerMove} onLostPointerCapture={() => setIsFilterSidebarResizing(false)} onKeyDown={onFilterResizeKeyDown} />}
             <div className="inventories-content">
           <div className="inventories-heading">
             <div className="inventories-title"><h2 id="inventory-title">Roblox inventory</h2><span>{accountIds.size} {accountIds.size === 1 ? "account" : "accounts"}</span></div>

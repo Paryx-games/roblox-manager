@@ -5934,7 +5934,9 @@ button:focus-visible {
   min-height: 0;
   grid-template-columns: minmax(0, 1fr) var(--space-2) var(--inventory-filter-width);
   grid-template-rows: minmax(0, 1fr);
+  transition: grid-template-columns var(--duration-base) var(--ease-standard);
 }
+.inventories-workspace.is-filter-resizing { transition: none; }
 .inventories-workspace.is-filter-collapsed { grid-template-columns: minmax(0, 1fr) 0 calc(var(--space-8) + var(--space-2)); }
 .inventories-content,
 .inventories-filter-resizer,
@@ -5979,7 +5981,7 @@ button:focus-visible {
 .inventories-filter-toggle:hover { color: var(--text-primary); background: var(--bg-raised); }
 .inventories-filter-toggle:focus-visible,
 .inventories-filter-resizer:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; }
-.inventories-filter-toggle .account-icon { width: var(--space-4); height: var(--space-4); transform: rotate(-90deg); }
+.inventories-filter-toggle .account-icon { width: var(--space-4); height: var(--space-4); transform: rotate(-90deg); transition: transform var(--duration-base) var(--ease-standard); }
 .inventories-workspace.is-filter-collapsed .inventories-filter-heading { justify-content: center; padding-inline: 0; }
 .inventories-workspace.is-filter-collapsed .inventories-filter-toggle .account-icon { transform: rotate(90deg); }
 .inventories-filter-resizer {
@@ -6277,6 +6279,8 @@ button:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .inventories-skeleton span { animation: none; }
+  .inventories-workspace,
+  .inventories-filter-toggle .account-icon { transition: none; }
 }
 
 .connection-result > div:first-child {
