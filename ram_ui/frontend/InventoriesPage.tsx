@@ -30,7 +30,7 @@ type SelectionDrag = {
   tiles: { assetId: number; left: number; top: number; right: number; bottom: number }[];
 };
 
-function getCategory(assetType: string): Category {
+function getCategory(assetType: string): Exclude<Category, "All"> {
   const categoriesByAssetType: Record<string, Exclude<Category, "All">> = {
     Hat: "Hats",
     HairAccessory: "Hair",
