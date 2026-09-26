@@ -64,7 +64,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const [itemsLoading, setItemsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
-  const [category, setCategory] = useState<Category>("All");
+  const [selectedCategories, setSelectedCategories] = useState<Set<Exclude<Category, "All">>>(new Set());
   const [search, setSearch] = useState("");
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -189,13 +189,13 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const visibleItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     const filtered = items.filter((item) =>
-      (category === "All" || getCategory(item.assetType) === category) &&
+      (selectedCategories.size === 0 || selectedCategories.has(getCategory(item.assetType))) &&
       matchesInventoryComparison(item, effectiveComparison, accountIds.size) &&
       (!query || `${item.name} ${item.assetId}`.toLowerCase().includes(query)),
     );
     return sortInventoryItems(filtered, { field: sort, direction: sortDirection });
-  }, [items, category, search, effectiveComparison, accountIds.size, sort, sortDirection]);
-  const filterAnimationKey = `${category}:${effectiveComparison}:${search}`;
+  }, [items, selectedCategories, search, effectiveComparison, accountIds.size, sort, sortDirection]);
+  const filterAnimationKey = `${[...selectedCategories].sort().join(",")}:${effectiveComparison}:${search}`;
 
   const accountGroups = useMemo(() => buildInventoryAccountGroups(accounts, groupOrder), [accounts, groupOrder]);
 
@@ -204,6 +204,19 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
       const next = new Set(current);
       if (next.has(group)) next.delete(group);
       else next.add(group);
+      return next;
+    });
+  }
+
+  function toggleCategory(option: Category) {
+    if (option === "All") {
+      setSelectedCategories(new Set());
+      return;
+    }
+    setSelectedCategories((current) => {
+      const next = new Set(current);
+      if (next.has(option)) next.delete(option);
+      else next.add(option);
       return next;
     });
   }
@@ -377,11 +390,12 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               <div className="inventories-control-group">
                 <span className="inventories-control-label">Filter by type</span>
                 <div className="inventories-filters" role="group" aria-label="Item categories">
-                  {["All" as const, ...categories].filter((option) => option === "All" || (categoryCounts.get(option) ?? 0) > 0).map((option) => (
-                    <button className={category === option ? "is-active" : ""} type="button" key={option} aria-pressed={category === option} onClick={() => setCategory(option)}>
+                  {["All" as const, ...categories].filter((option) => option === "All" || (categoryCounts.get(option) ?? 0) > 0).map((option) => {
+                    const isActive = option === "All" ? selectedCategories.size === 0 : selectedCategories.has(option);
+                    return <button className={isActive ? "is-active" : ""} type="button" key={option} aria-pressed={isActive} onClick={() => toggleCategory(option)}>
                       {option}<span>{categoryCounts.get(option) ?? 0}</span>
                     </button>
-                  ))}
+                  })}
                 </div>
               </div>
               <div className="inventories-control-group">
