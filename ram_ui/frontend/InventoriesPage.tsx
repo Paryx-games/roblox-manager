@@ -75,6 +75,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const [sort, setSort] = useState<InventorySort>("name");
   const [sortDirection, setSortDirection] = useState<InventorySortDirection>("ascending");
   const [itemsLoading, setItemsLoading] = useState(false);
+  const isFilterDataLoading = accountsLoading || itemsLoading;
   const [error, setError] = useState<string | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
   const [selectedCategories, setSelectedCategories] = useState<Set<Exclude<Category, "All">>>(new Set());
@@ -492,13 +493,13 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
                 <button ref={compactSearchRef} type="button" aria-label="Search inventory" data-tip="Search inventory" aria-pressed={search.trim().length > 0} onClick={openSidebarSearch}><Icon name="search" /></button>
                 <span className="inventories-filter-divider" role="separator" />
                 <div className="inventories-filter-rail-section" role="group" aria-label="Item categories">
-                  {visibleCategories.map((option) => (
+                  {isFilterDataLoading ? <LoadingSkeleton layout="filters" label="Loading item categories" count={6} /> : visibleCategories.map((option) => (
                     <button type="button" key={option} aria-label={option} data-tip={`${option} (${categoryCounts.get(option) ?? 0})`} aria-pressed={option === "All" ? selectedCategories.size === 0 : selectedCategories.has(option)} onClick={() => toggleCategory(option)}><Icon name={categoryIcons[option]} /></button>
                   ))}
                 </div>
                 <span className="inventories-filter-divider" role="separator" />
                 <div className="inventories-filter-rail-section" role="group" aria-label="Compare inventories">
-                  {comparisonOptions.map((option) => (
+                  {isFilterDataLoading ? <LoadingSkeleton layout="filters" label="Loading inventory comparison" count={3} /> : comparisonOptions.map((option) => (
                     <button type="button" key={option.value} aria-label={option.label} data-tip={option.label} aria-pressed={effectiveComparison === option.value} disabled={option.value !== "all" && !isComparisonAvailable} onClick={() => setComparison(option.value)}><Icon name={option.icon} /></button>
                   ))}
                 </div>
@@ -515,7 +516,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               <div className="inventories-control-group">
                 <span className="inventories-control-label">Filter by type</span>
                 <div className="inventories-filters" role="group" aria-label="Item categories" data-filter-section="types">
-                  {visibleCategories.map((option) => {
+                  {isFilterDataLoading ? <LoadingSkeleton layout="filters" label="Loading item categories" count={6} /> : visibleCategories.map((option) => {
                     const isActive = option === "All" ? selectedCategories.size === 0 : selectedCategories.has(option);
                     return <button className={isActive ? "is-active" : ""} type="button" key={option} aria-pressed={isActive} onClick={() => toggleCategory(option)}>
                       {option}<span>{categoryCounts.get(option) ?? 0}</span>
@@ -526,7 +527,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               <div className="inventories-control-group">
                 <span className="inventories-control-label">Compare</span>
                 <div className="inventories-filters inventories-comparison" role="group" aria-label="Compare inventories" data-filter-section="comparison">
-              {comparisonOptions.map((option) => (
+              {isFilterDataLoading ? <LoadingSkeleton layout="filters" label="Loading inventory comparison" count={3} /> : comparisonOptions.map((option) => (
                 <button type="button" key={option.value} className={effectiveComparison === option.value ? "is-active" : ""} aria-pressed={effectiveComparison === option.value} disabled={option.value !== "all" && !isComparisonAvailable} onClick={() => setComparison(option.value)}>
                   {option.label}
                   {(option.value === "all" || isComparisonAvailable) && <span>{items.filter((item) => matchesInventoryComparison(item, option.value, accountIds.size)).length}</span>}
@@ -551,7 +552,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
               </div>
             </div>
           </div>
-          {!itemsLoading && !isComparisonAvailable && <p className="inventories-selection-hint">{accountIds.size < 2 ? "Select multiple accounts to compare inventories." : "Comparison requires every selected inventory to load."}</p>}
+          {!isFilterDataLoading && !isComparisonAvailable && <p className="inventories-selection-hint">{accountIds.size < 2 ? "Select multiple accounts to compare inventories" : "Comparison requires every selected inventory to load."}</p>}
               </div>
             </aside>
             {!isFilterSidebarCollapsed && <div className="inventories-filter-resizer" role="separator" aria-label="Resize inventory filters" aria-orientation="vertical" aria-valuemin={180} aria-valuemax={360} aria-valuenow={filterSidebarWidth} tabIndex={0} onPointerDown={onFilterResizePointerDown} onPointerMove={onFilterResizePointerMove} onLostPointerCapture={() => setIsFilterSidebarResizing(false)} onKeyDown={onFilterResizeKeyDown} />}

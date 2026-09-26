@@ -1,4 +1,4 @@
-type SkeletonLayout = "accounts" | "presets" | "servers" | "inventory" | "inventory-grid" | "results" | "account" | "group" | "settings" | "status";
+type SkeletonLayout = "accounts" | "presets" | "servers" | "inventory" | "inventory-grid" | "filters" | "results" | "account" | "group" | "settings" | "status";
 
 function SkeletonRow() {
   return <div className="loading-skeleton-row">

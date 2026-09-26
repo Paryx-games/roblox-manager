@@ -5907,6 +5907,7 @@ button:focus-visible {
 .inventories-view-switch button[aria-pressed="true"] { color: var(--text-primary); background: var(--action-muted); }
 .inventories-view-switch .account-icon { width: var(--space-4); height: var(--space-4); }
 .inventories-selection-hint { margin: var(--space-2) 0 0; color: var(--text-muted); font-size: var(--text-xs); }
+.inventories-filter-sidebar .inventories-selection-hint { padding: 0 var(--space-2) var(--space-2); }
 .inventories-grid.is-dragging { user-select: none; }
 .inventories-marquee { position: absolute; z-index: 2; border: var(--border-width) solid var(--action-primary); background: var(--action-muted); pointer-events: none; }
 .inventories-grid:not(.is-list)[data-size="small"] { grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--space-12) * 2)), 1fr)); }
@@ -5959,6 +5960,15 @@ button:focus-visible {
 .loading-skeleton-status .loading-skeleton-field,
 .loading-skeleton-status .loading-skeleton-text { display: none; }
 .loading-skeleton-status .loading-skeleton-control { width: 40%; height: var(--space-3); }
+.loading-skeleton-filters .loading-skeleton-row { min-height: var(--space-8); padding: var(--space-2) var(--space-3); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); }
+.loading-skeleton-filters .loading-skeleton-avatar,
+.loading-skeleton-filters .loading-skeleton-text,
+.loading-skeleton-filters .loading-skeleton-field { display: none; }
+.loading-skeleton-filters .loading-skeleton-control { width: var(--space-3); height: var(--space-3); }
+.inventories-filter-rail .loading-skeleton-filters { width: var(--space-8); }
+.inventories-filter-rail .loading-skeleton-filters .loading-skeleton-row { height: var(--space-8); padding: 0; justify-content: center; }
+.inventories-filter-rail .loading-skeleton-filters .loading-skeleton-copy { display: none; }
+.inventories-filter-rail .loading-skeleton-filters .loading-skeleton-control { width: var(--space-4); height: var(--space-4); }
 .loading-skeleton-results .loading-skeleton-row { padding: var(--space-4); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); background: var(--bg-surface); }
 .loading-skeleton-results .loading-skeleton-field { display: none; }
 .loading-skeleton-panels { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: var(--space-4); }
