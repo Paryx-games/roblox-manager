@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEven
 import { AccountAvatar } from "./components/AccountAvatar";
 import { Icon } from "./components/Icon";
 import Select from "./components/Select";
+import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
 import { mergeAccountInventories, matchesInventoryComparison, sortInventoryItems, type OwnedInventoryItem, type InventoryComparison, type InventorySort, type InventorySortDirection } from "./lib/inventoryBrowsing";
 import { getSelectionRectangle, selectInventoryAsset, selectInventoryAssets, type SelectionRectangle } from "./lib/inventorySelection";
 import {
@@ -162,6 +163,16 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     );
     return sortInventoryItems(filtered, { field: sort, direction: sortDirection });
   }, [items, category, search, effectiveComparison, accountIds.size, sort, sortDirection]);
+
+  useSelectAllShortcut((event) => {
+    if (event.target instanceof Element && event.target.closest(".inventories-accounts")) {
+      if (!accountsLoading) setAccountIds(new Set(accounts.map((account) => account.userId)));
+      return;
+    }
+    if (!itemsLoading && !dragRef.current) {
+      setSelectedItemIds((current) => new Set([...current, ...visibleItems.map((item) => item.assetId)]));
+    }
+  });
 
   const accountGroups = useMemo(() => {
     const grouped = new Map<string, AccountSummary[]>();

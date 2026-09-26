@@ -49,6 +49,7 @@ import {
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
+import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
 import Select from "./components/Select";
 import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
@@ -910,6 +911,10 @@ export function AccountsPage({
       return 0;
     });
   }, [accounts, descending, search, sortMode]);
+
+  useSelectAllShortcut(() => {
+    setSelectedIds((current) => new Set([...current, ...visibleAccounts.map((account) => account.userId)]));
+  }, { isEnabled: !loading && !mutationLoading });
 
   const groups = useMemo<AccountGroup[]>(() => {
     const grouped = new Map<string, AccountSummary[]>();
