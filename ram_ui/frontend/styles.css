@@ -5933,8 +5933,12 @@ button:focus-visible {
   min-width: 0;
   min-height: 0;
   grid-template-columns: minmax(0, 1fr) var(--space-2) var(--inventory-filter-width);
+  grid-template-rows: minmax(0, 1fr);
 }
 .inventories-workspace.is-filter-collapsed { grid-template-columns: minmax(0, 1fr) 0 calc(var(--space-8) + var(--space-2)); }
+.inventories-content,
+.inventories-filter-resizer,
+.inventories-filter-sidebar { grid-row: 1; }
 .inventories-content { grid-column: 1; }
 .inventories-filter-resizer { grid-column: 2; }
 .inventories-filter-sidebar { grid-column: 3; }
