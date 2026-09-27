@@ -644,6 +644,7 @@ export function AccountsPage({
   >([]);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const accountDetailsRef = useRef<HTMLElement>(null);
   const [accountMenuPlacement, setAccountMenuPlacement] = useState("");
   const [presenceLoading, setPresenceLoading] = useState(false);
   const [groupColors, setGroupColors] = useState<
@@ -987,6 +988,10 @@ export function AccountsPage({
 
   const selectedAccount =
     accounts.find((account) => account.userId === selectedId) ?? null;
+
+  useLayoutEffect(() => {
+    accountDetailsRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [selectedAccount?.userId, selectedAccount?.cookieExpired, selectedAccount?.moderationActive]);
   const selectedGroupColor =
     groups.find((group) => group.name === selectedAccount?.group)?.color ??
     "var(--text-muted)";
@@ -2401,6 +2406,8 @@ export function AccountsPage({
         )}
 
         <section
+          key={selectedAccount?.userId ?? "empty"}
+          ref={accountDetailsRef}
           className={`accounts-detail-panel ${
             selectedAccount &&
             (selectedAccount.moderationActive || selectedAccount.cookieExpired)

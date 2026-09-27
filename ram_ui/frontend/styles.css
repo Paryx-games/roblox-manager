@@ -4764,6 +4764,25 @@ button:focus-visible {
   gap: var(--space-4);
   overflow-y: auto;
   padding: 20px;
+  animation: account-detail-enter var(--duration-base) var(--ease-standard);
+}
+
+@keyframes account-detail-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-1));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accounts-detail-panel {
+    animation: none;
+  }
 }
 
 .accounts-detail-panel.is-account-restricted {

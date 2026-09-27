@@ -198,6 +198,10 @@ page and incoming page may crossfade with a 16px directional translation over
 overflow to prevent scroll reflow. During the overlap, only the incoming page
 may be exposed to assistive technology. Under `prefers-reduced-motion: reduce`,
 the page transition must render without transform or opacity choreography.
+Account selection may reveal the new detail panel with a 4px vertical
+translation and fade over `--duration-base`. Reset its scroll before paint
+when the account or credential/restriction state changes. Under reduced
+motion, switch immediately without an animation.
 See §12 for the remaining motion anti-patterns this scale exists to prevent.
 
 ### 3.6 Breakpoints
