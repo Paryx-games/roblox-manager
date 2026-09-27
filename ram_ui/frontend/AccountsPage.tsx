@@ -687,6 +687,14 @@ export function AccountsPage({
     return confirmAccountAddition(outcome.confirmationId);
   }
 
+  function notifyAccountAddition(account: AccountSummary, message = "Account added.") {
+    if (accounts.some((existing) => existing.userId === account.userId)) {
+      setNotice("That account already exists. Its saved credential was updated.", "warning", "standard", "Account already exists");
+    } else {
+      setNotice(message);
+    }
+  }
+
   function upsertAccount(account: AccountSummary) {
     setAccounts((current) => current.some((existing) => existing.userId === account.userId)
       ? current.map((existing) => existing.userId === account.userId ? account : existing)
@@ -1675,7 +1683,7 @@ export function AccountsPage({
       setSelectedId(account.userId);
       setCookie("");
       closeAddForm();
-      setNotice("Account added.");
+      notifyAccountAddition(account);
     } catch (addError) {
       setAddError(
         typeof addError === "string" ? addError : addError instanceof Error
@@ -1703,7 +1711,7 @@ export function AccountsPage({
       setForceAddUsername("");
       setAddError(null);
       closeAddForm();
-      setNotice("Account added without validation.");
+      notifyAccountAddition(account, "Account added without validation.");
     } catch (error) {
       setNotice(
         error instanceof Error
@@ -1733,6 +1741,7 @@ export function AccountsPage({
           upsertAccount(account);
           setSelectedId(account.userId);
           added += 1;
+          if (accounts.some((existing) => existing.userId === account.userId)) notifyAccountAddition(account);
           results.push({ index: index + 1, status: "added" });
         } else {
           results.push({ index: index + 1, status: "failed", message: "Addition cancelled" });
@@ -1801,7 +1810,7 @@ export function AccountsPage({
       upsertAccount(account);
       setSelectedId(account.userId);
       closeAddForm();
-      setNotice("Account added.");
+      notifyAccountAddition(account);
     } catch {
       setNotice("Browser login could not add the account.");
     } finally {
