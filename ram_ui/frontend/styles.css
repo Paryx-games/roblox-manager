@@ -55,6 +55,38 @@ body {
   background: var(--bg-canvas);
   font-family: var(--font-sans);
   font-size: var(--text-base);
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable]:not([contenteditable="false"]),
+code,
+pre,
+.selectable-text,
+.account-id,
+.account-identity-username > p,
+.connection-identity > span,
+.preset-copy-chip-value,
+.assets-copy,
+.groups-about-description:not(.groups-data),
+.groups-post > strong,
+.groups-post > p,
+.settings-fast-flag > span,
+.accounts-error > p,
+.groups-error,
+.private-server-error,
+.preset-error,
+.settings-error > p,
+.inventories-error,
+.assets-empty[role="alert"] > p,
+.toast[role="alert"] .toast-copy > p {
+  user-select: text;
+}
+
+img:not([draggable="true"]) {
+  /* stylelint-disable-next-line property-no-vendor-prefix */
+  -webkit-user-drag: none;
 }
 
 *::-webkit-scrollbar {

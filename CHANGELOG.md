@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Interface text selection.** Prevents accidental text highlighting across pages and dialogs while preserving editable fields, copyable data, diagnostic details, inventory selection, and account and group dragging.
+
 - **Asset Manager dropdown sizing.** Sizes each dropdown to its longest option, adds space around labels and arrows, and keeps long experience names within the available toolbar width.
 
 - **Asset Manager account loading.** Enables the workspace's Tauri event subscriptions and loads sidebar accounts independently, so a workspace failure cannot hide saved accounts or display a false empty-account message.

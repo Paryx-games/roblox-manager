@@ -62,7 +62,7 @@ function GroupIdentity({
               </span>
             )}
           </div>
-          <span className="groups-data">Group ID: {group.id}</span>
+          <span className="groups-data selectable-text">Group ID: {group.id}</span>
         </div>
       </div>
       <div className="groups-chip-row">

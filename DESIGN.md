@@ -293,6 +293,16 @@ that introduces it - §11.3.
 
 ## 6. Interaction states
 
+### Text selection
+
+Interface text is not selectable by default, including navigation, headings,
+labels, helper text, statuses, and control captions. Keep editable fields,
+copyable identifiers and code, group descriptions and posts, and diagnostic
+error details selectable. Use `selectable-text` for useful copyable content
+without an existing semantic selector. Decorative images must not start native
+browser drags. Preserve application drag interactions, including inventory
+marquee selection, filter resizing, and account and group reordering.
+
 ### Tooltips
 
 Every tooltip in the active React app must use the shared custom tooltip.

@@ -674,7 +674,7 @@ export function AssetsPage({
                     <span className="assets-status" data-state={row.state}>
                       {stateLabels[row.state] ?? row.state}
                     </span>
-                    {row.message && <small>{row.message}</small>}
+                    {row.message && <small className="selectable-text">{row.message}</small>}
                     {row.assetId !== null && (
                       <button
                         className="assets-copy"
@@ -716,7 +716,7 @@ export function AssetsPage({
                     <tr key={row.rowId}>
                       <td>
                         <strong>{row.displayName}</strong>
-                        {row.message && <small>{row.message}</small>}
+                        {row.message && <small className="selectable-text">{row.message}</small>}
                       </td>
                       <td>{row.kind}</td>
                       <td className="assets-secondary-column">
