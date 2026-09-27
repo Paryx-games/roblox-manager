@@ -2,58 +2,21 @@
 
 ## Unreleased
 
-- **Interface text selection.** Prevents accidental text highlighting across pages and dialogs while preserving editable fields, copyable data, diagnostic details, inventory selection, and account and group dragging.
-
-- **Asset Manager dropdown sizing.** Sizes each dropdown to its longest option, adds space around labels and arrows, and keeps long experience names within the available toolbar width.
-
-- **Asset Manager account loading.** Enables the workspace's Tauri event subscriptions and loads sidebar accounts independently, so a workspace failure cannot hide saved accounts or display a false empty-account message.
-
-- **Asset Manager account selection.** Selects the upload account exclusively in the sidebar, with the same collapsible groups, counts, and saved ordering as Inventories.
-
-- **Asset Manager workspace.** Adds the reference-based account rail, Library and Import Queue views, file selection and drag-and-drop, validated uploads with moderation tracking, experience access grants, retry and queue controls, search, and copyable asset IDs. Reuses the existing core asset index and keeps credentials on the Rust side.
-
-- **Inventory browsing refinements.** Animates checkbox ticks and item entry, improves browse controls, adds specific and combined asset type filters while hiding empty categories, allows repeat clicks to deselect cards, and enables Ctrl+A for the visible inventory results.
-
-- **Inventory group spacing.** Reduces gaps between account groups to 8px and uses compact headers with 6px spacing around collapsed groups.
-
-- **Inventory account groups.** Adds collapsible group headers with account counts and follows the saved Accounts group order, with pinned accounts first and custom account ordering within each group. Collapsing a group preserves its selected accounts.
-
-- **Account selection highlights.** Account rows now use the multiple-selection set for visual and accessible selection state, so Ctrl+A and Ctrl-click highlight every selected account instead of only the account open in the details pane.
-
-- **Page-specific select-all.** Ctrl+A selects accounts matching the Accounts search or visible items matching the inventory filters. Groups, Presets, Private Servers, Settings, and account pickers do not select records with this shortcut.
-
-- **Select-all shortcut boundaries.** Ctrl+A no longer selects interface text on Settings or pages without an explicit selection action. Text fields keep native editing shortcuts, and page changes block selection of the outgoing page.
-
-- **Inventory list icon.** Renders the supplied Lucide list SVG inline so it follows the button text colour and does not depend on an external image loading.
-
-- **Inventory display controls.** Adds separate small, medium, and large sizing for grid items and list rows, uses Lucide's list icon, and widens sorting dropdowns to show full labels.
-
-- **Inventory drag interaction.** Disables text selection on helper copy and interface labels so they do not interfere with dragging, while keeping search text and asset IDs selectable.
-
-- **Inventory click selection.** Plain clicks select a single item, while Ctrl-click toggles individual items in a multiple selection. Drag selection and explicit Select all remain available.
-
-- **Inventory list layout.** Tightens row spacing, improves padding and selection placement, and shows item type, price, and owner avatars in aligned rows that adapt to the available width.
-
-- **Inventory ownership and comparison.** Shows owner avatars beside items with overflow counts, adds shared/unique comparison filters, and supports sorting by name, asset ID, type, or price in either direction.
-
-- **Inventory selection tools.** Adds drag selection with edge scrolling, a searchable selected-ID dropdown, comma-separated ID copying, and grid/list views with grid as the default.
-
-- **Inventory layout refinement.** Matches the inventory reference more closely with square thumbnail tiles, compact filters, copyable asset IDs, and a floating selection dock.
-
-- **Inventories workspace.** Adds a dedicated page for browsing selected account inventories, filtering and searching items, and copying or opening selected asset ids.
-
-- **UI shell rewrite.** Replaces the existing egui/eframe interface with a new Tauri + React/TypeScript frontend while keeping `ram_core` responsible for authentication, storage, cryptography, Roblox APIs, and Windows process management.
-- **New design system.** Introduces a cleaner, more consistent interface with responsive layouts, shared components, design tokens, animations, improved navigation, toast notifications, and reduced-motion support.
-- **Accounts workspace rewrite.** Rebuilds the Accounts interface with improved account management, restricted-account states, clearer launch controls, responsive sorting and input layouts, and cleaner account presentation.
-- **Groups workspace.** Ports group management from the legacy egui interface, including group search, live group information, account membership inspection, join/leave actions, announcements, forums, and Roblox challenge handling.
-- **Private Servers workspace.** Adds saved Roblox private-server links that can be managed and launched using the accounts currently selected in the Accounts workspace.
-- **Presets workspace.** Adds searchable saved game presets with place IDs, job IDs, launch data, game thumbnails, copying controls, editing, deletion, and multi-account launching.
-- **Settings redesign.** Replaces the old settings interface with a continuous configuration editor featuring nested navigation, responsive system/app information, validation and asset warnings, and save/cancel handling for unsaved changes.
-- **Workspace navigation overhaul.** Reorganises the interface around dedicated Accounts, Groups, Private Servers, Presets, and Settings workspaces, with unavailable utilities represented separately.
-- **Tauri integration.** Adds the Tauri application shell, Rust command layer, and typed IPC between the React frontend and existing Rust backend.
-- **Frontend tooling overhaul.** Introduces React, TypeScript, Vite, and the supporting project structure and development tooling required for the v2 frontend.
-
 v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/roblox-manager/tree/v2) branch as part of [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30).
+
+### Changed
+
+- **Tauri frontend rewrite.** Replaces the egui/eframe interface with Tauri + React/TypeScript, using typed IPC and Rust command handlers to connect the new interface to the existing `ram_core` authentication, encrypted storage, Roblox APIs, and Windows process management.
+- **Workspace navigation.** Organises the app around dedicated Accounts, Groups, Private Servers, Presets, Inventories, Asset Manager, and Settings pages, with a shared activity bar, sidebars, and page transitions.
+- **Accounts workspace.** Rebuilds account management with grouped and draggable account lists, sorting, search, multi-selection, restricted-account states, profile details, connection actions, and clearer launch controls.
+- **Groups workspace.** Rebuilds group search and management with live group information, account membership inspection, join/leave actions, announcements, forums, and Roblox challenge handling.
+- **Private Servers workspace.** Rebuilds saved private-server management with search, sorting, editing, link copying, and launching with selected accounts.
+- **Presets workspace.** Rebuilds saved game presets with search, place IDs, job IDs, launch data, game thumbnails, copying controls, editing, deletion, and multi-account launching.
+- **Inventories workspace.** Rebuilds inventory browsing with grouped account selection, search and type filters, shared/unique comparisons, sorting, adjustable grid/list views, owner avatars, click and drag selection with edge scrolling, select-all, and individual or CSV asset ID copying and catalog opening.
+- **Asset Manager workspace.** Rebuilds asset management with grouped sidebar account selection, Library and Import Queue views, search and filters, dynamically sized dropdowns, file selection and drag-and-drop, validated uploads, moderation tracking, experience access grants, retry and queue controls, and copyable asset IDs.
+- **Settings workspace.** Replaces the old settings interface with a continuous configuration editor, nested navigation, responsive system/app information, validation, warnings, and save/cancel handling for unsaved changes.
+- **Shared interface behaviour.** Unifies typography, spacing, icons, tooltips, loading skeletons, notifications, interaction states, and reduced-motion support. Prevents accidental interface text selection while preserving editable fields, copyable data, and application dragging features.
+- **Frontend tooling.** Introduces React, TypeScript, Vite, frontend linting, design-token checks, and the development tooling required for the Tauri rewrite.
 
 ## v1.16.0
 
