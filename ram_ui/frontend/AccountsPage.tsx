@@ -2101,7 +2101,7 @@ export function AccountsPage({
                   <Icon name="browser" />
                   Log in with browser
                 </button>
-                <div className="account-form-divider">or paste a cookie</div>
+                <div className="account-form-divider">Or paste a cookie</div>
                 <label htmlFor="account-cookie">Roblox security cookie</label>
                 <input
                   id="account-cookie"
@@ -2144,7 +2144,7 @@ export function AccountsPage({
                     </button>
                   </div>
                 )}
-                <div className="account-form-divider">bulk import</div>
+                <div className="account-form-divider">Bulk import</div>
                 <textarea
                   value={bulkCookieInput}
                   onChange={(event) => setBulkCookieInput(event.target.value)}
@@ -2152,17 +2152,19 @@ export function AccountsPage({
                   rows={4}
                   disabled={mutationLoading}
                 />
-                <button
-                  className="account-button"
-                  type="button"
-                  disabled={mutationLoading}
-                  aria-describedby="bulk-file-selection"
-                  onClick={() => bulkFileInputRef.current?.click()}
-                >
-                  Choose file
-                </button>
-                <div className="account-file-selection" id="bulk-file-selection" role="status">
-                  {bulkFileName || "No file chosen"}
+                <div className="account-file-selection">
+                  <button
+                    className="account-button"
+                    type="button"
+                    disabled={mutationLoading}
+                    aria-describedby="bulk-file-selection"
+                    onClick={() => bulkFileInputRef.current?.click()}
+                  >
+                    Choose file
+                  </button>
+                  <span id="bulk-file-selection" role="status">
+                    {bulkFileName || "No file chosen"}
+                  </span>
                 </div>
                 <input
                   ref={bulkFileInputRef}
