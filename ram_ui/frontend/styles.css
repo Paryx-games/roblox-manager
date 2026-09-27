@@ -3393,6 +3393,15 @@ button:focus-visible {
   padding: var(--space-2);
 }
 
+.account-file-selection {
+  padding: var(--space-3);
+  border: var(--border-width) dashed var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
 .add-account-modal-body .account-button {
   flex: 0 0 auto;
 }

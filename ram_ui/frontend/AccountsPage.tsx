@@ -630,6 +630,8 @@ export function AccountsPage({
   const addFormCloseTimer = useRef<number | null>(null);
   const [cookie, setCookie] = useState("");
   const [bulkCookieInput, setBulkCookieInput] = useState("");
+  const [bulkFileName, setBulkFileName] = useState("");
+  const bulkFileInputRef = useRef<HTMLInputElement>(null);
   const [bulkProgress, setBulkProgress] = useState<[number, number] | null>(
     null,
   );
@@ -1747,6 +1749,7 @@ export function AccountsPage({
     }
     setMutationLoading(false);
     setBulkCookieInput("");
+    setBulkFileName("");
     setNotice(`Bulk import finished: ${added} of ${cookies.length} added.`);
     setBulkProgress(null);
   }
@@ -2149,13 +2152,32 @@ export function AccountsPage({
                   rows={4}
                   disabled={mutationLoading}
                 />
+                <button
+                  className="account-button"
+                  type="button"
+                  disabled={mutationLoading}
+                  aria-describedby="bulk-file-selection"
+                  onClick={() => bulkFileInputRef.current?.click()}
+                >
+                  Choose file
+                </button>
+                <div className="account-file-selection" id="bulk-file-selection" role="status">
+                  {bulkFileName || "No file chosen"}
+                </div>
                 <input
+                  ref={bulkFileInputRef}
+                  hidden
                   type="file"
                   accept=".txt,.csv,.tsv,text/plain,text/csv"
                   disabled={mutationLoading}
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    if (file) void file.text().then(setBulkCookieInput);
+                    if (file) {
+                      void file.text().then((contents) => {
+                        setBulkCookieInput(contents);
+                        setBulkFileName(file.name);
+                      }).catch(() => setNotice("The selected file could not be read. Choose another file and try again."));
+                    }
                     event.currentTarget.value = "";
                   }}
                 />
