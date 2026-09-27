@@ -304,6 +304,53 @@ export async function listAccounts(): Promise<AccountSummary[]> {
   return invoke<AccountSummary[]>("list_accounts");
 }
 
+export interface AssetRow {
+  rowId: string;
+  displayName: string;
+  kind: string;
+  fileBytes: number;
+  uploadedBy: number;
+  creator: { kind: "user" | "group"; id: number };
+  state: string;
+  assetId: number | null;
+  message: string | null;
+  canRetry: boolean;
+  canRemove: boolean;
+  grantedUniverses: number[];
+}
+
+export interface AssetWorkspace {
+  rows: AssetRow[];
+  isUploading: boolean;
+  isReadOnly: boolean;
+  notice: string | null;
+}
+
+export interface AssetUniverse {
+  id: number;
+  name: string;
+}
+
+export async function listAssetWorkspace(): Promise<AssetWorkspace> {
+  return invoke<AssetWorkspace>("list_asset_workspace");
+}
+
+export async function addAssetFiles(userId: number, options: { paths?: string[]; universeId?: number } = {}): Promise<AssetWorkspace> {
+  return invoke<AssetWorkspace>("add_asset_files", { userId, paths: options.paths ?? [], universeId: options.universeId ?? null });
+}
+
+export async function uploadAssets(userId: number): Promise<void> {
+  return invoke<void>("upload_assets", { userId });
+}
+
+export async function changeAssetQueue(action: "clearFinished" | "retry" | "remove", options: { rowId?: string } = {}): Promise<AssetWorkspace> {
+  return invoke<AssetWorkspace>("change_asset_queue", { action, rowId: options.rowId ?? null });
+}
+
+export async function listAssetUniverses(userId: number): Promise<AssetUniverse[]> {
+  return invoke<AssetUniverse[]>("list_asset_universes", { userId });
+}
+
 export async function searchGroups(
   keyword: string,
 ): Promise<GroupSearchResult[]> {

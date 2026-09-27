@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Asset Manager workspace.** Adds the reference-based account rail, Library and Import Queue views, file selection and drag-and-drop, validated uploads with moderation tracking, experience access grants, retry and queue controls, search, and copyable asset IDs. Reuses the existing core asset index and keeps credentials on the Rust side.
+
 - **Inventory browsing refinements.** Animates checkbox ticks and item entry, improves browse controls, adds specific and combined asset type filters while hiding empty categories, allows repeat clicks to deselect cards, and enables Ctrl+A for the visible inventory results.
 
 - **Inventory group spacing.** Reduces gaps between account groups to 8px and uses compact headers with 6px spacing around collapsed groups.

@@ -3286,6 +3286,7 @@ button:focus-visible {
 }
 .toast {
   --toast-accent: var(--notification-info);
+
   position: relative;
   display: grid;
   grid-template-columns: var(--space-6) minmax(0, 1fr) var(--space-4);
@@ -5593,10 +5594,8 @@ button:focus-visible {
 .inventories-content,
 .inventories-filter-resizer,
 .inventories-filter-sidebar { grid-row: 1; }
-.inventories-content { grid-column: 1; }
-.inventories-filter-resizer { grid-column: 2; }
-.inventories-filter-sidebar { grid-column: 3; }
 .inventories-filter-sidebar {
+  grid-column: 3;
   min-width: 0;
   min-height: 0;
   overflow: auto;
@@ -5663,6 +5662,7 @@ button:focus-visible {
 .inventories-filter-rail .account-icon { width: var(--space-4); height: var(--space-4); }
 .inventories-control-panel .inventories-search { width: 100%; }
 .inventories-filter-resizer {
+  grid-column: 2;
   position: relative;
   z-index: 2;
   width: var(--space-2);
@@ -5682,6 +5682,7 @@ button:focus-visible {
 .inventories-filter-resizer:hover::after,
 .inventories-filter-resizer:focus-visible::after { background: var(--action-primary); }
 .inventories-content {
+  grid-column: 1;
   container: inventory-content / inline-size;
   position: relative;
   display: flex;
@@ -6131,5 +6132,330 @@ button:focus-visible {
   *::before,
   *::after {
     transition-duration: 0ms;
+  }
+}
+.assets-page {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.assets-header {
+  gap: var(--space-4);
+  padding-right: var(--space-4);
+}
+.assets-upload-context {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.assets-upload-context strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.assets-upload-context .inventories-avatar {
+  width: var(--space-4);
+  height: var(--space-4);
+  flex-basis: var(--space-4);
+}
+.assets-accounts .inventories-account-group {
+  margin-top: var(--space-4);
+}
+.assets-accounts .inventories-account.is-selected {
+  border-color: color-mix(in srgb, var(--action-primary) 40%, transparent);
+  background: color-mix(in srgb, var(--action-primary) 16%, transparent);
+}
+.assets-account-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assets-accounts .inventories-account > .account-icon {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+.assets-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.assets-tabs-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6) 0;
+}
+.assets-tabs {
+  display: flex;
+  gap: var(--space-2);
+}
+.assets-page .account-button {
+  flex: 0 0 auto;
+  min-height: var(--space-8);
+}
+.assets-page .account-button:not(:disabled):active {
+  background: var(--action-muted);
+}
+.assets-page .account-button:focus-visible,
+.assets-copy:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
+}
+.assets-search {
+  width: var(--sidebar-width);
+  margin-left: auto;
+}
+.assets-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: var(--border-width) solid var(--border-default);
+}
+.assets-inline-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.assets-inline-field .rm-select {
+  min-width: var(--space-12);
+  max-width: var(--sidebar-width);
+}
+.assets-inline-field .rm-select-trigger {
+  min-height: var(--space-8);
+}
+.assets-toolbar-spacer {
+  flex: 1;
+}
+.assets-toolbar-divider {
+  align-self: stretch;
+  width: var(--border-width);
+  background: var(--border-default);
+  margin: 0 var(--space-1);
+}
+.assets-page .assets-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.assets-page .assets-ghost:not(:disabled):hover {
+  background: var(--bg-surface);
+}
+.assets-notice {
+  margin: var(--space-3) var(--space-6) 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  font-size: var(--text-sm);
+}
+.assets-panel {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  padding: var(--space-6);
+}
+.assets-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-12);
+  text-align: center;
+}
+.assets-empty h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+.assets-empty p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.assets-empty .account-button {
+  margin-top: var(--space-3);
+}
+.assets-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  text-align: left;
+}
+.assets-table th {
+  color: var(--text-muted);
+  font-weight: 500;
+  background: var(--bg-surface);
+}
+.assets-table th,
+.assets-table td {
+  padding: var(--space-3);
+  border-bottom: var(--border-width) solid var(--border-default);
+}
+.assets-table tbody tr:hover {
+  background: var(--bg-surface);
+}
+.assets-table.is-compact td {
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+.assets-table td:first-child {
+  min-width: var(--space-12);
+  overflow-wrap: anywhere;
+}
+.assets-table td strong {
+  display: block;
+  font-weight: 500;
+}
+.assets-table td small {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.assets-copy {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.assets-copy:hover,
+.assets-copy:active {
+  color: var(--text-primary);
+}
+.assets-copy .account-icon {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+.assets-row-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.assets-status {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.assets-status[data-state="uploading"],
+.assets-status[data-state="inReview"],
+.assets-status[data-state="pending"] {
+  color: var(--status-warning);
+}
+.assets-status[data-state="approved"] {
+  color: var(--status-online);
+}
+.assets-status[data-state="failed"],
+.assets-status[data-state="rejected"],
+.assets-status[data-state="invalid"],
+.assets-status[data-state="expired"] {
+  color: var(--status-danger);
+}
+.assets-drop-overlay {
+  position: absolute;
+  inset: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-width) solid var(--action-primary);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  pointer-events: none;
+}
+.assets-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--space-12) * 3), 1fr));
+  gap: var(--space-4);
+}
+.assets-library-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  font-size: var(--text-sm);
+}
+.assets-file-preview {
+  display: flex;
+  width: 100%;
+  aspect-ratio: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.assets-file-preview .account-icon {
+  width: var(--space-12);
+  height: var(--space-12);
+}
+.assets-library-name {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.assets-library-item small {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.assets-library-item .assets-copy {
+  margin-top: auto;
+}
+@media (max-width: 1199px) {
+  .assets-secondary-column {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  .assets-accounts {
+    width: var(--space-12);
+    flex-basis: var(--space-12);
+    padding: var(--space-2) var(--space-1);
+  }
+  .assets-accounts > h2,
+  .assets-accounts > p,
+  .assets-accounts .inventories-account-group h3,
+  .assets-account-name,
+  .assets-accounts .inventories-account > .account-icon {
+    display: none;
+  }
+  .assets-accounts .inventories-account {
+    justify-content: center;
+    padding: var(--space-1);
+  }
+  .assets-upload-context {
+    display: none;
+  }
+  .assets-tabs-row,
+  .assets-toolbar,
+  .assets-panel {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+  .assets-search {
+    width: 100%;
   }
 }

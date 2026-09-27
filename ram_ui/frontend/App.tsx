@@ -6,6 +6,7 @@ import { PrivateServersPage } from "./PrivateServersPage";
 import { PresetsPage } from "./PresetsPage";
 import { SettingsPage } from "./SettingsPage";
 import { InventoriesPage } from "./InventoriesPage";
+import { AssetsPage } from "./AssetsPage";
 import { isSelectAllShortcut, isTextSelectionTarget } from "./lib/selectAllShortcut";
 
 type NavItem = {
@@ -20,6 +21,7 @@ type PageName =
   | "Private Servers"
   | "Presets"
   | "Inventories"
+  | "Asset Manager"
   | "Settings";
 
 const navItems: NavItem[] = [
@@ -28,6 +30,7 @@ const navItems: NavItem[] = [
   { label: "Private Servers", icon: "game", page: "Private Servers" },
   { label: "Presets", icon: "star", page: "Presets" },
   { label: "Inventories", icon: "inventory", page: "Inventories" },
+  { label: "Asset Manager", icon: "package", page: "Asset Manager" },
 ];
 
 function Icon({ name }: { name: string }) {
@@ -178,6 +181,10 @@ export function App() {
 
     if (page === "Inventories") {
       return <InventoriesPage initialSelectedIds={selectedIds} />;
+    }
+
+    if (page === "Asset Manager") {
+      return <AssetsPage initialSelectedIds={selectedIds} />;
     }
 
     return (
