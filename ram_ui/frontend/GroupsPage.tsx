@@ -457,9 +457,9 @@ export function GroupsPage({
 
         <section className="groups-detail">
           {searching ? (
-            <LoadingSkeleton layout="results" label="Searching groups" />
+            <LoadingSkeleton layout="group-results" label="Searching groups" />
           ) : loading ? (
-            <LoadingSkeleton layout="group" label={`Loading ${pendingGroup?.name ?? "group details"}`} />
+            <LoadingSkeleton layout="group" label={`Loading ${pendingGroup?.name ?? "group details"}`} count={selectedAccounts.length} />
           ) : !workspace && searchResults.length > 0 ? (
             <section className="groups-results-page">
               <div className="groups-results-header">

@@ -6056,8 +6056,24 @@ button:focus-visible {
 .loading-skeleton-panel > .loading-skeleton-text { margin: var(--space-3) var(--space-2); }
 .loading-skeleton-profile .loading-skeleton-avatar { width: calc(var(--space-12) * 2); height: calc(var(--space-12) * 2); }
 .loading-skeleton-panel .loading-skeleton-avatar { display: none; }
-.loading-skeleton-account,
-.loading-skeleton-group { padding: var(--space-4); }
+.loading-skeleton-account { padding: var(--space-4); }
+.loading-skeleton-group-content { display: flex; flex-direction: column; gap: var(--space-4); }
+.loading-skeleton-group-icon { width: 100%; height: 100%; }
+.loading-skeleton-group-chip { width: calc(var(--space-12) * 3); max-width: 100%; height: calc(var(--space-8) - var(--space-1)); }
+.loading-skeleton-group-heading { width: max-content; max-width: 100%; height: var(--space-4); overflow: hidden; color: transparent; font-size: var(--text-sm); font-weight: 700; white-space: nowrap; }
+.loading-skeleton-group-heading-with-icon { padding-left: var(--space-6); }
+.loading-skeleton-group-count { width: var(--space-6); height: var(--space-4); }
+.loading-skeleton-group-lines { display: grid; gap: var(--space-2); }
+.loading-skeleton-group-lines > span { width: 100%; height: var(--space-2); margin: 0; }
+.loading-skeleton-group-lines > span:last-child { width: 70%; }
+.loading-skeleton-group .groups-post { display: grid; gap: var(--space-2); }
+.loading-skeleton-group .groups-post > span { margin: 0; }
+.loading-skeleton-group .groups-membership > .loading-skeleton-text { width: 25%; }
+.loading-skeleton-group-results .groups-result > .loading-skeleton-block { background: var(--bg-surface); }
+.loading-skeleton-group-results .loading-skeleton-group-heading { height: var(--space-6); font-size: var(--text-lg); }
+.loading-skeleton-group-results .groups-result > :first-child { width: 45%; height: var(--space-4); }
+.loading-skeleton-group-results .groups-result > :nth-child(3) { width: 80%; height: var(--space-2); }
+.loading-skeleton-group-results .groups-result > :last-child { width: calc(var(--space-12) * 2); height: var(--space-3); justify-self: end; }
 .loading-skeleton-settings { display: flex; height: 100%; gap: var(--space-6); overflow: auto; padding: var(--space-6) var(--space-4); }
 .loading-skeleton-navigation { display: flex; width: 200px; flex: 0 0 200px; flex-direction: column; gap: var(--space-6); padding: var(--space-3); border-right: var(--border-width) solid var(--border-default); }
 .loading-skeleton-navigation .loading-skeleton-title { width: 80%; }
