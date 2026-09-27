@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod asset_manager;
 mod state;
 
 #[path = "../../src/browser_login.rs"]
@@ -3085,8 +3086,15 @@ fn main() {
         std::process::exit(code);
     }
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
+        .manage(asset_manager::AssetManager::default())
         .invoke_handler(tauri::generate_handler![
+            asset_manager::list_asset_workspace,
+            asset_manager::add_asset_files,
+            asset_manager::upload_assets,
+            asset_manager::change_asset_queue,
+            asset_manager::list_asset_universes,
             list_accounts,
             store_status,
             create_device_store,
