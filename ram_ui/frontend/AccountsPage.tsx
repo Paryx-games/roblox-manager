@@ -1823,19 +1823,21 @@ export function AccountsPage({
     <>
       <div className="header-row accounts-header-row">
         <h1 className="header-title">Accounts</h1>
-        <button className="account-button" type="button" disabled={mutationLoading || loading || !!error || !accounts.length} onClick={() => void revalidate([])}>
-          <Icon name="refresh" />
-          {mutationLoading ? "Working..." : "Refresh accounts"}
-        </button>
-        <button
-          className="accounts-header-export"
-          type="button"
-          aria-label="Export accounts"
-          onClick={exportAccountsCsv}
-        >
-          <Icon name="copy" />
-          Export accounts
-        </button>
+        <div className="accounts-header-actions">
+          <button className="account-button" type="button" disabled={mutationLoading || loading || !!error || !accounts.length} onClick={() => void revalidate([])}>
+            <Icon name="refresh" />
+            {mutationLoading ? "Working..." : "Refresh accounts"}
+          </button>
+          <button
+            className="account-button"
+            type="button"
+            aria-label="Export accounts"
+            onClick={exportAccountsCsv}
+          >
+            <Icon name="copy" />
+            Export accounts
+          </button>
+        </div>
       </div>
       <main
         className="accounts-page"

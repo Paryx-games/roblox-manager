@@ -1619,28 +1619,34 @@ button:focus-visible {
   justify-content: space-between;
 }
 
-.accounts-header-export {
-  display: inline-flex;
-  height: 32px;
+.accounts-header-actions {
+  display: flex;
   align-items: center;
   gap: var(--space-2);
+  margin-left: auto;
   margin-right: var(--space-3);
+}
+
+.accounts-header-actions .account-button {
+  flex: 0 0 auto;
+  height: var(--space-8);
+  min-height: var(--space-8);
   padding: 0 var(--space-2);
-  border: var(--border-width) solid var(--border-default);
-  border-radius: var(--radius);
   color: var(--text-muted);
-  background: var(--bg-surface);
-  cursor: pointer;
   font-size: var(--text-xs);
 }
 
-.accounts-header-export:hover,
-.accounts-header-export:focus-visible {
+.accounts-header-actions .account-button:not(:disabled):hover,
+.accounts-header-actions .account-button:not(:disabled):focus-visible {
   color: var(--text-primary);
   background: var(--bg-raised);
 }
 
-.accounts-header-export .account-icon {
+.accounts-header-actions .account-button:disabled {
+  color: var(--text-disabled);
+}
+
+.accounts-header-actions .account-button .account-icon {
   width: 14px;
   height: 14px;
 }
