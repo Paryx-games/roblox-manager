@@ -1811,8 +1811,8 @@ export function AccountsPage({
       setSelectedId(account.userId);
       closeAddForm();
       notifyAccountAddition(account);
-    } catch {
-      setNotice("Browser login could not add the account.");
+    } catch (error) {
+      setNotice(operationError(error, "Browser login could not add the account. Close it and retry."), "error", "long", "Browser login needs attention");
     } finally {
       setBrowserLoginLoading(false);
       if (browserLoginOverlayTimer.current !== null) {
