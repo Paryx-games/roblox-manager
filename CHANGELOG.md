@@ -6,6 +6,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Fixed
 
+- **Tauri release packaging.** Publish the Tauri portable executable and Windows installer with checksums for both. Build the installer in CI and check frontend linting and types alongside the Rust checks.
+
 - **Account re-add organisation.** Base credential replacement and confirmation previews on the existing account, preserving its alias, group, pin, order and cached history. Keep the alias editor synchronised with account updates so a stale field cannot overwrite the saved alias.
 
 - **Main-window browser recovery.** Give the main interface a separate browser profile. Detect WebView2 browser and renderer failures, log their process kind, and recreate the interface with an isolated browser profile while retaining the unlocked account store and background services. Bound recovery attempts and show a native error dialog if restoration fails instead of silently leaving a black window.

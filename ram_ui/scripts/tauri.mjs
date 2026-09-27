@@ -29,6 +29,14 @@ const iconName = isDevelopmentBuild
       : "Live.ico";
 const iconPath = `../../assets/logos/${iconName}`;
 const configOverride = JSON.stringify({ bundle: { icon: [iconPath] } });
+const runnerArgumentsIndex = argumentsList.indexOf("--");
+const configuredArguments = [...argumentsList];
+configuredArguments.splice(
+  runnerArgumentsIndex < 0 ? configuredArguments.length : runnerArgumentsIndex,
+  0,
+  "--config",
+  configOverride,
+);
 const tauriCli = resolve(
   packageDirectory,
   "node_modules/@tauri-apps/cli/tauri.js",
@@ -36,7 +44,7 @@ const tauriCli = resolve(
 
 const result = spawnSync(
   process.execPath,
-  [tauriCli, ...argumentsList, "--config", configOverride],
+  [tauriCli, ...configuredArguments],
   {
     cwd: packageDirectory,
     stdio: "inherit",

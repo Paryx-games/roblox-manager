@@ -22,6 +22,7 @@ jobs:
   build:
     name: Build
     runs-on: windows-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -57,13 +58,24 @@ jobs:
 
       - name: Build application
         working-directory: ram_ui
-        run: pnpm tauri build
+        run: pnpm tauri build --ci --bundles nsis -- --locked
+
+      - name: Collect release files
+        shell: pwsh
+        run: |
+          $executable = Get-Item -LiteralPath target/release/rm_tauri.exe -ErrorAction Stop
+          $installers = @(Get-ChildItem -Path target/release/bundle/nsis -Filter *.exe)
+          if ($installers.Count -ne 1) { throw "Expected exactly one Tauri NSIS installer." }
+          New-Item -ItemType Directory -Path release-artifacts | Out-Null
+          Copy-Item -LiteralPath $executable.FullName -Destination release-artifacts/rm_tauri.exe
+          Copy-Item -LiteralPath $installers[0].FullName -Destination release-artifacts/installer.exe
 
       - name: Upload executable
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-executable
-          path: target/release/ram_ui.exe
+          path: release-artifacts/*.exe
+          if-no-files-found: error
           retention-days: 1
           compression-level: 0
 
@@ -180,10 +192,10 @@ jobs:
         id: rename-exe
         shell: pwsh
         run: |
-          $exePath = "release/ram_ui.exe"
+          $exePath = "release/rm_tauri.exe"
 
           if (-not (Test-Path $exePath)) {
-            throw "ram_ui.exe was not found in the release directory."
+            throw "rm_tauri.exe was not found in the release directory."
           }
 
           $version = "$env:RELEASE_TAG" -replace "^v", ""
@@ -200,11 +212,13 @@ jobs:
           $newPath = "release/$newName"
 
           Rename-Item -Path $exePath -NewName $newName
+          $installerName = "roblox-manager-v$version-$os-$arch-setup.exe"
+          Rename-Item -LiteralPath release/installer.exe -NewName $installerName -ErrorAction Stop
 
           "filename=$newName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "path=$newPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      # sha256 for the single release exe
+      # checksums cover both the portable executable and installer
       - name: Generate sha256 checksums
         id: checksum
         shell: pwsh
@@ -214,13 +228,18 @@ jobs:
 
           $hash = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash.ToLower()
 
+          $files = Get-ChildItem -Path release -Filter *.exe | Sort-Object Name
+          $checksums = foreach ($file in $files) {
+            $fileHash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLower()
+            "$fileHash  $($file.Name)"
+          }
+          Set-Content -Path release/SHA256SUMS.txt -Value $checksums
           $lines = @(
             "## SHA256"
             ""
             "Checksums for all executable files included in this release."
             ""
-            "- ``$exeName`` - ``$hash``"
-          )
+          ) + @($checksums | ForEach-Object { "- ``$_``" })
 
           Set-Content -Path sha256.md -Value ($lines -join "`n")
 
@@ -289,7 +308,7 @@ jobs:
           $lines = @(
             "## Security"
             ""
-            "This executable is automatically scanned with [VirusTotal](https://www.virustotal.com/) on every release."
+            "The portable executable is automatically scanned with [VirusTotal](https://www.virustotal.com/) on every release."
             ""
             "- **Scan result:** $summary"
             "- **Report:** $reportUrl"
@@ -315,12 +334,13 @@ jobs:
           $files = Get-ChildItem -Path release -Filter "*.exe" | Sort-Object Name
 
           $rows = foreach ($file in $files) {
-            if ($file.Name -match "^roblox-manager-v[\d.]+(?:-[\w.]+)?-(?<platform>[a-z]+-[a-z0-9]+)\.exe$") {
+            if ($file.Name -match "^roblox-manager-v[\d.]+(?:-[\w.]+)?-(?<platform>windows-(?:x64|arm64|x86))(?<installer>-setup)?\.exe$") {
               $platform = $Matches.platform
               $description = $archDescriptions[$platform]
               if (-not $description) {
                 $description = "Platform: $platform"
               }
+              $description += if ($Matches.installer) { " - installer" } else { " - portable app (requires WebView2 Runtime)" }
               $downloadUrl = "https://github.com/$repository/releases/download/$tag/$($file.Name)"
               "| [``$($file.Name)``]($downloadUrl) | $description |"
             }
@@ -414,7 +434,10 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2 # zizmor: ignore[superfluous-actions] keeping the action, works fine and already pinned
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          files: ${{ steps.rename-exe.outputs.path }}
+          files: |
+            release/*.exe
+            release/SHA256SUMS.txt
+          fail_on_unmatched_files: true
           body_path: final-release-notes.md
           prerelease: ${{ steps.release-type.outputs.prerelease }}
           make_latest: "true"

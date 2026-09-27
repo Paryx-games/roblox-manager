@@ -4,12 +4,15 @@ on:
   push:
     branches:
       - main
+      - v2
     paths:
       - "ram_core/**"
       - "ram_ui/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - "clippy.toml"
+      - "assets/**"
+      - ".github/workflows/release.yml"
       - ".github/workflows/rust.yml"
   pull_request:
     branches:
@@ -20,6 +23,8 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "clippy.toml"
+      - "assets/**"
+      - ".github/workflows/release.yml"
       - ".github/workflows/rust.yml"
 
 permissions:
@@ -60,6 +65,12 @@ jobs:
         working-directory: ram_ui
         run: pnpm build
 
+      - name: lint frontend
+        run: pnpm --dir ram_ui lint
+
+      - name: type check frontend
+        run: pnpm --dir ram_ui typecheck
+
       # shared with clippy/test/build jobs so they don't each rebuild it
       - name: upload frontend dist
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -67,6 +78,7 @@ jobs:
           name: ram_ui-dist
           path: ram_ui/dist
           retention-days: 1
+          if-no-files-found: error
 
   fmt:
     name: fmt
@@ -163,5 +175,30 @@ jobs:
       - name: cache rust
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
-      - name: build
-        run: cargo build --workspace --all-features --locked
+      - name: setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11
+
+      - name: setup node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ram_ui/pnpm-lock.yaml
+
+      - name: install frontend dependencies
+        run: pnpm --dir ram_ui install --frozen-lockfile
+
+      - name: build tauri application and installer
+        run: pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked
+
+      - name: upload tauri build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tauri-windows-build
+          path: |
+            target/release/rm_tauri.exe
+            target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 7
