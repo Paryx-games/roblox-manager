@@ -20,6 +20,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Changed
 
+- **Debug console logging.** Mirror startup and runtime diagnostics to the debug console while retaining rotating log files. Scrub both destinations and console fallback output before writing them, and include the app version and build profile at startup.
+
 - **Tauri frontend rewrite.** Replaces the egui/eframe interface with Tauri + React/TypeScript, using typed IPC and Rust command handlers to connect the new interface to the existing `ram_core` authentication, encrypted storage, Roblox APIs, and Windows process management.
 - **Workspace navigation.** Organises the app around dedicated Accounts, Instances, Groups, Private Servers, Presets, Inventories, Asset Manager, and Settings pages, with a shared activity bar, sidebars, and page transitions.
 - **Accounts workspace.** Rebuilds account management with grouped and draggable account lists, sorting, search, multi-selection, restricted-account states, profile details, connection actions, and clearer launch controls. Refreshes account identity, avatars, creation dates, moderation and presence in the background across page changes; re-adding an account replaces its credential while preserving account organisation, with confirmation for restricted accounts. Refresh and export controls share a compact header row. Bulk import groups the file chooser and filename on separate lines inside one dashed box; labelled separators distinguish browser login, cookie entry and bulk import. Switching accounts resets the detail scroll position and uses a subtle transition, disabled under reduced motion; credential or moderation changes also reveal recovery guidance at the top.

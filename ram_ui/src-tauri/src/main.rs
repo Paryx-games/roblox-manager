@@ -29,7 +29,7 @@ use state::AppState;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tauri::{Emitter, Manager};
-use tracing_subscriber::fmt::writer::MakeWriter;
+use tracing_subscriber::fmt::writer::{MakeWriter, MakeWriterExt};
 use tracing_subscriber::EnvFilter;
 
 const LOG_FILES_KEPT: usize = 7;
@@ -105,12 +105,17 @@ fn init_logging() {
 
     if std::fs::create_dir_all(&data_dir).is_ok() {
         if let Some(appender) = log_appender(&data_dir) {
-            tracing_subscriber::fmt()
+            let subscriber = tracing_subscriber::fmt()
                 .with_env_filter(filter())
                 .with_target(false)
-                .with_ansi(false)
-                .with_writer(Scrubbed(appender))
-                .init();
+                .with_ansi(false);
+            if cfg!(debug_assertions) {
+                subscriber
+                    .with_writer(Scrubbed(appender.and(std::io::stderr)))
+                    .init();
+            } else {
+                subscriber.with_writer(Scrubbed(appender)).init();
+            }
             return;
         }
     }
@@ -118,6 +123,7 @@ fn init_logging() {
     tracing_subscriber::fmt()
         .with_env_filter(filter())
         .with_target(false)
+        .with_writer(Scrubbed(std::io::stderr))
         .init();
 }
 
@@ -2894,6 +2900,61 @@ async fn open_group_challenge(
 }
 
 #[cfg(test)]
+mod logging_tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone)]
+    struct SharedOutput(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for SharedOutput {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0
+                .lock()
+                .expect("test output lock")
+                .extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn console_and_file_receive_the_same_redacted_diagnostics() {
+        let console = Arc::new(Mutex::new(Vec::new()));
+        let file = Arc::new(Mutex::new(Vec::new()));
+        let console_output = Arc::clone(&console);
+        let file_output = Arc::clone(&file);
+        let writer = (move || SharedOutput(Arc::clone(&file_output)))
+            .and(move || SharedOutput(Arc::clone(&console_output)));
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_writer(Scrubbed(writer))
+            .finish();
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::warn!(
+                "Synthetic diagnostic .ROBLOSECURITY={} gameinfo:{} x-csrf-token={}",
+                "synthetic-cookie",
+                "synthetic-ticket",
+                "synthetic-csrf"
+            );
+        });
+        let console = console.lock().expect("test output lock");
+        let file = file.lock().expect("test output lock");
+        assert_eq!(*console, *file);
+        let text = String::from_utf8_lossy(&console);
+        assert!(text.contains("Synthetic diagnostic"));
+        assert_eq!(text.matches("<redacted>").count(), 3);
+        for secret in ["synthetic-cookie", "synthetic-ticket", "synthetic-csrf"] {
+            assert!(!text.contains(secret));
+        }
+    }
+}
+
+#[cfg(test)]
 mod account_presentation_tests {
     use super::*;
 
@@ -2918,7 +2979,16 @@ mod account_presentation_tests {
 
 fn main() {
     init_logging();
-    tracing::info!(event = "startup", "RM Tauri process started");
+    tracing::info!(
+        event = "startup",
+        version = env!("CARGO_PKG_VERSION"),
+        profile = if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        },
+        "RM Tauri process started"
+    );
 
     let args: Vec<String> = std::env::args().collect();
     if args.len() >= 4 && args[1] == browser_login::FLAG {
