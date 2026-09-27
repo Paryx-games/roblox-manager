@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Asset Manager account loading.** Enables the workspace's Tauri event subscriptions and loads sidebar accounts independently, so a workspace failure cannot hide saved accounts or display a false empty-account message.
+
 - **Asset Manager account selection.** Selects the upload account exclusively in the sidebar, with the same collapsible groups, counts, and saved ordering as Inventories.
 
 - **Asset Manager workspace.** Adds the reference-based account rail, Library and Import Queue views, file selection and drag-and-drop, validated uploads with moderation tracking, experience access grants, retry and queue controls, search, and copyable asset IDs. Reuses the existing core asset index and keeps credentials on the Rust side.

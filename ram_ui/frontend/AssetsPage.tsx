@@ -84,6 +84,8 @@ export function AssetsPage({
     notice: null,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isAccountsLoading, setIsAccountsLoading] = useState(true);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
   const [tab, setTab] = useState<"queue" | "library">("queue");
@@ -133,6 +135,34 @@ export function AssetsPage({
 
   useEffect(() => {
     let isActive = true;
+    setIsAccountsLoading(true);
+    setAccountsError(null);
+    void Promise.allSettled([listAccounts(), listAccountGroups()]).then(
+      ([accountResult, groupResult]) => {
+        if (!isActive) return;
+        if (accountResult.status === "fulfilled") {
+          const nextAccounts = accountResult.value;
+          setAccounts(nextAccounts);
+          setSelectedUserId((current) =>
+            nextAccounts.some((account) => account.userId === current)
+              ? current
+              : (nextAccounts[0]?.userId ?? null),
+          );
+        } else {
+          setAccountsError("Accounts could not be loaded. Retry to reconnect.");
+        }
+        if (groupResult.status === "fulfilled") {
+          setGroupOrder(groupResult.value.map((group) => group.name));
+        }
+        setIsGroupOrderUnavailable(groupResult.status === "rejected");
+        setIsAccountsLoading(false);
+      },
+    );
+    return () => { isActive = false; };
+  }, [refreshCount]);
+
+  useEffect(() => {
+    let isActive = true;
     let stopListening: (() => void) | undefined;
     hasWorkspaceEvent.current = false;
     setIsLoading(true);
@@ -151,23 +181,8 @@ export function AssetsPage({
           stopListening();
           return;
         }
-        const [nextAccounts, nextWorkspace, groupResult] = await Promise.all([
-          listAccounts(),
-          listAssetWorkspace(),
-          listAccountGroups().then(
-            (groups) => ({ groups, isAvailable: true }),
-            () => ({ groups: [], isAvailable: false }),
-          ),
-        ]);
+        const nextWorkspace = await listAssetWorkspace();
         if (!isActive) return;
-        setAccounts(nextAccounts);
-        setGroupOrder(groupResult.groups.map((group) => group.name));
-        setIsGroupOrderUnavailable(!groupResult.isAvailable);
-        setSelectedUserId((current) =>
-          nextAccounts.some((account) => account.userId === current)
-            ? current
-            : (nextAccounts[0]?.userId ?? null),
-        );
         if (!hasWorkspaceEvent.current) setWorkspace(nextWorkspace);
       } catch {
         if (isActive)
@@ -395,7 +410,7 @@ export function AssetsPage({
           <h2>Accounts</h2>
           <p>Select an account to browse its assets and upload new files.</p>
           {isGroupOrderUnavailable && <p role="alert">Saved group order could not be loaded. Reopen this page to retry.</p>}
-          {isLoading ? (
+          {isAccountsLoading ? (
             <LoadingSkeleton
               layout="accounts"
               label="Loading upload accounts"
@@ -448,7 +463,13 @@ export function AssetsPage({
               );
             })
           )}
-          {!isLoading && accounts.length === 0 && (
+          {accountsError && (
+            <div role="alert">
+              <p>{accountsError}</p>
+              <button className="account-button" type="button" onClick={() => setRefreshCount((current) => current + 1)}>Retry accounts</button>
+            </div>
+          )}
+          {!isAccountsLoading && !accountsError && accounts.length === 0 && (
             <p>Add an account on the Accounts page to begin uploading.</p>
           )}
         </aside>
