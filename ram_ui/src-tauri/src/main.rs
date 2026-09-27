@@ -8,6 +8,7 @@ mod launcher;
 mod lifecycle;
 mod login;
 mod state;
+mod webview_recovery;
 
 #[path = "../../src/browser_login.rs"]
 #[allow(dead_code)]
@@ -3014,11 +3015,34 @@ fn main() {
         };
         std::process::exit(code);
     }
+    let mut context = tauri::generate_context!();
+    if let Some(window) = context
+        .config_mut()
+        .app
+        .windows
+        .iter_mut()
+        .find(|window| window.label == "main")
+    {
+        window.create = false;
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .manage(asset_manager::AssetManager::default())
         .setup(|app| {
+            app.manage(webview_recovery::RecoveryState::default());
+            let configuration = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|window| window.label == "main")
+                .ok_or("Main window configuration unavailable")?;
+            let profile = app.path().app_local_data_dir()?.join("interface-webview");
+            let window = tauri::WebviewWindowBuilder::from_config(app.handle(), configuration)?
+                .data_directory(profile)
+                .build()?;
+            webview_recovery::monitor(app.handle(), &window)?;
             app.manage(background::start(app.handle()));
             Ok(())
         })
@@ -3109,12 +3133,21 @@ fn main() {
             change_group_membership,
             open_group_challenge
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building RM")
-        .run(|app, event| {
-            if matches!(event, tauri::RunEvent::Exit) {
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested {
+                api, code: None, ..
+            } if app
+                .state::<webview_recovery::RecoveryState>()
+                .is_recovering() =>
+            {
+                api.prevent_exit();
+            }
+            tauri::RunEvent::Exit => {
                 app.state::<background::BackgroundTasks>().stop();
                 instances::shutdown(&app.state::<AppState>());
             }
+            _ => {}
         });
 }

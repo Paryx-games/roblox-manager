@@ -6,6 +6,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Fixed
 
+- **Main-window browser recovery.** Give the main interface a separate browser profile. Detect WebView2 browser and renderer failures, log their process kind, and recreate the interface with an isolated browser profile while retaining the unlocked account store and background services. Bound recovery attempts and show a native error dialog if restoration fails instead of silently leaving a black window.
+
 - **Login responsiveness.** Read login cookies through asynchronous WebView2 callbacks without blocking or nesting the window message loop. Close failed or unresponsive login sessions and show retry guidance instead of leaving account addition waiting silently.
 
 - **Account login window.** Use an isolated, private Tauri webview for Roblox login so focus changes and resizing share the app window lifecycle. Capture the credential only in Rust, close the window on completion, and cancel cleanly when it is closed.
