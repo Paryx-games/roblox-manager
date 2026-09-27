@@ -26,7 +26,7 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Changed
 
-- **Windows installer.** Add RM branding with the vertical LogoThumb artwork in the sidebar, matching installer and uninstaller icons, per-user installation, Start menu grouping and clearer data-preservation wording. Embed the WebView2 bootstrapper, block downgrades and document installation, upgrades and uninstall behaviour.
+- **Windows installer.** Name the installer, installation, shortcuts and app window Roblox Manager. Prompt users to remove an older installation named RM before installing under the new name, preserving saved data. Add the vertical LogoThumb artwork in the sidebar, matching installer and uninstaller icons, per-user installation, Start menu grouping and clearer data-preservation wording. Embed the WebView2 bootstrapper, block downgrades and document installation, upgrades and uninstall behaviour.
 
 - **Debug console logging.** Mirror startup and runtime diagnostics to the debug console while retaining rotating log files. Scrub both destinations and console fallback output before writing them, and include the app version and build profile at startup.
 

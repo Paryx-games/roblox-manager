@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "RM",
+  "productName": "Roblox Manager",
   "version": "1.16.0",
   "identifier": "com.paryxgames.roblox-manager",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "RM",
+        "title": "Roblox Manager",
         "width": 1200,
         "height": 760,
         "minWidth": 1200,
@@ -53,7 +53,7 @@
         },
         "installerHooks": "installer/hooks.nsh",
         "compression": "lzma",
-        "startMenuFolder": "RM"
+        "startMenuFolder": "Roblox Manager"
       }
     }
   }
