@@ -6,6 +6,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Fixed
 
+- **Account refresh feedback.** Report valid and invalid account counts when refreshing all accounts. Account recovery revalidates only the displayed account, and individual results name that account.
+
 - **Account validation.** Do not mark saved credentials expired when refresh encounters a Roblox challenge, forbidden response or CSRF failure. Preserve the previous status when verification is inconclusive, show retry/browser guidance, and clear an old expired flag after successful identity verification. Confirmed authentication rejection or a different authenticated account still blocks the credential.
 
 ### Changed

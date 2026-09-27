@@ -1144,11 +1144,10 @@ export function AccountsPage({
     }
   }
 
-  async function revalidate(accountIds?: number[]) {
-    const ids = accountIds ?? (selectedIds.size ? [...selectedIds] : []);
+  async function revalidate(accountIds: number[]) {
     setMutationLoading(true);
     try {
-      const updated = await revalidateAccounts(ids);
+      const updated = await revalidateAccounts(accountIds);
       setAccounts((current) =>
         current.map(
           (account) =>
@@ -1157,9 +1156,9 @@ export function AccountsPage({
       );
       const invalidAccounts = updated.filter((account) => account.cookieExpired);
       if (invalidAccounts.length) {
-        setNotice("Your credentials are still invalid.", "warning", "standard", "Account needs revalidation");
+        setNotice(updated.length === 1 ? `${invalidAccounts[0].label}: the saved credentials are invalid. Replace the credential and try again.` : `${updated.length} accounts checked: ${updated.length - invalidAccounts.length} with valid credentials, ${invalidAccounts.length} with invalid credentials.`, "warning", "standard", "Refresh completed");
       } else {
-        setNotice("Credentials, moderation, avatars and account details refreshed.", "success", "standard", "Accounts refreshed");
+        setNotice(updated.length === 1 ? `${updated[0].label}: credentials are valid. Account details refreshed.` : `${updated.length} accounts checked. All credentials are valid; account details refreshed.`, "success", "standard", "Accounts refreshed");
       }
     } catch (error) {
       setNotice(operationError(error, "Account validation could not be completed. Try again."), "error", "standard", "Could not verify account");
@@ -1833,7 +1832,7 @@ export function AccountsPage({
       <div className="header-row accounts-header-row">
         <h1 className="header-title">Accounts</h1>
         <div className="accounts-header-actions">
-          <button className="account-button" type="button" disabled={mutationLoading || loading || !!error || !accounts.length} onClick={() => void revalidate([])}>
+          <button className="account-button" type="button" disabled={mutationLoading || loading || !!error || !accounts.length} data-tip="Refresh every managed account, including unselected accounts" onClick={() => void revalidate([])}>
             <Icon name="refresh" />
             {mutationLoading ? "Working..." : "Refresh accounts"}
           </button>
@@ -2614,7 +2613,7 @@ export function AccountsPage({
                         <span className="account-warning-action-icon"><SharedIcon name="log-in" tone="current-color" /></span>
                         <span><strong>Replace account credential</strong><small>Log in again or paste a fresh cookie</small></span>
                       </button>
-                      <button className="account-warning-action" type="button" disabled={mutationLoading} onClick={() => void revalidate()}>
+                      <button className="account-warning-action" type="button" disabled={mutationLoading} onClick={() => void revalidate([selectedAccount.userId])}>
                         <span className="account-warning-action-icon"><SharedIcon name="refresh" tone="current-color" /></span>
                         <span><strong>Revalidate account</strong><small>Check if the credentials are valid again</small></span>
                       </button>
