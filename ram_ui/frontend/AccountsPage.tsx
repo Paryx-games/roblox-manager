@@ -1604,10 +1604,16 @@ export function AccountsPage({
     }
   }
 
+  function formatExportAge(createdAt: string | null) {
+    if (!createdAt) return "Unknown";
+    const hours = Math.max(0, Math.floor((Date.now() - Date.parse(createdAt)) / 3600000));
+    return `${Math.floor(hours / (24 * 365))} years, ${Math.floor((hours % (24 * 365)) / (24 * 30))} months, ${Math.floor((hours % (24 * 30)) / 24)} days, ${hours % 24} hours`;
+  }
+
   function exportAccountsCsv() {
     const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
     const rows = [
-      "username,display_name,user_id,alias,group,created_at,last_activity",
+      "username,display_name,user_id,alias,group,account_age,last_used",
       ...accounts.map((account) =>
         [
           account.username,
@@ -1615,8 +1621,8 @@ export function AccountsPage({
           String(account.userId),
           account.alias,
           account.group,
-          account.createdAt ?? "",
-          account.lastActivity ?? "",
+          formatExportAge(account.createdAt),
+          account.lastUsed ?? "",
         ]
           .map(escape)
           .join(","),

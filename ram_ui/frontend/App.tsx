@@ -2,7 +2,7 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { InstancesPage } from "./InstancesPage";
 import { Toast, type ToastItem } from "./Toast";
-import { listInstances, listAccounts, operationError, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
+import { listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
 import { GroupsPage } from "./GroupsPage";
@@ -111,6 +111,22 @@ export function App() {
   const [isInstancesLoading, setIsInstancesLoading] = useState(true);
   const [instancesError, setInstancesError] = useState<string | null>(null);
   const [runtimeToast, setRuntimeToast] = useState<ToastItem | null>(null);
+  const [settings, setSettings] = useState<SettingsConfig | null>(null);
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const visibleNavItems = navItems.filter((item) =>
+    item.page === "Asset Manager" || item.page === "Inventories" ? settings?.developerOptions : true,
+  );
+
+  async function clearCache() {
+    if (isClearingCache) return;
+    setIsClearingCache(true);
+    try {
+      await clearApplicationCaches();
+      setRuntimeToast({ id: Date.now(), title: "Cache cleared", message: "Cached application data has been cleared.", kind: "success", duration: "standard" });
+    } catch (error) {
+      setRuntimeToast({ id: Date.now(), title: "Cache could not be cleared", message: operationError(error, "Try again from Settings."), kind: "error", duration: "long" });
+    } finally { setIsClearingCache(false); }
+  }
 
   async function refreshInstances() {
     setIsInstancesLoading(true);
@@ -131,6 +147,7 @@ export function App() {
     const stops: Array<() => void> = [];
     async function subscribe() {
       const results = await Promise.allSettled([
+        listen<SettingsConfig>("settings-updated", (event) => { if (isActive) setSettings(event.payload); }),
         listen<InstanceWorkspace>("instances-updated", (event) => {
           if (!isActive) return;
           hasInstanceEvent = true;
@@ -165,6 +182,7 @@ export function App() {
         }
       }
       if (!isActive) return;
+      try { const snapshot = await getSettings(); if (isActive) setSettings(snapshot.config); } catch { /* settings remain unavailable until a successful save */ }
       const [instanceResult, accountResult] = await Promise.allSettled([listInstances(), listAccounts()]);
       if (!isActive) return;
       if (instanceResult.status === "fulfilled" && !hasInstanceEvent) setWorkspace(instanceResult.value);
@@ -175,6 +193,10 @@ export function App() {
     void subscribe();
     return () => { isActive = false; stops.forEach((stop) => stop()); };
   }, []);
+
+  useEffect(() => {
+    if (settings && !settings.developerOptions && (activeNav === "Asset Manager" || activeNav === "Inventories")) setActiveNav("Accounts");
+  }, [settings, activeNav]);
 
 
   useEffect(() => {
@@ -340,7 +362,7 @@ export function App() {
 
       <div className="body-row">
         <nav className="sidebar" aria-label="Primary navigation">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <RailButton
               {...item}
               key={item.label}
@@ -353,7 +375,7 @@ export function App() {
             />
           ))}
           <span className="sidebar-spacer" />
-          <RailButton label="Clear Cache" icon="eraser" onClick={() => {}} />
+          {settings?.utilityEnabled && <RailButton label="Clear Cache" icon="eraser" disabled={isClearingCache} onClick={() => void clearCache()} />}
           <RailButton
             label="Settings"
             icon="settings"

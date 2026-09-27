@@ -24,6 +24,7 @@ export interface AccountSummary {
   presenceLocation: string;
   canLaunch: boolean;
   lastActivity: string | null;
+  lastUsed: string | null;
 }
 
 export interface StoreStatus {

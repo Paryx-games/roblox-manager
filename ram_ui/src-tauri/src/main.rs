@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use state::AppState;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tracing_subscriber::fmt::writer::MakeWriter;
 use tracing_subscriber::EnvFilter;
 
@@ -143,6 +143,7 @@ struct AccountSummary {
     presence_location: String,
     can_launch: bool,
     last_activity: Option<String>,
+    last_used: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -916,15 +917,40 @@ fn account_cookie(runtime: &state::RuntimeState, user_id: u64) -> Result<String,
     }
 }
 
-fn account_summary(account: &Account, player_path: Option<String>) -> AccountSummary {
+fn account_summary(
+    account: &Account,
+    player_path: Option<String>,
+    config: &AppConfig,
+) -> AccountSummary {
+    let anonymous_label = format!("Account {}", account.user_id);
     AccountSummary {
         user_id: account.user_id,
-        label: account.label().to_string(),
-        username: account.username.clone(),
-        display_name: account.display_name.clone(),
-        alias: account.alias.clone(),
+        label: if config.anonymize_names {
+            anonymous_label.clone()
+        } else {
+            account.label().to_string()
+        },
+        username: if config.anonymize_names {
+            anonymous_label.clone()
+        } else {
+            account.username.clone()
+        },
+        display_name: if config.anonymize_names {
+            anonymous_label.clone()
+        } else {
+            account.display_name.clone()
+        },
+        alias: if config.anonymize_names {
+            String::new()
+        } else {
+            account.alias.clone()
+        },
         group: account.group.clone(),
-        avatar_url: account.avatar_url.clone(),
+        avatar_url: if config.anonymize_names {
+            String::new()
+        } else {
+            account.avatar_url.clone()
+        },
         is_pinned: account.is_pinned,
         sort_order: account.sort_order,
         cookie_expired: account.cookie_expired,
@@ -951,6 +977,7 @@ fn account_summary(account: &Account, player_path: Option<String>) -> AccountSum
         presence_text: account.last_presence.status_text().to_string(),
         presence_location: account.last_presence.last_location.clone(),
         can_launch: !account.cookie_expired && account.can_launch(),
+        last_used: account.last_used.map(|timestamp| timestamp.to_rfc3339()),
         last_activity: account
             .last_used
             .or(account.last_validated)
@@ -1087,7 +1114,7 @@ fn list_accounts(state: tauri::State<'_, AppState>) -> Result<Vec<AccountSummary
                 .custom_player_paths
                 .get(&account.user_id)
                 .map(|path| path.display().to_string());
-            account_summary(account, player_path)
+            account_summary(account, player_path, &runtime.config)
         })
         .collect())
 }
@@ -1123,13 +1150,14 @@ fn update_account_alias(
         return Err("Alias must be 64 characters or fewer".to_string());
     }
     let player_path = configured_player_path(&runtime, user_id);
+    let presentation_config = runtime.config.clone();
     let summary = {
         let account = runtime
             .accounts
             .find_by_id_mut(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
         account.alias = alias.trim().to_string();
-        account_summary(account, player_path)
+        account_summary(account, player_path, &presentation_config)
     };
     save_runtime(&runtime)?;
     Ok(summary)
@@ -1145,13 +1173,14 @@ fn toggle_account_pin(
         .lock()
         .map_err(|_| "Account state unavailable".to_string())?;
     let player_path = configured_player_path(&runtime, user_id);
+    let presentation_config = runtime.config.clone();
     let summary = {
         let account = runtime
             .accounts
             .find_by_id_mut(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
         account.is_pinned = !account.is_pinned;
-        account_summary(account, player_path)
+        account_summary(account, player_path, &presentation_config)
     };
     save_runtime(&runtime)?;
     Ok(summary)
@@ -1172,13 +1201,14 @@ fn update_account_group(
         return Err("Group name must be 64 characters or fewer".to_string());
     }
     let player_path = configured_player_path(&runtime, user_id);
+    let presentation_config = runtime.config.clone();
     let summary = {
         let account = runtime
             .accounts
             .find_by_id_mut(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
         account.group = group.to_string();
-        account_summary(account, player_path)
+        account_summary(account, player_path, &presentation_config)
     };
     save_runtime(&runtime)?;
     Ok(summary)
@@ -1202,7 +1232,13 @@ fn reorder_accounts(
         .accounts
         .accounts
         .iter()
-        .map(|account| account_summary(account, configured_player_path(&runtime, account.user_id)))
+        .map(|account| {
+            account_summary(
+                account,
+                configured_player_path(&runtime, account.user_id),
+                &runtime.config,
+            )
+        })
         .collect();
     save_runtime(&runtime)?;
     Ok(summaries)
@@ -1241,7 +1277,7 @@ fn update_player_path(
         .find_by_id(user_id)
         .ok_or_else(|| "Account not found".to_string())?;
     let player_path = configured_player_path(&runtime, user_id);
-    Ok(account_summary(account, player_path))
+    Ok(account_summary(account, player_path, &runtime.config))
 }
 
 fn save_config(runtime: &state::RuntimeState) -> Result<(), String> {
@@ -1347,6 +1383,7 @@ fn get_settings(state: tauri::State<'_, AppState>) -> Result<SettingsSnapshot, S
 
 #[tauri::command]
 fn save_settings(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     settings: SettingsUpdate,
 ) -> Result<SettingsConfig, String> {
@@ -1360,7 +1397,11 @@ fn save_settings(
         .save(&runtime.config_path)
         .map_err(|error| error.to_string())?;
     runtime.config = candidate;
-    Ok(SettingsConfig::from_config(&runtime.config))
+    let settings = SettingsConfig::from_config(&runtime.config);
+    drop(runtime);
+    accounts::publish(&app);
+    let _ = app.emit("settings-updated", &settings);
+    Ok(settings)
 }
 
 #[derive(Debug, Deserialize)]
@@ -1950,7 +1991,14 @@ async fn open_inventory_assets(
                     .find_by_id(target.user_id)
                     .ok_or_else(|| "Account not found".to_string())?;
                 let (label, url) = inventory_browser_destination(target)?;
-                Ok((label, url, format!("Roblox - {}", account.label())))
+                Ok((
+                    label,
+                    url,
+                    format!(
+                        "Roblox - {}",
+                        account_summary(account, None, &runtime.config).label
+                    ),
+                ))
             })
             .collect::<Result<Vec<_>, String>>()?
     };
@@ -2384,7 +2432,7 @@ async fn browse_as_account(
             .ok_or_else(|| "Account not found".to_string())?;
         (
             account_cookie(&runtime, user_id)?,
-            account.label().to_string(),
+            account_summary(account, None, &runtime.config).label,
         )
     };
     let profile_dir = std::env::var_os("APPDATA")
@@ -2815,7 +2863,7 @@ async fn open_group_challenge(
             .ok_or_else(|| "Account not found".to_string())?;
         (
             account_cookie(&runtime, user_id)?,
-            account.label().to_string(),
+            account_summary(account, None, &runtime.config).label,
         )
     };
     let profile_dir = std::env::var_os("APPDATA")
@@ -2831,6 +2879,29 @@ async fn open_group_challenge(
     .await
     .map_err(|_| "Browser launch task failed".to_string())??;
     Ok(())
+}
+
+#[cfg(test)]
+mod account_presentation_tests {
+    use super::*;
+
+    #[test]
+    fn anonymisation_hides_names_and_avatars_without_changing_identity() {
+        let mut account = Account::new(42, "SyntheticUser".into(), "Synthetic Name".into());
+        account.alias = "Private alias".into();
+        account.avatar_url = "https://example.invalid/avatar.png".into();
+        let config = AppConfig {
+            anonymize_names: true,
+            ..AppConfig::default()
+        };
+        let summary = account_summary(&account, None, &config);
+        assert_eq!(summary.user_id, 42);
+        assert_eq!(summary.username, "Account 42");
+        assert_eq!(summary.display_name, "Account 42");
+        assert!(summary.alias.is_empty());
+        assert!(summary.avatar_url.is_empty());
+        assert_eq!(account.username, "SyntheticUser");
+    }
 }
 
 fn main() {

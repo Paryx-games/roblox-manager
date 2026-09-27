@@ -65,7 +65,13 @@ pub fn summaries(state: &AppState) -> Result<Vec<AccountSummary>, String> {
         .accounts
         .accounts
         .iter()
-        .map(|account| account_summary(account, configured_player_path(&runtime, account.user_id)))
+        .map(|account| {
+            account_summary(
+                account,
+                configured_player_path(&runtime, account.user_id),
+                &runtime.config,
+            )
+        })
         .collect())
 }
 
@@ -119,8 +125,11 @@ pub async fn stage_addition(
                 .moderation
                 .as_ref()
                 .is_some_and(ModerationInfo::is_active);
-            let summary =
-                account_summary(&account, configured_player_path(&runtime, account.user_id));
+            let summary = account_summary(
+                &account,
+                configured_player_path(&runtime, account.user_id),
+                &runtime.config,
+            );
             drop(runtime);
             let confirmation_id = uuid::Uuid::new_v4().to_string();
             {
@@ -252,6 +261,7 @@ fn commit_addition(state: &AppState, confirmation_id: &str) -> Result<AccountSum
     Ok(account_summary(
         account,
         configured_player_path(&runtime, user_id),
+        &runtime.config,
     ))
 }
 
