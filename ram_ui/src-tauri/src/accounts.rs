@@ -27,16 +27,26 @@ pub struct AdditionOutcome {
 }
 
 fn credential_was_rejected(error: &CoreError) -> bool {
-    matches!(
-        error,
-        CoreError::CookieRejected
-            | CoreError::CookieRejectedWithReason(_)
-            | CoreError::AuthFailed(_)
-            | CoreError::RobloxApi {
-                status: 401 | 403,
-                ..
-            }
-    )
+    // forbidden responses can request a challenge without invalidating the session
+    matches!(error, CoreError::RobloxApi { status: 401, .. })
+}
+
+fn apply_validation(
+    account: &mut Account,
+    validation: Result<(u64, String, String), CoreError>,
+) -> bool {
+    match validation {
+        Ok((user_id, username, display_name)) if user_id == account.user_id => {
+            account.username = username;
+            account.display_name = display_name;
+            account.cookie_expired = false;
+            account.last_validated = Some(chrono::Utc::now());
+        }
+        Ok(_) => account.cookie_expired = true,
+        Err(ref error) if credential_was_rejected(error) => account.cookie_expired = true,
+        Err(_) => return false,
+    }
+    true
 }
 
 fn merge_moderation(
@@ -355,16 +365,8 @@ pub async fn refresh(
             let Some(account) = runtime.accounts.find_by_id_mut(user_id) else {
                 return Ok(false);
             };
-            match validation {
-                Ok((validated_id, username, display_name)) if validated_id == user_id => {
-                    account.username = username;
-                    account.display_name = display_name;
-                    account.cookie_expired = false;
-                    account.last_validated = Some(chrono::Utc::now());
-                }
-                Ok(_) => account.cookie_expired = true,
-                Err(ref error) if credential_was_rejected(error) => account.cookie_expired = true,
-                Err(_) => return Ok(false),
+            if !apply_validation(account, validation) {
+                return Ok(false);
             }
             if let Ok(Some(created)) = created {
                 account.created_at = Some(created);
@@ -392,7 +394,7 @@ pub async fn refresh(
     }
     if completed == 0 {
         return Err(
-            "No accounts could be refreshed. Check your connection and stored credentials.".into(),
+            "Accounts could not be verified. Your previous credential status was kept. Retry later, or open the account browser to check for a Roblox challenge.".into(),
         );
     }
     let _ = crate::background::refresh_presence(app, ids.clone()).await;
@@ -432,6 +434,63 @@ mod tests {
             status: 503,
             message: String::new()
         }));
-        assert!(credential_was_rejected(&CoreError::CookieRejected));
+        assert!(credential_was_rejected(&CoreError::RobloxApi {
+            status: 401,
+            message: String::new()
+        }));
+    }
+
+    #[test]
+    fn forbidden_and_csrf_failures_do_not_expire_credentials() {
+        let failures = [
+            CoreError::CookieRejected,
+            CoreError::CookieRejectedWithReason("Synthetic challenge required".into()),
+            CoreError::AuthFailed("403 Forbidden after CSRF retries".into()),
+            CoreError::RobloxApi {
+                status: 403,
+                message: String::new(),
+            },
+        ];
+        for failure in failures {
+            assert!(!credential_was_rejected(&failure));
+        }
+    }
+
+    #[test]
+    fn validation_changes_credential_status_only_with_an_authentication_verdict() {
+        let mut account = Account::new(1, "Original".into(), "Original".into());
+        assert!(!apply_validation(
+            &mut account,
+            Err(CoreError::CookieRejected)
+        ));
+        assert!(!account.cookie_expired);
+        assert!(account.last_validated.is_none());
+        assert!(apply_validation(
+            &mut account,
+            Err(CoreError::RobloxApi {
+                status: 401,
+                message: String::new(),
+            })
+        ));
+        assert!(account.cookie_expired);
+        assert!(!apply_validation(
+            &mut account,
+            Err(CoreError::CookieRejected)
+        ));
+        assert!(account.cookie_expired);
+        assert!(apply_validation(
+            &mut account,
+            Ok((1, "Updated".into(), "Updated name".into()))
+        ));
+        assert!(!account.cookie_expired);
+        assert_eq!(account.username, "Updated");
+        assert!(account.last_validated.is_some());
+        assert!(apply_validation(
+            &mut account,
+            Ok((2, "Other user".into(), "Other".into()))
+        ));
+        assert!(account.cookie_expired);
+        assert_eq!(account.user_id, 1);
+        assert_eq!(account.username, "Updated");
     }
 }

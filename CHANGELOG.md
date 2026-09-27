@@ -4,6 +4,10 @@
 
 v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/roblox-manager/tree/v2) branch as part of [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30).
 
+### Fixed
+
+- **Account validation.** Do not mark saved credentials expired when refresh encounters a Roblox challenge, forbidden response or CSRF failure. Preserve the previous status when verification is inconclusive, show retry/browser guidance, and clear an old expired flag after successful identity verification. Confirmed authentication rejection or a different authenticated account still blocks the credential.
+
 ### Changed
 
 - **Tauri frontend rewrite.** Replaces the egui/eframe interface with Tauri + React/TypeScript, using typed IPC and Rust command handlers to connect the new interface to the existing `ram_core` authentication, encrypted storage, Roblox APIs, and Windows process management.

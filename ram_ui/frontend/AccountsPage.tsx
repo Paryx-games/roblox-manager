@@ -1161,8 +1161,8 @@ export function AccountsPage({
       } else {
         setNotice("Credentials, moderation, avatars and account details refreshed.", "success", "standard", "Accounts refreshed");
       }
-    } catch {
-      setNotice("Account validation could not be completed. Try again.", "error", "standard", "Failed to revalidate account");
+    } catch (error) {
+      setNotice(operationError(error, "Account validation could not be completed. Try again."), "error", "standard", "Could not verify account");
     } finally {
       setMutationLoading(false);
     }
