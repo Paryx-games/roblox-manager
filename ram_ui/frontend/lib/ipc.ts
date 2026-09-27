@@ -748,3 +748,16 @@ export async function killInstance(instance: InstanceSummary): Promise<void> {
 export function operationError(error: unknown, fallback: string): string {
   return typeof error === "string" ? error : error instanceof Error ? error.message : fallback;
 }
+
+export interface StartupStatus {
+  needsTutorial: boolean;
+  changelog: string | null;
+  passwordlessOffer: boolean;
+  legacyMigrationAvailable: boolean;
+}
+export async function startupStatus(): Promise<StartupStatus> { return invoke("startup_status"); }
+export async function acknowledgeStartup(section: "version" | "passwordless"): Promise<void> { return invoke("acknowledge_startup", { section }); }
+export async function migrateLegacyData(): Promise<void> { return invoke("migrate_legacy_data"); }
+export async function resetAccountStore(confirmation: string): Promise<StoreStatus> { return invoke("reset_account_store", { confirmation }); }
+export async function checkReleaseUpdate(): Promise<[string, string] | null> { return invoke("check_release_update"); }
+export async function openReleasePage(url: string): Promise<void> { return invoke("open_release_page", { url }); }

@@ -5,6 +5,7 @@ mod asset_manager;
 mod background;
 mod instances;
 mod launcher;
+mod lifecycle;
 mod state;
 
 #[path = "../../src/browser_login.rs"]
@@ -1009,7 +1010,10 @@ fn store_status(state: tauri::State<'_, AppState>) -> Result<StoreStatus, String
 }
 
 #[tauri::command]
-fn unlock_device(state: tauri::State<'_, AppState>) -> Result<StoreStatus, String> {
+fn unlock_device(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<StoreStatus, String> {
     let (path, runtime_state) = {
         let runtime = state
             .runtime
@@ -1026,6 +1030,7 @@ fn unlock_device(state: tauri::State<'_, AppState>) -> Result<StoreStatus, Strin
     runtime.legacy_store = session.is_legacy();
     runtime.session = Some(session);
     runtime.unlocked = true;
+    let _ = app.emit("store-unlocked", ());
     Ok(StoreStatus {
         exists: true,
         unlocked: true,
@@ -1036,7 +1041,10 @@ fn unlock_device(state: tauri::State<'_, AppState>) -> Result<StoreStatus, Strin
 }
 
 #[tauri::command]
-fn create_device_store(state: tauri::State<'_, AppState>) -> Result<StoreStatus, String> {
+fn create_device_store(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<StoreStatus, String> {
     let runtime_state = state.runtime.clone();
     let mut runtime = runtime_state
         .lock()
@@ -1053,6 +1061,7 @@ fn create_device_store(state: tauri::State<'_, AppState>) -> Result<StoreStatus,
     runtime.session = Some(session);
     runtime.unlocked = true;
     runtime.legacy_store = false;
+    let _ = app.emit("store-unlocked", ());
     Ok(StoreStatus {
         exists: true,
         unlocked: true,
@@ -1064,6 +1073,7 @@ fn create_device_store(state: tauri::State<'_, AppState>) -> Result<StoreStatus,
 
 #[tauri::command]
 async fn unlock_password(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     password: String,
 ) -> Result<StoreStatus, String> {
@@ -1075,7 +1085,21 @@ async fn unlock_password(
         (runtime.config.accounts_path.clone(), state.runtime.clone())
     };
     let (accounts, session) = tauri::async_runtime::spawn_blocking(move || {
-        crypto::unlock_with_password(&path, &password).map_err(|error| error.to_string())
+        let (accounts, session) = crypto::unlock_with_password(&path, &password).map_err(|_| {
+            "The password was not accepted or the store could not be opened".to_string()
+        })?;
+        if session.is_legacy() {
+            let (upgraded, next_session) = crypto::upgrade_v1(&accounts, &session, Some(&password))
+                .map_err(|_| {
+                    "Legacy store upgrade failed. The original store is unchanged".to_string()
+                })?;
+            crypto::save_rekeyed(&path, &upgraded, &next_session).map_err(|_| {
+                "The upgraded store could not be saved. Keep your original backup".to_string()
+            })?;
+            Ok::<_, String>((upgraded, next_session))
+        } else {
+            Ok((accounts, session))
+        }
     })
     .await
     .map_err(|_| "Account unlock task failed".to_string())??;
@@ -1086,6 +1110,7 @@ async fn unlock_password(
     runtime.legacy_store = session.is_legacy();
     runtime.session = Some(session);
     runtime.unlocked = true;
+    let _ = app.emit("store-unlocked", ());
     Ok(StoreStatus {
         exists: true,
         unlocked: true,
@@ -1624,35 +1649,31 @@ async fn rekey_store(
     state: tauri::State<'_, AppState>,
     password: Option<String>,
 ) -> Result<(), String> {
-    let (path, accounts, session) = {
-        let runtime = state
-            .runtime
+    let runtime_state = state.runtime.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = runtime_state
             .lock()
             .map_err(|_| "Application state unavailable".to_string())?;
-        (
-            runtime.config.accounts_path.clone(),
-            runtime.accounts.clone(),
-            runtime
-                .session
-                .clone()
-                .ok_or_else(|| "Account store is locked".to_string())?,
-        )
-    };
-    let next_session = tauri::async_runtime::spawn_blocking(move || {
-        let next_session =
-            crypto::rewrap(&session, password.as_deref()).map_err(|error| error.to_string())?;
-        crypto::save_rekeyed(&path, &accounts, &next_session).map_err(|error| error.to_string())?;
-        Ok::<_, String>(next_session)
+        let session = runtime
+            .session
+            .as_ref()
+            .ok_or("Unlock the account store first")?;
+        let (accounts, next_session) = if session.is_legacy() {
+            crypto::upgrade_v1(&runtime.accounts, session, password.as_deref())
+        } else {
+            crypto::rewrap(session, password.as_deref())
+                .map(|session| (runtime.accounts.clone(), session))
+        }
+        .map_err(|_| "The store encryption could not be changed".to_string())?;
+        crypto::save_rekeyed(&runtime.config.accounts_path, &accounts, &next_session)
+            .map_err(|_| "The rekeyed account store could not be saved".to_string())?;
+        runtime.accounts = accounts;
+        runtime.session = Some(next_session);
+        runtime.legacy_store = false;
+        Ok::<_, String>(())
     })
     .await
-    .map_err(|error| format!("Encryption task failed: {error}"))??;
-
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    runtime.session = Some(next_session);
-    runtime.legacy_store = false;
+    .map_err(|_| "Encryption task failed".to_string())??;
     Ok(())
 }
 
@@ -2951,6 +2972,12 @@ fn main() {
             instances::kill_instance,
             accounts::confirm_account_addition,
             accounts::cancel_account_addition,
+            lifecycle::startup_status,
+            lifecycle::acknowledge_startup,
+            lifecycle::migrate_legacy_data,
+            lifecycle::reset_account_store,
+            lifecycle::check_release_update,
+            lifecycle::open_release_page,
             list_accounts,
             store_status,
             create_device_store,

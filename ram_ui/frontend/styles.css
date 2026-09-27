@@ -36,6 +36,25 @@
   font-size: var(--text-xs);
 }
 
+.startup-changelog {
+  max-height: 50vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.titlebar .titlebar-update {
+  flex: 0 0 auto;
+  width: auto;
+  margin-left: auto;
+}
+
+.titlebar-update + .window-controls {
+  margin-left: var(--space-3);
+}
+
 @font-face {
   font-family: Roboto;
   font-style: normal;

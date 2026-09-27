@@ -10,6 +10,7 @@ pub struct RuntimeState {
     pub session: Option<StoreSession>,
     pub unlocked: bool,
     pub legacy_store: bool,
+    pub is_first_install: bool,
     pub credential_revisions: std::collections::HashMap<u64, u64>,
 }
 
@@ -30,14 +31,33 @@ impl Default for AppState {
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("."))
             .join("RM");
-        let config_path = data_dir.join("config.json");
+        let modern_config = data_dir.join("config.json");
+        let legacy_directory = [
+            std::env::current_dir().ok(),
+            std::env::current_exe()
+                .ok()
+                .and_then(|path| path.parent().map(PathBuf::from)),
+        ]
+        .into_iter()
+        .flatten()
+        .find(|directory| {
+            directory.join("config.json").is_file() || directory.join("accounts.dat").is_file()
+        });
+        let source_directory = if modern_config.exists() || data_dir.join("accounts.dat").exists() {
+            data_dir.clone()
+        } else {
+            legacy_directory.unwrap_or_else(|| data_dir.clone())
+        };
+        let config_path = source_directory.join("config.json");
         let mut config = AppConfig::load(&config_path);
         if config.accounts_path == std::path::Path::new("accounts.dat") {
-            config.accounts_path = data_dir.join("accounts.dat");
+            config.accounts_path = source_directory.join("accounts.dat");
         }
 
         Self {
             runtime: Arc::new(Mutex::new(RuntimeState {
+                is_first_install: !config.accounts_path.is_file()
+                    && config.last_seen_version.is_none(),
                 accounts: AccountStore::default(),
                 config,
                 config_path,

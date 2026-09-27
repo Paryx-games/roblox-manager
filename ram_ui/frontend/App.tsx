@@ -2,6 +2,9 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { InstancesPage } from "./InstancesPage";
 import { Toast, type ToastItem } from "./Toast";
+import { Popup } from "./components/Popup";
+import { ConfirmModal } from "./ConfirmModal";
+import { acknowledgeStartup, checkReleaseUpdate, clearPassword, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
 import { listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
@@ -113,6 +116,52 @@ export function App() {
   const [runtimeToast, setRuntimeToast] = useState<ToastItem | null>(null);
   const [settings, setSettings] = useState<SettingsConfig | null>(null);
   const [isClearingCache, setIsClearingCache] = useState(false);
+  const [startup, setStartup] = useState<StartupStatus | null>(null);
+  const [startupError, setStartupError] = useState<string | null>(null);
+  const [isStartupPending, setIsStartupPending] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [isMigrationDismissed, setIsMigrationDismissed] = useState(false);
+  const [update, setUpdate] = useState<[string, string] | null>(null);
+  const [browserPlaceId, setBrowserPlaceId] = useState<number | null>(null);
+  const [prefilledPlaceId, setPrefilledPlaceId] = useState<number>();
+  const tutorialSteps = [
+    ["Welcome to Roblox Manager", "RM keeps your accounts encrypted and helps you launch and track multiple Roblox clients. This walkthrough explains the main controls."],
+    ["Add your accounts", "Open Accounts and choose Add account. Sign in through the browser or explicitly paste a cookie. Re-adding an account replaces its credential while preserving its organisation."],
+    ["Choose accounts and a game", "Select accounts in the list, enter a Place ID and choose Launch. Presets and Private Servers let you save destinations for later."],
+    ["Track your clients", "Instances shows running clients and launch progress. Exact matches support verified individual kills; inferred matches are guesses. You can focus, arrange or join a client's server."],
+    ["Set up your preferences", "Settings controls privacy, encryption, window arrangement and optional developer workspaces. Keep your encrypted account store and backups safe."],
+  ];
+
+  async function refreshStartup() {
+    try {
+      const status = await startupStatus();
+      setStartup(status);
+      setStartupError(null);
+      if (!status.needsTutorial && !status.changelog) await acknowledgeStartup("version");
+    } catch (error) { setStartupError(operationError(error, "Startup information could not be loaded.")); }
+  }
+
+  async function completeStartup(action: () => Promise<void>) {
+    if (isStartupPending) return;
+    setIsStartupPending(true);
+    try { await action(); await refreshStartup(); }
+    catch (error) { setStartupError(operationError(error, "The startup action could not be completed. Retry.")); }
+    finally { setIsStartupPending(false); }
+  }
+
+  useEffect(() => {
+    let isActive = true;
+    const stops: Array<() => void> = [];
+    void refreshStartup();
+    void checkReleaseUpdate().then((result) => { if (isActive) setUpdate(result); }).catch(() => {
+      if (isActive) setRuntimeToast({ id: Date.now(), title: "Update check unavailable", message: "The startup update check could not be completed. Check releases on GitHub later.", kind: "warning", duration: "standard" });
+    });
+    void Promise.allSettled([
+      listen<number>("browser-play-request", (event) => { if (isActive) setBrowserPlaceId(event.payload); }),
+      listen("store-unlocked", () => { if (isActive) void refreshStartup(); }),
+    ]).then((results) => results.forEach((result) => { if (result.status === "fulfilled") { if (isActive) stops.push(result.value); else result.value(); } }));
+    return () => { isActive = false; stops.forEach((stop) => stop()); };
+  }, []);
   const visibleNavItems = navItems.filter((item) =>
     item.page === "Asset Manager" || item.page === "Inventories" ? settings?.developerOptions : true,
   );
@@ -159,6 +208,7 @@ export function App() {
           if (!isActive) return;
           hasAccountEvent = true;
           setAccounts(event.payload);
+          if (event.payload.length > 0) void refreshStartup();
         }),
         listen<LaunchProgress>("launch-progress", (event) => {
           if (!isActive) return;
@@ -242,6 +292,7 @@ export function App() {
         <AccountsPage
           selectedIds={selectedIds}
           setSelectedIds={setSelectedIds}
+          prefilledPlaceId={prefilledPlaceId}
         />
       );
     }
@@ -340,6 +391,7 @@ export function App() {
         <span className="titlebar-version">
           {import.meta.env.VITE_RM_VERSION}
         </span>
+        {update && <button type="button" className="account-button titlebar-update" onClick={() => void openReleasePage(update[1]).catch(() => setStartupError("The release page could not be opened. Try again."))}>Update {update[0]}</button>}
         <div className="window-controls" aria-label="Window controls">
           <WindowButton
             label="Minimize"
@@ -399,6 +451,13 @@ export function App() {
         </div>
       </div>
       {runtimeToast && <Toast item={runtimeToast} onDismiss={() => setRuntimeToast(null)} />}
+      {startup?.legacyMigrationAvailable && !isMigrationDismissed ? <ConfirmModal title="Migrate older RM data?" message="Copy your older configuration and encrypted account store into the standard RM data folder. Original files remain in place; existing modern data will never be overwritten." confirmLabel={isStartupPending ? "Migrating..." : "Copy to RM data folder"} confirmDisabled={isStartupPending} confirmIcon="import" onConfirm={() => void completeStartup(migrateLegacyData)} onCancel={() => setIsMigrationDismissed(true)} /> : startup?.needsTutorial ? <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="tutorial-title">
+        <h2 id="tutorial-title">{tutorialSteps[tutorialStep][0]}</h2><p>{tutorialSteps[tutorialStep][1]}</p><p>Step {tutorialStep + 1} of {tutorialSteps.length}</p>
+        <div className="confirm-modal-actions"><button className="account-button" type="button" disabled={isStartupPending} onClick={() => void completeStartup(() => acknowledgeStartup("version"))}>Skip walkthrough</button><button className="account-button" type="button" disabled={isStartupPending} onClick={() => tutorialStep === tutorialSteps.length - 1 ? void completeStartup(() => acknowledgeStartup("version")) : setTutorialStep((step) => step + 1)}>{tutorialStep === tutorialSteps.length - 1 ? "Finish" : "Next"}</button></div>
+      </Popup> : startup?.changelog ? <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="changelog-title">
+        <h2 id="changelog-title">What's changed in RM</h2><pre className="startup-changelog selectable-text">{startup.changelog}</pre><button className="account-button" type="button" disabled={isStartupPending} onClick={() => void completeStartup(() => acknowledgeStartup("version"))}>Continue</button>
+      </Popup> : startup?.passwordlessOffer ? <ConfirmModal title="Stop asking for a password on this PC?" message="Device encryption keeps your store encrypted and unlocks it through Windows Credential Manager. Keep a master password if you need to move the store between PCs." confirmLabel={isStartupPending ? "Changing encryption..." : "Use device encryption"} confirmDisabled={isStartupPending} confirmIcon="lock" onConfirm={() => void completeStartup(async () => { await clearPassword(); await acknowledgeStartup("passwordless"); })} onCancel={() => { if (!isStartupPending) void completeStartup(() => acknowledgeStartup("passwordless")); }} /> : browserPlaceId ? <ConfirmModal title="Launch this game through RM?" message={`The account browser blocked an external Roblox launch for Place ID ${browserPlaceId}. Prefill it in Accounts, then choose which account to launch.`} confirmLabel="Prefill Place ID" confirmIcon="game" onConfirm={() => { setPrefilledPlaceId(browserPlaceId); setBrowserPlaceId(null); setActiveNav("Accounts"); }} onCancel={() => setBrowserPlaceId(null)} /> : null}
+      {startupError && <Toast item={{ id: 1, title: "Startup action needs attention", message: startupError, kind: "error", duration: "long" }} onDismiss={() => setStartupError(null)} />}
     </div>
   );
 }

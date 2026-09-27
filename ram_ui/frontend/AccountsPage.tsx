@@ -19,6 +19,7 @@ import {
   type AccountAddition,
   getSettings,
   operationError,
+  resetAccountStore,
   getStoreStatus,
   fetchAccountInventory,
   launchAccount as launchAccountIpc,
@@ -582,10 +583,14 @@ function AccountGroup({
 export function AccountsPage({
   selectedIds,
   setSelectedIds,
+  prefilledPlaceId,
 }: {
   selectedIds: Set<number>;
   setSelectedIds: Dispatch<SetStateAction<Set<number>>>;
+  prefilledPlaceId?: number;
 }) {
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveryConfirmation, setRecoveryConfirmation] = useState("");
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [draggingAccountId, setDraggingAccountId] = useState<number | null>(
     null,
@@ -602,6 +607,7 @@ export function AccountsPage({
   const [descending, setDescending] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [placeId, setPlaceId] = useState("");
+  useEffect(() => { if (prefilledPlaceId) setPlaceId(String(prefilledPlaceId)); }, [prefilledPlaceId]);
   const [jobId, setJobId] = useState("");
   const [launchData, setLaunchData] = useState("");
   const [connectionQuery, setConnectionQuery] = useState("");
@@ -1222,6 +1228,19 @@ export function AccountsPage({
     } catch {
       setAccountNotice("The preset could not be saved.");
     }
+  }
+
+  async function recoverStore() {
+    setMutationLoading(true);
+    try {
+      const status = await resetAccountStore(recoveryConfirmation);
+      setStoreStatus(status);
+      setShowRecovery(false);
+      setRecoveryConfirmation("");
+      setReloadKey((current) => current + 1);
+      setNotice("Created a new encrypted store. Recovery copies of the old files were preserved beside the store.");
+    } catch (error) { setNotice(operationError(error, "Recovery failed. Your old store has been preserved.")); }
+    finally { setMutationLoading(false); }
   }
 
   async function unlockStore() {
@@ -1937,6 +1956,8 @@ export function AccountsPage({
             {!loading && error && (
               <div className="accounts-list-message accounts-error">
                 <p>{error}</p>
+                <p>If this store belongs to another PC, unlock it there and set a master password before moving it. If the file is damaged, keep accounts.dat and its .bak backup for recovery.</p>
+                <button className="account-button" type="button" disabled={mutationLoading} onClick={() => setShowRecovery(true)}>Start over with a new store</button>
                 {storeStatus?.needsPassword ? (
                   <div className="unlock-form">
                     <input
@@ -2305,6 +2326,12 @@ export function AccountsPage({
           />
         )}
 
+        {showRecovery && <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="recovery-title" onClose={() => { if (!mutationLoading) setShowRecovery(false); }}>
+          <h2 id="recovery-title">Create a new account store?</h2>
+          <p>Your old encrypted store and its existing backup will be preserved as recovery files. Accounts must be re-added to the new store. This does not recover a forgotten password.</p>
+          <label>Type START OVER<input className="settings-input" value={recoveryConfirmation} disabled={mutationLoading} onChange={(event) => setRecoveryConfirmation(event.target.value)} /></label>
+          <div className="confirm-modal-actions"><button className="account-button" type="button" disabled={mutationLoading} onClick={() => setShowRecovery(false)}>Cancel</button><button className="account-button" type="button" disabled={mutationLoading || recoveryConfirmation !== "START OVER"} onClick={() => void recoverStore()}>{mutationLoading ? "Preserving old store..." : "Create new store"}</button></div>
+        </Popup>}
         {additionConfirmation && (
           <ConfirmModal
             title="Add restricted account?"

@@ -171,6 +171,13 @@ pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
                 );
             }
             loop {
+                if let Some(place_id) = crate::browser_login::take_browse_as_launch_request(
+                    &crate::lifecycle::data_directory(),
+                )
+                .filter(|place_id| *place_id > 0)
+                {
+                    let _ = process_app.emit("browser-play-request", place_id);
+                }
                 let needs_cleanup = process_app
                     .state::<AppState>()
                     .runtime
