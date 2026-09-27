@@ -11,7 +11,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { Icon } from "./components/Icon";
 import { Popup } from "./components/Popup";
 import Select from "./components/Select";
-import { Toast, type ToastItem, type ToastKind } from "./Toast";
+import { Toast, ToastStack, type ToastItem, type ToastKind } from "./Toast";
 import {
   arrangeSettingsWindows,
   changePassword,
@@ -1474,11 +1474,11 @@ export function SettingsPage() {
         </div>
       )}
 
-      <div className={`toast-stack settings-toast-stack ${isDirty ? "is-above-unsaved" : ""}`} aria-live="polite" aria-label="Notifications">
+      <ToastStack className={`settings-toast-stack ${isDirty ? "is-above-unsaved" : ""}`}>
         {notices.map((item) => (
-          <Toast key={item.id} item={item} onDismiss={() => setNotices((current) => current.filter((noticeItem) => noticeItem.id !== item.id))} />
+          <Toast key={item.id} item={item} placement="stack" onDismiss={() => setNotices((current) => current.filter((noticeItem) => noticeItem.id !== item.id))} />
         ))}
-      </div>
+      </ToastStack>
 
       {pendingLogLevel && (
         <ConfirmModal

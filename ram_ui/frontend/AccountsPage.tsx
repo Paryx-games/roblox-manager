@@ -66,6 +66,7 @@ import { PopupMenu } from "./components/PopupMenu";
 import { PromptModal } from "./components/PromptModal";
 import {
   Toast,
+  ToastStack,
   type ToastDuration,
   type ToastItem,
   type ToastKind,
@@ -2986,19 +2987,16 @@ export function AccountsPage({
           )}
         </section>
       </main>
-      <div
-        className="toast-stack"
-        aria-live="polite"
-        aria-label="Notifications"
-      >
+      <ToastStack>
         {notices.map((notice) => (
           <Toast
             key={notice.id}
             item={notice}
+            placement="stack"
             onDismiss={() => dismissNotice(notice.id)}
           />
         ))}
-      </div>
+      </ToastStack>
     </>
   );
 }

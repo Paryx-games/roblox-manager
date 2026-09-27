@@ -284,6 +284,10 @@ Each backed by tokens only, each with a single default export:
   circular icon, action-specific title, secondary description, and dismiss
   button. Use `--notification-info/success/warning/error` for operation outcomes.
   Retain timed dismissal and reduced-motion support; do not add a countdown bar.
+- `<ToastStack>` - a viewport-bounded notification container rendered into
+  `document.body`, outside page transitions and scrolling layouts. Standalone
+  toasts use it automatically; grouped notifications use `placement="stack"`
+  inside one shared container. Preserve Settings' offset above unsaved changes.
 - `<LoadingSkeleton layout label />` - accessible placeholders matching the
   pending region's rows, thumbnail grid, or panels. Render only while that
   region's data request is pending, retain surrounding controls, and show

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "./components/Icon";
 
 export type ToastKind = "info" | "success" | "warning" | "error";
@@ -28,12 +29,23 @@ function kindIcon(kind: ToastKind) {
   return icons[kind];
 }
 
+export function ToastStack({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return createPortal(
+    <div className={`toast-stack ${className}`} aria-live="polite" aria-label="Notifications">
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
 export function Toast({
   item,
   onDismiss,
+  placement = "viewport",
 }: {
   item: ToastItem;
   onDismiss: () => void;
+  placement?: "viewport" | "stack";
 }) {
   const [exiting, setExiting] = useState(false);
   const dismissRef = useRef(onDismiss);
@@ -53,7 +65,7 @@ export function Toast({
     };
   }, [item.id]);
 
-  return (
+  const notification = (
     <div
       className={`toast toast-${item.kind} toast-duration-${item.duration} ${
         exiting ? "is-exiting" : ""
@@ -77,4 +89,5 @@ export function Toast({
       </button>
     </div>
   );
+  return placement === "stack" ? notification : <ToastStack>{notification}</ToastStack>;
 }
