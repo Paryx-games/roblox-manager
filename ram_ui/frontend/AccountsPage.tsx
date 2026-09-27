@@ -1010,6 +1010,9 @@ export function AccountsPage({
 
   useEffect(() => {
     setAlias(selectedAccount?.alias ?? "");
+  }, [selectedAccount?.userId, selectedAccount?.alias]);
+
+  useEffect(() => {
     setPlayerPath(selectedAccount?.playerPath ?? "");
     setAccountNotices([]);
     setInventory([]);
@@ -1275,7 +1278,7 @@ export function AccountsPage({
   }
 
   async function saveAlias() {
-    if (!selectedAccount) return;
+    if (!selectedAccount || alias.trim() === selectedAccount.alias) return;
     setMutationLoading(true);
     try {
       const updated = await updateAccountAlias(selectedAccount.userId, alias);

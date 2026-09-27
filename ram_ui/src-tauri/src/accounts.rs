@@ -130,7 +130,11 @@ pub async fn stage_addition(
                 crypto::encrypt_cookie(&cookie, session)
                     .map_err(|_| "Account credential could not be secured")?,
             );
-            let is_replacement = runtime.accounts.find_by_id(account.user_id).is_some();
+            let existing = runtime.accounts.find_by_id(account.user_id);
+            let is_replacement = existing.is_some();
+            if let Some(existing) = existing {
+                account = merge_replacement(existing, account);
+            }
             let requires_confirmation = account
                 .moderation
                 .as_ref()
@@ -178,21 +182,21 @@ pub async fn stage_addition(
     Ok(outcome)
 }
 
-fn merge_replacement(existing: &Account, mut account: Account) -> Account {
-    account.alias = existing.alias.clone();
-    account.group = existing.group.clone();
-    account.is_pinned = existing.is_pinned;
-    account.sort_order = existing.sort_order;
-    account.last_used = existing.last_used;
-    account.last_presence = existing.last_presence.clone();
-    account.friends_cache = existing.friends_cache.clone();
-    if account.created_at.is_none() {
-        account.created_at = existing.created_at;
+fn merge_replacement(existing: &Account, account: Account) -> Account {
+    let mut updated = existing.clone();
+    updated.username = account.username;
+    updated.display_name = account.display_name;
+    updated.encrypted_cookie = account.encrypted_cookie;
+    updated.cookie_expired = account.cookie_expired;
+    updated.last_validated = account.last_validated;
+    updated.moderation = account.moderation;
+    if account.created_at.is_some() {
+        updated.created_at = account.created_at;
     }
-    if account.avatar_url.is_empty() {
-        account.avatar_url = existing.avatar_url.clone();
+    if !account.avatar_url.is_empty() {
+        updated.avatar_url = account.avatar_url;
     }
-    account
+    updated
 }
 
 fn commit_addition(state: &AppState, confirmation_id: &str) -> Result<AccountSummary, String> {
@@ -409,6 +413,79 @@ pub async fn refresh(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn committing_readdition_preserves_organisation_after_reopening_store() {
+        use crate::state::RuntimeState;
+        use ram_core::models::{AccountStore, AppConfig};
+        use std::sync::{Arc, Mutex};
+
+        let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("accounts.dat");
+        let session = crypto::create_password_session("synthetic-test-password").unwrap();
+        let mut existing = Account::new(1, "old".into(), "Old".into());
+        existing.alias = "Main".into();
+        existing.group = "Farm".into();
+        existing.is_pinned = true;
+        existing.sort_order = 3;
+        existing.friends_cache.insert(2);
+        let mut replacement = Account::new(1, "new".into(), "New".into());
+        replacement.encrypted_cookie =
+            Some(crypto::encrypt_cookie("synthetic-replacement", &session).unwrap());
+        let state = AppState {
+            runtime: Arc::new(Mutex::new(RuntimeState {
+                accounts: AccountStore {
+                    accounts: vec![existing],
+                },
+                config: AppConfig {
+                    accounts_path: path.clone(),
+                    use_credential_manager: false,
+                    ..AppConfig::default()
+                },
+                config_path: directory.join("config.json"),
+                session: Some(session),
+                unlocked: true,
+                legacy_store: false,
+                is_first_install: false,
+                credential_revisions: Default::default(),
+            })),
+            account_refresh: Arc::new(tokio::sync::Mutex::new(())),
+            pending_additions: Arc::new(Mutex::new(Default::default())),
+            instances: Arc::new(Mutex::new(Default::default())),
+            launch_queue: Arc::new(tokio::sync::Mutex::new(None)),
+            is_shutting_down: Arc::new(Default::default()),
+        };
+        for identifier in ["first", "retry"] {
+            state.pending_additions.lock().unwrap().insert(
+                identifier.into(),
+                PendingAddition {
+                    account: replacement.clone(),
+                    created_at: Instant::now(),
+                },
+            );
+            let summary = commit_addition(&state, identifier).unwrap();
+            assert_eq!(summary.alias, "Main");
+            assert_eq!(summary.group, "Farm");
+            assert!(summary.is_pinned);
+            assert_eq!(summary.sort_order, 3);
+        }
+        let (store, session) =
+            crypto::unlock_with_password(&path, "synthetic-test-password").unwrap();
+        assert_eq!(store.accounts.len(), 1);
+        let account = &store.accounts[0];
+        assert_eq!(account.alias, "Main");
+        assert_eq!(account.group, "Farm");
+        assert!(account.is_pinned);
+        assert_eq!(account.sort_order, 3);
+        assert!(account.friends_cache.contains(&2));
+        assert_eq!(account.username, "new");
+        assert_eq!(
+            crypto::decrypt_cookie(account.encrypted_cookie.as_deref().unwrap(), &session).unwrap(),
+            "synthetic-replacement"
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn replacing_credentials_keeps_account_organisation() {
