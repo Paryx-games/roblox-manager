@@ -28,9 +28,33 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "publisher": "Paryx Games",
+    "homepage": "https://roblox-manager.gitbook.io/docs",
+    "shortDescription": "Secure Roblox account and instance management",
     "icon": [
       "../../assets/logos/Live.ico"
-    ]
+    ],
+    "windows": {
+      "allowDowngrades": false,
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "../../assets/logos/Live.ico",
+        "uninstallerIcon": "../../assets/logos/Live.ico",
+        "sidebarImage": "installer/sidebar.bmp",
+        "languages": ["English"],
+        "displayLanguageSelector": false,
+        "customLanguageFiles": {
+          "English": "installer/English.nsh"
+        },
+        "installerHooks": "installer/hooks.nsh",
+        "compression": "lzma",
+        "startMenuFolder": "RM"
+      }
+    }
   }
 }

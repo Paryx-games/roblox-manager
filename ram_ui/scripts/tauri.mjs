@@ -28,7 +28,14 @@ const iconName = isDevelopmentBuild
       ? "Beta.ico"
       : "Live.ico";
 const iconPath = `../../assets/logos/${iconName}`;
-const configOverride = JSON.stringify({ bundle: { icon: [iconPath] } });
+const configOverride = JSON.stringify({
+  bundle: {
+    icon: [iconPath],
+    windows: {
+      nsis: { installerIcon: iconPath, uninstallerIcon: iconPath },
+    },
+  },
+});
 const runnerArgumentsIndex = argumentsList.indexOf("--");
 const configuredArguments = [...argumentsList];
 configuredArguments.splice(
