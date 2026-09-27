@@ -710,3 +710,40 @@ export async function confirmAccountAddition(confirmationId: string): Promise<Ac
 export async function cancelAccountAddition(confirmationId: string): Promise<void> {
   return invoke<void>("cancel_account_addition", { confirmationId });
 }
+
+export interface InstanceSummary {
+  pid: number;
+  startTime: number;
+  userId: number | null;
+  label: string;
+  placeId: number | null;
+  attribution: "exact" | "inferred" | "unmatched";
+  launchedAt: string | null;
+}
+
+export interface InstanceWorkspace {
+  instances: InstanceSummary[];
+  runningCount: number;
+}
+
+export interface LaunchProgress {
+  requestId: string;
+  userId: number;
+  phase: "waiting" | "authenticating" | "launching" | "requested" | "failed";
+}
+
+export async function listInstances(): Promise<InstanceWorkspace> {
+  return invoke<InstanceWorkspace>("list_instances");
+}
+
+export async function focusInstance(instance: InstanceSummary): Promise<void> {
+  return invoke<void>("focus_instance", { pid: instance.pid, startTime: instance.startTime });
+}
+
+export async function killInstance(instance: InstanceSummary): Promise<void> {
+  return invoke<void>("kill_instance", { pid: instance.pid, startTime: instance.startTime });
+}
+
+export function operationError(error: unknown, fallback: string): string {
+  return typeof error === "string" ? error : error instanceof Error ? error.message : fallback;
+}

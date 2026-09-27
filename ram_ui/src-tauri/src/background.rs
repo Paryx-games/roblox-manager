@@ -5,6 +5,14 @@ use tauri::{Emitter, Manager};
 
 pub struct BackgroundTasks(Vec<tauri::async_runtime::JoinHandle<()>>);
 
+impl BackgroundTasks {
+    pub fn stop(&self) {
+        for task in &self.0 {
+            task.abort();
+        }
+    }
+}
+
 impl Drop for BackgroundTasks {
     fn drop(&mut self) {
         for task in &self.0 {
@@ -133,7 +141,57 @@ pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
     let validation_app = app.clone();
     let presence_app = app.clone();
     let avatar_app = app.clone();
+    let instance_app = app.clone();
+    let process_app = app.clone();
     BackgroundTasks(vec![
+        tauri::async_runtime::spawn(async move {
+            loop {
+                let _ = crate::instances::list_instances(instance_app.clone()).await;
+                let state = instance_app.state::<AppState>();
+                tokio::time::sleep(crate::instances::sweep_interval(&state)).await;
+            }
+        }),
+        tauri::async_runtime::spawn(async move {
+            let is_enabled = process_app
+                .state::<AppState>()
+                .runtime
+                .lock()
+                .ok()
+                .is_some_and(|runtime| runtime.config.multi_instance_enabled);
+            if is_enabled
+                && !matches!(
+                    tauri::async_runtime::spawn_blocking(ram_core::process::enable_multi_instance)
+                        .await,
+                    Ok(Ok(()))
+                )
+            {
+                let _ = process_app.emit(
+                    "background-notice",
+                    "Multi-instance setup failed at startup. Check Settings before launching.",
+                );
+            }
+            loop {
+                let needs_cleanup = process_app
+                    .state::<AppState>()
+                    .runtime
+                    .lock()
+                    .ok()
+                    .is_some_and(|runtime| {
+                        runtime.config.kill_background_roblox
+                            || runtime.config.multi_instance_enabled
+                    });
+                if needs_cleanup {
+                    let state = process_app.state::<AppState>().inner().clone();
+                    if let Ok(_launch) = state.launch_queue.try_lock() {
+                        let _ = tauri::async_runtime::spawn_blocking(
+                            ram_core::process::kill_tray_roblox,
+                        )
+                        .await;
+                    };
+                }
+                tokio::time::sleep(Duration::from_secs(10)).await;
+            }
+        }),
         tauri::async_runtime::spawn(async move {
             let mut last_refresh = None::<std::time::Instant>;
             loop {

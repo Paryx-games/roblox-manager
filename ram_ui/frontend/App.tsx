@@ -1,4 +1,8 @@
 import { useEffect, useState, type MouseEvent } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { InstancesPage } from "./InstancesPage";
+import { Toast, type ToastItem } from "./Toast";
+import { listInstances, listAccounts, operationError, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
 import { GroupsPage } from "./GroupsPage";
@@ -17,6 +21,7 @@ type NavItem = {
 
 type PageName =
   | "Accounts"
+  | "Instances"
   | "Groups"
   | "Private Servers"
   | "Presets"
@@ -26,6 +31,7 @@ type PageName =
 
 const navItems: NavItem[] = [
   { label: "Accounts", icon: "id-card", page: "Accounts" },
+  { label: "Instances", icon: "app-window", page: "Instances" },
   { label: "Groups", icon: "users", page: "Groups" },
   { label: "Private Servers", icon: "game", page: "Private Servers" },
   { label: "Presets", icon: "star", page: "Presets" },
@@ -99,6 +105,77 @@ export function App() {
   const [displayedNav, setDisplayedNav] = useState<PageName>("Accounts");
   const [isPageTransitioning, setIsPageTransitioning] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [workspace, setWorkspace] = useState<InstanceWorkspace>({ instances: [], runningCount: 0 });
+  const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [launches, setLaunches] = useState<Record<string, LaunchProgress>>({});
+  const [isInstancesLoading, setIsInstancesLoading] = useState(true);
+  const [instancesError, setInstancesError] = useState<string | null>(null);
+  const [runtimeToast, setRuntimeToast] = useState<ToastItem | null>(null);
+
+  async function refreshInstances() {
+    setIsInstancesLoading(true);
+    try {
+      setWorkspace(await listInstances());
+      setInstancesError(null);
+    } catch (error) {
+      setInstancesError(operationError(error, "Running instances could not be loaded. Retry to reconnect."));
+    } finally {
+      setIsInstancesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let isActive = true;
+    let hasInstanceEvent = false;
+    let hasAccountEvent = false;
+    const stops: Array<() => void> = [];
+    async function subscribe() {
+      const results = await Promise.allSettled([
+        listen<InstanceWorkspace>("instances-updated", (event) => {
+          if (!isActive) return;
+          hasInstanceEvent = true;
+          setWorkspace(event.payload);
+          setIsInstancesLoading(false);
+          setInstancesError(null);
+        }),
+        listen<AccountSummary[]>("accounts-updated", (event) => {
+          if (!isActive) return;
+          hasAccountEvent = true;
+          setAccounts(event.payload);
+        }),
+        listen<LaunchProgress>("launch-progress", (event) => {
+          if (!isActive) return;
+          setLaunches((current) => {
+            const next = { ...current };
+            if (event.payload.phase === "requested" || event.payload.phase === "failed") delete next[event.payload.requestId];
+            else next[event.payload.requestId] = event.payload;
+            return next;
+          });
+        }),
+        listen<string>("background-notice", (event) => {
+          if (isActive) setRuntimeToast({ id: Date.now(), title: "Background action needs attention", message: event.payload, kind: "warning", duration: "long" });
+        }),
+      ]);
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          if (isActive) stops.push(result.value);
+          else result.value();
+        } else if (isActive) {
+          setRuntimeToast({ id: Date.now(), title: "Live updates unavailable", message: "Use Refresh in Accounts or Instances to reconnect.", kind: "error", duration: "long" });
+        }
+      }
+      if (!isActive) return;
+      const [instanceResult, accountResult] = await Promise.allSettled([listInstances(), listAccounts()]);
+      if (!isActive) return;
+      if (instanceResult.status === "fulfilled" && !hasInstanceEvent) setWorkspace(instanceResult.value);
+      if (instanceResult.status === "rejected" && !hasInstanceEvent) setInstancesError("Running instances could not be loaded. Retry to reconnect.");
+      if (accountResult.status === "fulfilled" && !hasAccountEvent) setAccounts(accountResult.value);
+      setIsInstancesLoading(false);
+    }
+    void subscribe();
+    return () => { isActive = false; stops.forEach((stop) => stop()); };
+  }, []);
+
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -145,6 +222,10 @@ export function App() {
           setSelectedIds={setSelectedIds}
         />
       );
+    }
+
+    if (page === "Instances") {
+      return <InstancesPage workspace={workspace} accounts={accounts} selectedIds={selectedIds} onSelectedIdsChange={setSelectedIds} launches={Object.values(launches)} isLoading={isInstancesLoading} error={instancesError} onRefresh={refreshInstances} />;
     }
 
     if (page === "Groups") {
@@ -233,6 +314,7 @@ export function App() {
         <span className="titlebar-logo" aria-label="Roblox Manager">
           <Icon name="feather" />
         </span>
+        <span className="titlebar-runtime-status" role="status">{workspace.runningCount} Roblox running{Object.keys(launches).length ? ` | ${Object.keys(launches).length} launches pending` : ""}</span>
         <span className="titlebar-version">
           {import.meta.env.VITE_RM_VERSION}
         </span>
@@ -271,12 +353,6 @@ export function App() {
             />
           ))}
           <span className="sidebar-spacer" />
-          <RailButton
-            label="Instances"
-            icon="package"
-            disabled
-            onClick={() => {}}
-          />
           <RailButton label="Clear Cache" icon="eraser" onClick={() => {}} />
           <RailButton
             label="Settings"
@@ -300,6 +376,7 @@ export function App() {
           </div>
         </div>
       </div>
+      {runtimeToast && <Toast item={runtimeToast} onDismiss={() => setRuntimeToast(null)} />}
     </div>
   );
 }

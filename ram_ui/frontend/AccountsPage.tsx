@@ -17,6 +17,8 @@ import {
   confirmAccountAddition,
   cancelAccountAddition,
   type AccountAddition,
+  getSettings,
+  operationError,
   getStoreStatus,
   fetchAccountInventory,
   launchAccount as launchAccountIpc,
@@ -1163,8 +1165,8 @@ export function AccountsPage({
         await launchAccountIpc(userId, Number(placeId), jobId, launchData);
       }
       setNotice(`${selectedIds.size} launches requested.`);
-    } catch {
-      setNotice("Bulk launch stopped because one account could not launch.");
+    } catch (error) {
+      setNotice(operationError(error, "Bulk launch stopped because one account could not launch."));
     } finally {
       setMutationLoading(false);
     }
@@ -1193,8 +1195,8 @@ export function AccountsPage({
         launchData,
       );
       setAccountNotice("Launch requested.");
-    } catch {
-      setAccountNotice("Roblox could not be launched for this account.");
+    } catch (error) {
+      setAccountNotice(operationError(error, "Roblox could not be launched for this account."));
     } finally {
       setMutationLoading(false);
     }
@@ -1727,6 +1729,16 @@ export function AccountsPage({
     setSortMode(nextMode);
   }
 
+  async function requestKillAll() {
+    try {
+      const settings = await getSettings();
+      if (settings.config.confirmKillAll) setKillAllConfirmation(true);
+      else await confirmKillAll();
+    } catch {
+      setNotice("The kill-all preference could not be checked. Try again.");
+    }
+  }
+
   async function confirmKillAll() {
     setKillAllConfirmation(false);
     setMutationLoading(true);
@@ -2017,7 +2029,7 @@ export function AccountsPage({
           )}
         </aside>
 
-        {showAddForm && (
+        {showAddForm && !additionConfirmation && (
           <Popup
             className={`add-account-modal ${
               browserLoginLoading ? "is-browser-pending" : ""
@@ -2496,7 +2508,7 @@ export function AccountsPage({
                         type="button"
                         role="menuitem"
                         onClick={() => {
-                          setKillAllConfirmation(true);
+                          void requestKillAll();
                           setShowAccountMenu(false);
                         }}
                       >

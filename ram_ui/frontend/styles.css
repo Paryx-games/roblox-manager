@@ -3,6 +3,39 @@
 @import "../src/tokens.css";
 /* stylelint-enable import-notation */
 
+.instances-description,
+.instances-caption {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+.instances-caption {
+  padding-bottom: var(--space-3);
+}
+
+.instances-attribution[data-attribution="exact"] {
+  color: var(--status-online);
+}
+
+.instances-attribution[data-attribution="inferred"] {
+  color: var(--status-warning);
+}
+
+.instances-attribution[data-attribution="unmatched"] {
+  color: var(--status-neutral);
+}
+
+.instances-page .assets-row-actions {
+  flex-wrap: wrap;
+}
+
+.titlebar-runtime-status {
+  margin-left: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
 @font-face {
   font-family: Roboto;
   font-style: normal;
