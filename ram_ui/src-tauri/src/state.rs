@@ -50,8 +50,8 @@ impl Default for AppState {
         };
         let config_path = source_directory.join("config.json");
         let mut config = AppConfig::load(&config_path);
-        if config.accounts_path == std::path::Path::new("accounts.dat") {
-            config.accounts_path = source_directory.join("accounts.dat");
+        if !config.accounts_path.is_absolute() {
+            config.accounts_path = source_directory.join(&config.accounts_path);
         }
 
         Self {

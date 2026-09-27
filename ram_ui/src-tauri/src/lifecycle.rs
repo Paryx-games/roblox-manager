@@ -67,6 +67,20 @@ pub async fn startup_status(state: tauri::State<'_, AppState>) -> Result<Startup
             .lock()
             .map_err(|_| "Application state unavailable")?;
         migrate_favourites(&mut runtime, &data_directory())?;
+        if runtime.unlocked
+            && !runtime.config.offered_passwordless
+            && runtime
+                .session
+                .as_ref()
+                .is_some_and(|session| !session.needs_password())
+        {
+            let mut candidate = runtime.config.clone();
+            candidate.offered_passwordless = true;
+            candidate
+                .save(&runtime.config_path)
+                .map_err(|_| "The device-encryption preference could not be recorded")?;
+            runtime.config = candidate;
+        }
         let version = env!("CARGO_PKG_VERSION");
         let changed_version = runtime
             .config
