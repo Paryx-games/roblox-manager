@@ -310,6 +310,8 @@ Run the pre-commit verification sequence above before each commit, not just once
 
 If a commit changes something a user would notice - a new feature, a fixed bug, changed behavior, UI changes - add an entry to `CHANGELOG.md` under an `## Unreleased` heading (create it above the most recent `## vX.Y.Z` heading if it doesn't exist yet) in the same commit as the change itself. Don't wait until release time to backfill it.
 
+**v2 rewrite exception:** while completing the Tauri/React v2 page rewrite, do not add a changelog entry for each incremental page fix. Add one consolidated entry for a page when its new implementation is complete. Keep applying the normal per-change changelog rule to work outside this page-by-page rewrite.
+
 Skip the changelog for things a user would never notice: internal refactors, test-only changes, comment/doc tweaks, CI config, dependency bumps with no behavior change.
 
 At release time (see Versioning & Releasing below), the `## Unreleased` heading gets renamed to `## vX.Y.Z` - the entries are already written by then.
@@ -461,7 +463,7 @@ Only move a tag before anyone relies on it - never once users have downloaded th
 
 <!-- Add personal notes, development reminders, feature ideas, and custom workflows below -->
 
-- **Changelog & versioning:** Add a `CHANGELOG.md` entry under `## Unreleased` in the same commit as any user-facing change (see Update CHANGELOG.md under Contribution Workflow) - don't leave it for release time. Keep versioning organised; group related changes into appropriate releases rather than unnecessarily cramming unrelated changes into a single version.
+- **Changelog & versioning:** Add a `CHANGELOG.md` entry under `## Unreleased` in the same commit as any user-facing change, except for incremental fixes during the v2 page rewrite. For that rewrite, add one consolidated entry when each page is complete (see Update CHANGELOG.md under Contribution Workflow). Keep versioning organised; group related changes into appropriate releases rather than unnecessarily cramming unrelated changes into a single version.
 - **Git safety:** Commit completed changes as you go, in small logical chunks - not as one large commit at the end (see Commit as you go under Contribution Workflow). Never modify git configuration or remotes, change the origin repository, force-push, reset or discard unrelated work, or perform other destructive git operations.
 - **Review before committing:** Before creating a commit, review the diff and ensure that all staged changes are relevant to the requested task. Do not commit unrelated or accidental changes - this includes stray summary/report `.md` files (see Agent Guidelines § 8).
 - **Preserve existing behaviour:** Avoid changing existing functionality unless the task explicitly requires it. Prefer small, targeted changes over unnecessary refactors.
