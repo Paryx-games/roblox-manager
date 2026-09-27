@@ -516,6 +516,7 @@ export function AssetsPage({
                   View
                   <Select
                     ariaLabel="Library view"
+                    sizing="content"
                     value={density}
                     onChange={setDensity}
                     options={[
@@ -529,6 +530,7 @@ export function AssetsPage({
                   Type
                   <Select
                     ariaLabel="Asset type"
+                    sizing="content"
                     value={typeFilter}
                     onChange={setTypeFilter}
                     options={assetTypeOptions}
@@ -571,6 +573,7 @@ export function AssetsPage({
                   Grant access to
                   <Select
                     ariaLabel="Experience access for new files"
+                    sizing="content"
                     value={universeId}
                     onChange={setUniverseId}
                     disabled={!canStage || isLoadingUniverses}

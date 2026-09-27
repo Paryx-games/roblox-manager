@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Asset Manager dropdown sizing.** Sizes each dropdown to its longest option, adds space around labels and arrows, and keeps long experience names within the available toolbar width.
+
 - **Asset Manager account loading.** Enables the workspace's Tauri event subscriptions and loads sidebar accounts independently, so a workspace failure cannot hide saved accounts or display a false empty-account message.
 
 - **Asset Manager account selection.** Selects the upload account exclusively in the sidebar, with the same collapsible groups, counts, and saved ordering as Inventories.

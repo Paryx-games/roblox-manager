@@ -20,6 +20,7 @@ type SelectProps = {
   ariaLabel: string;
   disabled?: boolean;
   animated?: boolean;
+  sizing?: "fill" | "content";
 };
 
 export default function Select({
@@ -29,6 +30,7 @@ export default function Select({
   ariaLabel,
   disabled = false,
   animated = true,
+  sizing = "fill",
 }: SelectProps) {
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -129,7 +131,15 @@ export default function Select({
       ref={rootRef}
       className="rm-select"
       data-animated={shouldAnimate ? "true" : "false"}
+      data-sizing={sizing}
     >
+      {sizing === "content" && (
+        <div className="rm-select-width" aria-hidden="true">
+          {options.map((option) => (
+            <span key={option.value}>{option.label}</span>
+          ))}
+        </div>
+      )}
       <button
         className="rm-select-trigger"
         type="button"

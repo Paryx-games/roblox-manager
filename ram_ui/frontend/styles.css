@@ -463,6 +463,48 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+.rm-select[data-sizing="content"] {
+  display: grid;
+  width: max-content;
+  max-width: 100%;
+  flex: 0 1 auto;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rm-select[data-sizing="content"] .rm-select-trigger,
+.rm-select-width {
+  grid-area: 1 / 1;
+}
+
+.rm-select[data-sizing="content"] .rm-select-trigger {
+  gap: var(--space-3);
+  padding-inline: var(--space-3);
+}
+
+.rm-select[data-sizing="content"] .account-icon {
+  flex-shrink: 0;
+}
+
+.rm-select[data-sizing="content"] .rm-select-option {
+  overflow-wrap: anywhere;
+}
+
+.rm-select-width {
+  display: grid;
+  overflow: hidden;
+  padding-inline: var(--space-3) calc(var(--space-3) * 2 + var(--space-4));
+  border: var(--border-width) solid transparent;
+  font-size: var(--text-sm);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.rm-select-width > span {
+  grid-area: 1 / 1;
+  width: max-content;
+  white-space: nowrap;
+}
+
 .rm-select-trigger:hover,
 .rm-select-trigger:focus-visible,
 .rm-select-trigger[aria-expanded="true"] {
@@ -6222,10 +6264,8 @@ button:focus-visible {
   color: var(--text-muted);
   font-size: var(--text-xs);
   white-space: nowrap;
-}
-.assets-inline-field .rm-select {
-  min-width: var(--space-12);
-  max-width: var(--sidebar-width);
+  min-width: 0;
+  max-width: 100%;
 }
 .assets-inline-field .rm-select-trigger {
   min-height: var(--space-8);
