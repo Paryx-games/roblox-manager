@@ -76,22 +76,24 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
     <div className="header-row"><h1 className="header-title">Instances</h1></div>
     <main className="instances-page assets-page">
       <div className="assets-main">
-        <div className="assets-toolbar">
-          <span role="status">{workspace.runningCount} Roblox client{workspace.runningCount === 1 ? "" : "s"} running</span>
+        <div className="assets-toolbar instances-toolbar">
+          <span className="instances-count" role="status">{isLoading ? "Checking running clients..." : `${workspace.runningCount} Roblox client${workspace.runningCount === 1 ? "" : "s"} running`}</span>
+          <div className="instances-toolbar-actions">
           <button className="account-button" type="button" disabled={isLoading || pendingAction !== null} onClick={() => void onRefresh()}><Icon name="refresh" />{isLoading ? "Refreshing..." : "Refresh"}</button>
-          <button className="account-button" type="button" disabled={!workspace.runningCount || pendingAction !== null} onClick={() => void runAction("arrange", arrangeAccountWindows, "Windows arranged")}><Icon name="grid" />Arrange windows</button>
-          <button className="account-button" type="button" disabled={!workspace.runningCount || pendingAction !== null} onClick={() => void requestKillAll()}><Icon name="kill" />Kill all Roblox</button>
+          <button className="account-button" type="button" disabled={!workspace.runningCount || pendingAction !== null || isLoading} onClick={() => void runAction("arrange", arrangeAccountWindows, "Windows arranged")}><Icon name="grid" />{pendingAction === "arrange" ? "Arranging..." : "Arrange windows"}</button>
+          <button className="account-button" type="button" disabled={!workspace.runningCount || pendingAction !== null || isLoading} onClick={() => void requestKillAll()}><Icon name="kill" />{pendingAction === "check-confirmation" || pendingAction === "close" ? "Working..." : "Kill all Roblox"}</button>
+          </div>
         </div>
         <div className="assets-toolbar">
-          <AccountPicker accounts={launchAccounts} mode="multiple" open={isPickerOpen} onOpenChange={setIsPickerOpen} selectedIds={selectedIds} onSelectedIdsChange={onSelectedIdsChange} disabled={pendingAction !== null} unselectedLabel="Select accounts to join a server" />
-          <span className="instances-description">Select accounts, then choose Join server on the client you want to follow.</span>
+          <span className="instances-picker-label">Join server as</span>
+          <AccountPicker accounts={launchAccounts} mode="multiple" open={isPickerOpen} onOpenChange={setIsPickerOpen} selectedIds={selectedIds} onSelectedIdsChange={onSelectedIdsChange} disabled={pendingAction !== null || !launchAccounts.length} unselectedLabel="Select accounts to join a server" />
+          <span className="instances-description">{launchAccounts.length ? "Choose accounts, then use Join server on a matched client." : "Add a valid account in Accounts to join a client's server."}</span>
         </div>
         {launches.length > 0 && <div className="assets-notice" role="status">{launches.map((launch) => <p key={launch.requestId}>{accounts.find((account) => account.userId === launch.userId)?.label ?? "Account"}: {phaseLabels[launch.phase]}</p>)}</div>}
         <div className="assets-panel">
-          <p className="instances-description">Exact matches are verified from the client. Inferred matches are guesses and cannot be killed individually.</p>
           <table className="assets-table">
-            <caption className="instances-caption">Running Roblox clients and their account attribution</caption>
-            <thead><tr><th scope="col">Account</th><th scope="col">PID</th><th scope="col" className="assets-secondary-column">Place ID</th><th scope="col">Attribution</th><th scope="col" className="assets-secondary-column">Launched</th><th scope="col">Actions</th></tr></thead>
+            <caption className="instances-caption">Running clients</caption>
+            <thead><tr><th scope="col">Account</th><th scope="col">PID</th><th scope="col" className="assets-secondary-column">Place ID</th><th scope="col">Match</th><th scope="col" className="assets-secondary-column">Launched</th><th scope="col" className="instances-actions-column">Actions</th></tr></thead>
             <tbody>
               {isLoading ? <tr><td colSpan={6}><LoadingSkeleton layout="results" label="Loading running instances" /></td></tr> : error ? <tr><td colSpan={6}><div role="alert"><p className="selectable-text">{error}</p><button className="account-button" type="button" onClick={() => void onRefresh()}><Icon name="refresh" />Retry</button></div></td></tr> : workspace.instances.length === 0 ? <tr><td colSpan={6}>No Roblox clients running. Launch an account from Accounts, Presets or Private Servers to track it here.</td></tr> : workspace.instances.map((instance) => {
                 const canJoin = instance.userId !== null && launchAccounts.some((account) => selectedIds.has(account.userId) && account.userId !== instance.userId);
@@ -100,11 +102,11 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
                   <td><strong>{instance.label}</strong>{instance.userId !== null && <small className="selectable-text">{instance.userId}</small>}</td>
                   <td className="selectable-text">{instance.pid}</td>
                   <td className="assets-secondary-column selectable-text">{instance.placeId ?? "Unknown"}</td>
-                  <td><span className="instances-attribution" data-attribution={instance.attribution}>{instance.attribution === "exact" ? "Exact" : instance.attribution === "inferred" ? "Inferred" : "Unmatched"}</span></td>
+                  <td><span className="instances-attribution" tabIndex={0} data-attribution={instance.attribution} data-tip={instance.attribution === "exact" ? "Verified from this client's launch token. Individual close is available." : instance.attribution === "inferred" ? "Estimated from launch order. Individual close is disabled." : "RM could not identify this client's account. Individual close and server join are disabled."}>{instance.attribution === "exact" ? "Exact" : instance.attribution === "inferred" ? "Inferred" : "Unmatched"}</span></td>
                   <td className="assets-secondary-column">{launchedAt}</td>
-                  <td><div className="assets-row-actions">
-                    <button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => void runAction(`focus-${instance.pid}`, () => focusInstance(instance), "Instance focused")}><Icon name="focus" />Focus</button>
-                    <button className="account-button" type="button" disabled={!canJoin || pendingAction !== null} onClick={() => void joinServer(instance)}><Icon name="launch" />Join server</button>
+                  <td className="instances-actions-column"><div className="assets-row-actions">
+                    <button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => void runAction(`focus-${instance.pid}`, () => focusInstance(instance), "Instance focused")}><Icon name="focus" />{pendingAction === `focus-${instance.pid}` ? "Focusing..." : "Focus"}</button>
+                    <button className="account-button" type="button" disabled={!canJoin || pendingAction !== null} data-tip={instance.userId === null ? "Identify this client's account before joining its server" : !canJoin ? "Select another valid account above to join this client's server" : "Launch the selected accounts into this client's server"} onClick={() => void joinServer(instance)}><Icon name="launch" />{pendingAction === `join-${instance.pid}` ? "Joining..." : "Join server"}</button>
                     <button className="account-button" type="button" disabled={instance.attribution !== "exact" || pendingAction !== null} data-tip={instance.attribution === "exact" ? "Close this verified Roblox client" : "An exact account match is required to kill an individual client"} onClick={() => setCloseTarget(instance)}><Icon name="kill" />Kill</button>
                   </div></td>
                 </tr>;
