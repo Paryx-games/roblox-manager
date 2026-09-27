@@ -52,6 +52,7 @@
           "English": "installer/English.nsh"
         },
         "installerHooks": "installer/hooks.nsh",
+        "template": "installer/installer.nsi",
         "compression": "lzma",
         "startMenuFolder": "Roblox Manager"
       }

@@ -33,6 +33,10 @@ Under SemVer, pre-releases sort before their plain release. For example, `v2.0.0
 
 Set the version only in the root `Cargo.toml`. Both crates inherit it. Do not hardcode versions elsewhere.
 
+### Windows installer template
+
+The NSIS installer uses `ram_ui/src-tauri/installer/installer.nsi`, based on Tauri Bundler 2.9.4. It adds setup and uninstall choices while retaining Tauri's install, upgrade and WebView2 handling. When upgrading the Tauri CLI, compare this template with the matching upstream version and rebuild the installer before releasing.
+
 ## Publishing a release
 
 `.github/workflows/release.yml` runs when you push a tag matching `v*`, and can also be re-run manually against an existing tag (see [If GitHub is being stubborn](#if-github-is-being-stubborn)). Normal pushes to `main` or other branches do not publish releases.

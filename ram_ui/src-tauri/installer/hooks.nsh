@@ -37,9 +37,5 @@
 !macro NSIS_HOOK_PREUNINSTALL
   ${If} $UpdateMode <> 1
     DetailPrint "Saved accounts, settings and presets remain where stored (normally $APPDATA\RM)."
-    ${IfNot} ${Silent}
-    ${AndIf} $PassiveMode <> 1
-      MessageBox MB_OK|MB_ICONINFORMATION "Uninstalling ${PRODUCTNAME} keeps your saved accounts, settings and presets where they are stored (normally $APPDATA\RM).$\r$\n$\r$\nThe browser-data checkbox only removes ${PRODUCTNAME}'s interface browser data. Microsoft WebView2 Runtime is shared with other apps and will remain installed."
-    ${EndIf}
   ${EndIf}
 !macroend

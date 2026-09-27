@@ -26,6 +26,8 @@ Choose the Windows x64 installer (`-setup.exe`) for a normal installation, or th
 
 The installer installs Roblox Manager for your current Windows user. It includes the Microsoft WebView2 bootstrapper and installs the runtime if it is missing; this requires an internet connection. The portable executable requires WebView2 Runtime to be installed already.
 
+During setup, choose the install location, desktop and Start menu shortcuts, and whether to reset the interface browser data. The reset can help with a blank window and does not remove saved accounts, settings or presets. You can choose whether to launch Roblox Manager on the finish page.
+
 ### First launch
 
 Roblox Manager configures encrypted storage during its first launch. You can then add your first account.
@@ -42,7 +44,7 @@ If an earlier installation appears as **RM** in Windows Settings, uninstall it b
 
 Uninstall Roblox Manager through Windows Settings. Your encrypted account store, settings and presets remain where stored, normally `%APPDATA%\RM`, so they are available if you reinstall. Custom store locations are also left untouched. Back up your data before manually removing it.
 
-The uninstall checkbox only removes the Tauri interface's browser data. It does not remove saved accounts, settings, presets or the shared Microsoft WebView2 Runtime.
+The uninstaller lets you remove browser sessions and cache, remove diagnostic logs, and open the saved data folder when it finishes. These choices are off by default. Saved accounts, settings, presets and the shared Microsoft WebView2 Runtime remain available.
 
 {% hint style="info" %}
 Continue with [first-session.md](first-session.md "mention") after installation.
