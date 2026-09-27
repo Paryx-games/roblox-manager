@@ -6,6 +6,8 @@ import { Icon } from "./components/Icon";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import Select from "./components/Select";
 import { Toast, type ToastItem } from "./Toast";
+import { ConfirmModal } from "./ConfirmModal";
+import { Popup } from "./components/Popup";
 import { buildInventoryAccountGroups } from "./lib/inventoryBrowsing";
 import {
   addAssetFiles,
@@ -15,6 +17,8 @@ import {
   listAssetUniverses,
   listAssetWorkspace,
   uploadAssets,
+  listAssetCreators, updateAssetRow, listAssetCreations, grantAssetAccess, revealAssetFile, operationError,
+  type AssetCreator, type CreationRow,
   type AccountSummary,
   type AssetRow,
   type AssetUniverse,
@@ -88,7 +92,21 @@ export function AssetsPage({
   const [accountsError, setAccountsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
-  const [tab, setTab] = useState<"queue" | "library">("queue");
+  const [tab, setTab] = useState<"queue" | "library" | "creations">("queue");
+  const [creatorId, setCreatorId] = useState("user");
+  const [creatorGroups, setCreatorGroups] = useState<AssetUniverse[]>([]);
+  const [creatorError, setCreatorError] = useState<string | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [uploadConfirmation, setUploadConfirmation] = useState<string[] | null>(null);
+  const [queueEdit, setQueueEdit] = useState<{ rowId: string; name: string; kind: string; creatorId: string } | null>(null);
+  const [manualUniverseId, setManualUniverseId] = useState("");
+  const [creationKind, setCreationKind] = useState("Decal");
+  const [creations, setCreations] = useState<CreationRow[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [isLoadingCreations, setIsLoadingCreations] = useState(false);
+  const [creationsError, setCreationsError] = useState<string | null>(null);
+  const [creationRefresh, setCreationRefresh] = useState(0);
+  const creationRequest = useRef(0);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [density, setDensity] = useState("details");
@@ -105,6 +123,10 @@ export function AssetsPage({
   const selectedAccount = accounts.find(
     (account) => account.userId === selectedUserId,
   );
+  function resolveCreator(value: string): AssetCreator {
+    return value === "user" ? { kind: "user", id: selectedUserId ?? 0 } : { kind: "group", id: Number(value) };
+  }
+  const creatorOptions = [{ value: "user", label: "Selected account" }, ...creatorGroups.map((group) => ({ value: String(group.id), label: `${group.name} (${group.id})` }))];
   const canStage =
     !!selectedAccount &&
     !selectedAccount.cookieExpired &&
@@ -132,6 +154,61 @@ export function AssetsPage({
       isMounted.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isActive = true;
+    setCreatorId("user"); setCreatorGroups([]); setCreatorError(null); setSelectedRows(new Set()); setManualUniverseId(""); setQueueEdit(null); setUploadConfirmation(null);
+    if (selectedUserId) void listAssetCreators(selectedUserId).then((groups) => { if (isActive) setCreatorGroups(groups); }).catch((error) => { if (isActive) setCreatorError(operationError(error, "Group creators could not be loaded. Account uploads remain available.")); });
+    return () => { isActive = false; };
+  }, [selectedUserId]);
+
+  useEffect(() => {
+    const request = ++creationRequest.current;
+    setCreations([]); setNextCursor(null); setCreationsError(null); setSelectedRows(new Set());
+    if (tab !== "creations" || !selectedUserId) { setIsLoadingCreations(false); return; }
+    setIsLoadingCreations(true);
+    const creator: AssetCreator = creatorId === "user" ? { kind: "user", id: selectedUserId } : { kind: "group", id: Number(creatorId) };
+    void listAssetCreations(selectedUserId, { creator, kind: creationKind }).then((page) => {
+      if (creationRequest.current === request) { setCreations(page.rows); setNextCursor(page.nextCursor); }
+    }).catch((error) => { if (creationRequest.current === request) setCreationsError(operationError(error, "Creations could not be loaded. Retry.")); }).finally(() => { if (creationRequest.current === request) setIsLoadingCreations(false); });
+    return () => { creationRequest.current += 1; };
+  }, [tab, selectedUserId, creatorId, creationKind, creationRefresh]);
+
+  async function loadMoreCreations() {
+    if (!selectedUserId || !nextCursor || isLoadingCreations) return;
+    const request = creationRequest.current;
+    setIsLoadingCreations(true); setCreationsError(null);
+    try {
+      const page = await listAssetCreations(selectedUserId, { creator: resolveCreator(creatorId), kind: creationKind, cursor: nextCursor });
+      if (creationRequest.current === request) { setCreations((current) => [...current, ...page.rows.filter((row) => !current.some((existing) => existing.assetId === row.assetId))]); setNextCursor(page.nextCursor); }
+    } catch (error) { if (creationRequest.current === request) setCreationsError(operationError(error, "More creations could not be loaded. Retry.")); }
+    finally { if (creationRequest.current === request) setIsLoadingCreations(false); }
+  }
+
+  function toggleRow(rowId: string) {
+    setSelectedRows((current) => { const next = new Set(current); if (next.has(rowId)) next.delete(rowId); else next.add(rowId); return next; });
+  }
+
+  async function runAssetAction(operation: () => Promise<void>) {
+    if (mutationPending.current) return;
+    mutationPending.current = true; setIsMutating(true);
+    try { await operation(); }
+    catch (error) { notify("Asset action could not be completed", operationError(error, "Refresh and try again.")); }
+    finally { mutationPending.current = false; if (isMounted.current) setIsMutating(false); }
+  }
+
+  async function saveQueueEdit() {
+    if (!queueEdit || !selectedUserId) return;
+    const edit = queueEdit;
+    await runAssetAction(async () => {
+      const result = await updateAssetRow(selectedUserId, { rowId: edit.rowId, name: edit.name, kind: edit.kind, creator: resolveCreator(edit.creatorId) });
+      if (isMounted.current) { setWorkspace(result); setQueueEdit(null); }
+    });
+  }
+
+  async function copyText(text: string) {
+    await runAssetAction(async () => { await navigator.clipboard.writeText(text); notify("Copied", text, "success"); });
+  }
 
   useEffect(() => {
     let isActive = true;
@@ -235,7 +312,8 @@ export function AssetsPage({
       try {
         const nextWorkspace = await addAssetFiles(selectedAccount.userId, {
           paths,
-          ...(universeId ? { universeId: Number(universeId) } : {}),
+          creator: resolveCreator(creatorId),
+          ...(manualUniverseId || universeId ? { universeId: Number(manualUniverseId || universeId) } : {}),
         });
         if (isMounted.current) {
           setWorkspace(nextWorkspace);
@@ -251,7 +329,7 @@ export function AssetsPage({
         if (isMounted.current) setIsMutating(false);
       }
     },
-    [canStage, selectedAccount, universeId, notify],
+    [canStage, selectedAccount, universeId, creatorId, manualUniverseId, selectedUserId, notify],
   );
 
   useEffect(() => {
@@ -307,7 +385,7 @@ export function AssetsPage({
     }
   }
 
-  async function startUpload() {
+  async function startUpload(rowIds: string[]) {
     if (
       !canStage ||
       !selectedAccount ||
@@ -318,7 +396,7 @@ export function AssetsPage({
     mutationPending.current = true;
     setIsMutating(true);
     try {
-      await uploadAssets(selectedAccount.userId);
+      await uploadAssets(selectedAccount.userId, rowIds);
       if (isMounted.current) setWorkspace(await listAssetWorkspace());
     } catch {
       notify(
@@ -376,7 +454,18 @@ export function AssetsPage({
   const canUpload =
     canStage &&
     !workspace.isUploading &&
-    ownedRows.some((row) => row.state === "queued");
+    ownedRows.some((row) => row.state === "queued" && selectedRows.has(row.rowId));
+  const selectedAssetIds = tab === "creations" ? creations.filter((row) => selectedRows.has(`creation-${row.assetId}`)).map((row) => row.assetId) : rows.filter((row) => selectedRows.has(row.rowId) && row.assetId !== null).map((row) => row.assetId!);
+  const visibleCreationRows = creations.filter((row) => `${row.name} ${row.assetId}`.toLowerCase().includes(search.toLowerCase()));
+  const selectableRows = tab === "creations" ? visibleCreationRows.map((row) => `creation-${row.assetId}`) : rows.filter((row) => tab === "library" || row.state === "queued").map((row) => row.rowId);
+  async function grantAccess() {
+    if (!selectedUserId) return;
+    await runAssetAction(async () => {
+      const result = await grantAssetAccess(selectedUserId, Number(manualUniverseId || universeId), selectedAssetIds);
+      if (result.notice) { notify("Permissions checked; local update failed", result.notice, "warning"); return; }
+      notify("Experience access checked", `${result.granted.length} of ${selectedAssetIds.length} assets confirmed. ${result.failures.length ? `Roblox refused ${result.failures.length} permission requests.` : result.granted.length < selectedAssetIds.length ? "Some permissions were not confirmed. Check Creator Dashboard." : ""}`, result.granted.length === selectedAssetIds.length ? "success" : "warning");
+    });
+  }
   const hasFinishedRows = workspace.rows.some(
     (row) => terminalStates.has(row.state) && row.state !== "approved",
   );
@@ -476,12 +565,14 @@ export function AssetsPage({
         <section className="assets-main" aria-label="Asset workspace">
           <div className="assets-tabs-row">
             <div className="assets-tabs" aria-label="Asset views">
+              <button type="button" className={`account-button ${tab === "creations" ? "primary" : ""}`} aria-pressed={tab === "creations"} onClick={() => { setTab("creations"); setSelectedRows(new Set()); }}>Live creations</button>
               <button
                 type="button"
                 className={`account-button ${tab === "library" ? "primary" : ""}`}
                 aria-pressed={tab === "library"}
                 onClick={() => {
                   setTab("library");
+                  setSelectedRows(new Set());
                   setTypeFilter("all");
                 }}
               >
@@ -493,6 +584,7 @@ export function AssetsPage({
                 aria-pressed={tab === "queue"}
                 onClick={() => {
                   setTab("queue");
+                  setSelectedRows(new Set());
                   setTypeFilter("all");
                 }}
               >
@@ -510,7 +602,10 @@ export function AssetsPage({
             </label>
           </div>
           <div className="assets-toolbar">
-            {tab === "library" ? (
+            {tab === "creations" ? <>
+              <label className="assets-inline-field">Type<Select ariaLabel="Creation type" sizing="content" value={creationKind} onChange={setCreationKind} options={assetTypeOptions.filter((option) => option.value !== "all")} disabled={isMutating} /></label>
+              <button className="account-button" type="button" disabled={isLoadingCreations || !selectedAccount} onClick={() => setCreationRefresh((current) => current + 1)}><Icon name="refresh" />Refresh creations</button>
+            </> : tab === "library" ? (
               <>
                 <label className="assets-inline-field">
                   View
@@ -594,14 +689,25 @@ export function AssetsPage({
                   type="button"
                   className="account-button primary"
                   disabled={!canUpload}
-                  onClick={() => void startUpload()}
+                  onClick={() => setUploadConfirmation(ownedRows.filter((row) => row.state === "queued" && selectedRows.has(row.rowId)).map((row) => row.rowId))}
                 >
                   <Icon name="upload" />
-                  {workspace.isUploading ? "Uploading..." : "Upload all"}
+                  {workspace.isUploading ? "Uploading..." : "Upload selected"}
                 </button>
               </>
             )}
           </div>
+          <div className="assets-toolbar">
+            <label className="assets-inline-field">Creator<Select ariaLabel="Asset creator" sizing="content" value={creatorId} onChange={setCreatorId} options={creatorOptions} disabled={!selectedAccount || isMutating} /></label>
+            <button className="account-button" type="button" disabled={!selectableRows.length || isMutating} onClick={() => setSelectedRows((current) => selectableRows.every((id) => current.has(id)) ? new Set() : new Set(selectableRows))}>Select all visible</button>
+            <span>{selectedRows.size} selected</span>
+            {tab !== "queue" && <><button className="account-button" type="button" disabled={!selectedAssetIds.length || isMutating} onClick={() => void copyText(selectedAssetIds.join(", "))}>Copy selected IDs</button><button className="account-button" type="button" disabled={!selectedAssetIds.length || isMutating || !Number(manualUniverseId || universeId)} onClick={() => void grantAccess()}><Icon name="verification" />Grant selected access</button></>}
+          </div>
+          <div className="assets-toolbar">
+            {tab !== "queue" && <label className="assets-inline-field">Experience<Select ariaLabel="Experience for existing assets" sizing="content" value={universeId} onChange={setUniverseId} disabled={isLoadingUniverses || isMutating} options={[{ value: "", label: "Choose an experience" }, ...universes.map((universe) => ({ value: String(universe.id), label: universe.name }))]} /></label>}
+            <label className="assets-inline-field">Manual experience ID<input className="settings-input" inputMode="numeric" aria-label="Manual experience ID" placeholder="Universe ID" value={manualUniverseId} disabled={isMutating} onChange={(event) => setManualUniverseId(event.target.value.replace(/[^0-9]/g, ""))} /></label>
+          </div>
+          {creatorError && <p role="alert" className="assets-notice">{creatorError}<button className="account-button" type="button" disabled={!selectedUserId || isMutating} onClick={() => { if (selectedUserId) void listAssetCreators(selectedUserId).then((groups) => { setCreatorGroups(groups); setCreatorError(null); }).catch((error) => notify("Group creators unavailable", operationError(error, "Try again later."))); }}>Retry group creators</button></p>}
           {workspace.notice && (
             <p className="assets-notice" role="status">
               {workspace.notice}
@@ -619,7 +725,15 @@ export function AssetsPage({
             </p>
           )}
           <div className="assets-panel">
-            {isLoading ? (
+            {tab === "creations" ? <>
+              <table className="assets-table"><caption className="instances-caption">Live creations for the selected account or group</caption><thead><tr><th scope="col">Select</th><th scope="col">Asset</th><th scope="col">Type</th><th scope="col" className="assets-secondary-column">Updated</th><th scope="col">Actions</th></tr></thead><tbody>
+                {creationsError && <tr><td colSpan={5}><div role="alert"><p className="selectable-text">{creationsError}</p><button className="account-button" type="button" disabled={isLoadingCreations} onClick={() => nextCursor ? void loadMoreCreations() : setCreationRefresh((current) => current + 1)}>Retry creations</button></div></td></tr>}
+                {visibleCreationRows.map((row) => <tr key={row.assetId} aria-selected={selectedRows.has(`creation-${row.assetId}`)}><td><input type="checkbox" aria-label={`Select asset ${row.assetId}`} checked={selectedRows.has(`creation-${row.assetId}`)} onChange={() => toggleRow(`creation-${row.assetId}`)} disabled={isMutating} /></td><td><div className="asset-creation-name">{row.thumbnailUrl ? <img className="asset-creation-thumbnail" src={row.thumbnailUrl} alt="" /> : <Icon name={assetTypeIcons[row.kind] ?? "folder"} />}<span>{row.name}<small className="selectable-text">{row.assetId}</small></span></div></td><td>{row.kind}</td><td className="assets-secondary-column">{row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "Unknown"}</td><td><div className="assets-row-actions"><button className="account-button" type="button" disabled={isMutating} onClick={() => void copyText(String(row.assetId))}>Copy ID</button><button className="account-button" type="button" disabled={isMutating} onClick={() => void copyText(`https://www.roblox.com/library/${row.assetId}`)}>Copy link</button><button className="account-button" type="button" disabled={isMutating} onClick={() => void copyText(row.name)}>Copy name</button></div></td></tr>)}
+                {isLoadingCreations && <tr><td colSpan={5}><LoadingSkeleton layout="results" label="Loading live creations" /></td></tr>}
+                {!isLoadingCreations && !creationsError && visibleCreationRows.length === 0 && <tr><td colSpan={5}>{selectedAccount ? "No matching creations. Choose another type or creator, or change your search." : "Select an account to browse its creations."}</td></tr>}
+              </tbody></table>
+              {nextCursor && <button className="account-button" type="button" disabled={isLoadingCreations} onClick={() => void loadMoreCreations()}>{isLoadingCreations ? "Loading..." : "Load more creations"}</button>}
+            </> : isLoading ? (
               <LoadingSkeleton
                 layout={
                   tab === "library" && density === "icons"
@@ -661,6 +775,7 @@ export function AssetsPage({
               <div className="assets-library-grid" aria-label="Asset library">
                 {rows.map((row) => (
                   <article className="assets-library-item" key={row.rowId}>
+                    <label><input type="checkbox" aria-label={`Select ${row.displayName}`} checked={selectedRows.has(row.rowId)} onChange={() => toggleRow(row.rowId)} disabled={isMutating} />Select</label>
                     <div
                       className="assets-file-preview"
                       aria-label={`${row.kind} file type icon`}
@@ -689,6 +804,7 @@ export function AssetsPage({
                         <Icon name="copy" />
                       </button>
                     )}
+                    <div className="assets-row-actions"><button className="account-button" type="button" disabled={isMutating} onClick={() => void runAssetAction(() => revealAssetFile(row.rowId))}>Reveal file</button><button className="account-button" type="button" disabled={isMutating || row.assetId === null} onClick={() => void copyText(`https://www.roblox.com/library/${row.assetId}`)}>Copy link</button><button className="account-button" type="button" disabled={isMutating} onClick={() => void copyText(row.displayName)}>Copy name</button></div>
                   </article>
                 ))}
               </div>
@@ -698,6 +814,7 @@ export function AssetsPage({
               >
                 <thead>
                   <tr>
+                    <th scope="col">Select</th>
                     <th scope="col">Name</th>
                     <th scope="col">Type</th>
                     <th scope="col" className="assets-secondary-column">
@@ -713,9 +830,11 @@ export function AssetsPage({
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr key={row.rowId}>
+                    <tr key={row.rowId} aria-selected={selectedRows.has(row.rowId)}>
+                      <td><input type="checkbox" aria-label={`Select ${row.displayName}`} checked={selectedRows.has(row.rowId)} onChange={() => toggleRow(row.rowId)} disabled={isMutating || (tab === "queue" && row.state !== "queued")} /></td>
                       <td>
                         <strong>{row.displayName}</strong>
+                        <small>{row.creator.kind === "group" ? "Group" : "Account"} {row.creator.id}</small>
                         {row.message && <small className="selectable-text">{row.message}</small>}
                       </td>
                       <td>{row.kind}</td>
@@ -752,6 +871,10 @@ export function AssetsPage({
                       </td>
                       <td>
                         <div className="assets-row-actions">
+                          {(row.state === "queued" || row.state === "duplicate") && <button className="account-button" type="button" disabled={isMutating || workspace.isUploading} onClick={() => setQueueEdit({ rowId: row.rowId, name: row.displayName, kind: row.kind, creatorId: row.creator.kind === "group" ? String(row.creator.id) : "user" })}><Icon name="edit" />Edit</button>}
+                          <button className="account-button" type="button" disabled={isMutating} onClick={() => void runAssetAction(() => revealAssetFile(row.rowId))}><Icon name="folder" />Reveal file</button>
+                          <button className="account-button" type="button" disabled={isMutating} onClick={() => void copyText(row.displayName)}>Copy name</button>
+                          {row.assetId !== null && <button className="account-button" type="button" disabled={isMutating} onClick={() => void copyText(`https://www.roblox.com/library/${row.assetId}`)}>Copy link</button>}
                           {row.canRetry && (
                             <button
                               className="account-button"
@@ -793,6 +916,8 @@ export function AssetsPage({
           )}
         </section>
       </main>
+      {queueEdit && <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="queue-edit-title" onClose={() => { if (!isMutating) setQueueEdit(null); }}><h2 id="queue-edit-title">Edit queued asset</h2><label className="settings-stack">Name<input className="settings-input" aria-label="Queued asset name" value={queueEdit.name} maxLength={100} disabled={isMutating} onChange={(event) => setQueueEdit({ ...queueEdit, name: event.target.value })} /></label><label className="settings-stack">Type<Select ariaLabel="Queued asset type" value={queueEdit.kind} onChange={(kind) => setQueueEdit({ ...queueEdit, kind })} options={assetTypeOptions.filter((option) => option.value !== "all")} disabled={isMutating} /></label><label className="settings-stack">Creator<Select ariaLabel="Queued asset creator" value={queueEdit.creatorId} onChange={(creatorId) => setQueueEdit({ ...queueEdit, creatorId })} options={creatorOptions} disabled={isMutating} /></label><p>Changing type does not convert the file's contents. Roblox must support the selected type and source file.</p><div className="confirm-modal-actions"><button className="account-button" type="button" disabled={isMutating} onClick={() => setQueueEdit(null)}>Cancel</button><button className="account-button" type="button" disabled={isMutating || !queueEdit.name.trim()} onClick={() => void saveQueueEdit()}>{isMutating ? "Saving..." : "Save queue changes"}</button></div></Popup>}
+      {uploadConfirmation && <ConfirmModal title="Upload selected assets?" message={<><p>This creates permanent assets under the listed creators and submits them to Roblox moderation. Only these {uploadConfirmation.length} selected rows will be uploaded.</p><ul className="assets-upload-summary">{ownedRows.filter((row) => uploadConfirmation.includes(row.rowId)).map((row) => <li key={row.rowId}>{row.displayName} - {row.kind} - {row.creator.kind === "group" ? "Group" : "Account"} {row.creator.id}</li>)}</ul></>} confirmLabel="Upload selected assets" confirmIcon="upload" onConfirm={() => { const rows = uploadConfirmation; setUploadConfirmation(null); void startUpload(rows); }} onCancel={() => setUploadConfirmation(null)} />}
       {toast && <Toast item={toast} onDismiss={() => setToast(null)} />}
     </>
   );

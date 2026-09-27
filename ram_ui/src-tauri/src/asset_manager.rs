@@ -1,10 +1,11 @@
+use base64::Engine;
 use chrono::Utc;
 use ram_core::assets::{
     self, AssetIndex, AssetRecord, AssetState, Creator, IndexLoad, ModerationStatus,
     OperationOutcome, StagedFile,
 };
 use ram_core::{assets_api, auth::RobloxClient, error::CoreError};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -21,7 +22,7 @@ struct AssetRuntime {
     path: PathBuf,
     is_read_only: bool,
     notice: Option<String>,
-    upload_users: HashSet<u64>,
+    upload_rows: HashSet<String>,
     is_worker_running: bool,
 }
 
@@ -58,7 +59,7 @@ impl Default for AssetManager {
             path,
             is_read_only: status.is_read_only(),
             notice,
-            upload_users: HashSet::new(),
+            upload_rows: HashSet::new(),
             is_worker_running: false,
         })))
     }
@@ -139,7 +140,7 @@ impl AssetRuntime {
     fn snapshot(&self) -> AssetWorkspace {
         AssetWorkspace {
             rows: self.index.records.iter().map(summarize_row).collect(),
-            is_uploading: !self.upload_users.is_empty()
+            is_uploading: !self.upload_rows.is_empty()
                 || self
                     .index
                     .records
@@ -154,7 +155,7 @@ impl AssetRuntime {
         if self.index.save(&self.path).is_err() {
             self.index = previous;
             self.is_read_only = true;
-            self.upload_users.clear();
+            self.upload_rows.clear();
             self.notice = Some(
                 "The asset index could not be saved. Uploads have stopped to protect your data."
                     .into(),
@@ -207,6 +208,289 @@ fn describe_error(error: &CoreError) -> String {
     }
 }
 
+async fn validate_creator(
+    client: &RobloxClient,
+    cookie: &str,
+    user_id: u64,
+    creator: Creator,
+) -> Result<(), String> {
+    match creator {
+        Creator::User(id) if id == user_id && id > 0 => Ok(()),
+        Creator::Group(id) if id > 0 => {
+            let groups = assets_api::list_publishable_groups(client, cookie)
+                .await
+                .map_err(|error| describe_error(&error))?;
+            if groups.iter().any(|group| group.group_id == id) {
+                Ok(())
+            } else {
+                Err("This account cannot publish for the selected group.".into())
+            }
+        }
+        _ => Err("Choose this account or a group it can publish for.".into()),
+    }
+}
+
+#[derive(Serialize)]
+pub struct AssetCreator {
+    id: u64,
+    name: String,
+}
+
+#[tauri::command]
+pub async fn list_asset_creators(
+    app: tauri::AppHandle,
+    user_id: u64,
+) -> Result<Vec<AssetCreator>, String> {
+    let cookie = credentials(&app, user_id).await?;
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
+    assets_api::list_publishable_groups(&client, &cookie)
+        .await
+        .map(|groups| {
+            groups
+                .into_iter()
+                .map(|group| AssetCreator {
+                    id: group.group_id,
+                    name: group.name,
+                })
+                .collect()
+        })
+        .map_err(|error| describe_error(&error))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueEdit {
+    row_id: String,
+    name: String,
+    kind: String,
+    creator: Creator,
+}
+
+#[tauri::command]
+pub async fn update_asset_row(
+    app: tauri::AppHandle,
+    user_id: u64,
+    edit: QueueEdit,
+) -> Result<AssetWorkspace, String> {
+    let kind = assets::AssetKind::from_api_str(&edit.kind)
+        .filter(|kind| assets::AssetKind::selectable().contains(kind))
+        .ok_or("Choose a supported asset type")?;
+    if edit.name.trim().is_empty() || edit.name.chars().count() > 100 {
+        return Err("Asset names must contain between one and 100 characters".into());
+    }
+    let cookie = credentials(&app, user_id).await?;
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
+    validate_creator(&client, &cookie, user_id, edit.creator).await?;
+    let manager = app.state::<AssetManager>().0.clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = manager.lock().map_err(|_| "Asset state unavailable")?;
+        if runtime.is_read_only {
+            return Err("The asset index is read-only".into());
+        }
+        if runtime.upload_rows.contains(&edit.row_id) {
+            return Err("Wait for the selected upload to finish before editing it".into());
+        }
+        let original = runtime
+            .index
+            .get(&edit.row_id)
+            .ok_or("Queue row not found")?;
+        if original.uploaded_by != user_id
+            || !matches!(
+                original.state,
+                AssetState::Queued | AssetState::Duplicate { .. }
+            )
+        {
+            return Err("Only queued or duplicate rows for this account can be edited".into());
+        }
+        let duplicate = runtime
+            .index
+            .find_uploaded(&original.file_sha256, edit.creator)
+            .and_then(|row| row.state.asset_id());
+        if runtime.index.records.iter().any(|row| {
+            row.row_id != edit.row_id
+                && row.file_sha256 == original.file_sha256
+                && row.creator == edit.creator
+                && (row.state.is_active() || matches!(row.state, AssetState::Queued))
+        }) {
+            return Err("These bytes are already queued for this creator".into());
+        }
+        let previous = runtime.index.clone();
+        let row = runtime
+            .index
+            .get_mut(&edit.row_id)
+            .ok_or("Queue row not found")?;
+        row.display_name = assets::sanitize_display_name(&edit.name);
+        row.kind = kind;
+        row.creator = edit.creator;
+        row.state = duplicate.map_or(AssetState::Queued, |asset_id| AssetState::Duplicate {
+            asset_id,
+        });
+        runtime.persist(previous)?;
+        Ok::<_, String>(runtime.snapshot())
+    })
+    .await
+    .map_err(|_| "Queue edit task failed")??;
+    let _ = app.emit("assets-updated", &snapshot);
+    Ok(snapshot)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreationRow {
+    asset_id: u64,
+    name: String,
+    kind: String,
+    updated_at: Option<String>,
+    thumbnail_url: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreationPage {
+    rows: Vec<CreationRow>,
+    next_cursor: Option<String>,
+}
+
+#[tauri::command]
+pub async fn list_asset_creations(
+    app: tauri::AppHandle,
+    user_id: u64,
+    creator: Creator,
+    kind: String,
+    cursor: Option<String>,
+) -> Result<CreationPage, String> {
+    let kind = assets::AssetKind::from_api_str(&kind)
+        .filter(|kind| assets::AssetKind::selectable().contains(kind))
+        .ok_or("Choose a supported creation type")?;
+    if cursor
+        .as_ref()
+        .is_some_and(|cursor| cursor.len() > 2048 || cursor.chars().any(char::is_control))
+    {
+        return Err("Invalid creation cursor".into());
+    }
+    let cookie = credentials(&app, user_id).await?;
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
+    validate_creator(&client, &cookie, user_id, creator).await?;
+    let page = assets_api::list_creations(&client, &cookie, creator, kind, cursor.as_deref())
+        .await
+        .map_err(|error| describe_error(&error))?;
+    let asset_ids = page
+        .items
+        .iter()
+        .map(|row| row.asset_id)
+        .take(100)
+        .collect::<Vec<_>>();
+    let thumbnails = assets_api::fetch_asset_thumbnails(&client, &asset_ids)
+        .await
+        .unwrap_or_default();
+    Ok(CreationPage {
+        rows: page
+            .items
+            .into_iter()
+            .take(100)
+            .map(|row| CreationRow {
+                asset_id: row.asset_id,
+                name: row.name,
+                kind: row.kind.as_api_str().into(),
+                updated_at: row.updated.map(|date| date.to_rfc3339()),
+                thumbnail_url: thumbnails
+                    .iter()
+                    .find(|(id, bytes)| *id == row.asset_id && bytes.len() <= 8 * 1024 * 1024)
+                    .map(|(_, bytes)| {
+                        format!(
+                            "data:image/png;base64,{}",
+                            base64::engine::general_purpose::STANDARD.encode(bytes)
+                        )
+                    }),
+            })
+            .collect(),
+        next_cursor: page.next_cursor,
+    })
+}
+
+#[derive(Serialize)]
+pub struct AssetGrant {
+    granted: Vec<u64>,
+    failures: Vec<Option<u64>>,
+    notice: Option<String>,
+}
+
+#[tauri::command]
+pub async fn grant_asset_access(
+    app: tauri::AppHandle,
+    user_id: u64,
+    universe_id: u64,
+    asset_ids: Vec<u64>,
+) -> Result<AssetGrant, String> {
+    if universe_id == 0 || asset_ids.is_empty() || asset_ids.len() > 100 || asset_ids.contains(&0) {
+        return Err("Choose an experience and between one and 100 valid asset IDs".into());
+    }
+    let cookie = credentials(&app, user_id).await?;
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
+    let universes = assets_api::list_manageable_universes(&client, &cookie)
+        .await
+        .map_err(|error| describe_error(&error))?;
+    if !universes
+        .iter()
+        .any(|universe| universe.universe_id == universe_id)
+    {
+        return Err("This account cannot manage that experience".into());
+    }
+    let outcome = assets_api::grant_use_permission(&client, &cookie, universe_id, &asset_ids)
+        .await
+        .map_err(|error| describe_error(&error))?;
+    let granted: Vec<u64> = outcome
+        .granted
+        .into_iter()
+        .filter(|id| asset_ids.contains(id))
+        .collect();
+    let confirmed = granted.clone();
+    let manager = app.state::<AssetManager>().0.clone();
+    let saved = update_index(&app, manager, move |runtime| {
+        for row in &mut runtime.index.records {
+            if row.uploaded_by == user_id
+                && row
+                    .state
+                    .asset_id()
+                    .is_some_and(|id| confirmed.contains(&id))
+                && !row.granted_universes.contains(&universe_id)
+            {
+                row.granted_universes.push(universe_id);
+            }
+        }
+    })
+    .await;
+    Ok(AssetGrant { granted, failures: outcome.failures.into_iter().map(|(id, _)| id.filter(|id| asset_ids.contains(id))).collect(), notice: saved.err().map(|_| "Roblox permissions were checked, but the local access mirror could not be saved. Check Creator Dashboard.".into()) })
+}
+
+#[tauri::command]
+pub async fn reveal_asset_file(app: tauri::AppHandle, row_id: String) -> Result<(), String> {
+    let manager = app.state::<AssetManager>().0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = manager
+            .lock()
+            .map_err(|_| "Asset state unavailable")?
+            .index
+            .get(&row_id)
+            .ok_or("Asset row not found")?
+            .file_path
+            .clone();
+        let path = path
+            .canonicalize()
+            .map_err(|_| "The imported file no longer exists")?;
+        if !path.is_file() {
+            return Err("The imported file no longer exists".into());
+        }
+        std::process::Command::new("explorer.exe")
+            .arg(format!("/select,{}", path.display()))
+            .spawn()
+            .map(|_| ())
+            .map_err(|_| "The file could not be revealed".into())
+    })
+    .await
+    .map_err(|_| "File reveal task failed")?
+}
+
 fn read_file(path: &Path) -> Result<(Vec<u8>, assets::AssetKind, &'static str), String> {
     let mut file = std::fs::File::open(path).map_err(|_| "The file could not be opened.")?;
     let metadata = file
@@ -250,10 +534,13 @@ pub async fn add_asset_files(
     user_id: u64,
     paths: Vec<String>,
     universe_id: Option<u64>,
+    creator: Option<Creator>,
 ) -> Result<AssetWorkspace, String> {
     let cookie = credentials(&app, user_id).await?;
+    let creator = creator.unwrap_or(Creator::User(user_id));
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
+    validate_creator(&client, &cookie, user_id, creator).await?;
     if let Some(universe_id) = universe_id {
-        let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
         let universes = assets_api::list_manageable_universes(&client, &cookie)
             .await
             .map_err(|error| describe_error(&error))?;
@@ -315,7 +602,7 @@ pub async fn add_asset_files(
             let mut row = AssetRecord::staged(
                 uuid::Uuid::new_v4().to_string(),
                 file,
-                Creator::User(user_id),
+                creator,
                 user_id,
                 Utc::now(),
             );
@@ -437,8 +724,31 @@ pub async fn list_asset_universes(
         .map_err(|error| describe_error(&error))
 }
 
+fn select_upload_rows(
+    index: &AssetIndex,
+    user_id: u64,
+    row_ids: &[String],
+) -> Result<HashSet<String>, String> {
+    if row_ids.is_empty() || row_ids.len() > 100 {
+        return Err("Select between one and 100 queued rows to upload.".into());
+    }
+    for row_id in row_ids {
+        let row = index
+            .get(row_id)
+            .ok_or("A selected queue row no longer exists")?;
+        if row.uploaded_by != user_id || !matches!(row.state, AssetState::Queued) {
+            return Err("Selected rows must be queued for this account.".into());
+        }
+    }
+    Ok(row_ids.iter().cloned().collect())
+}
+
 #[tauri::command]
-pub async fn upload_assets(app: tauri::AppHandle, user_id: u64) -> Result<(), String> {
+pub async fn upload_assets(
+    app: tauri::AppHandle,
+    user_id: u64,
+    row_ids: Vec<String>,
+) -> Result<(), String> {
     drop(credentials(&app, user_id).await?);
     {
         let manager = app.state::<AssetManager>();
@@ -446,7 +756,8 @@ pub async fn upload_assets(app: tauri::AppHandle, user_id: u64) -> Result<(), St
         if runtime.is_read_only {
             return Err("The asset index is read-only.".into());
         }
-        runtime.upload_users.insert(user_id);
+        let selected = select_upload_rows(&runtime.index, user_id, &row_ids)?;
+        runtime.upload_rows.extend(selected);
         let _ = app.emit("assets-updated", runtime.snapshot());
     }
     start_worker(&app);
@@ -474,10 +785,10 @@ fn start_worker(app: &tauri::AppHandle) {
                 };
                 if result.is_err()
                     || runtime.is_read_only
-                    || (runtime.upload_users.is_empty() && !runtime.index.has_active())
+                    || (runtime.upload_rows.is_empty() && !runtime.index.has_active())
                 {
                     runtime.is_worker_running = false;
-                    runtime.upload_users.clear();
+                    runtime.upload_rows.clear();
                     false
                 } else {
                     true
@@ -553,8 +864,7 @@ async fn run_tick(app: &tauri::AppHandle, manager: Arc<Mutex<AssetRuntime>>) -> 
             .records
             .iter()
             .find(|row| {
-                runtime.upload_users.contains(&row.uploaded_by)
-                    && matches!(row.state, AssetState::Queued)
+                runtime.upload_rows.contains(&row.row_id) && matches!(row.state, AssetState::Queued)
             })
             .cloned()
     };
@@ -575,16 +885,16 @@ async fn run_tick(app: &tauri::AppHandle, manager: Arc<Mutex<AssetRuntime>>) -> 
         }
         let previous = runtime.index.clone();
         let expired = assets::expire_stale_operations(&mut runtime.index, Utc::now());
-        let queued_users: HashSet<u64> = runtime
+        let queued_rows: HashSet<String> = runtime
             .index
             .records
             .iter()
             .filter(|row| matches!(row.state, AssetState::Queued | AssetState::Uploading))
-            .map(|row| row.uploaded_by)
+            .map(|row| row.row_id.clone())
             .collect();
         runtime
-            .upload_users
-            .retain(|user_id| queued_users.contains(user_id));
+            .upload_rows
+            .retain(|row_id| queued_rows.contains(row_id));
         if !expired.is_empty() {
             runtime.persist(previous)?;
         }
@@ -658,14 +968,12 @@ async fn prepare_upload(
     let cookie = credentials(app, row.uploaded_by)
         .await
         .map_err(|message| (message, false))?;
-    if row.creator != Creator::User(row.uploaded_by) {
-        return Err((
-            "This queue row has an unsupported creator. Import it again for your account.".into(),
-            false,
-        ));
-    }
+    let client = RobloxClient::new().map_err(|_| ("Roblox client unavailable".into(), false))?;
+    validate_creator(&client, &cookie, row.uploaded_by, row.creator)
+        .await
+        .map_err(|message| (message, false))?;
     let path = row.file_path.clone();
-    let (bytes, kind, mime) = tauri::async_runtime::spawn_blocking(move || read_file(&path))
+    let (bytes, _, mime) = tauri::async_runtime::spawn_blocking(move || read_file(&path))
         .await
         .map_err(|_| ("File task unavailable".into(), false))?
         .map_err(|message| (message, false))?;
@@ -675,9 +983,8 @@ async fn prepare_upload(
             false,
         ));
     }
-    let client = RobloxClient::new().map_err(|_| ("Roblox client unavailable".into(), false))?;
     let request = assets_api::UploadRequest {
-        kind,
+        kind: row.kind,
         display_name: assets::sanitize_display_name(&row.display_name),
         description: row.description.chars().take(1000).collect(),
         creator: row.creator,
@@ -829,6 +1136,49 @@ async fn poll_row(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_uploads_never_include_other_rows_or_accounts() {
+        let mut index = AssetIndex::default();
+        for (row_id, user_id) in [("selected", 1), ("unselected", 1), ("other-account", 2)] {
+            index.records.push(AssetRecord::staged(
+                row_id.into(),
+                StagedFile {
+                    path: PathBuf::from("synthetic.png"),
+                    sha256: row_id.into(),
+                    bytes: 1,
+                    kind: assets::AssetKind::Decal,
+                },
+                Creator::User(user_id),
+                user_id,
+                Utc::now(),
+            ));
+        }
+        assert_eq!(
+            select_upload_rows(&index, 1, &["selected".into()]).unwrap(),
+            HashSet::from(["selected".into()])
+        );
+        assert!(select_upload_rows(&index, 1, &["other-account".into()]).is_err());
+        assert!(select_upload_rows(&index, 1, &["missing".into()]).is_err());
+        assert!(select_upload_rows(&index, 1, &[]).is_err());
+        index.get_mut("selected").unwrap().state = AssetState::Uploading;
+        assert!(select_upload_rows(&index, 1, &["selected".into()]).is_err());
+    }
+
+    #[tokio::test]
+    async fn invalid_creators_are_rejected_before_any_request() {
+        let client = RobloxClient::new().unwrap();
+        assert!(
+            validate_creator(&client, "synthetic-credential", 1, Creator::User(2))
+                .await
+                .is_err()
+        );
+        assert!(
+            validate_creator(&client, "synthetic-credential", 1, Creator::Group(0))
+                .await
+                .is_err()
+        );
+    }
 
     #[test]
     fn operation_ids_cannot_escape_the_endpoint_path() {

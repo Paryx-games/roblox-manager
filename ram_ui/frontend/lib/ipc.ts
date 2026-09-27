@@ -336,13 +336,22 @@ export async function listAssetWorkspace(): Promise<AssetWorkspace> {
   return invoke<AssetWorkspace>("list_asset_workspace");
 }
 
-export async function addAssetFiles(userId: number, options: { paths?: string[]; universeId?: number } = {}): Promise<AssetWorkspace> {
-  return invoke<AssetWorkspace>("add_asset_files", { userId, paths: options.paths ?? [], universeId: options.universeId ?? null });
+export type AssetCreator = { kind: "user" | "group"; id: number };
+export async function addAssetFiles(userId: number, options: { paths?: string[]; universeId?: number; creator?: AssetCreator } = {}): Promise<AssetWorkspace> {
+  return invoke<AssetWorkspace>("add_asset_files", { userId, paths: options.paths ?? [], universeId: options.universeId ?? null, creator: options.creator ?? { kind: "user", id: userId } });
 }
 
-export async function uploadAssets(userId: number): Promise<void> {
-  return invoke<void>("upload_assets", { userId });
+export async function uploadAssets(userId: number, rowIds: string[]): Promise<void> {
+  return invoke<void>("upload_assets", { userId, rowIds });
 }
+
+export interface CreationRow { assetId: number; name: string; kind: string; updatedAt: string | null; thumbnailUrl: string | null }
+export interface CreationPage { rows: CreationRow[]; nextCursor: string | null }
+export async function listAssetCreators(userId: number): Promise<AssetUniverse[]> { return invoke("list_asset_creators", { userId }); }
+export async function updateAssetRow(userId: number, edit: { rowId: string; name: string; kind: string; creator: AssetCreator }): Promise<AssetWorkspace> { return invoke("update_asset_row", { userId, edit }); }
+export async function listAssetCreations(userId: number, options: { creator: AssetCreator; kind: string; cursor?: string }): Promise<CreationPage> { return invoke("list_asset_creations", { userId, ...options, cursor: options.cursor ?? null }); }
+export async function grantAssetAccess(userId: number, universeId: number, assetIds: number[]): Promise<{ granted: number[]; failures: Array<number | null>; notice: string | null }> { return invoke("grant_asset_access", { userId, universeId, assetIds }); }
+export async function revealAssetFile(rowId: string): Promise<void> { return invoke("reveal_asset_file", { rowId }); }
 
 export async function changeAssetQueue(action: "clearFinished" | "retry" | "remove", options: { rowId?: string } = {}): Promise<AssetWorkspace> {
   return invoke<AssetWorkspace>("change_asset_queue", { action, rowId: options.rowId ?? null });

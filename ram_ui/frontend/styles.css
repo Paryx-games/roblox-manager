@@ -55,6 +55,31 @@
   margin-left: var(--space-3);
 }
 
+.asset-creation-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.asset-creation-thumbnail {
+  width: var(--space-12);
+  height: var(--space-12);
+  object-fit: contain;
+}
+
+.assets-page .assets-row-actions {
+  flex-wrap: wrap;
+}
+
+.assets-page tr[aria-selected="true"] {
+  background: var(--action-muted);
+}
+
+.assets-upload-summary {
+  max-height: 30vh;
+  overflow: auto;
+}
+
 @font-face {
   font-family: Roboto;
   font-style: normal;
