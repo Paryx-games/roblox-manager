@@ -6,6 +6,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Fixed
 
+- **Standalone debug builds.** Add `pnpm --dir ram_ui build:debug` to rebuild and embed the frontend in the debug executable. This build opens without a Vite server; executables produced by `tauri dev` still require their development server.
+
 - **Existing accounts.** Show a yellow warning when cookie entry, browser login or bulk import re-adds an existing account, explaining that its saved credential was updated.
 
 - **Account refresh feedback.** Report valid and invalid account counts when refreshing all accounts. Account recovery revalidates only the displayed account, and individual results name that account.

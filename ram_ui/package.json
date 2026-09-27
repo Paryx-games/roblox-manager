@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build:debug": "node scripts/tauri.mjs build --debug --no-bundle",
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
     "lint": "eslint . && stylelint \"frontend/**/*.css\"",
     "typecheck": "tsc --noEmit -p tsconfig.app.json --pretty false",
