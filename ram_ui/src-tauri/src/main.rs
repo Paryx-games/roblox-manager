@@ -6,6 +6,7 @@ mod background;
 mod instances;
 mod launcher;
 mod lifecycle;
+mod login;
 mod state;
 
 #[path = "../../src/browser_login.rs"]
@@ -2410,17 +2411,7 @@ async fn add_account_anyway(
 async fn login_and_add_account(
     app: tauri::AppHandle,
 ) -> Result<Option<accounts::AdditionOutcome>, String> {
-    let profile_dir = std::env::var_os("APPDATA")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("RM")
-        .join("webview_profile");
-    let cookie = tauri::async_runtime::spawn_blocking(move || {
-        let _ = std::fs::remove_dir_all(&profile_dir);
-        browser_login::login_blocking(profile_dir)
-    })
-    .await
-    .map_err(|_| "Browser login task failed".to_string())??;
+    let cookie = login::capture_cookie(&app).await?;
     let Some(cookie) = cookie else {
         return Ok(None);
     };

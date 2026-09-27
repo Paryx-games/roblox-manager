@@ -6,6 +6,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Fixed
 
+- **Account login window.** Use an isolated, private Tauri webview for Roblox login so focus changes and resizing share the app window lifecycle. Capture the credential only in Rust, close the window on completion, and cancel cleanly when it is closed.
+
 - **Standalone debug builds.** Add `pnpm --dir ram_ui build:debug` to rebuild and embed the frontend in the debug executable. This build opens without a Vite server; executables produced by `tauri dev` still require their development server.
 
 - **Existing accounts.** Show a yellow warning when cookie entry, browser login or bulk import re-adds an existing account, explaining that its saved credential was updated.
