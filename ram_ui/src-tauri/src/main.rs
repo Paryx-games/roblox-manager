@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod accounts;
 mod asset_manager;
+mod background;
 mod state;
 
 #[path = "../../src/browser_login.rs"]
@@ -22,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use state::AppState;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use tauri::Manager;
 use tracing_subscriber::fmt::writer::MakeWriter;
 use tracing_subscriber::EnvFilter;
 
@@ -889,6 +892,9 @@ fn parse_private_server_url(input: &str) -> Result<ParsedPrivateServerUrl, &'sta
 }
 
 fn account_cookie(runtime: &state::RuntimeState, user_id: u64) -> Result<String, String> {
+    if !runtime.unlocked {
+        return Err("Account store is locked".to_string());
+    }
     let account = runtime
         .accounts
         .find_by_id(user_id)
@@ -928,10 +934,11 @@ fn account_summary(account: &Account, player_path: Option<String>) -> AccountSum
             .moderation
             .as_ref()
             .is_some_and(|info| info.is_banned),
-        moderation_reason: account
-            .moderation
-            .as_ref()
-            .and_then(|info| info.reason.clone()),
+        moderation_reason: account.moderation.as_ref().and_then(|info| {
+            info.reason
+                .as_deref()
+                .map(|reason| ram_core::redact::scrub(reason).into_owned())
+        }),
         moderation_expires_at: account
             .moderation
             .as_ref()
@@ -947,45 +954,6 @@ fn account_summary(account: &Account, player_path: Option<String>) -> AccountSum
             .or(account.last_validated)
             .map(|timestamp| timestamp.to_rfc3339()),
     }
-}
-
-fn add_account_with_cookie(
-    runtime: &mut state::RuntimeState,
-    cookie: &str,
-    user_id: u64,
-    username: String,
-    display_name: String,
-) -> Result<AccountSummary, String> {
-    if runtime.accounts.find_by_id(user_id).is_some() {
-        return Err("This account is already managed".to_string());
-    }
-    let mut account = Account::new(user_id, username, display_name);
-    if runtime.config.use_credential_manager {
-        crypto::credential_store(user_id, cookie).map_err(|error| error.to_string())?;
-    } else {
-        let session = runtime
-            .session
-            .as_ref()
-            .ok_or_else(|| "Account store is locked".to_string())?;
-        account.encrypted_cookie =
-            Some(crypto::encrypt_cookie(cookie, session).map_err(|error| error.to_string())?);
-    }
-    runtime.accounts.accounts.push(account);
-    let account = runtime
-        .accounts
-        .accounts
-        .last()
-        .expect("account was pushed");
-    let summary = account_summary(
-        account,
-        runtime
-            .config
-            .custom_player_paths
-            .get(&user_id)
-            .map(|path| path.display().to_string()),
-    );
-    save_runtime(runtime)?;
-    Ok(summary)
 }
 
 #[tauri::command]
@@ -2011,6 +1979,7 @@ fn remove_account(state: tauri::State<'_, AppState>, user_id: u64) -> Result<(),
         .runtime
         .lock()
         .map_err(|_| "Account state unavailable".to_string())?;
+    *runtime.credential_revisions.entry(user_id).or_default() += 1;
     if !runtime.accounts.remove_by_id(user_id) {
         return Err("Account not found".to_string());
     }
@@ -2279,106 +2248,18 @@ async fn search_connection_users(keyword: String) -> Result<Vec<ConnectionSearch
 
 #[tauri::command]
 async fn refresh_account_presence(
-    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     user_ids: Vec<u64>,
 ) -> Result<Vec<PresenceUpdate>, String> {
-    let (cookie, account_ids) = {
-        let runtime = state
-            .runtime
-            .lock()
-            .map_err(|_| "Account state unavailable".to_string())?;
-        let first_id = user_ids
-            .first()
-            .copied()
-            .or_else(|| {
-                runtime
-                    .accounts
-                    .accounts
-                    .first()
-                    .map(|account| account.user_id)
-            })
-            .ok_or_else(|| "No accounts are available".to_string())?;
-        (account_cookie(&runtime, first_id)?, user_ids)
-    };
-    let client = RobloxClient::new().map_err(|error| error.to_string())?;
-    let presences = api::fetch_presences(&client, &cookie, &account_ids)
-        .await
-        .map_err(|error| error.to_string())?;
-    let updates = presences
-        .iter()
-        .map(|(user_id, presence)| PresenceUpdate {
-            user_id: *user_id,
-            presence: presence_kind(presence),
-            presence_text: presence.status_text().to_string(),
-            location: presence.last_location.clone(),
-        })
-        .collect::<Vec<_>>();
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    for (user_id, presence) in presences {
-        if let Some(account) = runtime.accounts.find_by_id_mut(user_id) {
-            account.last_presence = presence;
-        }
-    }
-    save_runtime(&runtime)?;
-    Ok(updates)
+    background::refresh_presence(&app, user_ids).await
 }
 
 #[tauri::command]
 async fn revalidate_accounts(
-    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     user_ids: Vec<u64>,
 ) -> Result<Vec<AccountSummary>, String> {
-    let ids = if user_ids.is_empty() {
-        let runtime = state
-            .runtime
-            .lock()
-            .map_err(|_| "Account state unavailable".to_string())?;
-        runtime
-            .accounts
-            .accounts
-            .iter()
-            .map(|account| account.user_id)
-            .collect()
-    } else {
-        user_ids
-    };
-    let client = RobloxClient::new().map_err(|error| error.to_string())?;
-    let mut results = Vec::new();
-    for user_id in ids {
-        let cookie = {
-            let runtime = state
-                .runtime
-                .lock()
-                .map_err(|_| "Account state unavailable".to_string())?;
-            account_cookie(&runtime, user_id)?
-        };
-        let validation = client.validate_cookie(&cookie).await;
-        let mut runtime = state
-            .runtime
-            .lock()
-            .map_err(|_| "Account state unavailable".to_string())?;
-        let player_path = configured_player_path(&runtime, user_id);
-        if let Some(account) = runtime.accounts.find_by_id_mut(user_id) {
-            account.cookie_expired = validation.is_err();
-            if let Ok((validated_id, username, display_name)) = validation {
-                if validated_id == user_id {
-                    account.username = username;
-                    account.display_name = display_name;
-                    account.last_validated = Some(chrono::Utc::now());
-                }
-            }
-            results.push(account_summary(account, player_path));
-        }
-    }
-    let runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    save_runtime(&runtime)?;
-    Ok(results)
+    accounts::refresh(&app, user_ids).await
 }
 
 #[tauri::command]
@@ -2513,9 +2394,9 @@ async fn join_user_game(
 
 #[tauri::command]
 async fn add_account(
-    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     cookie: String,
-) -> Result<AccountSummary, String> {
+) -> Result<accounts::AdditionOutcome, String> {
     if cookie.trim().is_empty() {
         return Err("Enter a Roblox security cookie".to_string());
     }
@@ -2524,19 +2405,17 @@ async fn add_account(
         .validate_cookie(cookie.trim())
         .await
         .map_err(|_| "Roblox rejected this account credential".to_string())?;
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    add_account_with_cookie(&mut runtime, cookie.trim(), user_id, username, display_name)
+    let mut account = Account::new(user_id, username, display_name);
+    account.last_validated = Some(chrono::Utc::now());
+    accounts::stage_addition(&app, cookie.trim(), account).await
 }
 
 #[tauri::command]
 async fn add_account_anyway(
-    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
     cookie: String,
     username: String,
-) -> Result<AccountSummary, String> {
+) -> Result<accounts::AdditionOutcome, String> {
     if cookie.trim().is_empty() || username.trim().is_empty() {
         return Err("Enter both the cookie and Roblox username".to_string());
     }
@@ -2548,23 +2427,19 @@ async fn add_account_anyway(
         .into_iter()
         .find(|user| user.username.eq_ignore_ascii_case(username.trim()))
         .ok_or_else(|| "That Roblox username could not be found".to_string())?;
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    add_account_with_cookie(
-        &mut runtime,
-        cookie.trim(),
+    let mut account = Account::new(
         candidate.user_id,
         candidate.username,
         candidate.display_name,
-    )
+    );
+    account.cookie_expired = true;
+    accounts::stage_addition(&app, cookie.trim(), account).await
 }
 
 #[tauri::command]
 async fn login_and_add_account(
-    state: tauri::State<'_, AppState>,
-) -> Result<Option<AccountSummary>, String> {
+    app: tauri::AppHandle,
+) -> Result<Option<accounts::AdditionOutcome>, String> {
     let profile_dir = std::env::var_os("APPDATA")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -2584,11 +2459,11 @@ async fn login_and_add_account(
         .validate_cookie(&cookie)
         .await
         .map_err(|_| "Roblox rejected this account credential".to_string())?;
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    add_account_with_cookie(&mut runtime, &cookie, user_id, username, display_name).map(Some)
+    let mut account = Account::new(user_id, username, display_name);
+    account.last_validated = Some(chrono::Utc::now());
+    accounts::stage_addition(&app, &cookie, account)
+        .await
+        .map(Some)
 }
 
 #[tauri::command]
@@ -3089,12 +2964,18 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .manage(asset_manager::AssetManager::default())
+        .setup(|app| {
+            app.manage(background::start(app.handle()));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             asset_manager::list_asset_workspace,
             asset_manager::add_asset_files,
             asset_manager::upload_assets,
             asset_manager::change_asset_queue,
             asset_manager::list_asset_universes,
+            accounts::confirm_account_addition,
+            accounts::cancel_account_addition,
             list_accounts,
             store_status,
             create_device_store,

@@ -555,19 +555,19 @@ export async function joinUserGame(
   return invoke<void>("join_user_game", { userId, targetUserId });
 }
 
-export async function addAccount(cookie: string): Promise<AccountSummary> {
-  return invoke<AccountSummary>("add_account", { cookie });
+export async function addAccount(cookie: string): Promise<AccountAddition> {
+  return invoke<AccountAddition>("add_account", { cookie });
 }
 
 export async function addAccountAnyway(
   cookie: string,
   username: string,
-): Promise<AccountSummary> {
-  return invoke<AccountSummary>("add_account_anyway", { cookie, username });
+): Promise<AccountAddition> {
+  return invoke<AccountAddition>("add_account_anyway", { cookie, username });
 }
 
-export async function loginAndAddAccount(): Promise<AccountSummary | null> {
-  return invoke<AccountSummary | null>("login_and_add_account");
+export async function loginAndAddAccount(): Promise<AccountAddition | null> {
+  return invoke<AccountAddition | null>("login_and_add_account");
 }
 
 export async function browseAsAccount(
@@ -695,4 +695,18 @@ export async function changePassword(newPassword: string): Promise<void> {
 
 export async function clearPassword(): Promise<void> {
   return invoke<void>("clear_password");
+}
+
+export interface AccountAddition {
+  account: AccountSummary;
+  confirmationId: string | null;
+  isReplacement: boolean;
+}
+
+export async function confirmAccountAddition(confirmationId: string): Promise<AccountSummary> {
+  return invoke<AccountSummary>("confirm_account_addition", { confirmationId });
+}
+
+export async function cancelAccountAddition(confirmationId: string): Promise<void> {
+  return invoke<void>("cancel_account_addition", { confirmationId });
 }

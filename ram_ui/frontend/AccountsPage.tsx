@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import { Icon as SharedIcon } from "./components/Icon";
 import { openAccountGuide } from "./lib/ipc";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
@@ -13,6 +14,9 @@ import {
   type SetStateAction,
 } from "react";
 import {
+  confirmAccountAddition,
+  cancelAccountAddition,
+  type AccountAddition,
   getStoreStatus,
   fetchAccountInventory,
   launchAccount as launchAccountIpc,
@@ -647,6 +651,36 @@ export function AccountsPage({
   const [groupDeleteConfirmation, setGroupDeleteConfirmation] = useState<
     string | null
   >(null);
+  const [additionConfirmation, setAdditionConfirmation] = useState<AccountAddition | null>(null);
+  const additionResolver = useRef<((confirmed: boolean) => void) | null>(null);
+  const pendingAdditionId = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    additionResolver.current?.(false);
+    if (pendingAdditionId.current) void cancelAccountAddition(pendingAdditionId.current).catch(() => {});
+  }, []);
+
+  async function finishAddition(outcome: AccountAddition): Promise<AccountSummary | null> {
+    if (!outcome.confirmationId) return outcome.account;
+    pendingAdditionId.current = outcome.confirmationId;
+    setAdditionConfirmation(outcome);
+    const confirmed = await new Promise<boolean>((resolve) => { additionResolver.current = resolve; });
+    additionResolver.current = null;
+    pendingAdditionId.current = null;
+    setAdditionConfirmation(null);
+    if (!confirmed) {
+      await cancelAccountAddition(outcome.confirmationId);
+      return null;
+    }
+    return confirmAccountAddition(outcome.confirmationId);
+  }
+
+  function upsertAccount(account: AccountSummary) {
+    setAccounts((current) => current.some((existing) => existing.userId === account.userId)
+      ? current.map((existing) => existing.userId === account.userId ? account : existing)
+      : [...current, account]);
+  }
+
   const [killAllConfirmation, setKillAllConfirmation] = useState(false);
   const [removeAccountConfirmation, setRemoveAccountConfirmation] = useState(false);
   const [sortConfirmation, setSortConfirmation] = useState<SortMode | null>(null);
@@ -851,29 +885,16 @@ export function AccountsPage({
   }, [reloadKey]);
 
   useEffect(() => {
-    if (loading || error || !accounts.length) return;
-    const refresh = () => {
-      void refreshPresence(accounts.map((account) => account.userId));
-    };
-    const revalidate = window.setInterval(() => {
-      void revalidateAccounts([])
-        .then((updated) => {
-          setAccounts((current) =>
-            current.map(
-              (account) =>
-                updated.find((item) => item.userId === account.userId) ??
-                account,
-            ),
-          );
-        })
-        .catch(() => setNotice("Automatic account validation failed."));
-    }, 300_000);
-    const presence = window.setInterval(refresh, 10_000);
-    return () => {
-      window.clearInterval(revalidate);
-      window.clearInterval(presence);
-    };
-  }, [accounts.length, error, loading]);
+    let isActive = true;
+    let stopListening: (() => void) | undefined;
+    void listen<AccountSummary[]>("accounts-updated", (event) => {
+      if (isActive) setAccounts(event.payload);
+    }).then((stop) => {
+      if (isActive) stopListening = stop;
+      else stop();
+    }).catch(() => setNotice("Live account updates could not be connected. Use Refresh to retry."));
+    return () => { isActive = false; stopListening?.(); };
+  }, []);
 
   const visibleAccounts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -1107,8 +1128,8 @@ export function AccountsPage({
     }
   }
 
-  async function revalidate() {
-    const ids = selectedIds.size ? [...selectedIds] : [];
+  async function revalidate(accountIds?: number[]) {
+    const ids = accountIds ?? (selectedIds.size ? [...selectedIds] : []);
     setMutationLoading(true);
     try {
       const updated = await revalidateAccounts(ids);
@@ -1122,7 +1143,7 @@ export function AccountsPage({
       if (invalidAccounts.length) {
         setNotice("Your credentials are still invalid.", "warning", "standard", "Account needs revalidation");
       } else {
-        setNotice("The account credentials are valid again.", "success", "standard", "Credentials revalidated");
+        setNotice("Credentials, moderation, avatars and account details refreshed.", "success", "standard", "Accounts refreshed");
       }
     } catch {
       setNotice("Account validation could not be completed. Try again.", "error", "standard", "Failed to revalidate account");
@@ -1614,20 +1635,21 @@ export function AccountsPage({
     setMutationLoading(true);
     setAddError(null);
     try {
-      const account = await addAccount(cookie);
-      setAccounts((current) => [...current, account]);
+      const account = await finishAddition(await addAccount(cookie));
+      if (!account) return;
+      upsertAccount(account);
       setSelectedId(account.userId);
       setCookie("");
       closeAddForm();
       setNotice("Account added.");
     } catch (addError) {
       setAddError(
-        addError instanceof Error
+        typeof addError === "string" ? addError : addError instanceof Error
           ? addError.message
           : "The account could not be added.",
       );
       setNotice(
-        addError instanceof Error
+        typeof addError === "string" ? addError : addError instanceof Error
           ? addError.message
           : "The account could not be added.",
       );
@@ -1639,8 +1661,9 @@ export function AccountsPage({
   async function addManagedAccountAnyway() {
     setMutationLoading(true);
     try {
-      const account = await addAccountAnyway(cookie, forceAddUsername);
-      setAccounts((current) => [...current, account]);
+      const account = await finishAddition(await addAccountAnyway(cookie, forceAddUsername));
+      if (!account) return;
+      upsertAccount(account);
       setSelectedId(account.userId);
       setCookie("");
       setForceAddUsername("");
@@ -1671,16 +1694,20 @@ export function AccountsPage({
     const results: BulkImportResult[] = [];
     for (const [index, value] of cookies.entries()) {
       try {
-        const account = await addAccount(value);
-        setAccounts((current) => [...current, account]);
-        setSelectedId(account.userId);
-        added += 1;
-        results.push({ index: index + 1, status: "added" });
+        const account = await finishAddition(await addAccount(value));
+        if (account) {
+          upsertAccount(account);
+          setSelectedId(account.userId);
+          added += 1;
+          results.push({ index: index + 1, status: "added" });
+        } else {
+          results.push({ index: index + 1, status: "failed", message: "Addition cancelled" });
+        }
       } catch (error) {
         results.push({
           index: index + 1,
           status: "failed",
-          message: error instanceof Error ? error.message : "Validation failed",
+          message: typeof error === "string" ? error : error instanceof Error ? error.message : "Validation failed",
         });
       }
       setBulkResults([...results]);
@@ -1718,12 +1745,15 @@ export function AccountsPage({
     setBrowserLoginLoading(true);
     setMutationLoading(true);
     try {
-      const account = await loginAndAddAccount();
+      const outcome = await loginAndAddAccount();
+      setBrowserLoginLoading(false);
+      setBrowserLoginOverlayVisible(false);
+      const account = outcome ? await finishAddition(outcome) : null;
       if (!account) {
         setNotice("Browser login was canceled.");
         return;
       }
-      setAccounts((current) => [...current, account]);
+      upsertAccount(account);
       setSelectedId(account.userId);
       closeAddForm();
       setNotice("Account added.");
@@ -1756,6 +1786,10 @@ export function AccountsPage({
     <>
       <div className="header-row accounts-header-row">
         <h1 className="header-title">Accounts</h1>
+        <button className="account-button" type="button" disabled={mutationLoading || loading || !!error || !accounts.length} onClick={() => void revalidate([])}>
+          <Icon name="refresh" />
+          {mutationLoading ? "Working..." : "Refresh accounts"}
+        </button>
         <button
           className="accounts-header-export"
           type="button"
@@ -1996,7 +2030,7 @@ export function AccountsPage({
               <div className="add-account-modal-header">
                 <div>
                   <h2 id="add-account-title">Add account</h2>
-                  <p>Choose a secure way to add a Roblox account.</p>
+                  <p>Log in or paste a cookie. Re-adding an existing account replaces its credential and keeps its alias, group, pin and order.</p>
                 </div>
                 <button
                   className="icon-button"
@@ -2253,6 +2287,16 @@ export function AccountsPage({
           />
         )}
 
+        {additionConfirmation && (
+          <ConfirmModal
+            title="Add restricted account?"
+            message={<><p>{additionConfirmation.account.moderationBanned ? "Roblox has terminated this account." : "Roblox has restricted this account."} It cannot launch while the restriction is active.</p><p className="selectable-text">{additionConfirmation.account.moderationReason ?? "No restriction reason was provided."}</p><p>{additionConfirmation.isReplacement ? "Confirm to replace the saved credential and keep your account organisation." : "You can still add it to manage the restriction in the browser."}</p></>}
+            confirmLabel={additionConfirmation.isReplacement ? "Replace credential" : "Add account"}
+            confirmIcon="add"
+            onConfirm={() => additionResolver.current?.(true)}
+            onCancel={() => additionResolver.current?.(false)}
+          />
+        )}
         {killAllConfirmation && (
           <ConfirmModal
             title="Kill all Roblox clients?"
@@ -2413,7 +2457,7 @@ export function AccountsPage({
                         type="button"
                         role="menuitem"
                         onClick={() => {
-                          void revalidate();
+                          void revalidate(selectedAccount ? [selectedAccount.userId] : []);
                           setShowAccountMenu(false);
                         }}
                       >
@@ -2486,6 +2530,10 @@ export function AccountsPage({
                       <button className="account-warning-action is-primary" type="button" disabled={mutationLoading} onClick={() => void browseAs()}>
                         <span className="account-warning-action-icon"><SharedIcon name="globe" tone="current-color" /></span>
                         <span><strong>Open browser as account</strong><small>Log in to Roblox with this account</small></span>
+                      </button>
+                      <button className="account-warning-action" type="button" disabled={mutationLoading} onClick={openAddForm}>
+                        <span className="account-warning-action-icon"><SharedIcon name="log-in" tone="current-color" /></span>
+                        <span><strong>Replace account credential</strong><small>Log in again or paste a fresh cookie</small></span>
                       </button>
                       <button className="account-warning-action" type="button" disabled={mutationLoading} onClick={() => void revalidate()}>
                         <span className="account-warning-action-icon"><SharedIcon name="refresh" tone="current-color" /></span>
