@@ -6161,13 +6161,6 @@ button:focus-visible {
   height: var(--space-4);
   flex-basis: var(--space-4);
 }
-.assets-accounts .inventories-account-group {
-  margin-top: var(--space-4);
-}
-.assets-accounts .inventories-account.is-selected {
-  border-color: color-mix(in srgb, var(--action-primary) 40%, transparent);
-  background: color-mix(in srgb, var(--action-primary) 16%, transparent);
-}
 .assets-account-name {
   flex: 1;
   min-width: 0;
@@ -6437,7 +6430,6 @@ button:focus-visible {
   }
   .assets-accounts > h2,
   .assets-accounts > p,
-  .assets-accounts .inventories-account-group h3,
   .assets-account-name,
   .assets-accounts .inventories-account > .account-icon {
     display: none;
@@ -6445,6 +6437,10 @@ button:focus-visible {
   .assets-accounts .inventories-account {
     justify-content: center;
     padding: var(--space-1);
+  }
+  .assets-accounts .inventories-group-toggle > span:nth-child(2),
+  .assets-accounts .inventories-group-count {
+    display: none;
   }
   .assets-upload-context {
     display: none;

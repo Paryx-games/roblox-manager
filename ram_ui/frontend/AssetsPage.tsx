@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { AccountAvatar } from "./components/AccountAvatar";
@@ -11,6 +11,7 @@ import {
   addAssetFiles,
   changeAssetQueue,
   listAccounts,
+  listAccountGroups,
   listAssetUniverses,
   listAssetWorkspace,
   uploadAssets,
@@ -69,6 +70,10 @@ export function AssetsPage({
   initialSelectedIds: Set<number>;
 }) {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [groupOrder, setGroupOrder] = useState<string[]>([]);
+  const [isGroupOrderUnavailable, setIsGroupOrderUnavailable] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const groupIdPrefix = useId();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(
     () => initialSelectedIds.values().next().value ?? null,
   );
@@ -146,12 +151,18 @@ export function AssetsPage({
           stopListening();
           return;
         }
-        const [nextAccounts, nextWorkspace] = await Promise.all([
+        const [nextAccounts, nextWorkspace, groupResult] = await Promise.all([
           listAccounts(),
           listAssetWorkspace(),
+          listAccountGroups().then(
+            (groups) => ({ groups, isAvailable: true }),
+            () => ({ groups: [], isAvailable: false }),
+          ),
         ]);
         if (!isActive) return;
         setAccounts(nextAccounts);
+        setGroupOrder(groupResult.groups.map((group) => group.name));
+        setIsGroupOrderUnavailable(!groupResult.isAvailable);
         setSelectedUserId((current) =>
           nextAccounts.some((account) => account.userId === current)
             ? current
@@ -318,9 +329,18 @@ export function AssetsPage({
   }
 
   const accountGroups = useMemo(
-    () => buildInventoryAccountGroups(accounts, []),
-    [accounts],
+    () => buildInventoryAccountGroups(accounts, groupOrder),
+    [accounts, groupOrder],
   );
+
+  function onGroupToggle(group: string) {
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  }
   const ownedRows = workspace.rows.filter(
     (row) => row.uploadedBy === selectedUserId,
   );
@@ -372,39 +392,61 @@ export function AssetsPage({
           className="inventories-accounts assets-accounts"
           aria-label="Upload accounts"
         >
-          <h2>Account</h2>
-          <p>Selecting an account sets who new uploads belong to.</p>
+          <h2>Accounts</h2>
+          <p>Select an account to browse its assets and upload new files.</p>
+          {isGroupOrderUnavailable && <p role="alert">Saved group order could not be loaded. Reopen this page to retry.</p>}
           {isLoading ? (
             <LoadingSkeleton
               layout="accounts"
               label="Loading upload accounts"
             />
           ) : (
-            accountGroups.map(([name, groupAccounts]) => (
-              <section className="inventories-account-group" key={name}>
-                <h3>{name}</h3>
-                {groupAccounts.map((account) => (
-                  <button
-                    className={`inventories-account ${selectedUserId === account.userId ? "is-selected" : ""}`}
-                    key={account.userId}
-                    type="button"
-                    aria-label={`Upload as ${account.alias || account.username}`}
-                    data-tip={account.alias || account.username}
-                    aria-pressed={selectedUserId === account.userId}
-                    onClick={() => setSelectedUserId(account.userId)}
-                  >
-                    <AccountAvatar
-                      account={account}
-                      className="inventories-avatar"
-                    />
-                    <span className="assets-account-name">
-                      {account.alias || account.username}
-                    </span>
-                    {selectedUserId === account.userId && <Icon name="check" />}
-                  </button>
-                ))}
-              </section>
-            ))
+            accountGroups.map(([name, groupAccounts], index) => {
+              const isCollapsed = collapsedGroups.has(name);
+              const groupId = `${groupIdPrefix}-${index}`;
+              return (
+                <section
+                  className={`inventories-account-group ${isCollapsed ? "is-collapsed" : ""}`}
+                  key={name}
+                >
+                  <h3>
+                    <button
+                      className="inventories-group-toggle"
+                      type="button"
+                      aria-label={name}
+                      data-tip={name}
+                      aria-expanded={!isCollapsed}
+                      aria-controls={groupId}
+                      onClick={() => onGroupToggle(name)}
+                    >
+                      <span className={`inventories-group-chevron ${isCollapsed ? "is-collapsed" : ""}`}>
+                        <Icon name="chevron-down" />
+                      </span>
+                      <span>{name}</span>
+                      <span className="inventories-group-count">{groupAccounts.length}</span>
+                    </button>
+                  </h3>
+                  <div id={groupId} hidden={isCollapsed}>
+                    {groupAccounts.map((account) => (
+                      <button
+                        className={`inventories-account ${selectedUserId === account.userId ? "is-selected" : ""}`}
+                        key={account.userId}
+                        type="button"
+                        aria-label={`Upload as ${account.alias || account.username}`}
+                        data-tip={account.alias || account.username}
+                        aria-pressed={selectedUserId === account.userId}
+                        onClick={() => setSelectedUserId(account.userId)}
+                      >
+                        <AccountAvatar account={account} className="inventories-avatar" />
+                        <span className="assets-account-name">
+                          {account.alias || account.username}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              );
+            })
           )}
           {!isLoading && accounts.length === 0 && (
             <p>Add an account on the Accounts page to begin uploading.</p>
@@ -504,19 +546,6 @@ export function AssetsPage({
                   Clear finished
                 </button>
                 <span className="assets-toolbar-divider" />
-                <label className="assets-inline-field">
-                  Upload as
-                  <Select
-                    ariaLabel="Upload account"
-                    value={String(selectedUserId ?? "")}
-                    onChange={(value) => setSelectedUserId(Number(value))}
-                    disabled={isLoading || accounts.length === 0}
-                    options={accounts.map((account) => ({
-                      value: String(account.userId),
-                      label: account.alias || account.username,
-                    }))}
-                  />
-                </label>
                 <label className="assets-inline-field">
                   Grant access to
                   <Select

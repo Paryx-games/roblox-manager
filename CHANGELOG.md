@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Asset Manager account selection.** Selects the upload account exclusively in the sidebar, with the same collapsible groups, counts, and saved ordering as Inventories.
+
 - **Asset Manager workspace.** Adds the reference-based account rail, Library and Import Queue views, file selection and drag-and-drop, validated uploads with moderation tracking, experience access grants, retry and queue controls, search, and copyable asset IDs. Reuses the existing core asset index and keeps credentials on the Rust side.
 
 - **Inventory browsing refinements.** Animates checkbox ticks and item entry, improves browse controls, adds specific and combined asset type filters while hiding empty categories, allows repeat clicks to deselect cards, and enables Ctrl+A for the visible inventory results.
