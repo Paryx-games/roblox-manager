@@ -76,7 +76,7 @@ The application and shortcuts are named **Roblox Manager**, with a per-user inst
 
 Test on a separate Windows user or VM with backed-up test stores:
 
-- Fresh install: default writable location, no app elevation, desktop off and Start menu on.
+- Fresh install: default writable location, no app elevation, both shortcuts selected by default, and no Start menu folder selection page.
 - Shortcut choices: each checkbox combination and a reinstall with existing shortcuts.
 - Upgrade: newer version over an installed build, retaining accounts, aliases, groups, pins, ordering, settings and presets.
 - Rename transition: an old **RM** installation is detected and setup asks for its uninstall first.

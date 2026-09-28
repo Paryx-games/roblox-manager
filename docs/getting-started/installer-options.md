@@ -23,11 +23,11 @@ The default installation folder is `%LOCALAPPDATA%\Roblox Manager`. Installing t
 
 | Option | Default | Effect |
 | --- | --- | --- |
-| Create desktop shortcut | Off for a new installation; an existing shortcut is detected | Adds a shortcut named Roblox Manager. |
-| Create Start menu shortcut | On | Adds a shortcut in the selected Start menu folder, initially Roblox Manager. |
+| Create desktop shortcut | On | Adds a shortcut named Roblox Manager. |
+| Create Start menu shortcut | On | Adds a shortcut in the fixed Roblox Manager Start menu folder. |
 | Reset interface browser data | Off | Removes the app's interface browser data. Can help with a blank interface; saved accounts, settings and presets remain. |
 
-The Start menu folder page is skipped when its shortcut is unchecked. On the final page, choose whether to launch the application. Changing shortcut choices during a normal interactive reinstall can remove existing shortcuts belonging to this installation.
+There is no Start menu folder selection page. On the final page, choose whether to launch the application. Changing shortcut choices during a normal interactive reinstall can remove existing shortcuts belonging to this installation.
 
 ### WebView2
 
