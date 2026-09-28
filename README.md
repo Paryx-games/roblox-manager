@@ -72,7 +72,7 @@
 
 A Windows Roblox account manager built with Rust, Tauri and React. Manage multiple Roblox accounts, launch games, inspect running clients, and organise repeat sessions.
 
-This branch contains the Tauri v2 interface. The legacy egui source is retained during migration, and older published releases may still use that interface. The current user guides are maintained in [docs/](docs/README.md) for GitBook.
+This branch contains the Tauri + React v2 interface. The former egui application remains in the repository as retained source; older published releases may still use that interface. The current user guides are maintained in [docs/](docs/README.md) for GitBook.
 
 **[Visit the RM website](https://paryx-games.github.io/roblox-manager/)** for more information, including additional details about features and the project.
 
@@ -124,7 +124,7 @@ No Rust, Node.js, or pnpm installation is required for either option. These are 
 - **Encrypted Storage** - AES-256-GCM, unlocked automatically via Windows Credential Manager. An optional master password (Argon2id) is available for anyone who wants one
 - **Multi-Instance** - Launch multiple Roblox clients simultaneously
 - **Bulk Launch** - Launch selected accounts into the same server sequentially
-- **Privacy Mode** - Clears tracking cookies before each launch
+- **Privacy Mode** - Applies the selected local Roblox data cleanup before launch and, optionally, on exit
 - **Discord Webhooks** - Sends optional notifications through a protected Discord webhook
 - **Auto Window Tiling** - Arranges Roblox windows in a grid after launch
 - **Live Presence** - Real-time Online / In Game / In Studio / Offline indicators
@@ -277,7 +277,7 @@ Installer and uninstaller icons follow the same wrapper selection. The sidebar c
 > For the quickest local feedback, run `cargo check` and `pnpm --dir ram_ui typecheck` while developing. Use the full validation commands before opening a pull request.
 
 > [!IMPORTANT]
-> The current v2 migration permits changes to Tauri and React, not `ram_core/` or the retained egui source. Read [AGENTS.md](AGENTS.md), [DESIGN.md](DESIGN.md), and `ram_ui/frontend/tokens.css` before interface work. Follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md) when opening a PR.
+> The v2 branch uses Tauri + React and includes explicitly requested, behavior-preserving extractions into `ram_core/`. Follow the limited core policy in [AGENTS.md](AGENTS.md). Read [DESIGN.md](DESIGN.md) and `ram_ui/src/tokens.css` before interface work. Follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md) when opening a PR.
 
 ### Pull request validation
 
