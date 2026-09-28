@@ -18,7 +18,6 @@ mod browser_login;
 mod startup;
 
 use base64::Engine;
-use ram_core::api::trusted_roblox_image_url;
 use ram_core::crypto;
 use ram_core::group_api;
 use ram_core::models::{
@@ -1977,64 +1976,6 @@ async fn launch_private_server(
     Ok(())
 }
 
-async fn enrich_inventory_items(client: &RobloxClient, cookie: &str, items: &mut [InventoryItem]) {
-    for batch in items.chunks_mut(50) {
-        let ids = batch
-            .iter()
-            .map(|item| item.asset_id.to_string())
-            .collect::<Vec<_>>()
-            .join(",");
-        let thumbnail_url = format!(
-            "https://thumbnails.roblox.com/v1/assets?assetIds={ids}&size=150x150&format=Png&isCircular=false"
-        );
-        if let Ok(response) = client
-            .get_json::<serde_json::Value>(&thumbnail_url, "")
-            .await
-        {
-            if let Some(entries) = response.get("data").and_then(serde_json::Value::as_array) {
-                let icons: std::collections::HashMap<u64, String> = entries
-                    .iter()
-                    .filter_map(|entry| {
-                        let id = entry.get("targetId")?.as_u64()?;
-                        let url = entry.get("imageUrl")?.as_str()?;
-                        Some((id, trusted_roblox_image_url(url)?))
-                    })
-                    .collect();
-                for item in batch.iter_mut() {
-                    item.icon_url = icons.get(&item.asset_id).cloned();
-                }
-            }
-        }
-
-        let request = serde_json::json!({
-            "items": batch.iter().map(|item| serde_json::json!({
-                "itemType": "Asset",
-                "id": item.asset_id,
-            })).collect::<Vec<_>>()
-        });
-        if let Ok(response) = client
-            .post_json::<serde_json::Value>(
-                "https://catalog.roblox.com/v1/catalog/items/details",
-                cookie,
-                Some(&request),
-            )
-            .await
-        {
-            if let Some(entries) = response.get("data").and_then(serde_json::Value::as_array) {
-                let prices: std::collections::HashMap<u64, u64> = entries
-                    .iter()
-                    .filter_map(|entry| {
-                        Some((entry.get("id")?.as_u64()?, entry.get("price")?.as_u64()?))
-                    })
-                    .collect();
-                for item in batch.iter_mut() {
-                    item.price_robux = prices.get(&item.asset_id).copied();
-                }
-            }
-        }
-    }
-}
-
 #[tauri::command]
 async fn fetch_account_inventory(
     state: tauri::State<'_, AppState>,
@@ -2050,27 +1991,19 @@ async fn fetch_account_inventory(
             RobloxClient::new().map_err(|error| error.to_string())?,
         )
     };
-    let mut items = Vec::new();
-    for asset_type in assets_api::USER_INVENTORY_ASSET_TYPES {
-        let mut fetched = assets_api::list_user_inventory(&client, &cookie, user_id, asset_type)
-            .await
-            .map_err(|error| error.to_string())?;
-        items.append(&mut fetched);
-    }
-    items.sort_by_key(|item| item.asset_id);
-    items.dedup_by_key(|item| item.asset_id);
-    let mut items: Vec<InventoryItem> = items
+    let items = assets_api::fetch_account_inventory(&client, &cookie, user_id)
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(items
         .into_iter()
         .map(|item| InventoryItem {
             asset_id: item.asset_id,
             name: item.name,
             asset_type: item.asset_type,
-            icon_url: None,
-            price_robux: None,
+            icon_url: item.icon_url,
+            price_robux: item.price_robux,
         })
-        .collect();
-    enrich_inventory_items(&client, &cookie, &mut items).await;
-    Ok(items)
+        .collect())
 }
 
 #[tauri::command]
