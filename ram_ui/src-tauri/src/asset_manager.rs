@@ -629,37 +629,17 @@ pub async fn change_asset_queue(
             return Err("The asset index is read-only.".into());
         }
         let previous = runtime.index.clone();
-        match action.as_str() {
-            "clearFinished" => runtime.index.records.retain(|row| {
-                row.state.is_active()
-                    || matches!(row.state, AssetState::Queued | AssetState::Approved { .. })
-            }),
-            "remove" | "retry" => {
-                let row_id = row_id.ok_or("Choose a queue row.")?;
-                let row = runtime
-                    .index
-                    .get_mut(&row_id)
-                    .ok_or("Queue row not found.")?;
-                if action == "retry" {
-                    if !matches!(
-                        row.state,
-                        AssetState::Failed {
-                            retryable: true,
-                            ..
-                        }
-                    ) {
-                        return Err("This upload cannot safely be retried.".into());
-                    }
-                    row.state = AssetState::Queued;
-                } else {
-                    if row.state.is_active() {
-                        return Err("Wait for this upload to finish before removing it.".into());
-                    }
-                    runtime.index.remove(&row_id);
-                }
-            }
+        let queue_action = match action.as_str() {
+            "clearFinished" => assets::QueueAction::ClearFinished,
+            "retry" => assets::QueueAction::Retry {
+                row_id: row_id.as_deref().ok_or("Choose a queue row.")?,
+            },
+            "remove" => assets::QueueAction::Remove {
+                row_id: row_id.as_deref().ok_or("Choose a queue row.")?,
+            },
             _ => return Err("Unknown queue action.".into()),
-        }
+        };
+        assets::change_queue(&mut runtime.index, queue_action)?;
         runtime.persist(previous)?;
         Ok::<_, String>(runtime.snapshot())
     })

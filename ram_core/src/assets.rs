@@ -1099,6 +1099,42 @@ pub fn reject_unuploadable(kind: AssetKind) -> Result<(), String> {
 
 const MAX_FILE_BYTES: u64 = 128 * 1024 * 1024;
 
+pub enum QueueAction<'a> {
+    ClearFinished,
+    Retry { row_id: &'a str },
+    Remove { row_id: &'a str },
+}
+
+pub fn change_queue(index: &mut AssetIndex, action: QueueAction<'_>) -> Result<(), String> {
+    match action {
+        QueueAction::ClearFinished => index.records.retain(|row| {
+            row.state.is_active()
+                || matches!(row.state, AssetState::Queued | AssetState::Approved { .. })
+        }),
+        QueueAction::Retry { row_id } => {
+            let row = index.get_mut(row_id).ok_or("Queue row not found.")?;
+            if !matches!(
+                row.state,
+                AssetState::Failed {
+                    retryable: true,
+                    ..
+                }
+            ) {
+                return Err("This upload cannot safely be retried.".into());
+            }
+            row.state = AssetState::Queued;
+        }
+        QueueAction::Remove { row_id } => {
+            let row = index.get(row_id).ok_or("Queue row not found.")?;
+            if row.state.is_active() {
+                return Err("Wait for this upload to finish before removing it.".into());
+            }
+            index.remove(row_id);
+        }
+    }
+    Ok(())
+}
+
 pub fn read_asset_file(path: &Path) -> Result<(Vec<u8>, AssetKind, &'static str), String> {
     let mut file = std::fs::File::open(path).map_err(|_| "The file could not be opened.")?;
     let metadata = file
@@ -2067,6 +2103,82 @@ mod tests {
 #[cfg(test)]
 mod queue_tests {
     use super::*;
+
+    #[test]
+    fn queue_actions_protect_active_rows_and_preserve_approved_library_entries() {
+        let mut index = AssetIndex::default();
+        for (row_id, state) in [
+            ("active", AssetState::Uploading),
+            ("queued", AssetState::Queued),
+            (
+                "approved",
+                AssetState::Approved {
+                    asset_id: 42,
+                    revision_id: None,
+                },
+            ),
+            (
+                "retryable",
+                AssetState::Failed {
+                    message: "Synthetic error".into(),
+                    retryable: true,
+                },
+            ),
+            (
+                "rejected",
+                AssetState::Rejected {
+                    reason: "Synthetic rejection".into(),
+                },
+            ),
+        ] {
+            let mut row = AssetRecord::staged(
+                row_id.into(),
+                StagedFile {
+                    path: PathBuf::from("synthetic.png"),
+                    sha256: row_id.into(),
+                    bytes: 1,
+                    kind: AssetKind::Decal,
+                },
+                Creator::User(1),
+                1,
+                Utc::now(),
+            );
+            row.state = state;
+            index.records.push(row);
+        }
+        let previous = serde_json::to_value(&index).unwrap();
+        for action in [
+            QueueAction::Remove { row_id: "active" },
+            QueueAction::Retry { row_id: "rejected" },
+            QueueAction::Retry { row_id: "missing" },
+        ] {
+            assert!(change_queue(&mut index, action).is_err());
+            assert_eq!(serde_json::to_value(&index).unwrap(), previous);
+        }
+        change_queue(
+            &mut index,
+            QueueAction::Retry {
+                row_id: "retryable",
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            index.get("retryable").unwrap().state,
+            AssetState::Queued
+        ));
+        change_queue(&mut index, QueueAction::ClearFinished).unwrap();
+        assert_eq!(
+            index
+                .records
+                .iter()
+                .map(|row| row.row_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["active", "queued", "approved", "retryable"]
+        );
+        change_queue(&mut index, QueueAction::Remove { row_id: "queued" }).unwrap();
+        assert!(index.get("queued").is_none());
+        assert!(index.get("approved").is_some());
+    }
 
     #[test]
     fn polling_respects_last_attempts_and_distinct_moderation_cadence() {
