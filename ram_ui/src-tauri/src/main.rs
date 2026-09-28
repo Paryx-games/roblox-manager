@@ -18,6 +18,7 @@ mod browser_login;
 mod startup;
 
 use base64::Engine;
+use ram_core::api::{parse_private_server_url, ParsedPrivateServerUrl};
 use ram_core::crypto;
 use ram_core::group_api;
 use ram_core::models::{
@@ -586,11 +587,6 @@ struct GroupMembershipResultDto {
     message: Option<String>,
 }
 
-enum ParsedPrivateServerUrl {
-    Direct { place_id: u64, link_code: String },
-    Share { share_code: String },
-}
-
 fn private_server_summary(
     index: usize,
     server: &PrivateServer,
@@ -713,37 +709,6 @@ async fn enrich_private_server(server: &mut PrivateServer) -> String {
         }
     }
     String::new()
-}
-
-fn private_server_parameter(input: &str, name: &str) -> Option<String> {
-    input.split(['?', '&']).find_map(|part| {
-        let (key, value) = part.split_once('=')?;
-        (key.eq_ignore_ascii_case(name) && !value.is_empty()).then(|| value.to_string())
-    })
-}
-
-fn parse_private_server_url(input: &str) -> Result<ParsedPrivateServerUrl, &'static str> {
-    let input = input.trim();
-    if let Some((_, after_games)) = input.split_once("/games/") {
-        let place_id = after_games
-            .chars()
-            .take_while(char::is_ascii_digit)
-            .collect::<String>()
-            .parse::<u64>()
-            .map_err(|_| "Enter a valid Roblox private server URL")?;
-        let link_code = private_server_parameter(input, "privateServerLinkCode")
-            .ok_or("Enter a valid Roblox private server URL")?;
-        return Ok(ParsedPrivateServerUrl::Direct {
-            place_id,
-            link_code,
-        });
-    }
-    if input.contains("/share") || input.contains("type=Server") {
-        if let Some(share_code) = private_server_parameter(input, "code") {
-            return Ok(ParsedPrivateServerUrl::Share { share_code });
-        }
-    }
-    Err("Enter a valid Roblox private server URL")
 }
 
 fn account_cookie(runtime: &state::RuntimeState, user_id: u64) -> Result<String, String> {

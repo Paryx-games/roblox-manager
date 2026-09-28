@@ -940,9 +940,77 @@ pub async fn fetch_moderation_status(
     }))
 }
 
+pub enum ParsedPrivateServerUrl {
+    Direct { place_id: u64, link_code: String },
+    Share { share_code: String },
+}
+
+fn private_server_parameter(input: &str, name: &str) -> Option<String> {
+    input.split(['?', '&']).find_map(|part| {
+        let (key, value) = part.split_once('=')?;
+        (key.eq_ignore_ascii_case(name) && !value.is_empty()).then(|| value.to_string())
+    })
+}
+
+pub fn parse_private_server_url(input: &str) -> Result<ParsedPrivateServerUrl, &'static str> {
+    let input = input.trim();
+    if let Some((_, after_games)) = input.split_once("/games/") {
+        let place_id = after_games
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect::<String>()
+            .parse::<u64>()
+            .map_err(|_| "Enter a valid Roblox private server URL")?;
+        let link_code = private_server_parameter(input, "privateServerLinkCode")
+            .ok_or("Enter a valid Roblox private server URL")?;
+        return Ok(ParsedPrivateServerUrl::Direct {
+            place_id,
+            link_code,
+        });
+    }
+    if input.contains("/share") || input.contains("type=Server") {
+        if let Some(share_code) = private_server_parameter(input, "code") {
+            return Ok(ParsedPrivateServerUrl::Share { share_code });
+        }
+    }
+    Err("Enter a valid Roblox private server URL")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_server_links_preserve_direct_codes_and_share_codes() {
+        match parse_private_server_url("  https://www.roblox.com/games/123/Synthetic?privateServerLinkCode=synthetic-code&other=value  ").unwrap() {
+            ParsedPrivateServerUrl::Direct { place_id, link_code } => {
+                assert_eq!(place_id, 123);
+                assert_eq!(link_code, "synthetic-code");
+            }
+            _ => panic!("Expected a direct private server link"),
+        }
+        match parse_private_server_url(
+            "https://www.roblox.com/share?CoDe=synthetic-share&type=Server",
+        )
+        .unwrap()
+        {
+            ParsedPrivateServerUrl::Share { share_code } => {
+                assert_eq!(share_code, "synthetic-share")
+            }
+            _ => panic!("Expected a share link"),
+        }
+        for input in [
+            "",
+            "https://www.roblox.com/games/123",
+            "https://www.roblox.com/games/no-id?privateServerLinkCode=synthetic",
+            "https://www.roblox.com/share?code=",
+        ] {
+            assert_eq!(
+                parse_private_server_url(input).err(),
+                Some("Enter a valid Roblox private server URL")
+            );
+        }
+    }
 
     fn entry(target_id: u64, image_url: Option<&str>) -> ThumbnailEntry {
         ThumbnailEntry {
