@@ -12,11 +12,11 @@ RM is a Windows-only Rust application with a Tauri shell and React/TypeScript fr
 Use stable Rust, Node 22, pnpm 11, Visual Studio C++ Build Tools, a Windows SDK and WebView2. Roblox is needed for launch testing.
 
 - `ram_core/`: existing headless logic, encryption, storage, Roblox APIs and process management.
-- `ram_ui/src/`: retained legacy egui source.
+- `ram_ui/src/`: retained legacy egui source and `tokens.css`, which the active React stylesheet imports.
 - `ram_ui/src-tauri/`: active desktop commands, windows, events, background work, logging and installer files.
 - `ram_ui/frontend/`: active React pages, shared controls, tokens and typed IPC wrappers.
 
-During v2 migration, leave core and legacy egui source unchanged. Read [AGENTS.md](https://github.com/Paryx-games/roblox-manager/blob/v2/AGENTS.md) first and [DESIGN.md](https://github.com/Paryx-games/roblox-manager/blob/v2/DESIGN.md) plus `ram_ui/frontend/tokens.css` before interface work. Never expose stored credentials through frontend responses or diagnostics.
+The active application is React + Tauri with reusable domain behavior in `ram_core`. The v2 branch includes narrowly scoped, behavior-preserving extractions from Tauri into core. Follow the limits in [AGENTS.md](https://github.com/Paryx-games/roblox-manager/blob/v2/AGENTS.md) before changing core. The egui application remains under `ram_ui/src/`; the branch also has a small login compatibility helper in that directory. Read [DESIGN.md](https://github.com/Paryx-games/roblox-manager/blob/v2/DESIGN.md) and `ram_ui/src/tokens.css` before interface work. Never expose stored credentials through frontend responses or diagnostics.
 
 ## Set up a fork
 
