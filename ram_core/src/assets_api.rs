@@ -753,6 +753,35 @@ fn parse_item_timestamps(body: &serde_json::Value) -> Vec<(u64, DateTime<Utc>)> 
         .collect()
 }
 
+#[derive(Debug)]
+pub enum CreatorValidationError {
+    InvalidCreator,
+    GroupUnavailable,
+    Request(CoreError),
+}
+
+pub async fn validate_creator(
+    client: &RobloxClient,
+    cookie: &str,
+    user_id: u64,
+    creator: Creator,
+) -> Result<(), CreatorValidationError> {
+    match creator {
+        Creator::User(id) if id == user_id && id > 0 => Ok(()),
+        Creator::Group(id) if id > 0 => {
+            let groups = list_publishable_groups(client, cookie)
+                .await
+                .map_err(CreatorValidationError::Request)?;
+            if groups.iter().any(|group| group.group_id == id) {
+                Ok(())
+            } else {
+                Err(CreatorValidationError::GroupUnavailable)
+            }
+        }
+        _ => Err(CreatorValidationError::InvalidCreator),
+    }
+}
+
 /// Groups this account can actually manage assets for.
 ///
 /// Deliberately **not** `groups/roles`, which lists every membership including
@@ -1040,6 +1069,22 @@ pub async fn fetch_account_inventory(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn creator_validation_rejects_wrong_or_zero_owners_without_network_requests() {
+        let client = RobloxClient::new().unwrap();
+        assert!(
+            validate_creator(&client, "synthetic-credential", 1, Creator::User(1))
+                .await
+                .is_ok()
+        );
+        for creator in [Creator::User(2), Creator::User(0), Creator::Group(0)] {
+            assert!(matches!(
+                validate_creator(&client, "synthetic-credential", 1, creator).await,
+                Err(CreatorValidationError::InvalidCreator)
+            ));
+        }
+    }
 
     #[test]
     fn inventory_details_keep_first_category_and_sort_unique_assets() {

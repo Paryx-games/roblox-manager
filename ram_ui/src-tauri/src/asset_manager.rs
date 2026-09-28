@@ -211,20 +211,17 @@ async fn validate_creator(
     user_id: u64,
     creator: Creator,
 ) -> Result<(), String> {
-    match creator {
-        Creator::User(id) if id == user_id && id > 0 => Ok(()),
-        Creator::Group(id) if id > 0 => {
-            let groups = assets_api::list_publishable_groups(client, cookie)
-                .await
-                .map_err(|error| describe_error(&error))?;
-            if groups.iter().any(|group| group.group_id == id) {
-                Ok(())
-            } else {
-                Err("This account cannot publish for the selected group.".into())
+    assets_api::validate_creator(client, cookie, user_id, creator)
+        .await
+        .map_err(|error| match error {
+            assets_api::CreatorValidationError::InvalidCreator => {
+                "Choose this account or a group it can publish for.".into()
             }
-        }
-        _ => Err("Choose this account or a group it can publish for.".into()),
-    }
+            assets_api::CreatorValidationError::GroupUnavailable => {
+                "This account cannot publish for the selected group.".into()
+            }
+            assets_api::CreatorValidationError::Request(error) => describe_error(&error),
+        })
 }
 
 #[derive(Serialize)]
