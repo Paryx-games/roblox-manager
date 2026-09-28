@@ -242,7 +242,7 @@ Enable the developer-options control in Settings and save it. Its current label 
 
 ### Are all visible advanced settings implemented?
 
-No. Auto-launching games on startup, custom game arguments, FastFlags and automatic MAC rotation are unfinished, as they were in egui. Starting RM with Windows and manual MAC rotation are separate actions. Do not assume saved advanced values are applied to game launches.
+No. Auto-launching games on startup, custom game arguments, FastFlags and automatic MAC rotation are unfinished. Starting RM with Windows and manual MAC rotation are separate actions. Do not assume saved advanced values are applied to game launches.
 
 ### What should a bug report include?
 

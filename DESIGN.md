@@ -10,9 +10,8 @@ The current interface is dark mode only.
 - `ram_ui/frontend/styles.css` imports Tailwind CSS 4, imports the shared
   token file, defines the Tailwind theme mapping, and contains the app's page
   and component styles.
-- `ram_ui/src/tokens.css` defines the shared color, type, spacing, radius,
-  motion, and shell values. Its location is historical; the active frontend
-  imports it from `styles.css`.
+- `ram_ui/frontend/tokens.css` defines the shared color, type, spacing, radius,
+  motion, and layout values. The active frontend imports it from `styles.css`.
 - `ram_ui/.stylelintrc.json` and the package scripts define automated
   frontend linting.
 
@@ -35,7 +34,7 @@ scaling.
 ## Shared visual tokens
 
 Use `var(--token-name)` for shared visual values. The current token values
-are listed in `ram_ui/src/tokens.css`; update that file when a shared value
+are listed in `ram_ui/frontend/tokens.css`; update that file when a shared value
 changes.
 
 | Purpose | Tokens |
@@ -86,8 +85,9 @@ existing keyboard dismissal and focus behavior.
 ## CSS and lint
 
 Run `pnpm --dir ram_ui lint` after CSS or component changes. ESLint checks
-the TypeScript source. Stylelint rejects hex colors and `!important` in
-frontend CSS and applies the standard CSS rules configured in
+the TypeScript source. Stylelint excludes `tokens.css`, where token colors
+are defined, and rejects hex colors and `!important` in component and page
+CSS. It applies the standard CSS rules configured in
 `ram_ui/.stylelintrc.json`. The linter does not verify the full design
 system, keyboard behavior, contrast, or responsive appearance; review those
 in the affected interface.

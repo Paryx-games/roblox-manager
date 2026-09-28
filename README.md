@@ -72,7 +72,7 @@
 
 A Windows Roblox account manager built with Rust, Tauri and React. Manage multiple Roblox accounts, launch games, inspect running clients, and organise repeat sessions.
 
-This branch contains the Tauri + React v2 interface. The former egui application remains in the repository as retained source; older published releases may still use that interface. The current user guides are maintained in [docs/](docs/README.md) for GitBook.
+This branch contains the Tauri + React v2 interface. The retired egui application is available in Git history; older published releases may still use that interface. The current user guides are maintained in [docs/](docs/README.md) for GitBook.
 
 **[Visit the RM website](https://paryx-games.github.io/roblox-manager/)** for more information, including additional details about features and the project.
 
@@ -133,7 +133,7 @@ No Rust, Node.js, or pnpm installation is required for either option. These are 
 - **Account Tools** - Browser login, bulk import, credential replacement preserving organisation, and metadata CSV export
 - **Developer Workspaces** - Group membership tools, inventory comparisons, creation libraries and staged asset uploads
 
-Auto-launching games on startup, custom game arguments, FastFlags and automatic MAC rotation remain unfinished. Their settings are retained, but those behaviours are not applied automatically. They were unfinished in egui as well. Starting the manager with Windows and explicit manual MAC rotation are separate controls.
+Auto-launching games on startup, custom game arguments, FastFlags and automatic MAC rotation remain unfinished. Their settings are retained, but those behaviours are not applied automatically. Starting the manager with Windows and explicit manual MAC rotation are separate controls.
 
 > [!IMPORTANT]
 > RM stores Roblox authentication cookies in encrypted form. Never share your `.ROBLOSECURITY` cookie with anyone, and treat it like a password.
@@ -232,7 +232,7 @@ cargo build --release
 
 ### Tauri and React UI
 
-The React source lives in `ram_ui/frontend/`; Tauri Rust, configuration and installer files live in `ram_ui/src-tauri/`. `ram_ui/src/` is the retained egui source. Run frontend tooling from `ram_ui/` or use `pnpm --dir ram_ui`.
+The React source and shared tokens live in `ram_ui/frontend/`; Tauri Rust, configuration and installer files live in `ram_ui/src-tauri/`. Run frontend tooling from `ram_ui/` or use `pnpm --dir ram_ui`.
 
 ```powershell
 # Install frontend dependencies
@@ -277,7 +277,7 @@ Installer and uninstaller icons follow the same wrapper selection. The sidebar c
 > For the quickest local feedback, run `cargo check` and `pnpm --dir ram_ui typecheck` while developing. Use the full validation commands before opening a pull request.
 
 > [!IMPORTANT]
-> The v2 branch uses Tauri + React and includes explicitly requested, behavior-preserving extractions into `ram_core/`. Follow the limited core policy in [AGENTS.md](AGENTS.md). Read [DESIGN.md](DESIGN.md) and `ram_ui/src/tokens.css` before interface work. Follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md) when opening a PR.
+> The v2 branch uses Tauri + React and includes explicitly requested, behavior-preserving extractions into `ram_core/`. Follow the limited core policy in [AGENTS.md](AGENTS.md). Read [DESIGN.md](DESIGN.md) and `ram_ui/frontend/tokens.css` before interface work. Follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md) when opening a PR.
 
 ### Pull request validation
 

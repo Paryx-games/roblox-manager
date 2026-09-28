@@ -409,8 +409,8 @@ pub fn parse_moderation_response(body: &serde_json::Value) -> Vec<(u64, Moderati
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetRecord {
-    /// Stable key correlating a UI row with backend events, and the egui `Id`
-    /// salt for the row. A `String`, not a `Uuid`: the workspace pins `uuid`
+    /// Stable key correlating a UI row with backend events.
+    /// A `String`, not a `Uuid`: the workspace pins `uuid`
     /// with only the `v4` feature, so `Uuid` has no serde impls.
     pub row_id: String,
     #[serde(default)]

@@ -6,8 +6,8 @@ should be a transparent square SVG with a simple monochrome mark and a
 
 | Former glyph/use | Asset path | UI location |
 | --- | --- | --- |
-| accounts clipboard | `assets/icons/accounts.svg` | top-bar Accounts tab and paste-cookie action |
-| groups | `assets/icons/groups.svg` | top-bar Groups tab |
+| accounts clipboard | `assets/icons/accounts.svg` | Accounts navigation and paste-cookie action |
+| groups | `assets/icons/groups.svg` | Groups navigation |
 | lock | `assets/icons/lock.svg` | Servers tab and store unlock screens |
 | star | `assets/icons/star.svg` | Presets tab and preset controls |
 | package | `assets/icons/package.svg` | Assets tab |
@@ -24,11 +24,6 @@ should be a transparent square SVG with a simple monochrome mark and a
 | pin | `assets/icons/pin.svg` | Account pin control |
 | window | `assets/icons/windows.svg` | Tile Windows action |
 | warning | `assets/icons/warning.svg` | Warnings and error labels |
-
-The retained egui navigation uses these SVGs through the cached
-`crate::icons::show` helper. Rasterization and missing/invalid asset failures
-are reported through debug tracing. Keep the semantic label beside each icon
-rather than making the image the only control affordance.
 
 ## Active Tauri frontend
 

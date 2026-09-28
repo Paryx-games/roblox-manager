@@ -16,7 +16,7 @@ Roblox reshuffles legacy endpoints without changelogs, so treat unverified secti
 
 All endpoints below accept the `.ROBLOSECURITY` cookie. Roblox's own docs mark cookie auth as **not recommended for production** - these are legacy/unversioned APIs that can break without a deprecation notice.
 
-Authenticated production requests belong on the Rust side. Reuse `ram_core::auth::RobloxClient` and existing core APIs where available; React calls typed wrappers in `ram_ui/frontend/lib/ipc.ts`, not authenticated Roblox endpoints directly. During the v2 migration, do not modify `ram_core` or legacy egui code. Tauri adapters must remain small and must not expose stored cookies, tickets or CSRF tokens in responses, events, errors or logs. Explicit cookie entry is an input flow, not permission to return saved credentials to the frontend. Other language examples below are scratch references, not application integration patterns.
+Authenticated production requests belong on the Rust side. Reuse `ram_core::auth::RobloxClient` and existing core APIs where available; React calls typed wrappers in `ram_ui/frontend/lib/ipc.ts`, not authenticated Roblox endpoints directly. Core changes require explicit authorisation under the limited extraction policy in `AGENTS.md`. Browser windows and cookie capture stay in `ram_ui/src-tauri`. Tauri adapters must remain small and must not expose stored cookies, tickets or CSRF tokens in responses, events, errors or logs. Explicit cookie entry is an input flow, not permission to return saved credentials to the frontend. Other language examples below are scratch references, not application integration patterns.
 
 ```rust
 // cargo add reqwest --features json,cookies

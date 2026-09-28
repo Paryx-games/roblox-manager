@@ -8,13 +8,13 @@ Use:
 
 > Understood pre-task rules
 
-or a close equivalent. This acknowledgement is required before editing files, running commands, or making other repository changes. **The security rules under Agent Guidelines § 5 are non-negotiable - RM stores live Roblox credentials, so treat that section as load-bearing, not advisory.** **If your task touches any UI code (`ram_ui/frontend/`), you must also read `DESIGN.md` and `ram_ui/src/tokens.css` before writing a component - see Agent Guidelines § 10.** **If your task involves opening a pull request, you must also read [PR_CONVENTIONS.md](PR_CONVENTIONS.md) before writing the PR description.**
+or a close equivalent. This acknowledgement is required before editing files, running commands, or making other repository changes. **The security rules under Agent Guidelines § 5 are non-negotiable - RM stores live Roblox credentials, so treat that section as load-bearing, not advisory.** **If your task touches any UI code (`ram_ui/frontend/`), you must also read `DESIGN.md` and `ram_ui/frontend/tokens.css` before writing a component - see Agent Guidelines § 10.** **If your task involves opening a pull request, you must also read [PR_CONVENTIONS.md](PR_CONVENTIONS.md) before writing the PR description.**
 
 ## Currently important news (required read)
 
-- **v2 replaces the UI with Tauri + React/TypeScript**, tracked in [PR #30](https://github.com/Paryx-games/roblox-manager/pull/30) (closes [#29](https://github.com/Paryx-games/roblox-manager/issues/29)). The new interface implements the active workflows described in the user guides. Some unfinished settings are documented in `docs/guides/settings.md`. The legacy egui application remains in `ram_ui/src/` for compatibility and reference.
+- **v2 replaces the UI with Tauri + React/TypeScript**, tracked in [PR #30](https://github.com/Paryx-games/roblox-manager/pull/30) (closes [#29](https://github.com/Paryx-games/roblox-manager/issues/29)). The new interface implements the active workflows described in the user guides. Some unfinished settings are documented in `docs/guides/settings.md`. The retired egui application has been removed; its source remains available in Git history.
 - **`ram_core` is read-only by default.** The only standing exception is a behaviour-preserving extraction of existing reusable logic from `ram_ui/src-tauri` into `ram_core`, subject to every condition below. This policy does not authorise performing an extraction by itself; the current task must explicitly request that extraction. General UI work, cleanup, feature parity, or permission to edit this policy does not qualify.
-- **Do not edit, remove, or rewrite the retained legacy application under `ram_ui/src/`.** The v2 branch contains a small compatibility helper and module declaration in `browser_login.rs` and `main.rs`; these do not migrate or replace the egui interface. Further legacy changes need explicit task scope.
+- **Active source ownership:** Desktop browser and Windows startup helpers live under `ram_ui/src-tauri/src/`. React components and shared styles, including `tokens.css`, live under `ram_ui/frontend/`. The retired `ram_ui` Rust crate is no longer a workspace member.
 
 ### Limited core extraction policy
 
@@ -39,7 +39,7 @@ All conditions are mandatory. If any condition cannot be met, stop the affected 
 - **Rust Edition**: 2021 (Rust stable)
 - **Frontend**: React 18+ with TypeScript, built with Vite
 
-> **Migration note**: this branch replaces the legacy `egui`/`eframe` UI (`ram_ui` as a native immediate-mode GUI) with a Tauri shell hosting a React/TypeScript frontend. Core behaviour remains frozen; only explicitly requested extractions meeting the Limited core extraction policy above are permitted.
+> **Migration note**: v2 replaces the retired egui/eframe app with a Tauri shell hosting a React/TypeScript frontend. Core behaviour remains frozen; only explicitly requested extractions meeting the Limited core extraction policy above are permitted.
 
 ---
 
@@ -49,7 +49,7 @@ All conditions are mandatory. If any condition cannot be met, stop the affected 
 | ------------------------------ | ------------------------------------------------------------------------------------------------------- |
 | **Desktop Shell**              | `tauri` (2.x), `tauri-plugin-*` as needed (dialog, fs, shell)                                           |
 | **Frontend**                   | React 18+, TypeScript, Vite, `stylelint` (design-token enforcement - see Design System below)           |
-| **Async Runtime & Networking** | `tokio` (1.x, full), `reqwest` (0.12 with json & cookies)                                               |
+| **Async Runtime & Networking** | `tokio` (1.x, full), `reqwest` (0.13 with json & cookies)                                               |
 | **Serialization & Errors**     | `serde` (1.x derive), `serde_json` (1.x), `thiserror` (2.x)                                             |
 | **Cryptography & Security**    | `aes-gcm` (0.10, AES-256-GCM), `argon2` (0.5, Argon2id), `sha2`, `rand`, `keyring` (3.x windows-native) |
 | **Windows System & APIs**      | `windows-sys` (0.59: Process, Threading, Diagnostics, Security, UI, DWM), `sysinfo` (0.32)              |
@@ -108,12 +108,14 @@ robloxmanager/
     │       ├── asset_manager.rs # Developer creation and upload commands
     │       ├── lifecycle.rs    # Startup, migrations and recovery
     │       ├── login.rs        # Isolated Tauri login window
+    │       ├── browser_login.rs # Isolated browse-as subprocess and compatibility login mode
+    │       ├── startup.rs      # Windows startup registration
     │       └── state.rs        # Managed app state (account store handle, instance registry, etc.)
-    ├── src/                    # Retained egui source plus shared tokens.css
     └── frontend/               # Active React/TypeScript frontend
         ├── main.tsx            # Entry point
         ├── App.tsx             # Root shell, 40px title bar, 56px navigation rail and routed pages
-        ├── styles.css           # Tailwind import, theme mapping and active page/component styling
+        ├── tokens.css           # Shared color, typography, spacing and motion tokens
+        ├── styles.css           # Tailwind import, theme mapping and page/component styling
         ├── components/          # Account picker, custom select, popups, tooltips, icons and loading skeletons
         ├── *Page.tsx            # Accounts, Instances, Groups, Private Servers, Presets, Inventories, Assets, Settings
         ├── lib/
@@ -174,7 +176,7 @@ RM's frontend uses a shared CSS design system. Before writing or modifying
 anything in `ram_ui/frontend`:
 
 1. Read **`DESIGN.md`** in full.
-2. Read **`ram_ui/src/tokens.css`** - the source of shared visual tokens for
+2. Read **`ram_ui/frontend/tokens.css`** - the source of shared visual tokens for
    color, spacing, radius, border-width, and motion value in the app.
 
 The short version, expanded fully in that doc:
@@ -447,10 +449,10 @@ Pre-releases sort before their plain release under SemVer (`v2.0.0-rc.1` < `v2.0
    - Only create a new file when the task explicitly calls for one (a real doc page, a new source file, a test file for new functionality) or when the user asks for a written summary as a deliverable. When in doubt, don't create it - say the summary in the response instead.
    - Before finishing a task, check for any stray files you created along the way (scratch notes, temp scripts, "plan" files) that were only useful during the task itself, and remove them rather than leaving them in the repo.
 
-9. **GUI consistency**: reuse components from `ram_ui/frontend/components/` and shared tokens from `ram_ui/src/tokens.css` wherever they fit. Read `DESIGN.md` before changing the active interface.
+9. **GUI consistency**: reuse components from `ram_ui/frontend/components/` and shared tokens from `ram_ui/frontend/tokens.css` wherever they fit. Read `DESIGN.md` before changing the active interface.
 
 10. **Design system compliance is mandatory for any UI change**:
-    - Read `DESIGN.md`, `ram_ui/src/tokens.css`, and `ram_ui/frontend/styles.css` before editing the active frontend.
+    - Read `DESIGN.md`, `ram_ui/frontend/tokens.css`, and `ram_ui/frontend/styles.css` before editing the active frontend.
     - Use shared token colors, avoid shadows and preserve the shared radius and Roboto type. Stylelint blocks raw hex colors and `!important`; review the rest against DESIGN.md because lint does not enforce those rules.
     - Every new interactive component must implement its full required interaction-state set (DESIGN.md § Interaction states) - a button with no visible focus ring is an incomplete component, not a follow-up task.
     - Don't invent a new component for a single-use wrapper (DESIGN.md § 4) - and don't invent a new _pattern_ (a new card style, a new table variant) without flagging it and confirming the approach first, the same way a major architectural change gets flagged under § "Ask before major changes" below.

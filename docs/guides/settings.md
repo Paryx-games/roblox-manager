@@ -40,4 +40,4 @@ Configure the webhook through the integration controls, then use the explicit te
 
 ## Controls that are unfinished
 
-Auto-launching a game on startup, custom game arguments, FastFlags and automatic MAC rotation have saved configuration controls but are not wired into those automatic behaviours. They were unfinished in egui too; they are not functionality lost during the Tauri migration. Do not rely on them being applied to launches. **Start RM with Windows** and the explicit manual MAC rotation action are separate features.
+Auto-launching a game on startup, custom game arguments, FastFlags and automatic MAC rotation have saved configuration controls but are not wired into those automatic behaviours. Do not rely on them being applied to launches. **Start RM with Windows** and the explicit manual MAC rotation action are separate features.
