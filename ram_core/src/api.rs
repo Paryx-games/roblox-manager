@@ -8,6 +8,13 @@ use crate::auth::RobloxClient;
 use crate::error::CoreError;
 use crate::models::{ModerationInfo, Presence};
 
+pub fn trusted_roblox_image_url(value: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(value).ok()?;
+    let host = parsed.host_str()?;
+    (parsed.scheme() == "https" && (host == "rbxcdn.com" || host.ends_with(".rbxcdn.com")))
+        .then(|| value.to_string())
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct UserSearchResult {
     pub user_id: u64,

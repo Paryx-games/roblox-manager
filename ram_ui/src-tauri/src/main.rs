@@ -18,6 +18,7 @@ mod browser_login;
 mod startup;
 
 use base64::Engine;
+use ram_core::api::trusted_roblox_image_url;
 use ram_core::crypto;
 use ram_core::group_api;
 use ram_core::models::{
@@ -640,199 +641,42 @@ fn group_info_dto(group: &group_api::GroupInfo) -> GroupInfoDto {
     }
 }
 
-fn trusted_roblox_image_url(value: &str) -> Option<String> {
-    let parsed = reqwest::Url::parse(value).ok()?;
-    let host = parsed.host_str()?;
-    (parsed.scheme() == "https" && (host == "rbxcdn.com" || host.ends_with(".rbxcdn.com")))
-        .then(|| value.to_string())
-}
-
 fn group_announcement_dto(
-    value: &serde_json::Value,
-) -> Option<(GroupAnnouncementDto, Option<u64>)> {
-    let announcement = value
-        .get("announcement")
-        .or_else(|| {
-            value
-                .get("data")
-                .and_then(serde_json::Value::as_array)?
-                .first()
-        })
-        .unwrap_or(value);
-    let title = announcement
-        .get("title")
-        .or_else(|| announcement.get("name"))
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("Announcement")
-        .to_string();
-    let body = announcement
-        .pointer("/message/content/plainText")
-        .or_else(|| announcement.pointer("/content/plainText"))
-        .or_else(|| announcement.get("message"))
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let image_url = announcement
-        .pointer("/media/0/imageUrl")
-        .or_else(|| announcement.pointer("/message/media/0/imageUrl"))
-        .or_else(|| announcement.pointer("/message/content/media/0/imageUrl"))
-        .or_else(|| announcement.pointer("/media/0/url"))
-        .and_then(serde_json::Value::as_str)
-        .and_then(trusted_roblox_image_url);
-    let reactions = announcement
-        .pointer("/message/reactions")
-        .or_else(|| announcement.get("reactions"))
-        .and_then(serde_json::Value::as_array)
-        .into_iter()
-        .flatten()
-        .enumerate()
-        .filter_map(|(index, reaction)| {
-            Some(GroupReactionDto {
-                label: reaction
-                    .get("name")
-                    .or_else(|| reaction.get("type"))
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_string)
-                    .unwrap_or_else(|| format!("Reaction {}", index + 1)),
-                count: reaction
-                    .get("count")
-                    .or_else(|| reaction.get("reactionCount"))?
-                    .as_u64()?,
+    announcement: group_api::LatestGroupAnnouncement,
+) -> GroupAnnouncementDto {
+    GroupAnnouncementDto {
+        title: announcement.title,
+        body: announcement.body,
+        created: announcement.created,
+        image_url: announcement.image_url,
+        reactions: announcement
+            .reactions
+            .into_iter()
+            .map(|reaction| GroupReactionDto {
+                label: reaction.label,
+                count: reaction.count,
             })
-        })
-        .collect();
-    Some((
-        GroupAnnouncementDto {
-            title,
-            body,
-            created: announcement
-                .get("createdAt")
-                .or_else(|| announcement.get("created"))
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_string),
-            image_url,
-            reactions,
-        },
-        announcement
-            .pointer("/message/media/assetId")
-            .and_then(serde_json::Value::as_u64),
-    ))
-}
-
-fn group_forum_post_dto(value: &serde_json::Value) -> Option<GroupForumPostDto> {
-    let id = value
-        .get("id")?
-        .as_str()
-        .map(str::to_string)
-        .or_else(|| value.get("id")?.as_u64().map(|id| id.to_string()))?;
-    let title = value
-        .get("title")
-        .or_else(|| value.get("subject"))?
-        .as_str()?
-        .to_string();
-    Some(GroupForumPostDto {
-        id,
-        title,
-        body: value
-            .pointer("/content/plainText")
-            .or_else(|| value.get("body"))
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        created: value
-            .get("createdAt")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_string),
-        author: value
-            .pointer("/author/displayName")
-            .or_else(|| value.pointer("/author/username"))
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_string),
-        comment_count: value
-            .get("commentCount")
-            .and_then(serde_json::Value::as_u64)
-            .unwrap_or_default(),
-    })
-}
-
-#[cfg(test)]
-mod group_content_tests {
-    use super::*;
-
-    #[test]
-    fn parses_current_announcement_content_and_media() {
-        let response = serde_json::json!({
-            "data": [{
-                "name": "Update",
-                "createdAt": "2026-06-12T01:02:18Z",
-                "message": {
-                    "content": { "plainText": "New content" },
-                    "media": { "assetId": 123456789_u64 },
-                    "reactions": [{ "emoteId": "synthetic-id", "reactionCount": 6 }]
-                }
-            }]
-        });
-        let (announcement, image_asset_id) = group_announcement_dto(&response).unwrap();
-        assert_eq!(announcement.title, "Update");
-        assert_eq!(announcement.body, "New content");
-        assert_eq!(image_asset_id, Some(123456789));
-        assert_eq!(announcement.reactions[0].count, 6);
+            .collect(),
     }
 }
 
-async fn fetch_group_forums(
-    client: &RobloxClient,
-    cookie: &str,
-    group_id: u64,
-) -> Result<Vec<GroupForumCategoryDto>, ()> {
-    let url = format!("https://groups.roblox.com/v1/groups/{group_id}/forums");
-    let response = client
-        .get_json::<serde_json::Value>(&url, cookie)
-        .await
-        .map_err(|_| ())?;
-    let categories = response
-        .get("data")
-        .and_then(serde_json::Value::as_array)
-        .ok_or(())?;
-    let mut forums = Vec::new();
-    for category in categories.iter().take(8) {
-        let Some(id) = category.get("id").and_then(serde_json::Value::as_str) else {
-            continue;
-        };
-        if id.len() != 36
-            || !id
-                .chars()
-                .all(|character| character.is_ascii_hexdigit() || character == '-')
-        {
-            continue;
-        }
-        let Some(name) = category.get("name").and_then(serde_json::Value::as_str) else {
-            continue;
-        };
-        let posts_url = format!(
-            "https://groups.roblox.com/v1/groups/{group_id}/forums/{id}/posts?limit=10&includeCommentCount=true"
-        );
-        let posts = client
-            .get_json::<serde_json::Value>(&posts_url, cookie)
-            .await
-            .ok()
-            .and_then(|response| {
-                response
-                    .get("data")
-                    .and_then(serde_json::Value::as_array)
-                    .cloned()
+fn group_forum_category_dto(category: group_api::GroupForumCategory) -> GroupForumCategoryDto {
+    GroupForumCategoryDto {
+        id: category.id,
+        name: category.name,
+        posts: category
+            .posts
+            .into_iter()
+            .map(|post| GroupForumPostDto {
+                id: post.id,
+                title: post.title,
+                body: post.body,
+                created: post.created,
+                author: post.author,
+                comment_count: post.comment_count,
             })
-            .unwrap_or_default()
-            .iter()
-            .filter_map(group_forum_post_dto)
-            .collect();
-        forums.push(GroupForumCategoryDto {
-            id: id.to_string(),
-            name: name.to_string(),
-            posts,
-        });
+            .collect(),
     }
-    Ok(forums)
 }
 
 fn group_membership_dto(membership: &group_api::GroupMembership) -> GroupMembershipDto {
@@ -2735,44 +2579,20 @@ async fn load_group(
                 base64::engine::general_purpose::STANDARD.encode(bytes)
             )
         });
-    let announcement_url =
-        format!("https://groups.roblox.com/v1/groups/{group_id}/announcements/latest");
-    let announcement = client
-        .get_json::<serde_json::Value>(&announcement_url, "")
+    let announcement = group_api::fetch_latest_group_announcement(&client, group_id)
         .await
-        .ok()
-        .and_then(|value| group_announcement_dto(&value));
-    let announcement = if let Some((mut announcement, image_asset_id)) = announcement {
-        if announcement.image_url.is_none() {
-            if let Some(asset_id) = image_asset_id {
-                let thumbnail_url = format!(
-                    "https://thumbnails.roblox.com/v1/assets?assetIds={asset_id}&size=420x420&format=Png&isCircular=false"
-                );
-                announcement.image_url = client
-                    .get_json::<serde_json::Value>(&thumbnail_url, "")
-                    .await
-                    .ok()
-                    .and_then(|response| response.get("data")?.as_array()?.first().cloned())
-                    .and_then(|image| {
-                        image
-                            .get("imageUrl")?
-                            .as_str()
-                            .and_then(trusted_roblox_image_url)
-                    });
-            }
-        }
-        Some(announcement)
-    } else {
-        None
-    };
+        .map(group_announcement_dto);
     let forum_cookie = user_ids.first().and_then(|user_id| {
         let runtime = state.runtime.lock().ok()?;
         account_cookie(&runtime, *user_id).ok()
     });
     let (forums, forum_status) = if let Some(cookie) = forum_cookie {
-        match fetch_group_forums(&client, &cookie, group_id).await {
-            Ok(forums) => (forums, None),
-            Err(()) => (
+        match group_api::fetch_group_forums(&client, &cookie, group_id).await {
+            Some(forums) => (
+                forums.into_iter().map(group_forum_category_dto).collect(),
+                None,
+            ),
+            None => (
                 Vec::new(),
                 Some("Forums could not be loaded for the selected account.".to_string()),
             ),
