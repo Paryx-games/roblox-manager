@@ -6,6 +6,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Fixed
 
+- **Website build guidance.** Describe the Tauri + React interface and provide the frontend installation and locked desktop bundle commands, with the required Windows build tools.
+
 - **Tauri release packaging.** Publish the Tauri portable executable and Windows installer with checksums for both. Build the installer in CI and check frontend linting and types alongside the Rust checks.
 
 - **Account re-add organisation.** Base credential replacement and confirmation previews on the existing account, preserving its alias, group, pin, order and cached history. Keep the alias editor synchronised with account updates so a stale field cannot overwrite the saved alias.
