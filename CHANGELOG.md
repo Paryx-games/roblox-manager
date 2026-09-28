@@ -6,6 +6,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Fixed
 
+- **Installer shortcut choices.** Remove the Start menu folder selection page and use the Roblox Manager folder. Select desktop shortcuts by default while retaining the option to disable either shortcut.
+
 - **Website build guidance.** Describe the Tauri + React interface and provide the frontend installation and locked desktop bundle commands, with the required Windows build tools.
 
 - **Tauri release packaging.** Publish the Tauri portable executable and Windows installer with checksums for both. Build the installer in CI and check frontend linting and types alongside the Rust checks.

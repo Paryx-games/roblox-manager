@@ -436,27 +436,12 @@ Function PageLeaveInstallOptions
   ${NSD_GetState} $ResetBrowserDataCheckbox $ResetBrowserData
 FunctionEnd
 
-Function SkipStartMenuIfUnselected
-  ${If} $PassiveMode = 1
-  ${OrIf} $InstallStartMenuShortcut != 1
-    Abort
-  ${EndIf}
-FunctionEnd
-
-; 7. Start menu shortcut page
 Var AppStartMenuFolder
-!if "${STARTMENUFOLDER}" != ""
-  !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipStartMenuIfUnselected
-  !define MUI_STARTMENUPAGE_DEFAULTFOLDER "${STARTMENUFOLDER}"
-!else
-  !define MUI_PAGE_CUSTOMFUNCTION_PRE Skip
-!endif
-!insertmacro MUI_PAGE_STARTMENU Application $AppStartMenuFolder
 
-; 8. Installation page
+; 7. installation page
 !insertmacro MUI_PAGE_INSTFILES
 
-; 9. Finish page
+; 8. finish page
 ;
 ; Don't auto jump to finish page after installation page,
 ; because the installation page has useful info that can be used debug any issues with the installer.
@@ -539,15 +524,10 @@ Function .onInit
     StrCpy $UpdateMode 1
   ${EndIf}
 
-  StrCpy $InstallDesktopShortcut 0
+  StrCpy $AppStartMenuFolder "${STARTMENUFOLDER}"
+  StrCpy $InstallDesktopShortcut 1
   StrCpy $InstallStartMenuShortcut 1
   StrCpy $ResetBrowserData 0
-  ${If} ${Silent}
-  ${OrIf} $PassiveMode = 1
-    ${If} $NoShortcutMode != 1
-      StrCpy $InstallDesktopShortcut 1
-    ${EndIf}
-  ${EndIf}
 
   !if "${DISPLAYLANGUAGESELECTOR}" == "true"
     !insertmacro MUI_LANGDLL_DISPLAY
@@ -581,14 +561,6 @@ Function .onInit
     !insertmacro MULTIUSER_INIT
   !endif
 
-  ${If} $NoShortcutMode != 1
-  ${AndIf} $UpdateMode != 1
-    !insertmacro IsShortcutTarget "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
-    Pop $0
-    ${If} $0 = 1
-      StrCpy $InstallDesktopShortcut 1
-    ${EndIf}
-  ${EndIf}
 FunctionEnd
 
 
@@ -793,9 +765,7 @@ Section Install
   !endif
 
   ${If} $InstallStartMenuShortcut = 1
-    !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
-      Call CreateOrUpdateStartMenuShortcut
-    !insertmacro MUI_STARTMENU_WRITE_END
+    Call CreateOrUpdateStartMenuShortcut
   ${ElseIf} $UpdateMode != 1
   ${AndIf} $NoShortcutMode != 1
     Call RemoveStartMenuShortcut
@@ -905,7 +875,7 @@ Section Uninstall
     !insertmacro DeleteAppUserModelId
 
     ; Remove start menu shortcut
-    !insertmacro MUI_STARTMENU_GETFOLDER Application $AppStartMenuFolder
+    StrCpy $AppStartMenuFolder "${STARTMENUFOLDER}"
     !insertmacro IsShortcutTarget "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
     Pop $0
     ${If} $0 = 1
@@ -1070,7 +1040,7 @@ Function CreateOrUpdateDesktopShortcut
 FunctionEnd
 
 Function RemoveStartMenuShortcut
-  !insertmacro MUI_STARTMENU_GETFOLDER Application $AppStartMenuFolder
+  StrCpy $AppStartMenuFolder "${STARTMENUFOLDER}"
   ${If} $AppStartMenuFolder != ""
     !insertmacro IsShortcutTarget "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
     Pop $0
