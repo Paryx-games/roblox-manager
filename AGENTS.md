@@ -8,13 +8,13 @@ Use:
 
 > Understood pre-task rules
 
-or a close equivalent. This acknowledgement is required before editing files, running commands, or making other repository changes. **The security rules under Agent Guidelines § 5 are non-negotiable - RM stores live Roblox credentials, so treat that section as load-bearing, not advisory.** **If your task touches any UI code (`ram_ui/frontend/`), you must also read `DESIGN.md` and `ram_ui/frontend/tokens.css` before writing a single component - see Agent Guidelines § 10.** **If your task involves opening a pull request, you must also read [PR_CONVENTIONS.md](PR_CONVENTIONS.md) before writing the PR description.**
+or a close equivalent. This acknowledgement is required before editing files, running commands, or making other repository changes. **The security rules under Agent Guidelines § 5 are non-negotiable - RM stores live Roblox credentials, so treat that section as load-bearing, not advisory.** **If your task touches any UI code (`ram_ui/frontend/`), you must also read `DESIGN.md` and `ram_ui/src/tokens.css` before writing a component - see Agent Guidelines § 10.** **If your task involves opening a pull request, you must also read [PR_CONVENTIONS.md](PR_CONVENTIONS.md) before writing the PR description.**
 
 ## Currently important news (required read)
 
-- **v2 replaces the UI with Tauri + React/TypeScript**, tracked in [PR #30](https://github.com/Paryx-games/roblox-manager/pull/30) (closes [#29](https://github.com/Paryx-games/roblox-manager/issues/29)). Core behaviour remains frozen except for the strictly limited extraction policy below. The existing egui source stays in place until the new UI reaches feature parity.
+- **v2 replaces the UI with Tauri + React/TypeScript**, tracked in [PR #30](https://github.com/Paryx-games/roblox-manager/pull/30) (closes [#29](https://github.com/Paryx-games/roblox-manager/issues/29)). The new interface implements the active workflows described in the user guides. Some unfinished settings are documented in `docs/guides/settings.md`. The legacy egui application remains in `ram_ui/src/` for compatibility and reference.
 - **`ram_core` is read-only by default.** The only standing exception is a behaviour-preserving extraction of existing reusable logic from `ram_ui/src-tauri` into `ram_core`, subject to every condition below. This policy does not authorise performing an extraction by itself; the current task must explicitly request that extraction. General UI work, cleanup, feature parity, or permission to edit this policy does not qualify.
-- **Do not edit, remove, or rewrite the retained legacy source under `ram_ui/src/`.** An extraction must preserve compatibility with its existing core callers without modifying them.
+- **Do not edit, remove, or rewrite the retained legacy application under `ram_ui/src/`.** The v2 branch contains a small compatibility helper and module declaration in `browser_login.rs` and `main.rs`; these do not migrate or replace the egui interface. Further legacy changes need explicit task scope.
 
 ### Limited core extraction policy
 
@@ -84,7 +84,8 @@ robloxmanager/
 │   │   ├── storage.rs         # Crash-safe atomic persistence (atomic_write, atomic_swap, .bak)
 │   │   ├── auth.rs            # RobloxClient with per-cookie CSRF token caching & exponential backoff
 │   │   ├── api.rs             # Roblox REST APIs (avatars, presence, place info, user profiles)
-│   │   ├── group_api.rs       # Roblox Group API endpoints
+│   │   ├── group_api.rs       # Roblox group announcements and forums
+│   │   ├── accounts.rs        # Reusable account validation and merge rules
 │   │   ├── assets.rs          # Asset Manager data structures, state machines, validation
 │   │   ├── assets_api.rs      # Roblox Open Cloud & Asset upload APIs
 │   │   ├── multipart.rs       # Custom multipart body encoder for uploads
@@ -108,12 +109,12 @@ robloxmanager/
     │       ├── lifecycle.rs    # Startup, migrations and recovery
     │       ├── login.rs        # Isolated Tauri login window
     │       └── state.rs        # Managed app state (account store handle, instance registry, etc.)
-    ├── src/                    # Retained legacy egui source, unchanged during migration
+    ├── src/                    # Retained egui source plus shared tokens.css
     └── frontend/               # Active React/TypeScript frontend
         ├── main.tsx            # Entry point
-        ├── App.tsx             # Root layout: activity bar + sidebar + routed content (see DESIGN.md § Layout shell)
-        ├── tokens.css           # Design tokens - SINGLE SOURCE OF TRUTH for color/type/space/motion, see DESIGN.md
-        ├── components/          # Shared, reusable UI components (PageHeader, DataTable, Card, Button, StatusDot, Badge, etc.)
+        ├── App.tsx             # Root shell, 40px title bar, 56px navigation rail and routed pages
+        ├── styles.css           # Tailwind import, theme mapping and active page/component styling
+        ├── components/          # Account picker, custom select, popups, tooltips, icons and loading skeletons
         ├── *Page.tsx            # Accounts, Instances, Groups, Private Servers, Presets, Inventories, Assets, Settings
         ├── lib/
         │   └── ipc.ts            # Typed wrappers around Tauri commands
@@ -169,44 +170,31 @@ robloxmanager/
 
 ## Design System (required read for any UI work)
 
-RM's frontend follows a single documented design system - not per-page
-improvisation. Before writing or modifying anything in `ram_ui/frontend`:
+RM's frontend uses a shared CSS design system. Before writing or modifying
+anything in `ram_ui/frontend`:
 
 1. Read **`DESIGN.md`** in full.
-2. Read **`ram_ui/frontend/tokens.css`** - the single source of truth for every
+2. Read **`ram_ui/src/tokens.css`** - the source of shared visual tokens for
    color, spacing, radius, border-width, and motion value in the app.
 
 The short version, expanded fully in that doc:
 
-- **Fixed shell**: activity bar (44px) + sidebar (220px) + content area,
-  consistent on every page - an operations-console layout, not a
-  marketing-dashboard template. See DESIGN.md § Layout shell.
+- **Desktop shell**: the main window opens at 1200 x 760 and has the same
+  minimum size, with a 40px title bar and a 56px navigation rail. See DESIGN.md.
 - **Status color is reserved** for live account/instance/process state
   only - never decoration, never a button.
 - **No shadows, one radius, one border weight**, everywhere.
-- **Typography**: use the Roboto sans-serif token for all interface text,
-  including headings, buttons, labels, descriptions, data values, logs,
-  timestamps, and other technical data. Do not use a separate monospace
-  family in the active Tauri/React UI.
-- **Semantic tokens only** in component code - never a raw hex, and no
-  new component that just wraps a single element for the sake of naming
-  it.
+- **Typography**: use the Roboto sans-serif token for interface text.
+- **Use shared tokens and existing components** where they fit. `styles.css`
+  contains the active frontend styling and maps a small set of tokens into
+  Tailwind utilities; most page styling uses named CSS classes.
 - Every interactive component needs its full interaction-state set
   (hover/focus/active/disabled/loading, as applicable) - see
-  DESIGN.md § Interaction states. A missing focus ring is a design
-  system violation, not a nitpick.
-- No emoji as icons. One icon set (`assets/icons`) only.
+  DESIGN.md § Interaction states.
+- Use the local icon component and icon assets; do not use emoji as interface icons.
 
-**Enforcement is intentionally partial** - hard rules (raw hex, box-shadow,
-non-standard radius, wrong font-family) fail `stylelint` in CI; softer
-judgment calls (an off-scale spacing value with a genuine structural
-reason) are a code-review/PR-checklist concern, not a lint failure. See
-DESIGN.md § Enforcement for the reasoning - the point is to
-constrain design decisions, not turn ordinary development into an
-obstacle course. If you hit a case where the linter is fighting a
-legitimate structural need (e.g. a fixed-size icon square), that's a sign
-to use the literal value and note why in the PR, not to bend the token
-scale to fit.
+Stylelint blocks raw hex colors and `!important` in frontend CSS. Other
+design-system guidance is checked through code review and manual UI review.
 
 If a task requires a design decision this doc doesn't cover, flag it and
 ask rather than inventing a one-off pattern - a new pattern introduced
@@ -310,7 +298,7 @@ Use [Conventional Commits](CONVENTIONAL_COMMITS.md), for example:
 docs: explain private-server bookmarks
 fix(auth): preserve csrf token per cookie
 feat(groups): show membership status
-feat(ui): add DataTable component per DESIGN.md
+feat(accounts): improve account list navigation
 ```
 
 One focused change per PR. Documentation-only edits can be grouped together if they cover one feature area. Never commit cookies, tokens, logs, build output, `node_modules/`, or local account data - double check the diff before staging.
@@ -448,7 +436,7 @@ Pre-releases sort before their plain release under SemVer (`v2.0.0-rc.1` < `v2.0
 6. **Error Handling**:
    - Use `ram_core::error::CoreError` with `thiserror` in `ram_core`.
    - `src-tauri` commands convert `CoreError` into a serializable error type at the IPC boundary rather than leaking internal error variants directly - see § 5 on not letting secrets ride along in that conversion.
-   - On the frontend, surface errors via the UI's `<ErrorState>` / toast pattern (see DESIGN.md), not a raw thrown-error or console-only failure.
+   - On the frontend, surface errors through the page's visible error, retry, or toast behavior rather than a console-only failure.
 
 7. **Code comments**:
    - Comments explain intent, not syntax. Lowercase, concise, and only where the "why" isn't obvious from the code itself. No redundant or obvious comments.
@@ -459,11 +447,11 @@ Pre-releases sort before their plain release under SemVer (`v2.0.0-rc.1` < `v2.0
    - Only create a new file when the task explicitly calls for one (a real doc page, a new source file, a test file for new functionality) or when the user asks for a written summary as a deliverable. When in doubt, don't create it - say the summary in the response instead.
    - Before finishing a task, check for any stray files you created along the way (scratch notes, temp scripts, "plan" files) that were only useful during the task itself, and remove them rather than leaving them in the repo.
 
-9. **GUI consistency**: reuse existing components from `ram_ui/frontend/components/` and tokens from `ram_ui/frontend/tokens.css` wherever possible. Do not introduce a separate visual style, a new one-off component, or redesign an existing UI pattern without a clear reason - and never without reading `DESIGN.md` first. See § 10.
+9. **GUI consistency**: reuse components from `ram_ui/frontend/components/` and shared tokens from `ram_ui/src/tokens.css` wherever they fit. Read `DESIGN.md` before changing the active interface.
 
 10. **Design system compliance is mandatory for any UI change**:
-    - Read `DESIGN.md` and `ram_ui/frontend/tokens.css` before writing or editing anything under `ram_ui/frontend`. This is a required read in the same sense the docx/pptx skills are required reads before touching those file types - skipping it produces exactly the generic soft-shadow-rounded-card-with-emoji-icons output the doc's Anti-patterns section exists to prevent.
-    - Never introduce a raw hex color, a `box-shadow`, a non-standard `border-radius`, or a `font-family` outside `tokens.css` - these fail CI via `stylelint` (see DESIGN.md § Enforcement), but don't rely on the linter to catch what review should catch first.
+    - Read `DESIGN.md`, `ram_ui/src/tokens.css`, and `ram_ui/frontend/styles.css` before editing the active frontend.
+    - Use shared token colors, avoid shadows and preserve the shared radius and Roboto type. Stylelint blocks raw hex colors and `!important`; review the rest against DESIGN.md because lint does not enforce those rules.
     - Every new interactive component must implement its full required interaction-state set (DESIGN.md § Interaction states) - a button with no visible focus ring is an incomplete component, not a follow-up task.
     - Don't invent a new component for a single-use wrapper (DESIGN.md § 4) - and don't invent a new _pattern_ (a new card style, a new table variant) without flagging it and confirming the approach first, the same way a major architectural change gets flagged under § "Ask before major changes" below.
 
