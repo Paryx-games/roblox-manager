@@ -7,13 +7,10 @@ use ram_core::assets::{
 use ram_core::{assets_api, auth::RobloxClient, error::CoreError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
-
-const MAX_FILE_BYTES: u64 = 128 * 1024 * 1024;
 
 pub struct AssetManager(Arc<Mutex<AssetRuntime>>);
 
@@ -491,28 +488,6 @@ pub async fn reveal_asset_file(app: tauri::AppHandle, row_id: String) -> Result<
     .map_err(|_| "File reveal task failed")?
 }
 
-fn read_file(path: &Path) -> Result<(Vec<u8>, assets::AssetKind, &'static str), String> {
-    let mut file = std::fs::File::open(path).map_err(|_| "The file could not be opened.")?;
-    let metadata = file
-        .metadata()
-        .map_err(|_| "The file could not be inspected.")?;
-    if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES {
-        return Err("Choose a regular file smaller than 128 MiB.".into());
-    }
-    let (kind, mime) = assets::validate_file(path, metadata.len())?;
-    assets::reject_unuploadable(kind)?;
-    let mut bytes = Vec::new();
-    (&mut file)
-        .take(MAX_FILE_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|_| "The file could not be read.")?;
-    if bytes.len() as u64 > MAX_FILE_BYTES {
-        return Err("The file exceeds the 128 MiB import limit.".into());
-    }
-    assets::validate_file(path, bytes.len() as u64)?;
-    Ok((bytes, kind, mime))
-}
-
 #[tauri::command]
 pub async fn list_asset_workspace(app: tauri::AppHandle) -> Result<AssetWorkspace, String> {
     let manager = app.state::<AssetManager>().0.clone();
@@ -579,7 +554,7 @@ pub async fn add_asset_files(
             if !path.is_absolute() {
                 return Err("Choose an absolute file path.".into());
             }
-            let (file, invalid_reason) = match read_file(&path) {
+            let (file, invalid_reason) = match assets::read_asset_file(&path) {
                 Ok((bytes, kind, _)) => (
                     StagedFile {
                         path,
@@ -724,25 +699,6 @@ pub async fn list_asset_universes(
         .map_err(|error| describe_error(&error))
 }
 
-fn select_upload_rows(
-    index: &AssetIndex,
-    user_id: u64,
-    row_ids: &[String],
-) -> Result<HashSet<String>, String> {
-    if row_ids.is_empty() || row_ids.len() > 100 {
-        return Err("Select between one and 100 queued rows to upload.".into());
-    }
-    for row_id in row_ids {
-        let row = index
-            .get(row_id)
-            .ok_or("A selected queue row no longer exists")?;
-        if row.uploaded_by != user_id || !matches!(row.state, AssetState::Queued) {
-            return Err("Selected rows must be queued for this account.".into());
-        }
-    }
-    Ok(row_ids.iter().cloned().collect())
-}
-
 #[tauri::command]
 pub async fn upload_assets(
     app: tauri::AppHandle,
@@ -756,7 +712,7 @@ pub async fn upload_assets(
         if runtime.is_read_only {
             return Err("The asset index is read-only.".into());
         }
-        let selected = select_upload_rows(&runtime.index, user_id, &row_ids)?;
+        let selected = assets::select_upload_rows(&runtime.index, user_id, &row_ids)?;
         runtime.upload_rows.extend(selected);
         let _ = app.emit("assets-updated", runtime.snapshot());
     }
@@ -875,7 +831,11 @@ async fn run_tick(app: &tauri::AppHandle, manager: Arc<Mutex<AssetRuntime>>) -> 
         let runtime = manager.lock().map_err(|_| "Asset state unavailable")?;
         runtime.index.records.clone()
     };
-    for row in records.iter().filter(|row| is_poll_due(row)).take(20) {
+    for row in records
+        .iter()
+        .filter(|row| assets::is_poll_due(row))
+        .take(20)
+    {
         poll_row(app, manager.clone(), row).await?;
     }
     let snapshot = tauri::async_runtime::spawn_blocking(move || {
@@ -946,7 +906,7 @@ async fn send_upload(
         if let Some(row) = runtime.index.get_mut(&row_id) {
             match result {
                 Ok(result) => {
-                    if let Some(operation) = result.operation.filter(|operation| is_valid_operation(operation)) {
+                    if let Some(operation) = result.operation.filter(|operation| assets::is_valid_operation(operation)) {
                         row.state = AssetState::Pending { operation, since: Utc::now() };
                         apply_outcome(row, result.outcome);
                     } else if !matches!(result.outcome, OperationOutcome::StillPending) {
@@ -973,10 +933,11 @@ async fn prepare_upload(
         .await
         .map_err(|message| (message, false))?;
     let path = row.file_path.clone();
-    let (bytes, _, mime) = tauri::async_runtime::spawn_blocking(move || read_file(&path))
-        .await
-        .map_err(|_| ("File task unavailable".into(), false))?
-        .map_err(|message| (message, false))?;
+    let (bytes, _, mime) =
+        tauri::async_runtime::spawn_blocking(move || assets::read_asset_file(&path))
+            .await
+            .map_err(|_| ("File task unavailable".into(), false))?
+            .map_err(|message| (message, false))?;
     if assets::sha256_hex(&bytes) != row.file_sha256 {
         return Err((
             "The file changed after import. Remove this row and import it again.".into(),
@@ -1008,46 +969,6 @@ async fn prepare_upload(
         })
 }
 
-fn is_valid_operation(operation: &str) -> bool {
-    !operation.is_empty()
-        && operation.len() <= 256
-        && operation
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-}
-
-fn is_poll_due(row: &AssetRecord) -> bool {
-    let now = Utc::now();
-    let (since, interval) = match row.state {
-        AssetState::Pending { since, .. } => (
-            since,
-            assets::poll_interval_for_age(
-                now.signed_duration_since(since)
-                    .to_std()
-                    .unwrap_or_default(),
-            ),
-        ),
-        AssetState::InReview { since, .. } => (
-            since,
-            assets::review_poll_interval_for_age(
-                now.signed_duration_since(since)
-                    .to_std()
-                    .unwrap_or_default(),
-            ),
-        ),
-        _ => return false,
-    };
-    if now
-        .signed_duration_since(row.updated_at.unwrap_or(since))
-        .to_std()
-        .unwrap_or_default()
-        < interval
-    {
-        return false;
-    }
-    true
-}
-
 async fn poll_row(
     app: &tauri::AppHandle,
     manager: Arc<Mutex<AssetRuntime>>,
@@ -1061,7 +982,7 @@ async fn poll_row(
     let row_id = row.row_id.clone();
     match &row.state {
         AssetState::Pending { operation, .. } => {
-            let outcome = if is_valid_operation(operation) {
+            let outcome = if assets::is_valid_operation(operation) {
                 assets_api::poll_operation(&client, &cookie, operation)
                     .await
                     .ok()
@@ -1137,34 +1058,6 @@ async fn poll_row(
 mod tests {
     use super::*;
 
-    #[test]
-    fn selected_uploads_never_include_other_rows_or_accounts() {
-        let mut index = AssetIndex::default();
-        for (row_id, user_id) in [("selected", 1), ("unselected", 1), ("other-account", 2)] {
-            index.records.push(AssetRecord::staged(
-                row_id.into(),
-                StagedFile {
-                    path: PathBuf::from("synthetic.png"),
-                    sha256: row_id.into(),
-                    bytes: 1,
-                    kind: assets::AssetKind::Decal,
-                },
-                Creator::User(user_id),
-                user_id,
-                Utc::now(),
-            ));
-        }
-        assert_eq!(
-            select_upload_rows(&index, 1, &["selected".into()]).unwrap(),
-            HashSet::from(["selected".into()])
-        );
-        assert!(select_upload_rows(&index, 1, &["other-account".into()]).is_err());
-        assert!(select_upload_rows(&index, 1, &["missing".into()]).is_err());
-        assert!(select_upload_rows(&index, 1, &[]).is_err());
-        index.get_mut("selected").unwrap().state = AssetState::Uploading;
-        assert!(select_upload_rows(&index, 1, &["selected".into()]).is_err());
-    }
-
     #[tokio::test]
     async fn invalid_creators_are_rejected_before_any_request() {
         let client = RobloxClient::new().unwrap();
@@ -1178,20 +1071,6 @@ mod tests {
                 .await
                 .is_err()
         );
-    }
-
-    #[test]
-    fn operation_ids_cannot_escape_the_endpoint_path() {
-        assert!(is_valid_operation("abc-123_def"));
-        for operation in [
-            "",
-            "../assets",
-            "abc?token=x",
-            "https://example.com",
-            "abc/def",
-        ] {
-            assert!(!is_valid_operation(operation));
-        }
     }
 
     #[test]

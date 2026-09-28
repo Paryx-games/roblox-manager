@@ -1,12 +1,14 @@
 //! Asset Manager model: what an asset is, what state an upload is in, and the
 //! on-disk index that survives restarts.
 //!
-//! Everything here is pure. No network, and the only I/O is [`AssetIndex::load`]
-//! and [`AssetIndex::save`]. The HTTP calls that consume these types live in
+//! No network; I/O is limited to [`AssetIndex::load`], [`AssetIndex::save`],
+//! and bounded asset file reads. The HTTP calls that consume these types live in
 //! `assets_api`. Keeping the split means the fiddly parts (extension tables,
 //! operation-response parsing, moderation classification) are unit-testable
 //! without a cookie or a socket.
 
+use std::collections::HashSet;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -1095,6 +1097,89 @@ pub fn reject_unuploadable(kind: AssetKind) -> Result<(), String> {
     Ok(())
 }
 
+const MAX_FILE_BYTES: u64 = 128 * 1024 * 1024;
+
+pub fn read_asset_file(path: &Path) -> Result<(Vec<u8>, AssetKind, &'static str), String> {
+    let mut file = std::fs::File::open(path).map_err(|_| "The file could not be opened.")?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| "The file could not be inspected.")?;
+    if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES {
+        return Err("Choose a regular file smaller than 128 MiB.".into());
+    }
+    let (kind, mime) = validate_file(path, metadata.len())?;
+    reject_unuploadable(kind)?;
+    let mut bytes = Vec::new();
+    (&mut file)
+        .take(MAX_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| "The file could not be read.")?;
+    if bytes.len() as u64 > MAX_FILE_BYTES {
+        return Err("The file exceeds the 128 MiB import limit.".into());
+    }
+    validate_file(path, bytes.len() as u64)?;
+    Ok((bytes, kind, mime))
+}
+
+pub fn select_upload_rows(
+    index: &AssetIndex,
+    user_id: u64,
+    row_ids: &[String],
+) -> Result<HashSet<String>, String> {
+    if row_ids.is_empty() || row_ids.len() > 100 {
+        return Err("Select between one and 100 queued rows to upload.".into());
+    }
+    for row_id in row_ids {
+        let row = index
+            .get(row_id)
+            .ok_or("A selected queue row no longer exists")?;
+        if row.uploaded_by != user_id || !matches!(row.state, AssetState::Queued) {
+            return Err("Selected rows must be queued for this account.".into());
+        }
+    }
+    Ok(row_ids.iter().cloned().collect())
+}
+
+pub fn is_valid_operation(operation: &str) -> bool {
+    !operation.is_empty()
+        && operation.len() <= 256
+        && operation
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+pub fn is_poll_due(row: &AssetRecord) -> bool {
+    let now = Utc::now();
+    let (since, interval) = match row.state {
+        AssetState::Pending { since, .. } => (
+            since,
+            poll_interval_for_age(
+                now.signed_duration_since(since)
+                    .to_std()
+                    .unwrap_or_default(),
+            ),
+        ),
+        AssetState::InReview { since, .. } => (
+            since,
+            review_poll_interval_for_age(
+                now.signed_duration_since(since)
+                    .to_std()
+                    .unwrap_or_default(),
+            ),
+        ),
+        _ => return false,
+    };
+    if now
+        .signed_duration_since(row.updated_at.unwrap_or(since))
+        .to_std()
+        .unwrap_or_default()
+        < interval
+    {
+        return false;
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1976,5 +2061,112 @@ mod tests {
         assert_eq!(status, IndexLoad::NewerSchema);
         assert!(status.is_read_only());
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+}
+
+#[cfg(test)]
+mod queue_tests {
+    use super::*;
+
+    #[test]
+    fn polling_respects_last_attempts_and_distinct_moderation_cadence() {
+        let now = Utc::now();
+        let mut row = AssetRecord::staged(
+            "row".into(),
+            StagedFile {
+                path: PathBuf::from("synthetic.png"),
+                sha256: "synthetic-hash".into(),
+                bytes: 1,
+                kind: AssetKind::Decal,
+            },
+            Creator::User(1),
+            1,
+            now,
+        );
+        assert!(!is_poll_due(&row));
+        row.state = AssetState::Pending {
+            operation: "synthetic-operation".into(),
+            since: now - chrono::Duration::seconds(30),
+        };
+        row.updated_at = Some(now - chrono::Duration::seconds(17));
+        assert!(is_poll_due(&row));
+        row.state = AssetState::InReview {
+            asset_id: 1,
+            revision_id: None,
+            since: now - chrono::Duration::seconds(30),
+        };
+        assert!(!is_poll_due(&row));
+        row.updated_at = Some(now - chrono::Duration::seconds(25));
+        assert!(is_poll_due(&row));
+        row.updated_at = Some(now + chrono::Duration::seconds(30));
+        assert!(!is_poll_due(&row));
+    }
+
+    #[test]
+    fn asset_reads_preserve_bytes_and_reject_missing_empty_or_oversized_files() {
+        let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("synthetic.png");
+        assert!(read_asset_file(&path).is_err());
+        std::fs::write(&path, []).unwrap();
+        assert!(read_asset_file(&path).is_err());
+        std::fs::write(&path, b"synthetic-image-bytes").unwrap();
+        let (bytes, kind, mime) = read_asset_file(&path).unwrap();
+        assert_eq!(bytes, b"synthetic-image-bytes");
+        assert_eq!(kind, AssetKind::Decal);
+        assert_eq!(mime, "image/png");
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_len(MAX_FILE_BYTES + 1)
+            .unwrap();
+        assert_eq!(
+            read_asset_file(&path).unwrap_err(),
+            "Choose a regular file smaller than 128 MiB."
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn selected_uploads_never_include_other_rows_or_accounts() {
+        let mut index = AssetIndex::default();
+        for (row_id, user_id) in [("selected", 1), ("unselected", 1), ("other-account", 2)] {
+            index.records.push(AssetRecord::staged(
+                row_id.into(),
+                StagedFile {
+                    path: PathBuf::from("synthetic.png"),
+                    sha256: row_id.into(),
+                    bytes: 1,
+                    kind: AssetKind::Decal,
+                },
+                Creator::User(user_id),
+                user_id,
+                Utc::now(),
+            ));
+        }
+        assert_eq!(
+            select_upload_rows(&index, 1, &["selected".into()]).unwrap(),
+            HashSet::from(["selected".into()])
+        );
+        assert!(select_upload_rows(&index, 1, &["other-account".into()]).is_err());
+        assert!(select_upload_rows(&index, 1, &["missing".into()]).is_err());
+        assert!(select_upload_rows(&index, 1, &[]).is_err());
+        index.get_mut("selected").unwrap().state = AssetState::Uploading;
+        assert!(select_upload_rows(&index, 1, &["selected".into()]).is_err());
+    }
+
+    #[test]
+    fn operation_ids_cannot_escape_the_endpoint_path() {
+        assert!(is_valid_operation("abc-123_def"));
+        for operation in [
+            "",
+            "../assets",
+            "abc?token=x",
+            "https://example.com",
+            "abc/def",
+        ] {
+            assert!(!is_valid_operation(operation));
+        }
     }
 }
