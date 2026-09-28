@@ -3,10 +3,10 @@ use crate::{
     AccountSummary,
 };
 use ram_core::{
+    accounts::{apply_validation, merge_moderation, merge_replacement},
     api,
     auth::RobloxClient,
     crypto,
-    error::CoreError,
     models::{Account, ModerationInfo},
 };
 use serde::Serialize;
@@ -24,46 +24,6 @@ pub struct AdditionOutcome {
     account: AccountSummary,
     confirmation_id: Option<String>,
     is_replacement: bool,
-}
-
-fn credential_was_rejected(error: &CoreError) -> bool {
-    // forbidden responses can request a challenge without invalidating the session
-    matches!(error, CoreError::RobloxApi { status: 401, .. })
-}
-
-fn apply_validation(
-    account: &mut Account,
-    validation: Result<(u64, String, String), CoreError>,
-) -> bool {
-    match validation {
-        Ok((user_id, username, display_name)) if user_id == account.user_id => {
-            account.username = username;
-            account.display_name = display_name;
-            account.cookie_expired = false;
-            account.last_validated = Some(chrono::Utc::now());
-        }
-        Ok(_) => account.cookie_expired = true,
-        Err(ref error) if credential_was_rejected(error) => account.cookie_expired = true,
-        Err(_) => return false,
-    }
-    true
-}
-
-fn merge_moderation(
-    previous: Option<ModerationInfo>,
-    current: Option<ModerationInfo>,
-) -> Option<ModerationInfo> {
-    current.map(|mut current| {
-        if let Some(previous) = previous {
-            if current.reason.is_none() {
-                current.reason = previous.reason;
-            }
-            if current.expires_at.is_none() {
-                current.expires_at = previous.expires_at;
-            }
-        }
-        current
-    })
 }
 
 pub fn summaries(state: &AppState) -> Result<Vec<AccountSummary>, String> {
@@ -180,23 +140,6 @@ pub async fn stage_addition(
         .map_err(|_| "Account addition task failed")??;
     publish(app);
     Ok(outcome)
-}
-
-fn merge_replacement(existing: &Account, account: Account) -> Account {
-    let mut updated = existing.clone();
-    updated.username = account.username;
-    updated.display_name = account.display_name;
-    updated.encrypted_cookie = account.encrypted_cookie;
-    updated.cookie_expired = account.cookie_expired;
-    updated.last_validated = account.last_validated;
-    updated.moderation = account.moderation;
-    if account.created_at.is_some() {
-        updated.created_at = account.created_at;
-    }
-    if !account.avatar_url.is_empty() {
-        updated.avatar_url = account.avatar_url;
-    }
-    updated
 }
 
 fn commit_addition(state: &AppState, confirmation_id: &str) -> Result<AccountSummary, String> {
@@ -485,89 +428,5 @@ mod tests {
             "synthetic-replacement"
         );
         std::fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn replacing_credentials_keeps_account_organisation() {
-        let mut existing = Account::new(1, "old".into(), "Old".into());
-        existing.alias = "Main".into();
-        existing.group = "Farm".into();
-        existing.is_pinned = true;
-        existing.sort_order = 3;
-        existing.last_used = Some(chrono::Utc::now());
-        let updated = merge_replacement(&existing, Account::new(1, "new".into(), "New".into()));
-        assert_eq!(updated.username, "new");
-        assert_eq!(updated.alias, existing.alias);
-        assert_eq!(updated.group, existing.group);
-        assert!(updated.is_pinned);
-        assert_eq!(updated.sort_order, 3);
-        assert_eq!(updated.last_used, existing.last_used);
-    }
-
-    #[test]
-    fn transient_errors_do_not_expire_credentials() {
-        assert!(!credential_was_rejected(&CoreError::RateLimited));
-        assert!(!credential_was_rejected(&CoreError::RobloxApi {
-            status: 503,
-            message: String::new()
-        }));
-        assert!(credential_was_rejected(&CoreError::RobloxApi {
-            status: 401,
-            message: String::new()
-        }));
-    }
-
-    #[test]
-    fn forbidden_and_csrf_failures_do_not_expire_credentials() {
-        let failures = [
-            CoreError::CookieRejected,
-            CoreError::CookieRejectedWithReason("Synthetic challenge required".into()),
-            CoreError::AuthFailed("403 Forbidden after CSRF retries".into()),
-            CoreError::RobloxApi {
-                status: 403,
-                message: String::new(),
-            },
-        ];
-        for failure in failures {
-            assert!(!credential_was_rejected(&failure));
-        }
-    }
-
-    #[test]
-    fn validation_changes_credential_status_only_with_an_authentication_verdict() {
-        let mut account = Account::new(1, "Original".into(), "Original".into());
-        assert!(!apply_validation(
-            &mut account,
-            Err(CoreError::CookieRejected)
-        ));
-        assert!(!account.cookie_expired);
-        assert!(account.last_validated.is_none());
-        assert!(apply_validation(
-            &mut account,
-            Err(CoreError::RobloxApi {
-                status: 401,
-                message: String::new(),
-            })
-        ));
-        assert!(account.cookie_expired);
-        assert!(!apply_validation(
-            &mut account,
-            Err(CoreError::CookieRejected)
-        ));
-        assert!(account.cookie_expired);
-        assert!(apply_validation(
-            &mut account,
-            Ok((1, "Updated".into(), "Updated name".into()))
-        ));
-        assert!(!account.cookie_expired);
-        assert_eq!(account.username, "Updated");
-        assert!(account.last_validated.is_some());
-        assert!(apply_validation(
-            &mut account,
-            Ok((2, "Other user".into(), "Other".into()))
-        ));
-        assert!(account.cookie_expired);
-        assert_eq!(account.user_id, 1);
-        assert_eq!(account.username, "Updated");
     }
 }
