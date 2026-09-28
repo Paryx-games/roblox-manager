@@ -22,7 +22,7 @@ State each of these explicitly (checked or N/A) in the description - don't just 
 
 - [ ] Ran the full pre-commit verification sequence clean: `cargo fmt --all -- --check`, `cargo check`, `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `pnpm --dir ram_ui lint`, `pnpm --dir ram_ui typecheck`
 - [ ] `CHANGELOG.md` updated under `## Unreleased` if this is user-facing (N/A otherwise)
-- [ ] If this touches `ram_ui/src`: confirmed against `DESIGN.md` and `tokens.css` - no raw hex/box-shadow/off-token radius, full interaction-state set on new interactive components
+- [ ] If this touches `ram_ui/frontend`: confirmed against `DESIGN.md` and `tokens.css` - no raw hex/box-shadow/off-token radius, full interaction-state set on new interactive components
 - [ ] If this touches cookies, encryption, storage, or process control: explicitly called out in the description, not left implicit
 - [ ] If this touches `ram_core::redact`: new secret/URI patterns have matching redaction rules
 - [ ] No stray files left in the diff (scratch notes, summary `.md` files, temp scripts)

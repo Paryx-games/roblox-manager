@@ -28,34 +28,36 @@ RM has no 0.x or beta phase for the project as a whole - every version line stil
 
 ## Where the version lives
 
-The version lives once in the root `Cargo.toml` and both crates inherit it - do not hardcode a version anywhere else.
+The root `Cargo.toml` is the version source of truth. Both Rust crates inherit it. Synchronise the required version mirrors in `ram_ui/src-tauri/tauri.conf.json` and `ram_ui/package.json` when preparing a release; do not introduce independent version constants.
 
 ## Publishing a release
 
 Releases are built and published by `.github/workflows/release.yml`, which runs on pushes of tags matching `v*`, and can also be re-run manually against an existing tag (see [If GitHub is being stubborn](#if-github-is-being-stubborn)). Nothing publishes on a normal push to `main` or any other branch.
 
-1. Bump the version in the root `Cargo.toml`.
+1. Bump the root `Cargo.toml` version and synchronise `ram_ui/src-tauri/tauri.conf.json` and `ram_ui/package.json`.
 
-2. Add a `## vX.Y.Z` entry to `CHANGELOG.md` for the new version, above the previous entry.
+2. Rename `## Unreleased` to `## vX.Y.Z` in `CHANGELOG.md`, preserving its entries. If there is no unreleased section, add the release heading above the previous release.
 
    > [!WARNING]
    >
    > The release workflow reads this section directly and **fails the release** if it can't find a `## vX.Y.Z` heading matching the tag exactly.
 
-3. If `Cargo.lock` is out of sync with `Cargo.toml` (new/updated deps), sync it before committing:
+3. If dependencies changed, synchronise and review both lockfiles:
 
    ```powershell
    cargo build
    git diff Cargo.lock
+   pnpm --dir ram_ui install
+   git diff ram_ui/pnpm-lock.yaml
    ```
 
-   Check the diff looks sane, then include `Cargo.lock` in the commit below. The workflow builds with `--locked`, which fails outright if the lockfile is stale - see [If GitHub is being stubborn](#if-github-is-being-stubborn) if this bites you after the tag's already pushed.
+   Include changed lockfiles in the release commit. CI installs with `--frozen-lockfile` and builds with `--locked`. Run the verification sequence in [CONTRIBUTING.md](CONTRIBUTING.md), then smoke-test `pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked`.
 
 4. Commit those changes:
 
    ```powershell
-   git add Cargo.toml Cargo.lock CHANGELOG.md
-   git commit -m "chore: bump version to vX.Y.Z"
+   git add Cargo.toml Cargo.lock CHANGELOG.md ram_ui/src-tauri/tauri.conf.json ram_ui/package.json ram_ui/pnpm-lock.yaml
+   git commit -m "chore(release): bump version to vX.Y.Z"
    ```
 
 5. Tag the commit and push the tag:
@@ -67,20 +69,14 @@ Releases are built and published by `.github/workflows/release.yml`, which runs 
 
    Pushing the tag is what triggers the workflow.
 
-6. The workflow builds and renames the executable to `roblox-manager-vX.Y.Z-windows-x64.exe`, generates release notes from the changelog entry plus GitHub's auto-generated notes, adds a downloads table and SHA256 checksum, and publishes the GitHub release automatically. No manual steps after pushing the tag are needed unless the run fails.
+6. The Windows workflow installs Node 22/pnpm 11 dependencies, builds the embedded frontend and NSIS installer, and publishes `roblox-manager-vX.Y.Z-windows-x64.exe`, `roblox-manager-vX.Y.Z-windows-x64-setup.exe` and `SHA256SUMS.txt`. Notes include the maintained changelog, GitHub-generated notes, download guidance and a VirusTotal report for the direct executable. The workflow requires its `VIRUSTOTAL_API_KEY` secret. Local output remains under `target/release/`; GitHub renaming happens in the release job.
 
 ## If GitHub is being stubborn
 
-The release workflow has a `workflow_dispatch` trigger that takes the tag to release as an input, so a failed run doesn't require touching the tag at all:
+For a transient runner or service failure with a correct tagged commit, use **Actions > Release > Re-run all jobs**. Alternatively, **Run workflow** accepts an existing tag through `workflow_dispatch`.
 
-1. Fix whatever broke (stale `Cargo.lock`, a bad changelog heading, etc.) and push the fix to `main` as a normal commit.
-2. Open the **Actions** tab -> **Release** -> **Run workflow**.
-3. Enter the existing tag (e.g. `v2.0.0`) and run it.
+Both checkout steps explicitly use that tag. A fix pushed only to `main` does not change the source, lockfiles or changelog built for an existing tag. A manual retry is not a way to include untagged changes.
 
-This runs the workflow fresh - including your fix - and publishes/overwrites the release for that tag, without moving or recreating anything.
+If the tagged source needs fixing, commit and verify the fix, then publish a new version/tag. Only consider moving an unpublished, unused tag after coordination. Never move a tag that users have downloaded or automation depends on. A retry can replace release assets, so do not use it to silently change an already distributed version.
 
-> [!NOTE]
->
-> Don't delete and re-push the tag to force a rebuild. GitHub Actions treats a moved tag as suspicious and will often refuse to run the workflow against it (or run it inconsistently), so it's not a reliable retry path - use `workflow_dispatch` instead.
-
-If the commit the tag already points to is fine and the run just failed transiently (flaky runner, GitHub API hiccup on the notes-generation step, etc.), you don't even need `workflow_dispatch` - just open the failed run under the **Actions** tab and use **Re-run all jobs**.
+For custom NSIS template maintenance and the manual installer test matrix, see [Releasing RM](docs/developers/releasing.md).

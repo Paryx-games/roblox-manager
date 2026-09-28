@@ -10,6 +10,8 @@ enforced. Where a rule includes a number, that number is the rule. "Use
 good judgment" is never load-bearing on its own in this doc - every escape
 valve below is bounded by an explicit test, not a vibe.
 
+The active frontend is `ram_ui/frontend/`, with tokens in `ram_ui/frontend/tokens.css` and shared controls in `ram_ui/frontend/components/`. `ram_ui/src/` is retained egui code, not the React source.
+
 Stack assumption for everything below: **React + Tailwind, utility classes
 generated from tokens** (see §3.1). No component in this app writes a raw
 `style={{ ... }}` with a literal value, and no component reaches for a

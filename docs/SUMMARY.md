@@ -5,9 +5,10 @@
 
 ## Getting started
 
-* [First session](getting-started/first-session.md)
 * [Introduction](getting-started/introduction.md)
 * [Installing](getting-started/installing.md)
+* [Installer and uninstall options](getting-started/installer-options.md)
+* [First session](getting-started/first-session.md)
 
 ## Guides
 
@@ -15,9 +16,12 @@
 * [Launch games](guides/launch-games.md)
 * [Save launch presets](guides/launch-presets.md)
 * [Multi-instance](guides/multi-instance.md)
+* [Running instances](guides/instances.md)
 * [Groups](guides/groups.md)
 * [Private servers](guides/private-servers.md)
 * [Asset manager](guides/asset-manager.md)
+* [Inventories](guides/inventories.md)
+* [Settings](guides/settings.md)
 
 ## Security
 

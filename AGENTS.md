@@ -8,11 +8,11 @@ Use:
 
 > Understood pre-task rules
 
-or a close equivalent. This acknowledgement is required before editing files, running commands, or making other repository changes. **The security rules under Agent Guidelines § 5 are non-negotiable - RM stores live Roblox credentials, so treat that section as load-bearing, not advisory.** **If your task touches any UI code (`ram_ui/src/`), you must also read `DESIGN.md` and `ram_ui/src/tokens.css` before writing a single component - see Agent Guidelines § 10.** **If your task involves opening a pull request, you must also read [PR_CONVENTIONS.md](PR_CONVENTIONS.md) before writing the PR description.**
+or a close equivalent. This acknowledgement is required before editing files, running commands, or making other repository changes. **The security rules under Agent Guidelines § 5 are non-negotiable - RM stores live Roblox credentials, so treat that section as load-bearing, not advisory.** **If your task touches any UI code (`ram_ui/frontend/`), you must also read `DESIGN.md` and `ram_ui/frontend/tokens.css` before writing a single component - see Agent Guidelines § 10.** **If your task involves opening a pull request, you must also read [PR_CONVENTIONS.md](PR_CONVENTIONS.md) before writing the PR description.**
 
 ## Currently important news (required read)
 
-- **v2 is a Tauri + React/TypeScript rewrite of the UI only**, tracked in draft [PR #30](https://github.com/Paryx-games/roblox-manager/pull/30) (closes [#29](https://github.com/Paryx-games/roblox-manager/issues/29)). It replaces the egui/eframe frontend - it does not touch `ram_core` (logic, crypto, storage, Roblox API, Win32 process management stays as-is) and does not remove or rewrite the existing egui source, which stays in place until the new UI reaches feature parity.
+- **v2 is a Tauri + React/TypeScript rewrite of the UI only**, tracked in [PR #30](https://github.com/Paryx-games/roblox-manager/pull/30) (closes [#29](https://github.com/Paryx-games/roblox-manager/issues/29)). It replaces the egui/eframe frontend - it does not touch `ram_core` (logic, crypto, storage, Roblox API, Win32 process management stays as-is) and does not remove or rewrite the existing egui source, which stays in place until the new UI reaches feature parity.
 - **Do not touch `ram_core` at all, and do not touch the existing egui source code.** Only edit Tauri (Rust `src-tauri`), React, or TypeScript files.
 
 ## Project Overview
@@ -23,7 +23,7 @@ or a close equivalent. This acknowledgement is required before editing files, ru
 - **Docs Site**: `https://roblox-manager.gitbook.io/docs` (llms.txt index at `/docs/llms.txt` - every page has a `.md` version and supports `?ask=<question>` for live querying)
 - **License**: MIT
 - **Primary Target OS**: Windows 10 / 11 (uses Win32 APIs, Windows Credential Manager, and Tauri's WebView2-based webview)
-- **Rust Edition**: 2021 (Rust stable 1.75+)
+- **Rust Edition**: 2021 (Rust stable)
 - **Frontend**: React 18+ with TypeScript, built with Vite
 
 > **Migration note**: this branch replaces the legacy `egui`/`eframe` UI (`ram_ui` as a native immediate-mode GUI) with a Tauri shell hosting a React/TypeScript frontend. `ram_core` (the headless Rust logic/crypto/API layer) is unchanged by this migration - see Architecture below.
@@ -88,16 +88,22 @@ robloxmanager/
     │   ├── tauri.conf.json
     │   └── src/
     │       ├── main.rs         # Entry point, CLI dispatcher, logger setup
-    │       ├── commands/       # #[tauri::command] handlers, one module per domain (accounts, instances, groups, assets, presence)
+    │       ├── accounts.rs     # Account commands and credential validation
+    │       ├── instances.rs    # Running client attribution and process actions
+    │       ├── launcher.rs     # Shared launch coordination and pacing
+    │       ├── asset_manager.rs # Developer creation and upload commands
+    │       ├── lifecycle.rs    # Startup, migrations and recovery
+    │       ├── login.rs        # Isolated Tauri login window
     │       └── state.rs        # Managed app state (account store handle, instance registry, etc.)
-    └── src/                    # React/TypeScript frontend
+    ├── src/                    # Retained legacy egui source, unchanged during migration
+    └── frontend/               # Active React/TypeScript frontend
         ├── main.tsx            # Entry point
         ├── App.tsx             # Root layout: activity bar + sidebar + routed content (see DESIGN.md § Layout shell)
         ├── tokens.css           # Design tokens - SINGLE SOURCE OF TRUTH for color/type/space/motion, see DESIGN.md
         ├── components/          # Shared, reusable UI components (PageHeader, DataTable, Card, Button, StatusDot, Badge, etc.)
-        ├── pages/                # One module per sidebar section: dashboard, accounts, instances, groups, assets, activity, settings
+        ├── *Page.tsx            # Accounts, Instances, Groups, Private Servers, Presets, Inventories, Assets, Settings
         ├── lib/
-        │   └── ipc.ts            # Typed wrappers around Tauri `invoke()` calls into src-tauri/commands
+        │   └── ipc.ts            # Typed wrappers around Tauri commands
         └── hooks/                # Shared React hooks (e.g. live presence subscription)
 ```
 
@@ -108,8 +114,8 @@ robloxmanager/
 ### 1. Separation of Core, Command Layer, and UI
 
 - `ram_core` contains zero UI dependencies. All pure logic, cryptographic operations, Roblox HTTP communication, and Win32 process manipulation reside in `ram_core`. **This crate and its module boundaries are unchanged by the Tauri migration** - the rewrite replaces the presentation layer, not the domain logic.
-- `ram_ui/src-tauri` hosts thin `#[tauri::command]` handlers that call into `ram_core` and return serializable results (or emit events) to the frontend. Commands should stay thin - business logic belongs in `ram_core`, not in a command handler.
-- `ram_ui/src` (React/TypeScript) is the presentation layer. It calls into the Rust side exclusively through typed wrappers in `lib/ipc.ts`, never with ad hoc inline `invoke()` calls scattered through components.
+- `ram_ui/src-tauri` hosts `#[tauri::command]` handlers in feature modules and `main.rs` that call into `ram_core` and return serializable results (or emit events) to the frontend. Commands should stay thin - business logic belongs in `ram_core`, not in a command handler.
+- `ram_ui/frontend` (React/TypeScript) is the presentation layer. It calls into the Rust side exclusively through typed wrappers in `lib/ipc.ts`, never with ad hoc inline `invoke()` calls scattered through components.
 - Long-running or streaming operations (presence polling, launch progress, asset upload progress) use Tauri's event system (`emit`/`listen`) from a command or background task, rather than the frontend polling a command in a loop.
 
 ### 2. Envelope Encryption & Storage Modes
@@ -151,10 +157,10 @@ robloxmanager/
 ## Design System (required read for any UI work)
 
 RM's frontend follows a single documented design system - not per-page
-improvisation. Before writing or modifying anything in `ram_ui/src`:
+improvisation. Before writing or modifying anything in `ram_ui/frontend`:
 
 1. Read **`DESIGN.md`** in full.
-2. Read **`ram_ui/src/tokens.css`** - the single source of truth for every
+2. Read **`ram_ui/frontend/tokens.css`** - the single source of truth for every
    color, spacing, radius, border-width, and motion value in the app.
 
 The short version, expanded fully in that doc:
@@ -213,20 +219,20 @@ cargo fmt --all -- --check
 # Rust: run all unit and integration tests
 cargo test --workspace
 
-# Frontend: install dependencies (from ram_ui/)
-pnpm install
+# Frontend: install dependencies
+pnpm --dir ram_ui install
 
 # Frontend: lint (includes design-token enforcement via stylelint)
-pnpm lint
+pnpm --dir ram_ui lint
 
 # Frontend: type check
-pnpm typecheck
+pnpm --dir ram_ui typecheck
 
 # Run the full app in dev mode (Tauri + Vite dev server, hot reload)
-pnpm tauri dev
+pnpm --dir ram_ui tauri dev
 
-# Build optimized release bundle (outputs an installer + exe under ram_ui/src-tauri/target/release/)
-pnpm tauri build
+# Build optimized release bundle (outputs an installer + exe under target/release/)
+pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked
 ```
 
 ### Pre-commit verification sequence
@@ -242,7 +248,7 @@ pnpm --dir ram_ui lint
 pnpm --dir ram_ui typecheck
 ```
 
-For UI or launch changes, also manually test on Windows with Roblox installed. Any change touching cookies, encryption, storage, or process control needs explicit mention in the PR description. Any change touching `ram_ui/src` needs explicit confirmation it was checked against `DESIGN.md` (see PR template checklist).
+For UI or launch changes, also manually test on Windows with Roblox installed. Any change touching cookies, encryption, storage, or process control needs explicit mention in the PR description. Any change touching `ram_ui/frontend` needs explicit confirmation it was checked against `DESIGN.md` (see PR template checklist).
 
 ---
 
@@ -336,7 +342,7 @@ Full policy lives in [VERSIONING.md](VERSIONING.md); this is the working summary
 
 RM follows Semantic Versioning: `MAJOR.MINOR.PATCH`.
 
-- **MAJOR** - breaking changes requiring migration: incompatible config or account-store formats, removed/renamed dependencies of existing setups, scripts, or integrations. Feature removal alone does _not_ require a major bump.
+- **MAJOR** - breaking changes requiring migration, or a substantial new generation of RM through significant architectural work or material scope changes. Follow `VERSIONING.md` for the complete milestone criteria; effort alone is not enough.
 - **MINOR** - backward-compatible features, settings, tabs, capabilities, or feature removals.
 - **PATCH** - bug fixes, wording changes, UI polish. Never adds capability.
 
@@ -348,11 +354,11 @@ RM has no project-wide `0.x`/beta phase - every version line ships stable as `MA
 
 Pre-releases sort before their plain release under SemVer (`v2.0.0-rc.1` < `v2.0.0`) - tooling should never treat a pre-release as latest stable.
 
-**Version lives only in the root `Cargo.toml`.** Both crates inherit it, and the Tauri app's `tauri.conf.json` version field must match it - never hardcode a version anywhere else, including `package.json`.
+**Version source of truth is the root `Cargo.toml`.** Both Rust crates inherit it. The required mirrors in `ram_ui/src-tauri/tauri.conf.json` and `ram_ui/package.json` must match; do not introduce other independent version constants.
 
 ### Publishing a release
 
-`.github/workflows/release.yml` fires only on a pushed tag matching `v*` - normal pushes to `main` never publish.
+`.github/workflows/release.yml` runs on pushed `v*` tags and manual `workflow_dispatch` for an existing tag. Normal pushes to `main` never publish. Both release jobs check out the selected tag.
 
 1. Bump the version in the root `Cargo.toml` (and `tauri.conf.json` / `package.json` to match).
 2. Rename the `## Unreleased` heading in `CHANGELOG.md` to `## vX.Y.Z` (entries should already be there from per-commit updates - see Commit as you go above). If for some reason there's no `## Unreleased` section, add `## vX.Y.Z` above the previous release instead. **The workflow fails if it can't find a heading matching the tag exactly.**
@@ -371,7 +377,7 @@ Pre-releases sort before their plain release under SemVer (`v2.0.0-rc.1` < `v2.0
 
    ```powershell
    git add Cargo.toml Cargo.lock CHANGELOG.md ram_ui/src-tauri/tauri.conf.json ram_ui/package.json ram_ui/pnpm-lock.yaml
-   git commit -m "chore: bump version to vX.Y.Z"
+   git commit -m "chore(release): bump version to vX.Y.Z"
    ```
 
 5. Tag and push:
@@ -383,16 +389,9 @@ Pre-releases sort before their plain release under SemVer (`v2.0.0-rc.1` < `v2.0
 
 6. The workflow builds and publishes automatically - renames the installer/exe to match `roblox-manager-vX.Y.Z-windows-x64`, and adds changelog content, GitHub-generated notes, a downloads table, and a SHA256 checksum.
 
-**If the tag needs to move** (fix landed in a newer commit, workflow has no `workflow_dispatch` trigger so this is the only way to re-trigger):
+**Retrying a release:** if the tagged commit is correct and the failure is transient, use **Actions > Release > Re-run all jobs** or manually dispatch the existing tag. A fix pushed only to `main` is not included because the jobs check out the tag. For source fixes, publish a new verified version/tag. Move an unpublished, unused tag only after coordination; never move one users or automation already rely on.
 
-```powershell
-git tag -d vX.Y.Z
-git push origin :refs/tags/vX.Y.Z
-git tag vX.Y.Z
-git push origin vX.Y.Z
-```
-
-Only move a tag before anyone relies on it - never once users have downloaded the build or automation pins it. If the tagged commit itself is fine and it just failed transiently, rerun from **Actions → Re-run all jobs** instead of moving the tag.
+**Installer maintenance:** the NSIS template under `ram_ui/src-tauri/installer/` is based on Tauri Bundler 2.9.4. Compare it with upstream when upgrading Tauri. Build with `pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked`, then verify fresh install, upgrade, shortcut choices, optional cleanup and missing-WebView2 cases on a separate Windows test setup. See [the release guide](docs/developers/releasing.md).
 
 ---
 
@@ -447,10 +446,10 @@ Only move a tag before anyone relies on it - never once users have downloaded th
    - Only create a new file when the task explicitly calls for one (a real doc page, a new source file, a test file for new functionality) or when the user asks for a written summary as a deliverable. When in doubt, don't create it - say the summary in the response instead.
    - Before finishing a task, check for any stray files you created along the way (scratch notes, temp scripts, "plan" files) that were only useful during the task itself, and remove them rather than leaving them in the repo.
 
-9. **GUI consistency**: reuse existing components from `ram_ui/src/components/` and tokens from `ram_ui/src/tokens.css` wherever possible. Do not introduce a separate visual style, a new one-off component, or redesign an existing UI pattern without a clear reason - and never without reading `DESIGN.md` first. See § 10.
+9. **GUI consistency**: reuse existing components from `ram_ui/frontend/components/` and tokens from `ram_ui/frontend/tokens.css` wherever possible. Do not introduce a separate visual style, a new one-off component, or redesign an existing UI pattern without a clear reason - and never without reading `DESIGN.md` first. See § 10.
 
 10. **Design system compliance is mandatory for any UI change**:
-    - Read `DESIGN.md` and `ram_ui/src/tokens.css` before writing or editing anything under `ram_ui/src`. This is a required read in the same sense the docx/pptx skills are required reads before touching those file types - skipping it produces exactly the generic soft-shadow-rounded-card-with-emoji-icons output the doc's Anti-patterns section exists to prevent.
+    - Read `DESIGN.md` and `ram_ui/frontend/tokens.css` before writing or editing anything under `ram_ui/frontend`. This is a required read in the same sense the docx/pptx skills are required reads before touching those file types - skipping it produces exactly the generic soft-shadow-rounded-card-with-emoji-icons output the doc's Anti-patterns section exists to prevent.
     - Never introduce a raw hex color, a `box-shadow`, a non-standard `border-radius`, or a `font-family` outside `tokens.css` - these fail CI via `stylelint` (see DESIGN.md § Enforcement), but don't rely on the linter to catch what review should catch first.
     - Every new interactive component must implement its full required interaction-state set (DESIGN.md § Interaction states) - a button with no visible focus ring is an incomplete component, not a follow-up task.
     - Don't invent a new component for a single-use wrapper (DESIGN.md § 4) - and don't invent a new _pattern_ (a new card style, a new table variant) without flagging it and confirming the approach first, the same way a major architectural change gets flagged under § "Ask before major changes" below.

@@ -11,14 +11,15 @@ icon: download
 
 You need:
 
-* Windows 10 or Windows 11
+* Windows 10 or Windows 11, 64-bit
 * A working Roblox installation
+* Microsoft WebView2 Runtime, which the installer can set up if missing
 
 macOS and Linux are not currently supported.
 
 ### Download
 
-Download Roblox Manager from the project’s GitHub releases.
+Download Roblox Manager from the project's GitHub releases. These instructions describe the current Tauri installer; older published builds may show different screens.
 
 <a href="https://github.com/Paryx-games/roblox-manager/releases/latest" class="button primary" data-icon="download">Download latest release</a>
 
@@ -45,6 +46,8 @@ If an earlier installation appears as **RM** in Windows Settings, uninstall it b
 Uninstall Roblox Manager through Windows Settings. Your encrypted account store, settings and presets remain where stored, normally `%APPDATA%\RM`, so they are available if you reinstall. Custom store locations are also left untouched. Back up your data before manually removing it.
 
 The uninstaller lets you remove browser sessions and cache, remove diagnostic logs, and open the saved data folder when it finishes. These choices are off by default. Saved accounts, settings, presets and the shared Microsoft WebView2 Runtime remain available.
+
+For defaults, data paths, upgrades and cleanup details, read [Installer and uninstall options](installer-options.md).
 
 {% hint style="info" %}
 Continue with [first-session.md](first-session.md "mention") after installation.

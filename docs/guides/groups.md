@@ -19,6 +19,8 @@ Roblox's public APIs do not always expose every feed. A missing wall-post feed m
 
 Select accounts in the sidebar before opening the group membership area. RM shows each selected account's role and current membership state.
 
+Refresh the loaded group if membership changed elsewhere. Unavailable data is shown as an error or unavailable state; it should not be interpreted as a confirmed absence of membership.
+
 ## Join or leave
 
 Use the membership action for the loaded group. RM sends the request through each account's authenticated session and reports results separately. Accounts already in the requested state are skipped.
@@ -28,3 +30,5 @@ Roblox may require an interactive security challenge for membership changes. Com
 {% endhint %}
 
 Group data and membership actions depend on Roblox endpoints and account permissions. A Roblox API change can affect this tab without an RM update.
+
+This workspace does not imply support for every group endpoint listed in the contributor API reference. Group payouts, rank administration and other administrative actions are not documented capabilities of this page.

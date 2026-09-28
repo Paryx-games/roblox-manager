@@ -5,26 +5,28 @@ icon: upload
 
 # Asset manager
 
-The optional **Assets** workspace is for developer asset uploads through Roblox Open Cloud. It keeps staged files, upload progress, moderation state, thumbnails, and permission results together.
+The optional **Asset Manager** workspace keeps developer creations, staged files, upload progress, moderation state, thumbnails and permission results together.
 
 ## Enable the workspace
 
-Open **Settings** and enable the Utility area if it is hidden. Enable the Assets view inside Utility, then open **Assets**.
+Open **Settings > App and data**, enable developer options (**Show the Assets tab in Utility**), and save. **Asset Manager** and **Inventories** then appear in the navigation rail. The retained Utility visibility switches are not the current navigation gate for these pages.
 
 ## Upload an asset
 
 1. Choose the acting Roblox account.
-2. Select the asset kind and a local file.
-3. Select the target universe or group when prompted.
-4. Stage or upload the asset.
-5. Watch the row for upload, operation, and moderation status changes.
+2. Open **Import Queue** and stage supported local files.
+3. Review each row's name, asset type and account or group creator. Editing the type does not convert the source file.
+4. Select the queued rows to upload and, where applicable, the target experience.
+5. Choose **Upload selected**, review the confirmation, and watch upload, operation and moderation results.
 
 RM polls pending operations and moderation results in the background. A failed upload keeps its error state so it can be investigated without blocking the rest of the workspace.
 
 ## Permissions and inventory
 
-Use the inventory tree to inspect assets available to the acting account. Where supported, grant an asset to a universe and review how many permissions were granted or refused.
+Use **Library** to inspect live creations for the acting account or selected group creator. Refresh creations, copy IDs, or select existing assets and an experience before **Grant selected access**. Review granted and refused results separately. Owned avatar items are in [Inventories](inventories.md), not this library.
+
+Failed queue rows can be retried or removed; finished rows can be cleared. Retrying does not undo an asset already created on Roblox. Upload confirmation matters because uploads create permanent assets and submit them to moderation.
 
 {% hint style="warning" %}
-Asset uploads require the correct Roblox account, Open Cloud access, and permissions for the selected universe or group. Do not upload files containing credentials or private data.
+Asset uploads require a valid acting account and appropriate Roblox permissions for the selected creator and experience. Do not upload files containing credentials or private data. Supported types and service availability can change with Roblox APIs.
 {% endhint %}

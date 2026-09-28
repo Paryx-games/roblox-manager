@@ -1,6 +1,6 @@
 # Roblox API Reference (Cookie Auth) - Contributor Guide
 
-This doc lists the Roblox legacy web API domains that support `.ROBLOSECURITY` cookie auth, and the endpoints RM (Roblox Manager) is likely to call.
+This reference lists Roblox legacy web API domains and potential integration endpoints. It is not a feature checklist: an endpoint appearing here does not mean RM implements that action. Verification dates belong to the original endpoint audit and are not refreshed by documentation edits.
 
 Each section is marked:
 
@@ -16,7 +16,7 @@ Roblox reshuffles legacy endpoints without changelogs, so treat unverified secti
 
 All endpoints below accept the `.ROBLOSECURITY` cookie. Roblox's own docs mark cookie auth as **not recommended for production** - these are legacy/unversioned APIs that can break without a deprecation notice.
 
-All production API calls in RM go through `ram_core` (Rust). Other languages below are testing/scratch only - never wire a real feature to anything but the Rust backend.
+Authenticated production requests belong on the Rust side. Reuse `ram_core::auth::RobloxClient` and existing core APIs where available; React calls typed wrappers in `ram_ui/frontend/lib/ipc.ts`, not authenticated Roblox endpoints directly. During the v2 migration, do not modify `ram_core` or legacy egui code. Tauri adapters must remain small and must not expose stored cookies, tickets or CSRF tokens in responses, events, errors or logs. Explicit cookie entry is an input flow, not permission to return saved credentials to the frontend. Other language examples below are scratch references, not application integration patterns.
 
 ```rust
 // cargo add reqwest --features json,cookies
@@ -34,7 +34,7 @@ let client = Client::builder()
     .build()?;
 ```
 
-**CSRF note:** any state-changing call (POST/PATCH/DELETE) will 403 on the first try and return an `x-csrf-token` header - grab it and retry with that header set. Applies across every domain below.
+**CSRF note:** a state-changing request can return HTTP 403 with an `x-csrf-token` header. Retry with the supplied header when present, using the existing per-session CSRF handling. A 403 without that header can mean permissions or a security challenge; it is not by itself proof of an expired cookie. Network failures and rate limits also require separate handling. This reference helper illustrates the header retry only and does not replace `RobloxClient` backoff and validation.
 
 ```rust
 // shared helper: retries once with the csrf token roblox hands back on the first 403

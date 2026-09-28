@@ -70,7 +70,9 @@
 
 ## About The Project
 
-A fast, lightweight Roblox account manager built with Rust and [egui](https://github.com/emilk/egui). Manage multiple Roblox accounts, launch games, and switch between sessions with ease.
+A Windows Roblox account manager built with Rust, Tauri and React. Manage multiple Roblox accounts, launch games, inspect running clients, and organise repeat sessions.
+
+This branch contains the Tauri v2 interface. The legacy egui source is retained during migration, and older published releases may still use that interface. The current user guides are maintained in [docs/](docs/README.md) for GitBook.
 
 **[Visit the RM website](https://paryx-games.github.io/roblox-manager/)** for more information, including additional details about features and the project.
 
@@ -83,7 +85,6 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 ### Built With
 
 - [Rust](https://www.rust-lang.org/)
-- [egui](https://github.com/emilk/egui)
 - [Tauri](https://tauri.app/)
 - [React](https://react.dev/)
 
@@ -93,10 +94,14 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 
 Grab the latest version from the [Releases page](https://github.com/Paryx-games/roblox-manager/releases/latest). See [CHANGELOG.md](CHANGELOG.md) for what's new in each release.
 
-Two options are available for each release:
+The Tauri release workflow produces two downloads:
 
-- **Installer** - Standard Windows installer. Installs Roblox Manager _(RM)_ and creates a Start Menu shortcut. **Recommended for most users.**
-- **Portable** - Runs without installation or admin rights. Extract the archive and run `roblox-manager-vX.X.X-windows-x64-portable.exe` (or similar) directly. Useful for USB drives, shared PCs, or users who don't want to install RM.
+- **Installer** - `roblox-manager-vX.Y.Z-windows-x64-setup.exe`. Installs Roblox Manager for the current Windows user, with shortcut and browser-data choices. **Recommended for most users.**
+- **Portable executable** - `roblox-manager-vX.Y.Z-windows-x64.exe`. Run it directly without extracting an archive. Microsoft WebView2 Runtime must already be installed.
+
+Setup defaults to `%LOCALAPPDATA%\Roblox Manager`. It embeds a WebView2 bootstrapper that needs internet access if the runtime is missing. Uninstall optionally removes browser sessions/cache and logs while retaining encrypted accounts, settings, presets and Credential Manager keys. See [Installer and uninstall options](docs/getting-started/installer-options.md) for defaults, data paths and upgrading an older **RM** installation.
+
+Release assets include `SHA256SUMS.txt` for both executable files. Compare a download with `Get-FileHash -Algorithm SHA256` when checking its integrity.
 
 > [!TIP]
 > **Portable does not mean fully self-contained.** The portable version still writes application data to `%APPDATA%`, `%LOCALAPPDATA%`, and other relevant Windows locations. These files are not stored entirely alongside the executable.
@@ -109,6 +114,7 @@ No Rust, Node.js, or pnpm installation is required for either option. These are 
 
 - Windows 10 or 11 (64-bit)
 - Roblox installed
+- Microsoft WebView2 Runtime for the Tauri interface and account browser windows
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -122,6 +128,12 @@ No Rust, Node.js, or pnpm installation is required for either option. These are 
 - **Discord Webhooks** - Sends optional notifications through a protected Discord webhook
 - **Auto Window Tiling** - Arranges Roblox windows in a grid after launch
 - **Live Presence** - Real-time Online / In Game / In Studio / Offline indicators
+- **Instance Tracking** - Inspect exact, inferred and unmatched clients; focus windows and join supported server targets
+- **Saved Destinations** - Launch presets and private-server bookmarks
+- **Account Tools** - Browser login, bulk import, credential replacement preserving organisation, and metadata CSV export
+- **Developer Workspaces** - Group membership tools, inventory comparisons, creation libraries and staged asset uploads
+
+Auto-launching games on startup, custom game arguments, FastFlags and automatic MAC rotation remain unfinished. Their settings are retained, but those behaviours are not applied automatically. They were unfinished in egui as well. Starting the manager with Windows and explicit manual MAC rotation are separate controls.
 
 > [!IMPORTANT]
 > RM stores Roblox authentication cookies in encrypted form. Never share your `.ROBLOSECURITY` cookie with anyone, and treat it like a password.
@@ -137,11 +149,14 @@ No Rust, Node.js, or pnpm installation is required for either option. These are 
 
 ## Usage
 
-1. **First launch** - Nothing to set up. Encryption configures itself on this PC
-2. **Add accounts** - Click "+ Add Account" and paste your `.ROBLOSECURITY` cookie
-3. **Launch** - Select an account, enter a Place ID, and click Launch
-4. **Bulk launch** - Ctrl+click or Shift+click to select multiple accounts, then use the group panel
-5. **Settings** - Configure multi-instance, privacy mode, auto-arrange, and more
+1. **First launch** - A new encrypted store unlocks through Windows Credential Manager. Follow or skip the walkthrough; existing password-mode stores need their master password.
+2. **Add accounts** - Open **Accounts > Add account** and log in through the browser, paste a cookie, or use bulk import.
+3. **Launch** - Select an account, enter a Place ID, and choose **Launch**. Presets and Private Servers save repeat destinations.
+4. **Bulk launch** - Ctrl-click or Shift-click accounts, then use **Bulk launch**. Configure multi-instance before running several clients.
+5. **Instances** - Inspect running clients, focus windows, arrange them, or join a matched server.
+6. **Settings** - Save launch, privacy, display, storage and integration preferences. Developer options expose Inventories and Asset Manager.
+
+Use **Refresh accounts** to validate every account or **Revalidate account** for one. Replace a credential while its account remains in the list to preserve alias, group, pin and order. Removing it first deletes that organisation metadata. See [Manage accounts](docs/guides/manage-accounts.md).
 
 > [!CAUTION]
 > Multi-instance and privacy features interact with Roblox's local processes and files. Roblox updates may change or break these behaviours, so do not assume that a feature will continue working indefinitely.
@@ -170,23 +185,25 @@ No Rust, Node.js, or pnpm installation is required for either option. These are 
 - [Node.js](https://nodejs.org/) 22+
 - [pnpm](https://pnpm.io/) 11+
 - Windows 10/11 (required for Win32 APIs)
+- Visual Studio Build Tools with Desktop development with C++ and a Windows SDK
+- Microsoft WebView2 Runtime
 
 ### Build
 
-```bash
+```powershell
 # Clone the repository
 git clone https://github.com/Paryx-games/roblox-manager.git
 cd roblox-manager
 git config core.hooksPath .githooks
 
 # Install frontend dependencies
-pnpm --dir ram_ui install
+pnpm --dir ram_ui install --frozen-lockfile
 
 # Build the production Tauri application and installer
-pnpm --dir ram_ui tauri build
+pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked
 ```
 
-The compiled binary will be at `target/release/ram_ui.exe`.
+The executable is `target/release/rm_tauri.exe`. The installer is under `target/release/bundle/nsis/`, normally `Roblox Manager_<version>_x64-setup.exe`. A plain `cargo build` does not build and bundle the React frontend; use the Tauri wrapper for distributable builds.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -203,22 +220,19 @@ cargo fmt --all
 # Check for errors without building
 cargo check
 
-# Run with debug logging
-$env:RUST_LOG="debug"; cargo run
-
 # Run all Rust tests
 cargo test --workspace
 
 # Run the strict CI lint configuration
 cargo clippy --workspace --all-targets -- -D warnings
 
-# Build the complete workspace in release mode
+# Build Rust workspace targets only, not the full Tauri distribution
 cargo build --release
 ```
 
 ### Tauri and React UI
 
-The Tauri UI lives in `ram_ui/` and uses `pnpm`.
+The React source lives in `ram_ui/frontend/`; Tauri Rust, configuration and installer files live in `ram_ui/src-tauri/`. `ram_ui/src/` is the retained egui source. Run frontend tooling from `ram_ui/` or use `pnpm --dir ram_ui`.
 
 ```powershell
 # Install frontend dependencies
@@ -242,8 +256,12 @@ pnpm --dir ram_ui build
 # Build the optimized Tauri application and installer
 pnpm --dir ram_ui tauri build
 
-# Build a debug Tauri application
-pnpm --dir ram_ui tauri build --debug
+# Build a standalone debug executable with the frontend embedded
+pnpm --dir ram_ui build:debug
+
+# Start Tauri with more detailed, scrubbed diagnostics
+$env:RUST_LOG = "debug"
+pnpm --dir ram_ui tauri dev
 ```
 
 The Tauri command wrapper selects the Windows application icon automatically. Development and debug builds use
@@ -251,11 +269,15 @@ The Tauri command wrapper selects the Windows application icon automatically. De
 `Beta.ico`; and release candidates and stable versions use `Live.ico`. The version is read from the root
 `Cargo.toml`.
 
+Installer and uninstaller icons follow the same wrapper selection. The sidebar comes from `assets/branding/LogoThumbVertical.png`, converted to `ram_ui/src-tauri/installer/sidebar.bmp` (164 x 314). Release installer choices are defined in a custom NSIS template; compare it with upstream Tauri when upgrading the CLI.
+
+`tauri dev` requires its Vite server. To run a debug executable independently, build with `build:debug` and use `target/debug/rm_tauri.exe`. Diagnostic output is scrubbed in both the debug console and rotating `%APPDATA%\RM\rm.<date>.log` files. Read the [FAQ](docs/faq.md) before troubleshooting blank windows.
+
 > [!TIP]
 > For the quickest local feedback, run `cargo check` and `pnpm --dir ram_ui typecheck` while developing. Use the full validation commands before opening a pull request.
 
 > [!IMPORTANT]
-> Changes under `ram_core/` and the legacy egui UI require special care. The current v2 migration is focused on the Tauri shell and React frontend; do not rewrite core or legacy UI code as part of an unrelated frontend change.
+> The current v2 migration permits changes to Tauri and React, not `ram_core/` or the retained egui source. Read [AGENTS.md](AGENTS.md), [DESIGN.md](DESIGN.md), and `ram_ui/frontend/tokens.css` before interface work. Follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md) when opening a PR.
 
 ### Pull request validation
 
@@ -296,9 +318,9 @@ Contributions are what make the open source community such an amazing place to l
 If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement". Read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) first - PRs touching cookie handling, encryption, storage, or process control need extra review.
 
 1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+2. Create your Feature Branch (`git checkout -b dev/short-feature-name`)
 3. Commit your Changes (`git commit -m 'feat: add some amazing feature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
+4. Push to the Branch (`git push origin dev/short-feature-name`)
 5. Open a Pull Request
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>

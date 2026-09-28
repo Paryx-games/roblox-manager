@@ -5,8 +5,6 @@ icon: shield-halved
 
 # Privacy and security
 
-## Privacy and security
-
 Roblox Manager stores account credentials so you can launch sessions quickly. Protect those credentials like passwords.
 
 {% hint style="danger" %}
@@ -62,21 +60,21 @@ Treat the cookie as compromised. Revoke it through Roblox as soon as possible.
 
 {% step %}
 
-### Remove the old account entry
+### Replace the stored credential
 
-Remove the affected account from Roblox Manager.
+After revoking the exposed Roblox session, leave the account entry in RM and use **Replace account credential** or **Add account** to authenticate the same account again. This preserves its alias, group, pin and order.
 {% endstep %}
 
 {% step %}
 
-### Add the account again
+### Confirm the new credential
 
-Sign in again and add a fresh cookie only after revocation.
+Confirm the account has valid credentials and revalidate it. Removing the RM entry does not revoke a Roblox session and is not required for replacement.
 {% endstep %}
 {% endstepper %}
 
 {% hint style="success" %}
-Removing and re-adding an account keeps your stored credential current.
+Credential replacement updates the encrypted store. If you remove an account first, re-adding it does not restore its removed organisation metadata.
 {% endhint %}
 
 ### How account storage works
@@ -92,6 +90,24 @@ Roblox Manager encrypts account data before storing it. Cookies are not stored a
 - **Argon2id** supports the optional master password mode.
 
 </details>
+
+### Backups and moving PCs
+
+The default store, configuration and presets live in `%APPDATA%\RM`, unless a custom store path is configured. Atomic writes create encrypted store backups; recovery/start-over flows preserve encrypted copies. These are not plaintext credential exports.
+
+A device-mode backup depends on its Windows Credential Manager key. Copying `accounts.dat` to another PC does not copy that key. If you need to move the store, change to password mode while it can still be unlocked, retain the password, and verify a backed-up copy before removing the original. Forgotten passwords or missing device keys cannot be bypassed by reinstalling.
+
+### Installer cleanup and account removal
+
+Uninstall keeps encrypted accounts, settings, presets, recovery copies and Credential Manager keys. Optional browser cleanup removes sessions/cache; optional log cleanup removes diagnostic logs. The interface-data reset during setup also leaves saved application data intact. See [Installer and uninstall options](../getting-started/installer-options.md).
+
+Account removal changes the active encrypted store. Older encrypted backups may still contain the previous entry. Neither removal nor uninstall automatically revokes a Roblox session.
+
+### Browser and diagnostic boundaries
+
+The Tauri interface, isolated login window and account browser have different profile directories. Signing into the login window is an explicit account-add flow; stored credentials are handled on the Rust side rather than returned as account-list data to React.
+
+File and console diagnostics use credential scrubbing. Review any extract before sharing it, and never upload account stores, full browser profiles, memory dumps or authentication request payloads. A login window closing successfully is not a substitute for checking the account appears in the managed list.
 
 ### Control local data with privacy mode
 

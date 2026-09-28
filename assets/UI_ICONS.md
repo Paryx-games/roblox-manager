@@ -25,7 +25,13 @@ should be a transparent square SVG with a simple monochrome mark and a
 | window | `assets/icons/windows.svg` | Tile Windows action |
 | warning | `assets/icons/warning.svg` | Warnings and error labels |
 
-The top navigation currently uses these SVGs through the cached
+The retained egui navigation uses these SVGs through the cached
 `crate::icons::show` helper. Rasterization and missing/invalid asset failures
 are reported through debug tracing. Keep the semantic label beside each icon
 rather than making the image the only control affordance.
+
+## Active Tauri frontend
+
+React loads the icon set from `ram_ui/frontend/public/icons/` using shared icon controls. Keep the set consistent with `assets/icons/`; use semantic names, accessible button labels and no emoji substitutes. See `DESIGN.md` for the active design rules.
+
+Application, installer and uninstaller icons are separate Windows ICO files selected by `ram_ui/scripts/tauri.mjs`: Development for debug/dev, Alpha or Beta for those pre-release versions, and Live for stable or release candidates. The installer sidebar is the 164 x 314 bitmap under `ram_ui/src-tauri/installer/`, generated from `assets/branding/LogoThumbVertical.png`.
