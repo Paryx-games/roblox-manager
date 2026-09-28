@@ -275,22 +275,9 @@ pub async fn check_release_update(
         .await
         .map_err(|_| "The update check could not be completed")?;
     Ok(update.filter(|(version, url)| {
-        newer_release(version, env!("CARGO_PKG_VERSION"))
+        ram_core::api::is_newer_stable_release(version, env!("CARGO_PKG_VERSION"))
             && url.starts_with("https://github.com/Paryx-games/roblox-manager/releases/")
     }))
-}
-
-fn newer_release(remote: &str, local: &str) -> bool {
-    fn parse(version: &str) -> Option<[u64; 3]> {
-        let mut values = version.trim_start_matches('v').split('.');
-        let version = [
-            values.next()?.parse().ok()?,
-            values.next()?.parse().ok()?,
-            values.next()?.parse().ok()?,
-        ];
-        values.next().is_none().then_some(version)
-    }
-    matches!((parse(remote), parse(local)), (Some(remote), Some(local)) if remote > local)
 }
 
 #[tauri::command]
@@ -351,13 +338,5 @@ mod tests {
         assert!(migrate_favourites(&mut runtime, &directory).is_err());
         assert_eq!(runtime.config.favorite_places.len(), 1);
         std::fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn stable_update_checks_do_not_offer_downgrades_or_prereleases() {
-        assert!(newer_release("v2.0.0", "1.16.0"));
-        assert!(!newer_release("1.15.0", "1.16.0"));
-        assert!(!newer_release("2.0.0-rc.1", "1.16.0"));
-        assert!(!newer_release("1.16.0", "1.16.0"));
     }
 }

@@ -976,6 +976,19 @@ pub fn parse_private_server_url(input: &str) -> Result<ParsedPrivateServerUrl, &
     Err("Enter a valid Roblox private server URL")
 }
 
+pub fn is_newer_stable_release(remote: &str, local: &str) -> bool {
+    fn parse(version: &str) -> Option<[u64; 3]> {
+        let mut values = version.trim_start_matches('v').split('.');
+        let version = [
+            values.next()?.parse().ok()?,
+            values.next()?.parse().ok()?,
+            values.next()?.parse().ok()?,
+        ];
+        values.next().is_none().then_some(version)
+    }
+    matches!((parse(remote), parse(local)), (Some(remote), Some(local)) if remote > local)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1085,5 +1098,28 @@ mod tests {
             SearchTargetKind::BroadSearch
         );
         assert_eq!(classify_search_target("a"), SearchTargetKind::BroadSearch);
+    }
+}
+
+#[cfg(test)]
+mod release_tests {
+    use super::*;
+
+    #[test]
+    fn release_comparison_uses_numeric_components_and_rejects_invalid_versions() {
+        assert!(is_newer_stable_release("v2.10.0", "2.9.0"));
+        assert!(!is_newer_stable_release("2.9.0", "2.10.0"));
+        for version in ["", "2.0", "2.0.0.1", "2.0.0-beta.1", "2.0.x", "2.0.0+build"] {
+            assert!(!is_newer_stable_release(version, "1.16.0"));
+            assert!(!is_newer_stable_release("2.0.0", version));
+        }
+    }
+
+    #[test]
+    fn stable_update_checks_do_not_offer_downgrades_or_prereleases() {
+        assert!(is_newer_stable_release("v2.0.0", "1.16.0"));
+        assert!(!is_newer_stable_release("1.15.0", "1.16.0"));
+        assert!(!is_newer_stable_release("2.0.0-rc.1", "1.16.0"));
+        assert!(!is_newer_stable_release("1.16.0", "1.16.0"));
     }
 }
