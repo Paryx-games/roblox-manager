@@ -1,3 +1,11 @@
+# ⚠️ LEGACY (PRE-V2) - DO NOT USE THIS VERSION OF THE APP
+
+> [!CAUTION]
+> **This is the version of RM from before the v2 rework. It is frozen permanently and will not be updated any more after this commit.**
+> No features, no bug fixes, no security patches, no support.
+>
+> **If you would like to use the stable version, go to the [`main` branch](https://github.com/Paryx-games/roblox-manager).**
+
 <p align="center">
   <img src="assets/branding/LogoThumb.png" alt="roblox manager" width="650">
 </p>
@@ -31,7 +39,45 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 > [!NOTE]
 > This project is independent and is not affiliated with, endorsed by, or sponsored by Roblox Corporation.
 
-## Features
+## Status
+
+| | |
+|---|---|
+| **Version** | Pre-v2 (last egui-based UI) |
+| **State** | Frozen permanently |
+| **Maintained** | No |
+| **Accepting issues** | No |
+| **Accepting pull requests** | No |
+| **Security fixes** | No |
+| **Stable version** | [`main` branch](https://github.com/Paryx-games/roblox-manager) |
+
+> [!WARNING]
+> Everything below describes the app **as it was before the v2 rework**. It is kept for reference and archival purposes only, and none of it is guaranteed to still work.
+
+## Before the v2 Rework
+
+This snapshot is RM as it existed before the v2 rework. At this point the UI was built with egui/eframe and everything (core logic and UI) lived in the same Rust-only app.
+
+The v2 rework replaced the egui/eframe UI with a Tauri + React/TypeScript frontend. It only touched the presentation layer: `ram_core` stayed responsible for the core logic (authentication, storage, cryptography, Roblox API handling, and Win32 process management). v2 also came with a new design system, a typed IPC layer between the frontend and Rust, and new development tooling for the frontend stack.
+
+The v2 work is tracked in [#29](https://github.com/Paryx-games/roblox-manager/issues/29) and [#30](https://github.com/Paryx-games/roblox-manager/pull/30).
+
+> [!NOTE]
+> Nothing in this branch reflects the v2 UI, the v2 design system, or the v2 tooling. If a feature, screenshot, or workflow you are looking for does not appear here, that is why.
+
+## Why It Is Frozen
+
+Development moved on from this version. It is locked so nobody runs an outdated build that handles authentication cookies, and so the pre-v2 history stays intact for anyone who wants to look back at it.
+
+Roblox client behaviour changes constantly. Multi-instance, roblox apis, login and a lot of other things all depend on local process and file internals, so this build **will** drift out of sync with Roblox over time and nothing will be fixed when it does.
+
+## Moving to the Stable Version
+
+1. Go to the [`main` branch](https://github.com/Paryx-games/roblox-manager) or the [latest release](https://github.com/Paryx-games/roblox-manager/releases/latest).
+2. Download or build the current version there.
+3. Stop using this legacy build.
+
+## Features (Pre-v2)
 
 - **Multi-Account Management** - Add, remove, and organize Roblox accounts with cookie-based auth
 - **Encrypted Storage** - AES-256-GCM, unlocked automatically via Windows Credential Manager. An optional master password (Argon2id) is available for anyone who wants one
@@ -43,15 +89,20 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 - **Live Presence** - Real-time Online / In Game / In Studio / Offline indicators
 
 > [!IMPORTANT]
+> This version will **never** receive security patches. If a vulnerability is found in it, it stays unpatched. That alone is a good reason to move to `main`.
+>
 > RM stores Roblox authentication cookies in encrypted form. Never share your `.ROBLOSECURITY` cookie with anyone, and treat it like a password.
 >
 > Discord webhook URLs are sensitive bearer credentials. RM keeps them out of `config.json` and stores them in Windows Credential Manager, alongside the device key. Never share a webhook URL publicly; rotate it in Discord if it is exposed.
 >
-> If you are planning to contribute, please read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) before opening a pull request. Changes involving cookie handling, encryption, storage, or process control require additional review and should be explicitly mentioned in the PR description.
+> This branch does not accept contributions. If you are planning to contribute, do it against the [`main` branch](https://github.com/Paryx-games/roblox-manager) and read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) before opening a pull request. Changes involving cookie handling, encryption, storage, or process control require additional review and should be explicitly mentioned in the PR description.
 >
 > Never include `.ROBLOSECURITY` cookies, authentication tokens, credentials, encryption keys, or other sensitive account data in issues, pull requests, commits, logs, or screenshots. If you discover a security vulnerability, see [SECURITY.md](SECURITY.md) for how to report it privately.
 
-## Building from Source
+## Building from Source (Archival Use Only)
+
+> [!NOTE]
+> This is only here for people who want to inspect or study the pre-v2 code. For actual use, build from `main`.
 
 ### Prerequisites
 
@@ -61,14 +112,14 @@ A fast, lightweight Roblox account manager built with Rust and [egui](https://gi
 ### Build
 
 ```bash
-# Clone the repository
+# clone the repository
 git clone https://github.com/Paryx-games/roblox-manager.git
 cd roblox-manager
 
-# Build in release mode
+# build in release mode
 cargo build --release
 
-# Run
+# run
 cargo run --release
 ```
 
@@ -77,19 +128,17 @@ The compiled binary will be at `target/release/ram_ui.exe`.
 ### Development
 
 ```powershell
-# Check for errors without building
+# check for errors without building
 cargo check
 
-# Run with debug logging
+# run with debug logging
 $env:RUST_LOG="debug"; cargo run
 ```
 
 > [!TIP]
-> If you are developing RM, `cargo check` is the quickest way to catch compilation errors without producing a release build.
->
-> We also allow AI development but please make sure it follows our [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md), otherwise the pull request will not be merged
+> `cargo check` is the quickest way to catch compilation errors without producing a release build. This only applies to the pre-v2 egui build, since v2 has a separate frontend toolchain.
 
-## Usage
+## Usage (Pre-v2)
 
 1. **First launch** - Nothing to set up. Encryption configures itself on this PC
 2. **Add accounts** - Click "+ Add Account" and paste your `.ROBLOSECURITY` cookie
@@ -98,7 +147,7 @@ $env:RUST_LOG="debug"; cargo run
 5. **Settings** - Configure multi-instance, privacy mode, auto-arrange, and more
 
 > [!CAUTION]
-> Multi-instance and privacy features interact with Roblox's local processes and files. Roblox updates may change or break these behaviours, so do not assume that a feature will continue working indefinitely.
+> Multi-instance and privacy features interact with Roblox's local processes and files. Roblox updates may change or break these behaviours, and since this version is frozen, nothing will be fixed when that happens.
 
 ## Credits
 
@@ -109,8 +158,6 @@ $env:RUST_LOG="debug"; cargo run
 ## Background
 
 RM is the spiritual successor to [ByeBanAsync](https://github.com/centerepic/ByeBanAsync), since simply clearing `RobloxCookies.dat` is no longer effective on its own. The project focuses on managing separate Roblox sessions and account data while adapting to changes in Roblox's client behaviour.
-
-Later updates may be made to reinforce account isolation and session management if needed.
 
 ## License
 
