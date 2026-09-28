@@ -1,5 +1,6 @@
 {
   "extends": ["stylelint-config-standard"],
+  "ignoreFiles": ["frontend/tokens.css"],
   "rules": {
     "color-no-hex": true,
     "declaration-no-important": true,

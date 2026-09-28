@@ -1,20 +1,10 @@
-//! Subprocess-based browser login to Roblox.
+//! Isolated Roblox browser subprocesses.
 //!
-//! `wry` + `tao` don't coexist with `eframe`'s main-thread `winit` event loop
-//! in the same process — even with `EventLoopBuilderExtWindows::with_any_thread`,
-//! `WindowBuilder::build` dies with a native Win32 exception when there's
-//! already a winit-owned window pump elsewhere in the process. Workaround:
-//! re-exec our own binary with a hidden flag so the child has a genuine main
-//! thread to host the webview on. The child writes the captured cookie to a
-//! file we hand it, then exits; the parent waits on the child and reads that
-//! file to produce a [`LoginOutcome`].
-//!
-//! The wire format is trivially simple: the outfile only exists on success and
-//! contains the raw `.ROBLOSECURITY` value. Anything else (missing file, empty
-//! file, child exit != 0) is treated as cancel/failure.
-//!
-//! `main()` dispatches the child mode via [`FLAG`] before `eframe::run_native`
-//! so the normal UI never initializes in the child process.
+//! Browse-as windows run in a child process so their browser profile and
+//! event loop have an independent lifetime from the main Tauri interface.
+//! The CLI dispatcher handles child flags before starting Tauri. The browser
+//! login child mode is retained for compatibility; interactive account login
+//! uses the isolated Tauri window in login.rs.
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
@@ -32,11 +22,11 @@ use windows_core::Interface;
 use wry::{NewWindowResponse, WebContext, WebViewBuilder, WebViewExtWindows};
 
 /// CLI flag that switches `main()` into child webview mode.
-/// Invoked as: `ram_ui.exe --browser-login <profile_dir> <outfile>`.
+/// Invoked as: `rm_tauri.exe --browser-login <profile_dir> <outfile>`.
 pub const FLAG: &str = "--browser-login";
 
 /// CLI flag for the "Open browser as <account>" child mode.
-/// Invoked as: `ram_ui.exe --browse-as <profile_dir> <cookie_file>`.
+/// Invoked as: `rm_tauri.exe --browse-as <profile_dir> <cookie_file>`.
 pub const BROWSE_AS_FLAG: &str = "--browse-as";
 
 const LOGIN_URL: &str = "https://www.roblox.com/login";

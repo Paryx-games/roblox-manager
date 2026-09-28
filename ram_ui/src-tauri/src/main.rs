@@ -10,11 +10,9 @@ mod login;
 mod state;
 mod webview_recovery;
 
-#[path = "../../src/browser_login.rs"]
 #[allow(dead_code)]
 mod browser_login;
 
-#[path = "../../src/startup.rs"]
 mod startup;
 
 use base64::Engine;

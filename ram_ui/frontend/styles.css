@@ -1,6 +1,6 @@
 /* stylelint-disable import-notation */
 @import "tailwindcss";
-@import "../src/tokens.css";
+@import "./tokens.css";
 /* stylelint-enable import-notation */
 
 .instances-description,
