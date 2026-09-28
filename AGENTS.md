@@ -12,8 +12,21 @@ or a close equivalent. This acknowledgement is required before editing files, ru
 
 ## Currently important news (required read)
 
-- **v2 is a Tauri + React/TypeScript rewrite of the UI only**, tracked in [PR #30](https://github.com/Paryx-games/roblox-manager/pull/30) (closes [#29](https://github.com/Paryx-games/roblox-manager/issues/29)). It replaces the egui/eframe frontend - it does not touch `ram_core` (logic, crypto, storage, Roblox API, Win32 process management stays as-is) and does not remove or rewrite the existing egui source, which stays in place until the new UI reaches feature parity.
-- **Do not touch `ram_core` at all, and do not touch the existing egui source code.** Only edit Tauri (Rust `src-tauri`), React, or TypeScript files.
+- **v2 replaces the UI with Tauri + React/TypeScript**, tracked in [PR #30](https://github.com/Paryx-games/roblox-manager/pull/30) (closes [#29](https://github.com/Paryx-games/roblox-manager/issues/29)). Core behaviour remains frozen except for the strictly limited extraction policy below. The existing egui source stays in place until the new UI reaches feature parity.
+- **`ram_core` is read-only by default.** The only standing exception is a behaviour-preserving extraction of existing reusable logic from `ram_ui/src-tauri` into `ram_core`, subject to every condition below. This policy does not authorise performing an extraction by itself; the current task must explicitly request that extraction. General UI work, cleanup, feature parity, or permission to edit this policy does not qualify.
+- **Do not edit, remove, or rewrite the retained legacy source under `ram_ui/src/`.** An extraction must preserve compatibility with its existing core callers without modifying them.
+
+### Limited core extraction policy
+
+All conditions are mandatory. If any condition cannot be met, stop the affected extraction and request explicit approval for the specific additional scope. Do not infer an exception from a deadline, migration work, failing checks, or convenience.
+
+1. **Existing logic only:** Identify the existing Tauri functions being extracted, their destination, callers, and observable behaviour before editing. Extract one cohesive operation per change. No new features, unrelated fixes, speculative abstractions, broad cleanup, or wholesale core rewrites.
+2. **Minimum diff:** Only add the extracted operation, the minimum supporting types/exports, focused tests, and the Tauri delegation needed to use it. Reuse existing core operations where possible. Remove the replaced Tauri implementation rather than maintaining a second copy. Do not reorganise existing core modules or rename unrelated APIs.
+3. **Preserve behaviour:** Keep existing public core APIs and callers compatible. Preserve results, errors, validation, ordering, timing, retry rules, cancellation, concurrency guarantees, rollback, and persistence behaviour. Do not change on-disk formats, paths, schema versions, defaults, endpoints, authentication methods, process semantics, or dependency manifests/lockfiles under this exception.
+4. **Protect security implementations:** Do not modify existing implementations in `crypto.rs`, `storage.rs`, `redact.rs`, `auth.rs`, or `process.rs` under this exception. Extracted operations may call their existing public APIs. Any change to those implementations requires separate, explicit task authorisation identifying the affected behaviour. Agent Guidelines § 5 remains mandatory; this exception never permits weakening security protections or extending secret exposure.
+5. **Keep the boundary:** Core code must remain independent of Tauri, React, WebView2, windows/events belonging to the UI host, frontend DTOs, and `AppState`. Keep IPC validation, commands, event emission, frontend error shaping, window lifecycle, and browser cookie capture in `src-tauri`. Do not move `login.rs` wholesale into core or pass secrets to the frontend to simplify an extraction.
+6. **Evidence before completion:** Add focused tests for preserved success/failure behaviour and relevant rollback or stale-state cases, using synthetic data only. Run the full pre-commit verification sequence. For account, credential, storage, launch, or process workflows, also complete the applicable Windows manual verification before marking the extraction complete. If verification is unavailable or fails, report the limitation and leave the extraction incomplete; do not claim equivalence from compilation alone.
+7. **Reviewable scope:** In the PR description, name the extracted operations and changed core files, explain why each belongs in core, state that existing public APIs and security implementations are preserved, and record automated/manual verification and any outstanding checks. Any behaviour change or broader core work requires separate explicit authorisation and must not be disguised as extraction.
 
 ## Project Overview
 
@@ -26,7 +39,7 @@ or a close equivalent. This acknowledgement is required before editing files, ru
 - **Rust Edition**: 2021 (Rust stable)
 - **Frontend**: React 18+ with TypeScript, built with Vite
 
-> **Migration note**: this branch replaces the legacy `egui`/`eframe` UI (`ram_ui` as a native immediate-mode GUI) with a Tauri shell hosting a React/TypeScript frontend. `ram_core` (the headless Rust logic/crypto/API layer) is unchanged by this migration - see Architecture below.
+> **Migration note**: this branch replaces the legacy `egui`/`eframe` UI (`ram_ui` as a native immediate-mode GUI) with a Tauri shell hosting a React/TypeScript frontend. Core behaviour remains frozen; only explicitly requested extractions meeting the Limited core extraction policy above are permitted.
 
 ---
 
@@ -62,7 +75,7 @@ robloxmanager/
 ├── DESIGN.md                  # UI design system spec - REQUIRED READ before any UI change
 ├── .github/workflows/release.yml # Tag-triggered release pipeline (v* tags only)
 ├── assets/                    # Static assets (e.g. Logo.png, assets/icons for all icon use - see DESIGN.md § Icons)
-├── ram_core/                  # Headless core library (logic, APIs, crypto, Win32) - UNCHANGED by the Tauri migration
+├── ram_core/                  # Headless core library - read-only except for authorised limited extractions
 │   ├── Cargo.toml
 │   ├── src/
 │   │   ├── lib.rs             # Core crate root & exports
@@ -113,7 +126,7 @@ robloxmanager/
 
 ### 1. Separation of Core, Command Layer, and UI
 
-- `ram_core` contains zero UI dependencies. All pure logic, cryptographic operations, Roblox HTTP communication, and Win32 process manipulation reside in `ram_core`. **This crate and its module boundaries are unchanged by the Tauri migration** - the rewrite replaces the presentation layer, not the domain logic.
+- `ram_core` contains zero UI dependencies. Pure logic, cryptographic operations, Roblox HTTP communication, and Win32 process manipulation belong in `ram_core`. **Existing core behaviour and module boundaries remain protected by the Limited core extraction policy above.** Correcting misplaced Tauri logic requires an explicitly requested, narrowly scoped extraction, not a domain-layer rewrite.
 - `ram_ui/src-tauri` hosts `#[tauri::command]` handlers in feature modules and `main.rs` that call into `ram_core` and return serializable results (or emit events) to the frontend. Commands should stay thin - business logic belongs in `ram_core`, not in a command handler.
 - `ram_ui/frontend` (React/TypeScript) is the presentation layer. It calls into the Rust side exclusively through typed wrappers in `lib/ipc.ts`, never with ad hoc inline `invoke()` calls scattered through components.
 - Long-running or streaming operations (presence polling, launch progress, asset upload progress) use Tauri's event system (`emit`/`listen`) from a command or background task, rather than the frontend polling a command in a loop.

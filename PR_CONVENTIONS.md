@@ -27,7 +27,9 @@ State each of these explicitly (checked or N/A) in the description - don't just 
 - [ ] If this touches `ram_core::redact`: new secret/URI patterns have matching redaction rules
 - [ ] No stray files left in the diff (scratch notes, summary `.md` files, temp scripts)
 - [ ] Diff reviewed end-to-end - nothing unrelated to the stated change is staged, no cookies/tokens/account data/logs
-- [ ] Neither `ram_core` nor the existing egui source was touched, unless the task explicitly called for it
+- [ ] Retained legacy source under `ram_ui/src/` is unchanged
+- [ ] `ram_core` is unchanged, or each change is an explicitly requested extraction meeting every condition in AGENTS.md's Limited core extraction policy; any broader change has separate explicit authorisation recorded in the description
+- [ ] If extracting into `ram_core`: named the source operations and destination files, preserved existing public APIs and security implementations, and recorded focused tests and applicable Windows manual verification (N/A otherwise)
 
 Report vulnerabilities through [SECURITY.md](SECURITY.md), never as a public issue or in a PR description.
 
