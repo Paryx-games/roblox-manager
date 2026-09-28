@@ -7,7 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::models::LaunchPreset;
+use crate::models::{AppConfig, LaunchPreset};
 use crate::CoreError;
 
 /// What [`load_all`] returns: every preset paired with the file it came from,
@@ -148,5 +148,71 @@ pub fn delete(path: &Path) -> Result<(), CoreError> {
             tracing::error!(path = %path.display(), error = %e, "failed to delete preset file");
             Err(CoreError::Io(e))
         }
+    }
+}
+
+pub fn migrate_favourites(
+    config: &mut AppConfig,
+    directory: &Path,
+    config_path: &Path,
+) -> Result<(), String> {
+    if config.favorite_places.is_empty() {
+        return Ok(());
+    }
+    let (mut existing, _) = load_all(directory).map_err(|_| "Saved presets could not be loaded")?;
+    for favourite in &config.favorite_places {
+        if favourite.place_id == 0 {
+            return Err("A legacy favourite has an invalid Place ID. Correct it in the old configuration before retrying.".into());
+        }
+        let preset = LaunchPreset {
+            name: favourite.name.clone(),
+            place_id: favourite.place_id,
+            job_id: None,
+            data: None,
+        };
+        if !existing.iter().any(|(_, saved)| saved == &preset) {
+            let path = save(directory, &preset, None)
+                .map_err(|_| "A legacy favourite could not be saved as a preset")?;
+            existing.push((path, preset));
+        }
+    }
+    let mut candidate = config.clone();
+    candidate.favorite_places.clear();
+    candidate
+        .save(config_path)
+        .map_err(|_| "Favourite migration could not be recorded. Your favourites are retained.")?;
+    *config = candidate;
+    Ok(())
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    #[test]
+    fn failed_config_save_retains_favourites_and_retry_reuses_saved_presets() {
+        let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&directory).unwrap();
+        let blocked_parent = directory.join("blocked");
+        std::fs::write(&blocked_parent, b"synthetic-file").unwrap();
+        let mut config = AppConfig {
+            favorite_places: vec![crate::models::FavoritePlace {
+                name: "Synthetic favourite".into(),
+                place_id: 123,
+            }],
+            ..AppConfig::default()
+        };
+        assert_eq!(
+            migrate_favourites(&mut config, &directory, &blocked_parent.join("config.json")),
+            Err("Favourite migration could not be recorded. Your favourites are retained.".into())
+        );
+        assert_eq!(config.favorite_places.len(), 1);
+        assert_eq!(load_all(&directory).unwrap().0.len(), 1);
+        let config_path = directory.join("config.json");
+        migrate_favourites(&mut config, &directory, &config_path).unwrap();
+        assert!(config.favorite_places.is_empty());
+        assert_eq!(load_all(&directory).unwrap().0.len(), 1);
+        assert!(AppConfig::load(&config_path).favorite_places.is_empty());
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }

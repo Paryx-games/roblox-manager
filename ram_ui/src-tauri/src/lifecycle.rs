@@ -1,9 +1,5 @@
 use crate::{state::AppState, StoreStatus};
-use ram_core::{
-    crypto,
-    models::{AccountStore, LaunchPreset},
-    presets, storage,
-};
+use ram_core::{crypto, models::AccountStore, presets, storage};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use tauri::{Emitter, Manager};
@@ -28,34 +24,7 @@ fn migrate_favourites(
     runtime: &mut crate::state::RuntimeState,
     directory: &Path,
 ) -> Result<(), String> {
-    if runtime.config.favorite_places.is_empty() {
-        return Ok(());
-    }
-    let (mut existing, _) =
-        presets::load_all(directory).map_err(|_| "Saved presets could not be loaded")?;
-    for favourite in &runtime.config.favorite_places {
-        if favourite.place_id == 0 {
-            return Err("A legacy favourite has an invalid Place ID. Correct it in the old configuration before retrying.".into());
-        }
-        let preset = LaunchPreset {
-            name: favourite.name.clone(),
-            place_id: favourite.place_id,
-            job_id: None,
-            data: None,
-        };
-        if !existing.iter().any(|(_, saved)| saved == &preset) {
-            let path = presets::save(directory, &preset, None)
-                .map_err(|_| "A legacy favourite could not be saved as a preset")?;
-            existing.push((path, preset));
-        }
-    }
-    let mut candidate = runtime.config.clone();
-    candidate.favorite_places.clear();
-    candidate
-        .save(&runtime.config_path)
-        .map_err(|_| "Favourite migration could not be recorded. Your favourites are retained.")?;
-    runtime.config = candidate;
-    Ok(())
+    presets::migrate_favourites(&mut runtime.config, directory, &runtime.config_path)
 }
 
 #[tauri::command]
