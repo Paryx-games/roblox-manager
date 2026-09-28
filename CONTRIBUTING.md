@@ -12,13 +12,14 @@ Thanks for wanting to work on RM. This project touches Roblox authentication coo
 
 ```text
 ram_core/   Headless models, encryption, storage, Roblox APIs, process control, and tests
-ram_ui/frontend/   Active React/TypeScript interface, shared components, tokens and typed IPC
+ram_ui/frontend/   Active React/TypeScript interface, shared components and typed IPC
+ram_ui/src/tokens.css Shared visual tokens imported by the active frontend
 ram_ui/src-tauri/  Tauri commands, windows, background tasks, logging and NSIS packaging
-ram_ui/src/        Retained legacy egui application, unchanged during migration
+ram_ui/src/        Retained legacy egui application and shared token stylesheet
 assets/     Bundled application assets
 ```
 
-`ram_core` has no UI dependency and should stay that way. During v2 migration, do not edit it or the legacy egui source. Tauri commands adapt existing core APIs; React uses typed wrappers in `ram_ui/frontend/lib/ipc.ts`. Keep blocking work off the main thread and use events for long-running progress. Read [AGENTS.md](AGENTS.md) before work and [DESIGN.md](DESIGN.md) plus `ram_ui/frontend/tokens.css` before interface edits.
+`ram_core` has no UI dependency. Its reusable domain logic and Roblox API operations live there; Tauri owns desktop state, windows, IPC and event coordination. The v2 branch includes explicitly requested extractions from Tauri into core. Keep future core edits within the limited policy in [AGENTS.md](AGENTS.md). The egui application remains in `ram_ui/src/`; this branch also contains a small login compatibility helper there. React uses typed wrappers in `ram_ui/frontend/lib/ipc.ts`. Read [DESIGN.md](DESIGN.md) and `ram_ui/src/tokens.css` before interface edits.
 
 ## Getting set up
 
