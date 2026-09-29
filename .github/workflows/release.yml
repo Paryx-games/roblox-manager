@@ -426,7 +426,7 @@ jobs:
           "prerelease=$($isGithubPrerelease.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "make_latest=$makeLatest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: Create release
+      - name: Create draft release and upload assets
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2 # zizmor: ignore[superfluous-actions] keeping the action, works fine and already pinned
         with:
           tag_name: ${{ env.RELEASE_TAG }}
@@ -437,3 +437,23 @@ jobs:
           body_path: final-release-notes.md
           prerelease: ${{ steps.release-type.outputs.prerelease }}
           make_latest: ${{ steps.release-type.outputs.make_latest }}
+          draft: true
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PRERELEASE: ${{ steps.release-type.outputs.prerelease }}
+          RELEASE_MAKE_LATEST: ${{ steps.release-type.outputs.make_latest }}
+        run: |
+          $repository = "${{ github.repository }}"
+          $tag = "$env:RELEASE_TAG"
+
+          $release = gh api "repos/$repository/releases/tags/$tag" | ConvertFrom-Json
+
+          gh api `
+            --method PATCH `
+            "repos/$repository/releases/$($release.id)" `
+            -F draft=false `
+            -F prerelease=$env:RELEASE_PRERELEASE `
+            -f make_latest=$env:RELEASE_MAKE_LATEST
