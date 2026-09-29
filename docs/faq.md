@@ -115,7 +115,7 @@ No. Roblox Manager includes an automated redaction system that scrubs `.ROBLOSEC
 
 <summary>How does Multi-Instance work?</summary>
 
-By default, the official Roblox desktop client allows only one running instance at a time using a Windows named mutex (`ROBLOX_singletonEvent`). When Multi-Instance is enabled in Roblox Manager, the application duplicates and closes this mutex handle upon launch, enabling you to run multiple Roblox clients simultaneously under different accounts.
+By default, the official Roblox desktop client allows only one running instance at a time using a Windows named mutex. When Multi-Instance is enabled, Roblox Manager creates and holds both `ROBLOX_singletonMutex` and the legacy `ROBLOX_singletonEvent` for the lifetime of the manager process. This prevents Roblox from acquiring the singleton lock exclusively, allowing multiple clients to run.
 
 </details>
 

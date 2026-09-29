@@ -91,7 +91,7 @@ robloxmanager/
 │   │   ├── multipart.rs       # Custom multipart body encoder for uploads
 │   │   ├── instances.rs       # InstanceRegistry & exact launchtime token attribution
 │   │   ├── presets.rs         # Per-file preset persistence (presets/<slug>.json)
-│   │   ├── process.rs         # Win32 process discovery, mutex patching, game launching, window tiling
+│   │   ├── process.rs         # Win32 process discovery, singleton mutex holding, game launching, window tiling
 │   │   ├── redact.rs          # Log redaction rules (cookies, auth tickets, CSRF tokens, user paths)
 │   │   └── error.rs           # CoreError definitions
 │   └── tests/
@@ -152,7 +152,7 @@ robloxmanager/
 
 ### 4. Multi-Instance & Window Management
 
-- **Multi-Instance**: Bypasses Roblox single-instance restriction by inspecting process handles, duplicating the `ROBLOX_singletonEvent` mutex handle, and closing it in both RM and the target process.
+- **Multi-Instance**: Creates and holds both `ROBLOX_singletonMutex` and the legacy `ROBLOX_singletonEvent` in RM's process, preventing Roblox from acquiring its singleton lock exclusively. RM does not close mutex handles in Roblox processes.
 - **Window Tiling**: Automatically queries monitor geometry and positions/sizes running Roblox windows into a clean grid layout upon launch.
 - **Privacy Mode**: Clears `%LOCALAPPDATA%\Roblox\LocalStorage\RobloxCookies.dat` before launching to prevent Roblox from linking browser cookies to the launcher account.
 
