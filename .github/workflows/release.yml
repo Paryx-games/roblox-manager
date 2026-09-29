@@ -49,12 +49,6 @@ jobs:
       - name: Setup rust
         uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
 
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          # tags float on the same commit as their branch, cache key should track the lockfile not the ref
-          key: release
-
       - name: Build application
         working-directory: ram_ui
         run: pnpm tauri build --ci --bundles nsis -- --locked
