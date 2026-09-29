@@ -48,15 +48,14 @@ body:
       label: Related area
       description: Which part of RM would this change affect?
       options:
-        - Account management or authentication
-        - Game launching or multi-instance
-        - Bulk launch or groups
-        - Privacy mode or cookie handling
-        - Window tiling or process detection
-        - Live presence
-        - Encrypted storage or settings
-        - UI or visual improvement
-        - Build or installation
+        - Accounts or login
+        - Instances, launching, or window management
+        - Groups or activity
+        - Private Servers or Presets
+        - Inventories or Asset Manager
+        - Settings, privacy, or encrypted storage
+        - Interface or accessibility
+        - Installer or update
         - Other
     validations:
       required: true

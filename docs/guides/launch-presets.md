@@ -20,7 +20,7 @@ The preset is saved as its own file in RM's presets folder. Use **Open folder** 
 
 ## Use a preset
 
-Select a preset chip in the single-launch or bulk-launch panel. RM fills the Place ID, Job ID, and launch data fields for you. Review the selected account and target before launching.
+On **Presets**, choose one or several accounts in the saved preset's account picker and select **Launch**. Preset controls in Accounts can also fill the single-launch or bulk-launch destination fields. Review the selected accounts and target before launching. Invalid credentials are blocked and multiple launches follow the configured pacing.
 
 ## Edit or delete a preset
 

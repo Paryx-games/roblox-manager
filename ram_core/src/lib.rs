@@ -1,3 +1,4 @@
+pub mod accounts;
 pub mod api;
 pub mod assets;
 pub mod assets_api;

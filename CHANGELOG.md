@@ -2,16 +2,38 @@
 
 ## Unreleased
 
-### Added
+### Fixed
 
-- **Bulk connection actions.** The multi-account panel now includes a Connections section with the same social controls as the single account view, so you can search a Roblox user and apply follow, unfollow, join-game, block, and friend-request actions across every selected account in one pass.
-- **Join-by-user support.** The account panel now includes a user-join flow with direct follow/unfollow controls, a join-their-game action, and startup friend-cache refreshes to keep friends-only joins fast on large account lists.
+- Beta or release-candidate installs can detect the matching stable release, and empty group announcements no longer appear as phantom posts.
+- Account re-addition can repair a missing stored credential, and failed favourite migration no longer blocks startup information.
+- Private-server enrichment preserves concurrent edits, and asset queue actions stay within the selected account.
+- Saved server launches ignore duplicate clicks, and dialog focus, account selection, inventory selection, and preset or server deletion behave consistently with keyboard and screen-reader controls.
+- Failed group edits restore the previous group settings and leave account organisation unchanged.
+- Clear Cache now reports when there is no cached data instead of claiming to have cleared it.
+
+## v2.0.0-beta.1
+
+### Changed
+
+The v2 beta replaces the egui interface with Tauri and React while retaining the encrypted account store and existing core workflows.
+
+- **Navigation and shared interface.** Adds dedicated workspaces, consistent controls and notifications, account anonymisation, and reduced-motion support.
+- **Accounts.** Rebuilds account browsing, grouping, search, multi-selection, profile details, credential management, import/export, and game launching.
+- **Instances.** Shows running Roblox clients with account attribution and controls to focus, arrange, join a server, or close clients.
+- **Groups.** Adds group search, membership management, announcements, and forums.
+- **Private Servers.** Manages saved server links and launches selected accounts into them.
+- **Presets.** Manages saved launch destinations and launches them with multiple accounts.
+- **Inventories.** Compares items across accounts with filters, shared/unique views, and asset ID export.
+- **Asset Manager.** Manages creations, staged uploads, moderation results, and experience access grants.
+- **Settings.** Groups launch, privacy, storage, integration, and interface controls with clear save and discard handling.
+- **Windows distribution.** Provides a per-user Roblox Manager installer and portable executable. The installer offers shortcut and browser-data choices, optional uninstall cleanup, WebView2 setup, and downgrade protection.
 
 ### Fixed
 
-- **Account-panel sizing.** The selected-account sections now stay within one consistent width so the launch, inventory, and social cards no longer stretch past the viewport on smaller windows.
-- **Tools menu rendering.** The Tools dropdown no longer opens to a blank menu; it now shows the available workspace entries or a clear empty-state message when no tools are enabled.
-- **Account-panel width lock.** The top identity block stays at its original size while every lower card is forced to the exact same width for a consistent, non-clipping layout.
+- **Account credentials.** Re-adding an existing account preserves its organisation. Refresh no longer treats inconclusive Roblox challenges or request failures as proof of invalid credentials, and browser login completes or fails without leaving the app waiting indefinitely.
+- **Startup and recovery.** Restores first-run guidance, upgrade notes, older-data migration, and encrypted-store recovery with protected backup copies.
+- **Browser reliability.** Recovers the main interface from WebView2 browser or renderer failures instead of leaving a black window.
+- **Launch and background behaviour.** Coordinates launch pacing across workspaces and restores configured multi-instance setup, window arrangement, background cleanup, and privacy cleanup.
 
 ## v1.16.0
 

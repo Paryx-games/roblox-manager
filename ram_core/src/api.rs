@@ -8,6 +8,13 @@ use crate::auth::RobloxClient;
 use crate::error::CoreError;
 use crate::models::{ModerationInfo, Presence};
 
+pub fn trusted_roblox_image_url(value: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(value).ok()?;
+    let host = parsed.host_str()?;
+    (parsed.scheme() == "https" && (host == "rbxcdn.com" || host.ends_with(".rbxcdn.com")))
+        .then(|| value.to_string())
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct UserSearchResult {
     pub user_id: u64,
@@ -641,7 +648,7 @@ pub async fn resolve_share_link(
         });
     }
 
-    tracing::info!("Share link resolved → placeId={place_id}, linkCode={link_code}");
+    tracing::info!("Share link resolved → placeId={place_id}");
 
     // --- Step 2: Scrape accessCode (UUID) from the game page ---
     let game_url =
@@ -662,7 +669,7 @@ pub async fn resolve_share_link(
         .as_str()
         .to_string();
 
-    tracing::info!("Access code resolved → {access_code}");
+    tracing::info!("Private server access code resolved");
 
     Ok((place_id, universe_id, link_code, access_code))
 }
@@ -933,9 +940,95 @@ pub async fn fetch_moderation_status(
     }))
 }
 
+pub enum ParsedPrivateServerUrl {
+    Direct { place_id: u64, link_code: String },
+    Share { share_code: String },
+}
+
+fn private_server_parameter(input: &str, name: &str) -> Option<String> {
+    input.split(['?', '&']).find_map(|part| {
+        let (key, value) = part.split_once('=')?;
+        (key.eq_ignore_ascii_case(name) && !value.is_empty()).then(|| value.to_string())
+    })
+}
+
+pub fn parse_private_server_url(input: &str) -> Result<ParsedPrivateServerUrl, &'static str> {
+    let input = input.trim();
+    if let Some((_, after_games)) = input.split_once("/games/") {
+        let place_id = after_games
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect::<String>()
+            .parse::<u64>()
+            .map_err(|_| "Enter a valid Roblox private server URL")?;
+        let link_code = private_server_parameter(input, "privateServerLinkCode")
+            .ok_or("Enter a valid Roblox private server URL")?;
+        return Ok(ParsedPrivateServerUrl::Direct {
+            place_id,
+            link_code,
+        });
+    }
+    if input.contains("/share") || input.contains("type=Server") {
+        if let Some(share_code) = private_server_parameter(input, "code") {
+            return Ok(ParsedPrivateServerUrl::Share { share_code });
+        }
+    }
+    Err("Enter a valid Roblox private server URL")
+}
+
+pub fn is_newer_stable_release(remote: &str, local: &str) -> bool {
+    fn parse(version: &str) -> Option<[u64; 3]> {
+        let mut values = version.trim_start_matches('v').split('.');
+        let version = [
+            values.next()?.parse().ok()?,
+            values.next()?.parse().ok()?,
+            values.next()?.parse().ok()?,
+        ];
+        values.next().is_none().then_some(version)
+    }
+    let (local_version, is_prerelease) = match local.split_once('-') {
+        Some((version, suffix)) if !suffix.is_empty() => (version, true),
+        Some(_) => return false,
+        None => (local, false),
+    };
+    matches!((parse(remote), parse(local_version)), (Some(remote), Some(local)) if remote > local || (remote == local && is_prerelease))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_server_links_preserve_direct_codes_and_share_codes() {
+        match parse_private_server_url("  https://www.roblox.com/games/123/Synthetic?privateServerLinkCode=synthetic-code&other=value  ").unwrap() {
+            ParsedPrivateServerUrl::Direct { place_id, link_code } => {
+                assert_eq!(place_id, 123);
+                assert_eq!(link_code, "synthetic-code");
+            }
+            _ => panic!("Expected a direct private server link"),
+        }
+        match parse_private_server_url(
+            "https://www.roblox.com/share?CoDe=synthetic-share&type=Server",
+        )
+        .unwrap()
+        {
+            ParsedPrivateServerUrl::Share { share_code } => {
+                assert_eq!(share_code, "synthetic-share")
+            }
+            _ => panic!("Expected a share link"),
+        }
+        for input in [
+            "",
+            "https://www.roblox.com/games/123",
+            "https://www.roblox.com/games/no-id?privateServerLinkCode=synthetic",
+            "https://www.roblox.com/share?code=",
+        ] {
+            assert_eq!(
+                parse_private_server_url(input).err(),
+                Some("Enter a valid Roblox private server URL")
+            );
+        }
+    }
 
     fn entry(target_id: u64, image_url: Option<&str>) -> ThumbnailEntry {
         ThumbnailEntry {
@@ -1010,5 +1103,33 @@ mod tests {
             SearchTargetKind::BroadSearch
         );
         assert_eq!(classify_search_target("a"), SearchTargetKind::BroadSearch);
+    }
+}
+
+#[cfg(test)]
+mod release_tests {
+    use super::*;
+
+    #[test]
+    fn release_comparison_uses_numeric_components_and_rejects_invalid_versions() {
+        assert!(is_newer_stable_release("v2.10.0", "2.9.0"));
+        assert!(!is_newer_stable_release("2.9.0", "2.10.0"));
+        for version in ["", "2.0", "2.0.0.1", "2.0.0-beta.1", "2.0.x", "2.0.0+build"] {
+            assert!(!is_newer_stable_release(version, "1.16.0"));
+        }
+        for version in ["", "2.0", "2.0.0.1", "2.0.x", "2.0.0+build", "2.0.0-"] {
+            assert!(!is_newer_stable_release("2.0.0", version));
+        }
+    }
+
+    #[test]
+    fn stable_update_checks_do_not_offer_downgrades_or_prereleases() {
+        assert!(is_newer_stable_release("v2.0.0", "1.16.0"));
+        assert!(!is_newer_stable_release("1.15.0", "1.16.0"));
+        assert!(!is_newer_stable_release("2.0.0-rc.1", "1.16.0"));
+        assert!(!is_newer_stable_release("1.16.0", "1.16.0"));
+        assert!(is_newer_stable_release("2.0.0", "2.0.0-beta.1"));
+        assert!(is_newer_stable_release("2.0.0", "2.0.0-rc.1"));
+        assert!(!is_newer_stable_release("1.16.0", "2.0.0-beta.1"));
     }
 }

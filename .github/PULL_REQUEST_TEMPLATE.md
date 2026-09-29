@@ -1,31 +1,35 @@
-## Summary
+## What changed and why
 
-<!-- What changed, and why? Link related issues with `Closes #123` when applicable. -->
+<!-- Explain the concrete change and reason. Link related issues. -->
 
-## Changes
+## User-visible behavior
 
--
+<!-- Describe what users notice, or state that behavior is unchanged. -->
 
-## Testing
+## Gotchas
 
-<!-- List the commands and manual checks you ran. -->
+<!-- Include edge cases, environment assumptions, and outstanding verification. -->
 
-- [ ] `cargo fmt --all -- --check`
-- [ ] `cargo check`
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings`
-- [ ] `cargo test --workspace`
-- [ ] Manual testing completed where applicable
+## How to test
 
-## Review checklist
+<!-- Give concrete commands and applicable Windows/Roblox manual steps. -->
 
-- [ ] The change is focused and preserves unrelated existing behaviour.
-- [ ] User-facing changes are documented where appropriate.
-- [ ] Persisted application state uses crash-safe storage helpers.
-- [ ] Logs, error messages, screenshots, and other output do not expose cookies, tokens, passwords, or other secrets.
-- [ ] New UI uses the existing semantic theme and component patterns.
-- [ ] The PR title and commits follow Conventional Commits.
-- [ ] I have not included secrets, generated files, or unrelated changes.
+- [ ] Full pre-commit sequence passed: format, check, workspace tests, strict Clippy, frontend lint, and type checking.
+- [ ] Changelog updated under `## Unreleased` for user-facing changes, or N/A.
+- [ ] Design and security guidance checked where touched, or N/A.
+- [ ] No secrets, local data, generated output, or scratch files in the diff.
+- [ ] Diff reviewed end-to-end; staged changes match the task.
+- [ ] Persisted state uses crash-safe core storage helpers; IPC inputs are validated.
+- [ ] Core edits meet the limited extraction policy, or separate explicit authorisation is recorded; operations, destinations, tests, and Windows checks are documented where applicable.
 
-## Screenshots or recordings
+### Interface changes
 
-<!-- Add visuals for UI changes, or write "Not applicable". -->
+- [ ] Reused existing controls in `ram_ui/frontend/components/` and shared values in `ram_ui/frontend/tokens.css`.
+- [ ] Checked against `DESIGN.md`, including Roboto, icons, colors, shape, and motion.
+- [ ] Verified applicable keyboard/focus, loading, error/retry, disabled, and saving states.
+- [ ] Checked supported window size, display scaling, menu clipping, and reduced motion.
+- [ ] Documented any new reusable component in `DESIGN.md`; no component exists only to wrap a single element.
+
+### Screenshots or recordings
+
+<!-- Add interface visuals when useful, or write Not applicable. -->
