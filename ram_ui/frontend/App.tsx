@@ -197,8 +197,10 @@ export function App() {
     if (isClearingCache) return;
     setIsClearingCache(true);
     try {
-      await clearApplicationCaches();
-      setRuntimeToast({ id: Date.now(), title: "Cache cleared", message: "Cached application data has been cleared.", kind: "success", duration: "standard" });
+      const clearedCount = await clearApplicationCaches();
+      setRuntimeToast(clearedCount > 0
+        ? { id: Date.now(), title: "Cache cleared", message: `${clearedCount} cached items cleared.`, kind: "success", duration: "standard" }
+        : { id: Date.now(), title: "No cache to clear", message: "There is no cached application data to clear.", kind: "info", duration: "standard" });
     } catch (error) {
       setRuntimeToast({ id: Date.now(), title: "Cache could not be cleared", message: operationError(error, "Try again from Settings."), kind: "error", duration: "long" });
     } finally { setIsClearingCache(false); }

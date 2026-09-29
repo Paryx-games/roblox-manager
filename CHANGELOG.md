@@ -9,6 +9,7 @@
 - Private-server enrichment preserves concurrent edits, and asset queue actions stay within the selected account.
 - Saved server launches ignore duplicate clicks, and dialog focus, account selection, inventory selection, and preset or server deletion behave consistently with keyboard and screen-reader controls.
 - Failed group edits restore the previous group settings and leave account organisation unchanged.
+- Clear Cache now reports when there is no cached data instead of claiming to have cleared it.
 
 ## v2.0.0-beta.1
 

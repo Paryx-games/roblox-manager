@@ -4677,7 +4677,7 @@ button:focus-visible {
 .group-count {
   margin-left: auto;
   padding: 1px var(--space-2);
-  border-radius: 999px;
+  border-radius: var(--radius);
   color: var(--text-muted);
   background: var(--bg-raised);
   font-size: var(--text-xs);
@@ -5438,7 +5438,7 @@ button:focus-visible {
   margin-top: var(--space-3);
   padding: var(--space-1) var(--space-2);
   border: var(--border-width) solid var(--border-default);
-  border-radius: 999px;
+  border-radius: var(--radius);
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
