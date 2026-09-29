@@ -28,7 +28,7 @@
       <img src="https://img.shields.io/github/actions/workflow/status/Paryx-games/roblox-manager/release.yml?label=release&logo=github&logoColor=white&color=7c3aed" alt="release">
     </a>
     <a href="https://github.com/Paryx-games/roblox-manager/releases/latest">
-      <img src="https://img.shields.io/github/v/release/Paryx-games/roblox-manager?label=version&logo=github&logoColor=white&color=6366f1" alt="version">
+      <img src="https://img.shields.io/github/v/release/Paryx-games/roblox-manager?label=github%20latest&logo=github&logoColor=white&color=6366f1" alt="GitHub latest release">
     </a>
     <img src="https://img.shields.io/github/downloads/Paryx-games/roblox-manager/total?label=downloads&logo=github&logoColor=white&color=4f46e5" alt="downloads">
     <img src="https://img.shields.io/github/license/Paryx-games/roblox-manager?label=license&logo=github&logoColor=white&color=3b82f6" alt="license">
@@ -93,7 +93,15 @@ This branch contains the Tauri + React v2 interface. The retired egui applicatio
 
 ## Download
 
-Grab the latest version from the [Releases page](https://github.com/Paryx-games/roblox-manager/releases/latest). See [CHANGELOG.md](CHANGELOG.md) for what's new in each release.
+Choose the release track that suits you:
+
+| Release track | Where to find it | What it means |
+| --- | --- | --- |
+| **Latest prerelease** | [All releases](https://github.com/Paryx-games/roblox-manager/releases) | The newest `-alpha.N`, `-beta.N`, or `-rc.N` tag. These are still prereleases under SemVer. |
+| **GitHub's Latest slot** | [Latest release](https://github.com/Paryx-games/roblox-manager/releases/latest) | GitHub's highlighted download. An `-rc.N` release can occupy this slot during final testing. |
+| **Latest actual stable** | [v1.16.0](https://github.com/Paryx-games/roblox-manager/releases/tag/v1.16.0) | The newest final version with no prerelease suffix. This is the stable choice until a newer plain `vX.Y.Z` release ships. |
+
+An RC in GitHub's Latest slot is still a release candidate, not the final stable version. See [CHANGELOG.md](CHANGELOG.md) for what's new in each release.
 
 The Tauri release workflow produces two downloads:
 
