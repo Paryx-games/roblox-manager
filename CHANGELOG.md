@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.0.0-beta.1
 
 v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/roblox-manager/tree/v2) branch as part of [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30).
 
