@@ -72,23 +72,54 @@
 .walkthrough-demo-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  padding-top: var(--space-2);
 }
 
-.walkthrough-demo-list .account-row {
-  width: 100%;
-}
-
-.walkthrough-demo-avatar {
+.walkthrough-demo-group,
+.walkthrough-demo-actions {
   display: flex;
-  width: var(--space-8);
-  height: var(--space-8);
-  flex: 0 0 var(--space-8);
   align-items: center;
-  justify-content: center;
+  gap: var(--space-2);
+}
+
+.walkthrough-demo-group {
+  min-height: var(--space-8);
+  padding: 0 var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.walkthrough-demo-group > .account-icon {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
+.walkthrough-demo-group .group-count {
+  margin-left: auto;
+}
+
+.walkthrough-demo-badge {
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
+  color: var(--text-muted);
   background: var(--bg-raised);
+  font-size: var(--text-xs);
+}
+
+.walkthrough-demo-actions {
+  flex-wrap: wrap;
+}
+
+.walkthrough-demo-actions .account-button {
+  flex: 0 0 auto;
+}
+
+.walkthrough-demo-actions .account-button:disabled,
+.walkthrough-demo-list .icon-button:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
 }
 
 .walkthrough-demo-place {

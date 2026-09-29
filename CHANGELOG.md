@@ -6,6 +6,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Fixed
 
+- **Tour account presentation.** Give Builderman and Roblox local avatar headshots and account-style list and detail views. Mark both as demos, with editing and removal actions visibly unavailable.
+
 - **Isolated tour accounts.** Showcase Builderman and Roblox using local demo data with no credentials, persistence or launch requests. Let the navigation rail explore workspaces without skipping tour steps, with a return action for the current step.
 
 - **Clickable walkthrough showcase.** Let users preview controls without entering data or triggering account, launch or settings actions. Return to Accounts after finishing or skipping, highlighting Add account for five seconds before restoring the normal page.
