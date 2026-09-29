@@ -6,6 +6,7 @@
   position: fixed;
   z-index: 100;
   inset: 36px 0 0;
+  pointer-events: none;
 }
 
 .walkthrough-shade {
@@ -45,6 +46,42 @@
   border-radius: var(--radius);
   background: var(--walkthrough-dock);
   backdrop-filter: blur(var(--space-2));
+  pointer-events: auto;
+}
+
+.walkthrough-copy .walkthrough-showcase-hint {
+  margin-top: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.walkthrough-example {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--border-default);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.is-walkthrough-complete [data-walkthrough="add-account"] {
+  outline: var(--border-width) solid var(--walkthrough-outline);
+  outline-offset: var(--space-1);
+}
+
+.walkthrough-completion {
+  position: fixed;
+  z-index: 100;
+  top: calc(var(--titlebar-height) + var(--space-3));
+  left: calc(56px + var(--space-6));
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--walkthrough-dock);
+  backdrop-filter: blur(var(--space-2));
+  pointer-events: none;
+  font-size: var(--text-sm);
 }
 
 .walkthrough-progress {

@@ -122,6 +122,7 @@ export function App() {
   const [startupError, setStartupError] = useState<string | null>(null);
   const [isStartupPending, setIsStartupPending] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
+  const [isTourCompletionVisible, setIsTourCompletionVisible] = useState(false);
   const [isMigrationDismissed, setIsMigrationDismissed] = useState(false);
   const [update, setUpdate] = useState<[string, string] | null>(null);
   const [browserPlaceId, setBrowserPlaceId] = useState<number | null>(null);
@@ -148,6 +149,26 @@ export function App() {
     catch (error) { setStartupError(operationError(error, "The startup action could not be completed. Retry.")); }
     finally { setIsStartupPending(false); }
   }
+
+  async function finishWalkthrough() {
+    if (isStartupPending) return;
+    setIsStartupPending(true);
+    try {
+      await acknowledgeStartup("version");
+      setStartup((current) => current ? { ...current, needsTutorial: false } : current);
+      navigateTo("Accounts");
+      setIsTourCompletionVisible(true);
+      setStartupError(null);
+    } catch (error) {
+      setStartupError(operationError(error, "The tour could not be completed. Retry."));
+    } finally { setIsStartupPending(false); }
+  }
+
+  useEffect(() => {
+    if (!isTourCompletionVisible) return;
+    const timeout = window.setTimeout(() => setIsTourCompletionVisible(false), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [isTourCompletionVisible]);
 
   useEffect(() => {
     let isActive = true;
@@ -412,7 +433,7 @@ export function App() {
         </div>
       </header>
 
-      <div className={`body-row ${isTourVisible ? "is-walkthrough-active" : ""}`} data-walkthrough-content>
+      <div className={`body-row ${isTourVisible ? "is-walkthrough-active" : ""} ${isTourCompletionVisible ? "is-walkthrough-complete" : ""}`} data-walkthrough-content>
         <nav className="sidebar" aria-label="Primary navigation" data-walkthrough="navigation">
           {visibleNavItems.map((item) => (
             <RailButton
@@ -458,11 +479,13 @@ export function App() {
         error={startupError}
         onBack={() => setTutorialStep((step) => Math.max(0, step - 1))}
         onNext={() => setTutorialStep((step) => Math.min(walkthroughSteps.length - 1, step + 1))}
-        onFinish={() => void completeStartup(() => acknowledgeStartup("version"))}
+        onFinish={() => void finishWalkthrough()}
+        onSelectStep={setTutorialStep}
       /> : startup?.changelog ? <Popup className="confirm-modal changelog-modal" backdropClassName="confirm-modal-backdrop" labelledBy="changelog-title">
         <h2 id="changelog-title">What's changed in RM</h2><ReleaseNotes markdown={startup.changelog} /><button className="account-button" type="button" disabled={isStartupPending} onClick={() => void completeStartup(() => acknowledgeStartup("version"))}>Continue</button>
       </Popup> : startup?.passwordlessOffer ? <ConfirmModal title="Stop asking for a password on this PC?" message="Device encryption keeps your store encrypted and unlocks it through Windows Credential Manager. Keep a master password if you need to move the store between PCs." confirmLabel={isStartupPending ? "Changing encryption..." : "Use device encryption"} confirmDisabled={isStartupPending} confirmIcon="lock" onConfirm={() => void completeStartup(async () => { await clearPassword(); await acknowledgeStartup("passwordless"); })} onCancel={() => { if (!isStartupPending) void completeStartup(() => acknowledgeStartup("passwordless")); }} /> : browserPlaceId ? <ConfirmModal title="Launch this game through RM?" message={`The account browser blocked an external Roblox launch for Place ID ${browserPlaceId}. Prefill it in Accounts, then choose which account to launch.`} confirmLabel="Prefill Place ID" confirmIcon="game" onConfirm={() => { setPrefilledPlaceId(browserPlaceId); setBrowserPlaceId(null); setActiveNav("Accounts"); }} onCancel={() => setBrowserPlaceId(null)} /> : null}
       {startupError && <Toast item={{ id: 1, title: "Startup action needs attention", message: startupError, kind: "error", duration: "long" }} onDismiss={() => setStartupError(null)} />}
+      {isTourCompletionVisible && displayedNav === "Accounts" && <div className="walkthrough-completion" role="status">You're ready. Use the highlighted + button to add an account.</div>}
     </div>
   );
 }

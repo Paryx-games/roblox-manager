@@ -6,6 +6,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Fixed
 
+- **Clickable walkthrough showcase.** Let users preview controls without entering data or triggering account, launch or settings actions. Return to Accounts after finishing or skipping, highlighting Add account for five seconds before restoring the normal page.
+
 - **First-run walkthrough.** Navigate through Accounts, Instances and Settings with a floating translucent tour dock, white control highlights, Back and a secondary Skip tour action. Explain launching with a disabled preview when no account is selected.
 
 - **Upgrade release notes.** Format the What's changed dialog with headings, lists and emphasis in a larger scrollable window. Show only the installed version's notes, with prerelease builds using the current development notes instead of the full changelog history.

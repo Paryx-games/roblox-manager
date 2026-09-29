@@ -19,29 +19,75 @@ type WalkthroughProps = {
   onBack: () => void;
   onNext: () => void;
   onFinish: () => void;
+  onSelectStep: (stepIndex: number) => void;
 };
 
-export function Walkthrough({ stepIndex, isPageReady, isPending, error, onBack, onNext, onFinish }: WalkthroughProps) {
+export function Walkthrough({ stepIndex, isPageReady, isPending, error, onBack, onNext, onFinish, onSelectStep }: WalkthroughProps) {
   const dock = useRef<HTMLElement>(null);
   const [highlight, setHighlight] = useState<Highlight | null>(null);
   const step = walkthroughSteps[stepIndex];
   const isLastStep = stepIndex === walkthroughSteps.length - 1;
+  const [example, setExample] = useState<{ stepIndex: number; message: string } | null>(null);
 
   useEffect(() => {
     const content = document.querySelector<HTMLElement>("[data-walkthrough-content]");
     const previousFocus = document.activeElement;
-    const wasInert = content?.inert ?? false;
-    if (content) content.inert = true;
     dock.current?.focus();
     return () => {
       if (content) {
-        content.inert = wasInert;
         content.style.removeProperty("--walkthrough-space");
       }
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
       else content?.querySelector<HTMLElement>("[aria-current='page']")?.focus();
     };
   }, []);
+
+  useEffect(() => {
+    const content = document.querySelector<HTMLElement>("[data-walkthrough-content]");
+    if (!content) return;
+    function onShowcaseClick(event: Event) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (isPending || !(event.target instanceof Element)) return;
+      const target = event.target.closest<HTMLElement>("[data-walkthrough]");
+      if (target?.dataset.walkthrough === "navigation") {
+        const label = event.target.closest("button")?.getAttribute("aria-label");
+        const nextStep = label === "Accounts" ? 1 : label === "Instances" ? 4 : label === "Settings" ? 5 : null;
+        if (nextStep !== null) onSelectStep(nextStep);
+        else setExample({ stepIndex, message: "The navigation rail opens each workspace. Next continues the main tour." });
+      } else if (target?.dataset.walkthrough === "add-account") {
+        setExample({ stepIndex, message: "Add account offers browser sign-in or a pasted cookie. This is a preview, so no sign-in or input is needed. Choose Next whenever you're ready." });
+      } else if (target?.dataset.walkthrough === "launch") {
+        setExample({ stepIndex, message: "Launch starts the selected account in the chosen game. In this showcase, nothing is launched and no Place ID is needed." });
+      } else {
+        setExample({ stepIndex, message: "This is a showcase. You can explore the buttons without changing accounts, settings or running clients. Choose Next to continue." });
+      }
+    }
+    function onShowcaseInput(event: Event) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+    function onShowcaseKeyDown(event: KeyboardEvent) {
+      if (event.target instanceof Element && event.target.matches("input, textarea, select, [contenteditable]")) {
+        if (event.key !== "Tab" && event.key !== "Escape") onShowcaseInput(event);
+      }
+      if (event.key === "Escape" && !isPending) { onShowcaseInput(event); onFinish(); }
+    }
+    content.addEventListener("click", onShowcaseClick, true);
+    content.addEventListener("beforeinput", onShowcaseInput, true);
+    content.addEventListener("keydown", onShowcaseKeyDown, true);
+    content.addEventListener("dragstart", onShowcaseInput, true);
+    content.addEventListener("contextmenu", onShowcaseInput, true);
+    content.addEventListener("submit", onShowcaseInput, true);
+    return () => {
+      content.removeEventListener("click", onShowcaseClick, true);
+      content.removeEventListener("beforeinput", onShowcaseInput, true);
+      content.removeEventListener("keydown", onShowcaseKeyDown, true);
+      content.removeEventListener("dragstart", onShowcaseInput, true);
+      content.removeEventListener("contextmenu", onShowcaseInput, true);
+      content.removeEventListener("submit", onShowcaseInput, true);
+    };
+  }, [isPending, onFinish, onSelectStep, stepIndex]);
 
   useEffect(() => {
     const content = document.querySelector<HTMLElement>("[data-walkthrough-content]");
@@ -133,27 +179,20 @@ export function Walkthrough({ stepIndex, isPageReady, isPending, error, onBack, 
       <section
         ref={dock}
         className="walkthrough-dock"
-        role="dialog"
-        aria-modal="true"
+        role="region"
         aria-labelledby="walkthrough-title"
         aria-describedby="walkthrough-description"
         aria-busy={isPending}
         tabIndex={-1}
         onKeyDown={(event) => {
           if (event.key === "Escape" && !isPending) { event.preventDefault(); onFinish(); }
-          if (event.key !== "Tab") return;
-          const buttons = dock.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)");
-          if (!buttons?.length) { event.preventDefault(); return; }
-          const first = buttons[0];
-          const last = buttons[buttons.length - 1];
-          if (event.shiftKey && (document.activeElement === first || document.activeElement === dock.current)) { event.preventDefault(); last.focus(); }
-          else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dock.current)) { event.preventDefault(); first.focus(); }
         }}
       >
         <div className="walkthrough-copy" aria-live="polite" aria-atomic="true">
           <span className="walkthrough-progress">Getting started / {stepIndex + 1} of {walkthroughSteps.length}</span>
           <h2 id="walkthrough-title">{step.title}</h2>
           <p id="walkthrough-description">{step.description}</p>
+          <p className="walkthrough-showcase-hint">Click the controls to preview them. No input is needed; Next always continues.</p>
         </div>
         <div className="walkthrough-actions">
           <button className="walkthrough-skip" type="button" disabled={isPending} onClick={onFinish}>Skip tour</button>
@@ -163,7 +202,13 @@ export function Walkthrough({ stepIndex, isPageReady, isPending, error, onBack, 
         {isPreviewVisible && <div className="walkthrough-preview">
           <span>Preview / select an account to see these controls</span>
           <label>Place ID <input disabled placeholder="Enter a Place ID" /></label>
-          <button className="account-button" type="button" disabled>Launch</button>
+          <button className="account-button" type="button" onClick={() => setExample({ stepIndex, message: "Launch starts the selected account in the chosen game. This preview doesn't launch Roblox or need a Place ID." })}>Launch</button>
+        </div>}
+        {example?.stepIndex === stepIndex && <p className="walkthrough-example" role="status">{example.message}</p>}
+        {example?.stepIndex === stepIndex && step.target === "add-account" && <div className="walkthrough-preview">
+          <span>Add account preview</span>
+          <button className="account-button" type="button" onClick={() => setExample({ stepIndex, message: "Browser sign-in opens an isolated Roblox login window. No login window is opened during this showcase." })}>Sign in through browser</button>
+          <button className="account-button" type="button" onClick={() => setExample({ stepIndex, message: "Paste cookie lets you explicitly provide a session cookie. This showcase never asks for or captures a cookie." })}>Paste cookie</button>
         </div>}
         {error && <p className="walkthrough-error" role="alert">{error} Choose Skip tour or Finish to retry.</p>}
       </section>
