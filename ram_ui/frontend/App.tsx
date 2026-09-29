@@ -5,6 +5,7 @@ import { Toast, type ToastItem } from "./Toast";
 import { Popup } from "./components/Popup";
 import { ReleaseNotes } from "./components/ReleaseNotes";
 import { Walkthrough, walkthroughSteps } from "./components/Walkthrough";
+import { WalkthroughAccounts, type DemoAccountName } from "./components/WalkthroughAccounts";
 import { ConfirmModal } from "./ConfirmModal";
 import { acknowledgeStartup, checkReleaseUpdate, clearPassword, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
 import { listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
@@ -58,6 +59,7 @@ function Icon({ name }: { name: string }) {
 function RailButton({
   label,
   icon,
+  page,
   active = false,
   disabled = false,
   onClick,
@@ -69,6 +71,7 @@ function RailButton({
       aria-label={label}
       aria-current={active ? "page" : undefined}
       data-tip={label}
+      data-walkthrough-page={page}
       disabled={disabled}
       onClick={onClick}
     >
@@ -123,6 +126,7 @@ export function App() {
   const [isStartupPending, setIsStartupPending] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [isTourCompletionVisible, setIsTourCompletionVisible] = useState(false);
+  const [selectedDemoAccount, setSelectedDemoAccount] = useState<DemoAccountName | null>(null);
   const [isMigrationDismissed, setIsMigrationDismissed] = useState(false);
   const [update, setUpdate] = useState<[string, string] | null>(null);
   const [browserPlaceId, setBrowserPlaceId] = useState<number | null>(null);
@@ -158,6 +162,7 @@ export function App() {
       setStartup((current) => current ? { ...current, needsTutorial: false } : current);
       navigateTo("Accounts");
       setIsTourCompletionVisible(true);
+      setSelectedDemoAccount(null);
       setStartupError(null);
     } catch (error) {
       setStartupError(operationError(error, "The tour could not be completed. Retry."));
@@ -309,6 +314,7 @@ export function App() {
 
   function renderPage(page: PageName) {
     if (page === "Accounts") {
+      if (isTourVisible) return <WalkthroughAccounts selectedName={selectedDemoAccount} onSelect={setSelectedDemoAccount} />;
       return (
         <AccountsPage
           selectedIds={selectedIds}
@@ -480,7 +486,7 @@ export function App() {
         onBack={() => setTutorialStep((step) => Math.max(0, step - 1))}
         onNext={() => setTutorialStep((step) => Math.min(walkthroughSteps.length - 1, step + 1))}
         onFinish={() => void finishWalkthrough()}
-        onSelectStep={setTutorialStep}
+        onReturnToStep={() => navigateTo(walkthroughSteps[tutorialStep].page)}
       /> : startup?.changelog ? <Popup className="confirm-modal changelog-modal" backdropClassName="confirm-modal-backdrop" labelledBy="changelog-title">
         <h2 id="changelog-title">What's changed in RM</h2><ReleaseNotes markdown={startup.changelog} /><button className="account-button" type="button" disabled={isStartupPending} onClick={() => void completeStartup(() => acknowledgeStartup("version"))}>Continue</button>
       </Popup> : startup?.passwordlessOffer ? <ConfirmModal title="Stop asking for a password on this PC?" message="Device encryption keeps your store encrypted and unlocks it through Windows Credential Manager. Keep a master password if you need to move the store between PCs." confirmLabel={isStartupPending ? "Changing encryption..." : "Use device encryption"} confirmDisabled={isStartupPending} confirmIcon="lock" onConfirm={() => void completeStartup(async () => { await clearPassword(); await acknowledgeStartup("passwordless"); })} onCancel={() => { if (!isStartupPending) void completeStartup(() => acknowledgeStartup("passwordless")); }} /> : browserPlaceId ? <ConfirmModal title="Launch this game through RM?" message={`The account browser blocked an external Roblox launch for Place ID ${browserPlaceId}. Prefill it in Accounts, then choose which account to launch.`} confirmLabel="Prefill Place ID" confirmIcon="game" onConfirm={() => { setPrefilledPlaceId(browserPlaceId); setBrowserPlaceId(null); setActiveNav("Accounts"); }} onCancel={() => setBrowserPlaceId(null)} /> : null}

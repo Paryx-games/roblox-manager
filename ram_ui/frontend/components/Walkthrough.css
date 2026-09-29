@@ -64,6 +64,49 @@
   font-size: var(--text-sm);
 }
 
+.walkthrough-demo-label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.walkthrough-demo-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.walkthrough-demo-list .account-row {
+  width: 100%;
+}
+
+.walkthrough-demo-avatar {
+  display: flex;
+  width: var(--space-8);
+  height: var(--space-8);
+  flex: 0 0 var(--space-8);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.walkthrough-demo-place {
+  width: 100%;
+  min-height: var(--space-8);
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--bg-raised);
+}
+
+.walkthrough-demo-place:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
+}
+
 .is-walkthrough-complete [data-walkthrough="add-account"] {
   outline: var(--border-width) solid var(--walkthrough-outline);
   outline-offset: var(--space-1);

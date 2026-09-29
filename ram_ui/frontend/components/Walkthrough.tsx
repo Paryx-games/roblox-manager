@@ -4,7 +4,7 @@ import "./Walkthrough.css";
 export const walkthroughSteps = [
   { page: "Accounts", target: "navigation", title: "Welcome to Roblox Manager", description: "Use this rail to move between your workspaces. We'll show you the main controls. You can finish this tour without adding an account or launching Roblox." },
   { page: "Accounts", target: "add-account", title: "Add your accounts", description: "This plus button opens Add account. Sign in through the browser or explicitly paste a cookie. Adding an existing account replaces its credential and keeps its organisation." },
-  { page: "Accounts", target: "accounts", title: "Choose your accounts", description: "Your accounts appear here. Select one to see its details and launch controls. Select multiple accounts for bulk actions. If the list is empty, add an account after the tour." },
+  { page: "Accounts", target: "accounts", title: "Choose your accounts", description: "Click Builderman or Roblox to see example details and launch controls. These isolated demo accounts have no credentials and won't be saved. Your own accounts will appear here after the tour." },
   { page: "Accounts", target: "launch", title: "Launch a game", description: "After selecting an account, enter a numeric Place ID and choose Launch. Presets and Private Servers save destinations for later. This tour won't launch anything." },
   { page: "Instances", target: "instances", title: "Track your clients", description: "Running clients and launch progress appear here. Exact matches support verified individual kills; inferred matches are guesses. You can focus, arrange or join a client's server. An empty workspace is normal before your first launch." },
   { page: "Settings", target: "preferences", title: "Make RM work for you", description: "Settings covers account storage, privacy and window arrangement. Use its sidebar to explore each section. Keep your encrypted account store and backups safe. You're ready to add an account." },
@@ -19,10 +19,10 @@ type WalkthroughProps = {
   onBack: () => void;
   onNext: () => void;
   onFinish: () => void;
-  onSelectStep: (stepIndex: number) => void;
+  onReturnToStep: () => void;
 };
 
-export function Walkthrough({ stepIndex, isPageReady, isPending, error, onBack, onNext, onFinish, onSelectStep }: WalkthroughProps) {
+export function Walkthrough({ stepIndex, isPageReady, isPending, error, onBack, onNext, onFinish, onReturnToStep }: WalkthroughProps) {
   const dock = useRef<HTMLElement>(null);
   const [highlight, setHighlight] = useState<Highlight | null>(null);
   const step = walkthroughSteps[stepIndex];
@@ -46,15 +46,16 @@ export function Walkthrough({ stepIndex, isPageReady, isPending, error, onBack, 
     const content = document.querySelector<HTMLElement>("[data-walkthrough-content]");
     if (!content) return;
     function onShowcaseClick(event: Event) {
+      if (!isPending && event.target instanceof Element) {
+        const button = event.target.closest<HTMLElement>("button");
+        if (button?.dataset.walkthroughPage || button?.dataset.showcaseAction === "select-demo-account") return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       if (isPending || !(event.target instanceof Element)) return;
       const target = event.target.closest<HTMLElement>("[data-walkthrough]");
       if (target?.dataset.walkthrough === "navigation") {
-        const label = event.target.closest("button")?.getAttribute("aria-label");
-        const nextStep = label === "Accounts" ? 1 : label === "Instances" ? 4 : label === "Settings" ? 5 : null;
-        if (nextStep !== null) onSelectStep(nextStep);
-        else setExample({ stepIndex, message: "The navigation rail opens each workspace. Next continues the main tour." });
+        setExample({ stepIndex, message: "The rail opens workspaces without advancing the tour. Use Next to cover each step in order." });
       } else if (target?.dataset.walkthrough === "add-account") {
         setExample({ stepIndex, message: "Add account offers browser sign-in or a pasted cookie. This is a preview, so no sign-in or input is needed. Choose Next whenever you're ready." });
       } else if (target?.dataset.walkthrough === "launch") {
@@ -87,7 +88,7 @@ export function Walkthrough({ stepIndex, isPageReady, isPending, error, onBack, 
       content.removeEventListener("contextmenu", onShowcaseInput, true);
       content.removeEventListener("submit", onShowcaseInput, true);
     };
-  }, [isPending, onFinish, onSelectStep, stepIndex]);
+  }, [isPending, onFinish, stepIndex]);
 
   useEffect(() => {
     const content = document.querySelector<HTMLElement>("[data-walkthrough-content]");
@@ -192,8 +193,12 @@ export function Walkthrough({ stepIndex, isPageReady, isPending, error, onBack, 
           <span className="walkthrough-progress">Getting started / {stepIndex + 1} of {walkthroughSteps.length}</span>
           <h2 id="walkthrough-title">{step.title}</h2>
           <p id="walkthrough-description">{step.description}</p>
-          <p className="walkthrough-showcase-hint">Click the controls to preview them. No input is needed; Next always continues.</p>
+          <p className="walkthrough-showcase-hint">Click controls to preview them. No input is needed. The rail lets you explore; Next continues each step in order.</p>
         </div>
+        {!isPageReady && <div className="walkthrough-preview">
+          <span>This step is on {step.page}. Exploring another page doesn't advance the tour.</span>
+          <button className="account-button" type="button" disabled={isPending} onClick={onReturnToStep}>Return to {step.page}</button>
+        </div>}
         <div className="walkthrough-actions">
           <button className="walkthrough-skip" type="button" disabled={isPending} onClick={onFinish}>Skip tour</button>
           <button className="account-button" type="button" disabled={stepIndex === 0 || isPending} onClick={onBack}>Back</button>
