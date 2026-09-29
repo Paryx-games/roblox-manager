@@ -14,9 +14,12 @@ revert_msg_regex='^Revert ".+"$'
 commit_msg_file="${1:?missing commit message file}"
 commit_msg_header="$(head -n 1 "$commit_msg_file")"
 
+merge_head="$(git rev-parse --git-path MERGE_HEAD)" || exit 1
+revert_head="$(git rev-parse --git-path REVERT_HEAD)" || exit 1
+
 if [[ "$commit_msg_header" =~ $commit_msg_regex ]] ||
-   [[ "$commit_msg_header" =~ $merge_msg_regex ]] ||
-   [[ "$commit_msg_header" =~ $revert_msg_regex ]]; then
+   { [[ -f "$merge_head" ]] && [[ "$commit_msg_header" =~ $merge_msg_regex ]]; } ||
+   { [[ -f "$revert_head" ]] && [[ "$commit_msg_header" =~ $revert_msg_regex ]]; }; then
   exit 0
 fi
 

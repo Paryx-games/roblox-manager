@@ -54,7 +54,6 @@ jobs:
         with:
           # tags float on the same commit as their branch, cache key should track the lockfile not the ref
           key: release
-          lookup-only: true
 
       - name: Build application
         working-directory: ram_ui

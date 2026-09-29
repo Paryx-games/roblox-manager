@@ -16,6 +16,17 @@ if (!version) {
   process.exit(1);
 }
 
+const tauriVersion = JSON.parse(
+  readFileSync(resolve(packageDirectory, "src-tauri/tauri.conf.json"), "utf8"),
+).version;
+const packageVersion = JSON.parse(
+  readFileSync(resolve(packageDirectory, "package.json"), "utf8"),
+).version;
+if (tauriVersion !== version || packageVersion !== version) {
+  console.error("Cargo.toml, tauri.conf.json, and package.json versions must match");
+  process.exit(1);
+}
+
 const argumentsList = process.argv.slice(2);
 const command = argumentsList[0];
 const isDevelopmentBuild =

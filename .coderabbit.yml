@@ -53,10 +53,6 @@ reviews:
   sequence_diagrams: false
   estimate_code_review_effort: false
 
-  # expose a github check without allowing coderabbit alone to fail the pr.
-  commit_status: true
-  fail_commit_status: false
-
   # use issue/pr context when it can explain the intended behaviour.
   assess_linked_issues: true
   related_issues: true
@@ -379,7 +375,6 @@ reviews:
     # let coderabbit take existing github checks into account.
     github-checks:
       enabled: true
-      timeout_ms: 900000
 
   # these are advisory gates.
   # "warning" gives useful feedback without making coderabbit the supreme court.
@@ -389,28 +384,22 @@ reviews:
 
     title:
       mode: "warning"
-      requirements: >-
-        Prefer Conventional Commits:
-        type(optional-scope): concise imperative summary.
-        The title should describe the actual behavioural change, contain no emoji,
-        avoid filler and normally remain under 72 characters.
 
     description:
       mode: "warning"
-      requirements: >-
-        Follow PR_CONVENTIONS.md exactly. Include these sections in this order:
-        What changed and why (link related issues, for example closes #NN);
-        User-visible behavior (state explicitly when there is no user-visible
-        change); Gotchas (include risks, tradeoffs, deferred work and Roblox-version
-        assumptions where relevant); How to test (give concrete steps, including
-        manual Windows steps with Roblox installed for UI or launch changes).
-        Include every required checklist item from PR_CONVENTIONS.md explicitly,
-        marked checked or N/A. Keep the description concise and factual.
 
     issue_assessment:
       mode: "warning"
 
     custom_checks:
+      - name: "pull request conventions"
+        mode: "warning"
+        instructions: |
+          Check the title and description against PR_CONVENTIONS.md.
+          Prefer a Conventional Commit title under 72 characters without emoji.
+          Require the four description sections in order and every checklist item
+          explicitly marked checked or N/A. Use the complete PR description.
+
       - name: "repository policy compliance"
         mode: "warning"
         instructions: |

@@ -9,6 +9,7 @@
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
     "lint": "eslint . && stylelint \"frontend/**/*.css\"",
     "typecheck": "tsc --noEmit -p tsconfig.app.json --pretty false",
+    "test": "node --experimental-strip-types --test scripts/*.test.mjs",
     "tauri": "node scripts/tauri.mjs"
   },
   "dependencies": {
