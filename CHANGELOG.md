@@ -2,61 +2,27 @@
 
 ## v2.0.0-beta.1
 
-v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/roblox-manager/tree/v2) branch as part of [Pull Request #30](https://github.com/Paryx-games/roblox-manager/pull/30).
+### Changed
+
+The v2 beta replaces the egui interface with Tauri and React while retaining the encrypted account store and existing core workflows.
+
+- **Navigation and shared interface.** Adds dedicated workspaces, consistent controls and notifications, account anonymisation, and reduced-motion support.
+- **Accounts.** Rebuilds account browsing, grouping, search, multi-selection, profile details, credential management, import/export, and game launching.
+- **Instances.** Shows running Roblox clients with account attribution and controls to focus, arrange, join a server, or close clients.
+- **Groups.** Adds group search, membership management, announcements, and forums.
+- **Private Servers.** Manages saved server links and launches selected accounts into them.
+- **Presets.** Manages saved launch destinations and launches them with multiple accounts.
+- **Inventories.** Compares items across accounts with filters, shared/unique views, and asset ID export.
+- **Asset Manager.** Manages creations, staged uploads, moderation results, and experience access grants.
+- **Settings.** Groups launch, privacy, storage, integration, and interface controls with clear save and discard handling.
+- **Windows distribution.** Provides a per-user Roblox Manager installer and portable executable. The installer offers shortcut and browser-data choices, optional uninstall cleanup, WebView2 setup, and downgrade protection.
 
 ### Fixed
 
-- **Tour account presentation.** Give Builderman and Roblox local avatar headshots and account-style list and detail views. Mark both as demos, with editing and removal actions visibly unavailable.
-
-- **Isolated tour accounts.** Showcase Builderman and Roblox using local demo data with no credentials, persistence or launch requests. Let the navigation rail explore workspaces without skipping tour steps, with a return action for the current step.
-
-- **Clickable walkthrough showcase.** Let users preview controls without entering data or triggering account, launch or settings actions. Return to Accounts after finishing or skipping, highlighting Add account for five seconds before restoring the normal page.
-
-- **First-run walkthrough.** Navigate through Accounts, Instances and Settings with a floating translucent tour dock, white control highlights, Back and a secondary Skip tour action. Explain launching with a disabled preview when no account is selected.
-
-- **Upgrade release notes.** Format the What's changed dialog with headings, lists and emphasis in a larger scrollable window. Show only the installed version's notes, with prerelease builds using the current development notes instead of the full changelog history.
-
-- **Installer shortcut choices.** Remove the Start menu folder selection page and use the Roblox Manager folder. Select desktop shortcuts by default while retaining the option to disable either shortcut.
-
-- **Website build guidance.** Describe the Tauri + React interface and provide the frontend installation and locked desktop bundle commands, with the required Windows build tools.
-
-- **Tauri release packaging.** Publish the Tauri portable executable and Windows installer with checksums for both. Build the installer in CI and check frontend linting and types alongside the Rust checks.
-
-- **Account re-add organisation.** Base credential replacement and confirmation previews on the existing account, preserving its alias, group, pin, order and cached history. Keep the alias editor synchronised with account updates so a stale field cannot overwrite the saved alias.
-
-- **Main-window browser recovery.** Give the main interface a separate browser profile. Detect WebView2 browser and renderer failures, log their process kind, and recreate the interface with an isolated browser profile while retaining the unlocked account store and background services. Bound recovery attempts and show a native error dialog if restoration fails instead of silently leaving a black window.
-
-- **Login responsiveness.** Read login cookies through asynchronous WebView2 callbacks without blocking or nesting the window message loop. Close failed or unresponsive login sessions and show retry guidance instead of leaving account addition waiting silently.
-
-- **Account login window.** Use an isolated, private Tauri webview for Roblox login so focus changes and resizing share the app window lifecycle. Capture the credential only in Rust, close the window on completion, and cancel cleanly when it is closed.
-
-- **Standalone debug builds.** Add `pnpm --dir ram_ui build:debug` to rebuild and embed the frontend in the debug executable. This build opens without a Vite server; executables produced by `tauri dev` still require their development server.
-
-- **Existing accounts.** Show a yellow warning when cookie entry, browser login or bulk import re-adds an existing account, explaining that its saved credential was updated.
-
-- **Account refresh feedback.** Report valid and invalid account counts when refreshing all accounts. Account recovery revalidates only the displayed account, and individual results name that account.
-
-- **Account validation.** Do not mark saved credentials expired when refresh encounters a Roblox challenge, forbidden response or CSRF failure. Preserve the previous status when verification is inconclusive, show retry/browser guidance, and clear an old expired flag after successful identity verification. Confirmed authentication rejection or a different authenticated account still blocks the credential.
-
-### Changed
-
-- **Windows installer.** Name the installer, installation, shortcuts and app window Roblox Manager. Add setup choices for shortcuts and interface browser repair, plus uninstall choices for browser sessions, diagnostic logs and opening retained data. Prompt users to remove an older installation named RM before installing under the new name, preserving saved accounts and settings. Add the vertical LogoThumb artwork in the sidebar, matching installer and uninstaller icons, per-user installation, Start menu grouping and clearer data-preservation wording. Embed the WebView2 bootstrapper, block downgrades and document installation, upgrades and uninstall behaviour.
-
-- **Debug console logging.** Mirror startup and runtime diagnostics to the debug console while retaining rotating log files. Scrub both destinations and console fallback output before writing them, and include the app version and build profile at startup.
-
-- **Tauri frontend rewrite.** Replaces the egui/eframe interface with Tauri + React/TypeScript, using typed IPC and Rust command handlers to connect the new interface to the existing `ram_core` authentication, encrypted storage, Roblox APIs, and Windows process management.
-- **Workspace navigation.** Organises the app around dedicated Accounts, Instances, Groups, Private Servers, Presets, Inventories, Asset Manager, and Settings pages, with a shared activity bar, sidebars, and page transitions.
-- **Accounts workspace.** Rebuilds account management with grouped and draggable account lists, sorting, search, multi-selection, restricted-account states, profile details, connection actions, and clearer launch controls. Refreshes account identity, avatars, creation dates, moderation and presence in the background across page changes; re-adding an account replaces its credential while preserving account organisation, with confirmation for restricted accounts. Refresh and export controls share a compact header row. Bulk import groups the file chooser and filename on separate lines inside one dashed box; labelled separators distinguish browser login, cookie entry and bulk import. Switching accounts resets the detail scroll position and uses a subtle transition, disabled under reduced motion; credential or moderation changes also reveal recovery guidance at the top.
-- **Instances workspace.** Tracks running Roblox clients with exact, inferred and unmatched account attribution, live counts, focus, verified individual close and server-join actions. Shares launch spacing across account, preset, private-server and server-join requests; restores background tray cleanup, configured multi-instance setup, launch timestamps, automatic window arrangement, window naming and title restoration, and configured privacy cleanup on exit. Kill-all controls honour the confirmation preference. Keeps the instance controls directly below the page heading, groups page actions, labels the server-join picker, and replaces repetitive guidance with match and disabled-action tooltips. Preserves table headers during loading, errors and empty states, and shows progress on running actions.
-- **Groups workspace.** Rebuilds group search and management with live group information, account membership inspection, join/leave actions, announcements, forums, Roblox challenge handling, and loading placeholders matching the search results and detail cards.
-- **Private Servers workspace.** Rebuilds saved private-server management with search, sorting, editing, link copying, and launching with selected accounts.
-- **Presets workspace.** Rebuilds saved game presets with search, place IDs, job IDs, launch data, game thumbnails, copying controls, editing, deletion, and multi-account launching.
-- **Inventories workspace.** Rebuilds inventory browsing with grouped account selection, search and type filters, shared/unique comparisons, sorting, adjustable grid/list views, owner avatars, click and drag selection with edge scrolling, select-all, and individual or CSV asset ID copying and catalog opening.
-- **Asset Manager workspace.** Rebuilds asset management with grouped sidebar account selection, Library and Import Queue views, search and filters, dynamically sized dropdowns, file selection and drag-and-drop, validated uploads, moderation tracking, experience access grants, retry and queue controls, and copyable asset IDs. Supports account/group creators, queue name/type/creator edits, selected-row upload confirmation, paginated live creations with thumbnails, grants for existing assets and manually entered experience IDs, file reveal, and richer copy actions.
-- **Settings workspace.** Replaces the old settings interface with a continuous configuration editor, nested navigation, responsive system/app information, validation, warnings, and save/cancel handling for unsaved changes.
-- **Shared interface behaviour.** Unifies typography, spacing, icons, tooltips, loading skeletons, notifications, interaction states, and reduced-motion support. Prevents accidental interface text selection while preserving editable fields, copyable data, and application dragging features. Applies account-name/avatar anonymisation across account summaries and browser window labels, honours developer/utility workspace visibility, and connects the sidebar cache action. Restores the existing CSV export columns and separates last-used timestamps from validation activity. Keeps standalone and grouped notifications in bounded bottom-right containers outside page transitions, preventing full-width toasts across workspaces.
-- **Startup and store recovery.** Restores the first-launch walkthrough, release update link and changelog after upgrading, the one-time device-encryption offer, older-install migration and favourite-to-preset conversion. Resolves relative store paths against their installation directory and records the offer as handled for stores already using device encryption. Upgrades legacy encrypted stores after password unlock and provides a guarded start-over flow that preserves encrypted recovery copies. Blocked play requests from account browsers can prefill the Place ID in Accounts.
-- **Frontend tooling.** Introduces React, TypeScript, Vite, frontend linting, design-token checks, and the development tooling required for the Tauri rewrite.
+- **Account credentials.** Re-adding an existing account preserves its organisation. Refresh no longer treats inconclusive Roblox challenges or request failures as proof of invalid credentials, and browser login completes or fails without leaving the app waiting indefinitely.
+- **Startup and recovery.** Restores first-run guidance, upgrade notes, older-data migration, and encrypted-store recovery with protected backup copies.
+- **Browser reliability.** Recovers the main interface from WebView2 browser or renderer failures instead of leaving a black window.
+- **Launch and background behaviour.** Coordinates launch pacing across workspaces and restores configured multi-instance setup, window arrangement, background cleanup, and privacy cleanup.
 
 ## v1.16.0
 
