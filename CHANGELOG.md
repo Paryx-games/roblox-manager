@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Beta or release-candidate installs can detect the matching stable release, and empty group announcements no longer appear as phantom posts.
+
 ## v2.0.0-beta.1
 
 ### Changed

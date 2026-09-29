@@ -648,7 +648,7 @@ pub async fn resolve_share_link(
         });
     }
 
-    tracing::info!("Share link resolved → placeId={place_id}, linkCode={link_code}");
+    tracing::info!("Share link resolved → placeId={place_id}");
 
     // --- Step 2: Scrape accessCode (UUID) from the game page ---
     let game_url =
@@ -986,7 +986,12 @@ pub fn is_newer_stable_release(remote: &str, local: &str) -> bool {
         ];
         values.next().is_none().then_some(version)
     }
-    matches!((parse(remote), parse(local)), (Some(remote), Some(local)) if remote > local)
+    let (local_version, is_prerelease) = match local.split_once('-') {
+        Some((version, suffix)) if !suffix.is_empty() => (version, true),
+        Some(_) => return false,
+        None => (local, false),
+    };
+    matches!((parse(remote), parse(local_version)), (Some(remote), Some(local)) if remote > local || (remote == local && is_prerelease))
 }
 
 #[cfg(test)]
@@ -1111,6 +1116,8 @@ mod release_tests {
         assert!(!is_newer_stable_release("2.9.0", "2.10.0"));
         for version in ["", "2.0", "2.0.0.1", "2.0.0-beta.1", "2.0.x", "2.0.0+build"] {
             assert!(!is_newer_stable_release(version, "1.16.0"));
+        }
+        for version in ["", "2.0", "2.0.0.1", "2.0.x", "2.0.0+build", "2.0.0-"] {
             assert!(!is_newer_stable_release("2.0.0", version));
         }
     }
@@ -1121,5 +1128,8 @@ mod release_tests {
         assert!(!is_newer_stable_release("1.15.0", "1.16.0"));
         assert!(!is_newer_stable_release("2.0.0-rc.1", "1.16.0"));
         assert!(!is_newer_stable_release("1.16.0", "1.16.0"));
+        assert!(is_newer_stable_release("2.0.0", "2.0.0-beta.1"));
+        assert!(is_newer_stable_release("2.0.0", "2.0.0-rc.1"));
+        assert!(!is_newer_stable_release("1.16.0", "2.0.0-beta.1"));
     }
 }

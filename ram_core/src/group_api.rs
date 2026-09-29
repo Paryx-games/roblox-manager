@@ -356,15 +356,11 @@ pub struct GroupForumPost {
 fn parse_latest_group_announcement(
     value: &serde_json::Value,
 ) -> Option<(LatestGroupAnnouncement, Option<u64>)> {
-    let announcement = value
-        .get("announcement")
-        .or_else(|| {
-            value
-                .get("data")
-                .and_then(serde_json::Value::as_array)?
-                .first()
-        })
-        .unwrap_or(value);
+    let announcement = match (value.get("announcement"), value.get("data")) {
+        (Some(announcement), _) => announcement,
+        (None, Some(data)) => data.as_array()?.first()?,
+        (None, None) => value,
+    };
     let title = announcement
         .get("title")
         .or_else(|| announcement.get("name"))
@@ -575,6 +571,7 @@ mod group_content_tests {
         let (announcement, _) = parse_latest_group_announcement(&serde_json::json!({})).unwrap();
         assert_eq!(announcement.title, "Announcement");
         assert!(announcement.body.is_empty());
+        assert!(parse_latest_group_announcement(&serde_json::json!({ "data": [] })).is_none());
     }
 
     #[test]
