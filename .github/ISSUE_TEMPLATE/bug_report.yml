@@ -29,15 +29,14 @@ body:
       label: Affected area
       description: Which part of RM is affected?
       options:
-        - Account management or authentication
-        - Game launching or multi-instance
-        - Bulk launch or groups
-        - Privacy mode or cookie handling
-        - Window tiling or process detection
-        - Live presence
-        - Encrypted storage or settings
-        - UI or visual issue
-        - Build or installation
+        - Accounts or login
+        - Instances, launching, or window management
+        - Groups or activity
+        - Private Servers or Presets
+        - Inventories or Asset Manager
+        - Settings, privacy, or encrypted storage
+        - Interface or accessibility
+        - Installer or update
         - Other
     validations:
       required: true
@@ -47,9 +46,20 @@ body:
     attributes:
       label: RM version or commit
       description: Include the release version, or the commit hash if built from source.
-      placeholder: "Example: v0.1.0 or a1b2c3d"
+      placeholder: "Example: v2.0.0-beta.1 or a1b2c3d"
     validations:
       required: true
+
+  - type: dropdown
+    id: build
+    attributes:
+      label: Build type
+      description: How did you install or run RM?
+      options:
+        - Installer
+        - Portable executable
+        - Built from source
+        - Not sure
 
   - type: input
     id: windows
