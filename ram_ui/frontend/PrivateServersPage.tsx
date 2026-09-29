@@ -83,6 +83,8 @@ export function PrivateServersPage({
   const [editName, setEditName] = useState("");
   const [editUrl, setEditUrl] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [launchingIndex, setLaunchingIndex] = useState<number | null>(null);
+  const launchingIndexRef = useRef<number | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -122,17 +124,6 @@ export function PrivateServersPage({
       `${isOpenRight ? "is-open-right" : ""} ${isOpenUp ? "is-open-up" : ""}`.trim(),
     );
   }, [openMenu]);
-
-  useEffect(() => {
-    if (editTarget === null) return;
-
-    function dismissEditorOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setEditTarget(null);
-    }
-
-    document.addEventListener("keydown", dismissEditorOnEscape);
-    return () => document.removeEventListener("keydown", dismissEditorOnEscape);
-  }, [editTarget]);
 
   async function reload() {
     setLoading(true);
@@ -195,6 +186,9 @@ export function PrivateServersPage({
     }
   }
   async function launch(index: number) {
+    if (launchingIndexRef.current !== null) return;
+    launchingIndexRef.current = index;
+    setLaunchingIndex(index);
     try {
       const selectedAccountIds = serverAccounts[index] ?? selectedIds;
       await launchPrivateServer(index, [...selectedAccountIds]);
@@ -204,6 +198,9 @@ export function PrivateServersPage({
           ? reason.message
           : "The private server could not be launched.",
       );
+    } finally {
+      launchingIndexRef.current = null;
+      setLaunchingIndex(null);
     }
   }
   async function confirmDelete() {
@@ -211,6 +208,7 @@ export function PrivateServersPage({
     setDeleting(true);
     try {
       await removePrivateServer(deleteTarget.index);
+      setServerAccounts({});
       setDeleteTarget(null);
       await reload();
     } catch {
@@ -505,12 +503,13 @@ export function PrivateServersPage({
                         }`}
                         type="button"
                         disabled={
+                          launchingIndex !== null ||
                           !(serverAccounts[server.index] ?? selectedIds).size
                         }
                         onClick={() => void launch(server.index)}
                       >
                         <span className="account-icon private-server-launch-icon" />
-                        Launch
+                        {launchingIndex === server.index ? "Launching..." : "Launch"}
                       </button>
                       <div
                         className="private-server-menu-anchor"

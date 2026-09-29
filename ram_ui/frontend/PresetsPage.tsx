@@ -163,17 +163,6 @@ export function PresetsPage({
     );
   }, [openMenu]);
 
-  useEffect(() => {
-    if (editTarget === null) return;
-
-    function dismissEditorOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setEditTarget(null);
-    }
-
-    document.addEventListener("keydown", dismissEditorOnEscape);
-    return () => document.removeEventListener("keydown", dismissEditorOnEscape);
-  }, [editTarget]);
-
   const visiblePresets = useMemo(() => {
     const query = search.trim().toLowerCase();
     const filtered = presets.filter((preset) =>
@@ -240,6 +229,7 @@ export function PresetsPage({
     setDeleting(true);
     try {
       await removeLaunchPreset(deleteTarget.index);
+      setPresetAccounts({});
       setDeleteTarget(null);
       await reload();
     } catch {

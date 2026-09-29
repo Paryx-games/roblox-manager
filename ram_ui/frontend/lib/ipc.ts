@@ -353,8 +353,8 @@ export async function listAssetCreations(userId: number, options: { creator: Ass
 export async function grantAssetAccess(userId: number, universeId: number, assetIds: number[]): Promise<{ granted: number[]; failures: Array<number | null>; notice: string | null }> { return invoke("grant_asset_access", { userId, universeId, assetIds }); }
 export async function revealAssetFile(rowId: string): Promise<void> { return invoke("reveal_asset_file", { rowId }); }
 
-export async function changeAssetQueue(action: "clearFinished" | "retry" | "remove", options: { rowId?: string } = {}): Promise<AssetWorkspace> {
-  return invoke<AssetWorkspace>("change_asset_queue", { action, rowId: options.rowId ?? null });
+export async function changeAssetQueue(userId: number, action: "clearFinished" | "retry" | "remove", options: { rowId?: string } = {}): Promise<AssetWorkspace> {
+  return invoke<AssetWorkspace>("change_asset_queue", { userId, action, rowId: options.rowId ?? null });
 }
 
 export async function listAssetUniverses(userId: number): Promise<AssetUniverse[]> {
@@ -763,6 +763,7 @@ export interface StartupStatus {
   changelog: string | null;
   passwordlessOffer: boolean;
   legacyMigrationAvailable: boolean;
+  migrationNotice: string | null;
 }
 export async function startupStatus(): Promise<StartupStatus> { return invoke("startup_status"); }
 export async function acknowledgeStartup(section: "version" | "passwordless"): Promise<void> { return invoke("acknowledge_startup", { section }); }

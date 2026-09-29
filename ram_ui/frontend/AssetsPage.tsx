@@ -365,11 +365,12 @@ export function AssetsPage({
     action: "clearFinished" | "retry" | "remove",
     row?: AssetRow,
   ) {
-    if (workspace.isReadOnly || mutationPending.current) return;
+    if (!selectedUserId || workspace.isReadOnly || mutationPending.current) return;
     mutationPending.current = true;
     setIsMutating(true);
     try {
       const nextWorkspace = await changeAssetQueue(
+        selectedUserId,
         action,
         row ? { rowId: row.rowId } : {},
       );
@@ -466,7 +467,7 @@ export function AssetsPage({
       notify("Experience access checked", `${result.granted.length} of ${selectedAssetIds.length} assets confirmed. ${result.failures.length ? `Roblox refused ${result.failures.length} permission requests.` : result.granted.length < selectedAssetIds.length ? "Some permissions were not confirmed. Check Creator Dashboard." : ""}`, result.granted.length === selectedAssetIds.length ? "success" : "warning");
     });
   }
-  const hasFinishedRows = workspace.rows.some(
+  const hasFinishedRows = ownedRows.some(
     (row) => terminalStates.has(row.state) && row.state !== "approved",
   );
 

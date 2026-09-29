@@ -96,6 +96,7 @@ export function AccountPicker({
   );
 
   useEffect(() => {
+    if (!open) return;
     function closeOnOutsidePointer(event: PointerEvent) {
       if (
         pickerRef.current &&
@@ -107,7 +108,7 @@ export function AccountPicker({
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     return () =>
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
-  }, [onOpenChange]);
+  }, [onOpenChange, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -256,7 +257,7 @@ export function AccountPicker({
                     optionRefs.current[index] = element;
                   }}
                   type="button"
-                  role="menuitemradio"
+                  role={mode === "multiple" ? "menuitemcheckbox" : "menuitemradio"}
                   aria-checked={selected}
                   onClick={() => selectAccount(account.userId)}
                 >

@@ -3064,7 +3064,7 @@ button:focus-visible {
   gap: var(--space-2);
   padding: 0 var(--space-2);
   border: var(--border-width) solid var(--border-default);
-  border-radius: 7px;
+  border-radius: var(--radius);
   background: var(--bg-surface);
 }
 
@@ -3115,7 +3115,7 @@ button:focus-visible {
   justify-content: center;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius);
   color: var(--text-muted);
   background: transparent;
   cursor: pointer;
@@ -3169,7 +3169,7 @@ button:focus-visible {
   min-height: 28px;
   padding: 0 var(--space-2);
   border: var(--border-width) solid var(--border-default);
-  border-radius: 7px;
+  border-radius: var(--radius);
   color: var(--text-primary);
   background: var(--bg-surface);
   cursor: pointer;
@@ -4919,7 +4919,7 @@ button:focus-visible {
 .account-card {
   padding: var(--space-4);
   border: var(--border-width) solid var(--border-default);
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--bg-surface);
 }
 
@@ -5503,7 +5503,7 @@ button:focus-visible {
 .account-hint code {
   padding: 1px var(--space-2);
   border: var(--border-width) solid var(--border-default);
-  border-radius: 4px;
+  border-radius: var(--radius);
   color: var(--text-muted);
   background: var(--bg-raised);
   font-family: var(--font-sans);
@@ -5615,7 +5615,7 @@ button:focus-visible {
   min-height: 180px;
   padding: var(--space-6);
   border: var(--border-width) dashed var(--border-default);
-  border-radius: 10px;
+  border-radius: var(--radius);
   color: var(--text-muted);
   text-align: center;
 }

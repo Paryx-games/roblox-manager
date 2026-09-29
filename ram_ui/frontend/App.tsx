@@ -142,6 +142,7 @@ export function App() {
       const status = await startupStatus();
       setStartup(status);
       setStartupError(null);
+      if (status.migrationNotice) setRuntimeToast({ id: Date.now(), title: "Older favourites need attention", message: status.migrationNotice, kind: "warning", duration: "long" });
       if (!status.needsTutorial && !status.changelog) await acknowledgeStartup("version");
     } catch (error) { setStartupError(operationError(error, "Startup information could not be loaded.")); }
   }
@@ -470,10 +471,10 @@ export function App() {
               className={`page-transition-layer ${
                 isPageTransitioning ? "is-transitioning" : ""
               }`}
-              aria-live="polite"
             >
               {renderPage(displayedNav)}
             </div>
+            <span className="sr-only" aria-live="polite">{displayedNav} page</span>
           </div>
         </div>
       </div>
