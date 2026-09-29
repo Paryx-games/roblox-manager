@@ -6,6 +6,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Fixed
 
+- **First-run walkthrough.** Navigate through Accounts, Instances and Settings with a floating translucent tour dock, white control highlights, Back and a secondary Skip tour action. Explain launching with a disabled preview when no account is selected.
+
 - **Upgrade release notes.** Format the What's changed dialog with headings, lists and emphasis in a larger scrollable window. Show only the installed version's notes, with prerelease builds using the current development notes instead of the full changelog history.
 
 - **Installer shortcut choices.** Remove the Start menu folder selection page and use the Roblox Manager folder. Select desktop shortcuts by default while retaining the option to disable either shortcut.

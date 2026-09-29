@@ -4,6 +4,7 @@ import { InstancesPage } from "./InstancesPage";
 import { Toast, type ToastItem } from "./Toast";
 import { Popup } from "./components/Popup";
 import { ReleaseNotes } from "./components/ReleaseNotes";
+import { Walkthrough, walkthroughSteps } from "./components/Walkthrough";
 import { ConfirmModal } from "./ConfirmModal";
 import { acknowledgeStartup, checkReleaseUpdate, clearPassword, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
 import { listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
@@ -125,13 +126,11 @@ export function App() {
   const [update, setUpdate] = useState<[string, string] | null>(null);
   const [browserPlaceId, setBrowserPlaceId] = useState<number | null>(null);
   const [prefilledPlaceId, setPrefilledPlaceId] = useState<number>();
-  const tutorialSteps = [
-    ["Welcome to Roblox Manager", "RM keeps your accounts encrypted and helps you launch and track multiple Roblox clients. This walkthrough explains the main controls."],
-    ["Add your accounts", "Open Accounts and choose Add account. Sign in through the browser or explicitly paste a cookie. Re-adding an account replaces its credential while preserving its organisation."],
-    ["Choose accounts and a game", "Select accounts in the list, enter a Place ID and choose Launch. Presets and Private Servers let you save destinations for later."],
-    ["Track your clients", "Instances shows running clients and launch progress. Exact matches support verified individual kills; inferred matches are guesses. You can focus, arrange or join a client's server."],
-    ["Set up your preferences", "Settings controls privacy, encryption, window arrangement and optional developer workspaces. Keep your encrypted account store and backups safe."],
-  ];
+  const isTourVisible = !!startup?.needsTutorial && (!startup.legacyMigrationAvailable || isMigrationDismissed);
+
+  useEffect(() => {
+    if (isTourVisible) setActiveNav(walkthroughSteps[tutorialStep].page);
+  }, [isTourVisible, tutorialStep]);
 
   async function refreshStartup() {
     try {
@@ -413,8 +412,8 @@ export function App() {
         </div>
       </header>
 
-      <div className="body-row">
-        <nav className="sidebar" aria-label="Primary navigation">
+      <div className={`body-row ${isTourVisible ? "is-walkthrough-active" : ""}`} data-walkthrough-content>
+        <nav className="sidebar" aria-label="Primary navigation" data-walkthrough="navigation">
           {visibleNavItems.map((item) => (
             <RailButton
               {...item}
@@ -438,7 +437,7 @@ export function App() {
           />
         </nav>
 
-        <div className="main-col">
+        <div className="main-col" data-walkthrough="workspace">
           <div className="page-transition-viewport">
             <div
               className={`page-transition-layer ${
@@ -452,10 +451,15 @@ export function App() {
         </div>
       </div>
       {runtimeToast && <Toast item={runtimeToast} onDismiss={() => setRuntimeToast(null)} />}
-      {startup?.legacyMigrationAvailable && !isMigrationDismissed ? <ConfirmModal title="Migrate older RM data?" message="Copy your older configuration and encrypted account store into the standard RM data folder. Original files remain in place; existing modern data will never be overwritten." confirmLabel={isStartupPending ? "Migrating..." : "Copy to RM data folder"} confirmDisabled={isStartupPending} confirmIcon="import" onConfirm={() => void completeStartup(migrateLegacyData)} onCancel={() => setIsMigrationDismissed(true)} /> : startup?.needsTutorial ? <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="tutorial-title">
-        <h2 id="tutorial-title">{tutorialSteps[tutorialStep][0]}</h2><p>{tutorialSteps[tutorialStep][1]}</p><p>Step {tutorialStep + 1} of {tutorialSteps.length}</p>
-        <div className="confirm-modal-actions"><button className="account-button" type="button" disabled={isStartupPending} onClick={() => void completeStartup(() => acknowledgeStartup("version"))}>Skip walkthrough</button><button className="account-button" type="button" disabled={isStartupPending} onClick={() => tutorialStep === tutorialSteps.length - 1 ? void completeStartup(() => acknowledgeStartup("version")) : setTutorialStep((step) => step + 1)}>{tutorialStep === tutorialSteps.length - 1 ? "Finish" : "Next"}</button></div>
-      </Popup> : startup?.changelog ? <Popup className="confirm-modal changelog-modal" backdropClassName="confirm-modal-backdrop" labelledBy="changelog-title">
+      {startup?.legacyMigrationAvailable && !isMigrationDismissed ? <ConfirmModal title="Migrate older RM data?" message="Copy your older configuration and encrypted account store into the standard RM data folder. Original files remain in place; existing modern data will never be overwritten." confirmLabel={isStartupPending ? "Migrating..." : "Copy to RM data folder"} confirmDisabled={isStartupPending} confirmIcon="import" onConfirm={() => void completeStartup(migrateLegacyData)} onCancel={() => setIsMigrationDismissed(true)} /> : isTourVisible ? <Walkthrough
+        stepIndex={tutorialStep}
+        isPageReady={displayedNav === walkthroughSteps[tutorialStep].page && !isPageTransitioning}
+        isPending={isStartupPending}
+        error={startupError}
+        onBack={() => setTutorialStep((step) => Math.max(0, step - 1))}
+        onNext={() => setTutorialStep((step) => Math.min(walkthroughSteps.length - 1, step + 1))}
+        onFinish={() => void completeStartup(() => acknowledgeStartup("version"))}
+      /> : startup?.changelog ? <Popup className="confirm-modal changelog-modal" backdropClassName="confirm-modal-backdrop" labelledBy="changelog-title">
         <h2 id="changelog-title">What's changed in RM</h2><ReleaseNotes markdown={startup.changelog} /><button className="account-button" type="button" disabled={isStartupPending} onClick={() => void completeStartup(() => acknowledgeStartup("version"))}>Continue</button>
       </Popup> : startup?.passwordlessOffer ? <ConfirmModal title="Stop asking for a password on this PC?" message="Device encryption keeps your store encrypted and unlocks it through Windows Credential Manager. Keep a master password if you need to move the store between PCs." confirmLabel={isStartupPending ? "Changing encryption..." : "Use device encryption"} confirmDisabled={isStartupPending} confirmIcon="lock" onConfirm={() => void completeStartup(async () => { await clearPassword(); await acknowledgeStartup("passwordless"); })} onCancel={() => { if (!isStartupPending) void completeStartup(() => acknowledgeStartup("passwordless")); }} /> : browserPlaceId ? <ConfirmModal title="Launch this game through RM?" message={`The account browser blocked an external Roblox launch for Place ID ${browserPlaceId}. Prefill it in Accounts, then choose which account to launch.`} confirmLabel="Prefill Place ID" confirmIcon="game" onConfirm={() => { setPrefilledPlaceId(browserPlaceId); setBrowserPlaceId(null); setActiveNav("Accounts"); }} onCancel={() => setBrowserPlaceId(null)} /> : null}
       {startupError && <Toast item={{ id: 1, title: "Startup action needs attention", message: startupError, kind: "error", duration: "long" }} onDismiss={() => setStartupError(null)} />}

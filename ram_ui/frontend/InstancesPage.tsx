@@ -74,7 +74,7 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
 
   return <>
     <div className="header-row"><h1 className="header-title">Instances</h1></div>
-    <main className="instances-page assets-page">
+    <main className="instances-page assets-page" data-walkthrough="instances">
       <div className="assets-main">
         <div className="assets-toolbar instances-toolbar">
           <span className="instances-count" role="status">{isLoading ? "Checking running clients..." : `${workspace.runningCount} Roblox client${workspace.runningCount === 1 ? "" : "s"} running`}</span>

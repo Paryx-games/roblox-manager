@@ -32,6 +32,9 @@
   /* action - buttons, links, focus rings, primary interactive elements */
   --action-primary: #3e63f6;
   --action-muted: rgba(255, 255, 255, 0.08);
+  --walkthrough-outline: #fff;
+  --walkthrough-dim: rgba(0, 0, 0, 0.72);
+  --walkthrough-dock: rgba(22, 23, 26, 0.78);
 
   --notification-info: var(--action-primary);
   --notification-success: #32b85c;

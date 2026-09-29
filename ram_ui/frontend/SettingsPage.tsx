@@ -767,7 +767,7 @@ export function SettingsPage() {
             activeAnchor={activeAnchor}
             onNavigate={navigateToAnchor}
           />
-          <section ref={settingsPageRef} className="settings-content" aria-label="Settings controls">
+          <section ref={settingsPageRef} className="settings-content" aria-label="Settings controls" data-walkthrough="preferences">
             <div className="settings-workspace">
             <div className="settings-content-inner">
 

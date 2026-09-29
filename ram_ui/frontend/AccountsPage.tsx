@@ -1864,7 +1864,7 @@ export function AccountsPage({
         aria-busy={loading}
         onContextMenu={(event) => event.preventDefault()}
       >
-        <aside className="accounts-list-panel" aria-label="Managed accounts">
+        <aside className="accounts-list-panel" aria-label="Managed accounts" data-walkthrough="accounts">
           <div className="accounts-list-head">
             <div className="accounts-search-row">
               <label className="accounts-search-field">
@@ -1879,6 +1879,7 @@ export function AccountsPage({
                 className="icon-button bordered"
                 type="button"
                 aria-label="Add account"
+                data-walkthrough="add-account"
                 data-tip="Add account"
                 onClick={() => (showAddForm ? closeAddForm() : openAddForm())}
               >
@@ -2451,6 +2452,7 @@ export function AccountsPage({
               : ""
           }`}
           aria-label="Account details"
+          data-walkthrough="account-details"
           style={{ "--account-accent": selectedGroupColor } as CSSProperties}
         >
           {loading ? <LoadingSkeleton layout="account" label="Loading account details" /> : !selectedAccount ? (
@@ -2639,6 +2641,7 @@ export function AccountsPage({
               )}
 
               <section
+                data-walkthrough="launch"
                 className={`account-card launch-card ${
                   selectedAccount.moderationActive || selectedAccount.cookieExpired
                     ? "is-account-restricted"
