@@ -20,8 +20,8 @@ use ram_core::api::{parse_private_server_url, ParsedPrivateServerUrl};
 use ram_core::crypto;
 use ram_core::group_api;
 use ram_core::models::{
-    Account, AppConfig, GroupMeta, LaunchPreset, LogLevel, MonitorGeometry, MonitorTarget,
-    Presence, PrivateServer, TilingLayoutMode, TilingOptions,
+    Account, AccountStore, AppConfig, GroupMeta, LaunchPreset, LogLevel, MonitorGeometry,
+    MonitorTarget, Presence, PrivateServer, TilingLayoutMode, TilingOptions,
 };
 use ram_core::{api, assets_api, auth::RobloxClient, process};
 use serde::{Deserialize, Serialize};
@@ -1168,6 +1168,74 @@ fn save_config(runtime: &state::RuntimeState) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
+fn save_group_changes(
+    runtime: &mut state::RuntimeState,
+    accounts: AccountStore,
+    config: AppConfig,
+) -> Result<(), String> {
+    let session = runtime
+        .session
+        .as_ref()
+        .ok_or_else(|| "Account store is locked".to_string())?;
+    config
+        .save(&runtime.config_path)
+        .map_err(|_| "Group settings could not be saved".to_string())?;
+    if crypto::save_store(&runtime.config.accounts_path, &accounts, session).is_err() {
+        runtime.config.save(&runtime.config_path).map_err(|_| {
+            "Account store could not be saved, and group settings could not be restored".to_string()
+        })?;
+        return Err("Account store could not be saved".to_string());
+    }
+    runtime.config = config;
+    runtime.accounts = accounts;
+    Ok(())
+}
+
+#[cfg(test)]
+mod group_persistence_tests {
+    use super::*;
+
+    #[test]
+    fn failed_account_save_restores_group_config_and_memory() {
+        let directory =
+            std::env::temp_dir().join(format!("rm-group-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let config_path = directory.join("config.json");
+        let mut config = AppConfig {
+            accounts_path: directory.clone(),
+            ..AppConfig::default()
+        };
+        config.groups.insert(
+            "Original".to_string(),
+            GroupMeta {
+                color: [1, 2, 3],
+                description: String::new(),
+                sort_order: 0,
+            },
+        );
+        config.save(&config_path).unwrap();
+        let mut runtime = state::RuntimeState {
+            accounts: AccountStore::default(),
+            config: config.clone(),
+            config_path: config_path.clone(),
+            session: Some(crypto::create_password_session("synthetic test password").unwrap()),
+            unlocked: true,
+            legacy_store: false,
+            is_first_install: false,
+            credential_revisions: std::collections::HashMap::new(),
+        };
+        let mut candidate = config;
+        candidate.groups.clear();
+
+        assert!(save_group_changes(&mut runtime, AccountStore::default(), candidate).is_err());
+        assert!(runtime.config.groups.contains_key("Original"));
+        assert!(AppConfig::load(&config_path)
+            .groups
+            .contains_key("Original"));
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+}
+
 fn settings_info_cards() -> std::collections::HashMap<String, SettingsInfoCard> {
     serde_json::from_str::<std::collections::HashMap<String, RawSettingsInfoCard>>(include_str!(
         "../../../infocards.json"
@@ -1819,14 +1887,15 @@ async fn delete_account_group(
             .runtime
             .lock()
             .map_err(|_| "Account state unavailable".to_string())?;
-        runtime.config.groups.remove(name.trim());
-        for account in &mut runtime.accounts.accounts {
+        let mut config = runtime.config.clone();
+        let mut accounts = runtime.accounts.clone();
+        config.groups.remove(name.trim());
+        for account in &mut accounts.accounts {
             if account.group == name.trim() {
                 account.group.clear();
             }
         }
-        save_config(&runtime)?;
-        save_runtime(&runtime)
+        save_group_changes(&mut runtime, accounts, config)
     })
     .await
     .map_err(|_| "Group deletion task failed".to_string())?
@@ -1856,20 +1925,20 @@ async fn update_account_group_meta(
         if old_name != new_name && runtime.config.groups.contains_key(new_name) {
             return Err("A group with that name already exists".to_string());
         }
-        let mut metadata = runtime
-            .config
+        let mut config = runtime.config.clone();
+        let mut accounts = runtime.accounts.clone();
+        let mut metadata = config
             .groups
             .remove(old_name)
             .ok_or_else(|| "Group not found".to_string())?;
         metadata.color = color;
-        runtime.config.groups.insert(new_name.to_string(), metadata);
-        for account in &mut runtime.accounts.accounts {
+        config.groups.insert(new_name.to_string(), metadata);
+        for account in &mut accounts.accounts {
             if account.group == old_name {
                 account.group = new_name.to_string();
             }
         }
-        save_config(&runtime)?;
-        save_runtime(&runtime)?;
+        save_group_changes(&mut runtime, accounts, config)?;
         let mut groups = runtime
             .config
             .groups
