@@ -26,6 +26,8 @@ RM has no 0.x or beta phase for the project as a whole - every version line stil
 >
 > Under SemVer, a pre-release version sorts _before_ the plain version it leads up to (`v2.0.0-rc.1` < `v2.0.0`), and tooling generally should not treat a pre-release as the "latest" stable version.
 
+GitHub's Latest release slot is an exception for release candidates: the workflow publishes an `-rc.N` tag as a full GitHub release so it can occupy that slot during final testing. The tag is still a SemVer prerelease, and the latest actually stable version remains the newest plain `vX.Y.Z` tag.
+
 ## Where the version lives
 
 The root `Cargo.toml` is the version source of truth. Both Rust crates inherit it. Synchronise the required version mirrors in `ram_ui/src-tauri/tauri.conf.json` and `ram_ui/package.json` when preparing a release; do not introduce independent version constants.

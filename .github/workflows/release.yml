@@ -426,10 +426,11 @@ jobs:
         shell: pwsh
         run: |
           $currentTag = "$env:RELEASE_TAG"
-          $isPrerelease = $currentTag -match "-(alpha|beta|rc)"
-          $makeLatest = (-not $isPrerelease).ToString().ToLower()
+          $isReleaseCandidate = $currentTag -match "-rc\.\d+$"
+          $isGithubPrerelease = ($currentTag -match "-") -and -not $isReleaseCandidate
+          $makeLatest = (-not $isGithubPrerelease).ToString().ToLower()
 
-          "prerelease=$($isPrerelease.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "prerelease=$($isGithubPrerelease.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "make_latest=$makeLatest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Create release
