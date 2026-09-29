@@ -1218,7 +1218,9 @@ mod group_persistence_tests {
             accounts: AccountStore::default(),
             config: config.clone(),
             config_path: config_path.clone(),
-            session: Some(crypto::create_password_session("synthetic test password").unwrap()),
+            session: Some(
+                crypto::create_password_session(&uuid::Uuid::new_v4().to_string()).unwrap(),
+            ),
             unlocked: true,
             legacy_store: false,
             is_first_install: false,
