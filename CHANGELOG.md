@@ -6,6 +6,8 @@ v2 is currently being developed on the [`v2`](https://github.com/Paryx-games/rob
 
 ### Fixed
 
+- **Upgrade release notes.** Format the What's changed dialog with headings, lists and emphasis in a larger scrollable window. Show only the installed version's notes, with prerelease builds using the current development notes instead of the full changelog history.
+
 - **Installer shortcut choices.** Remove the Start menu folder selection page and use the Roblox Manager folder. Select desktop shortcuts by default while retaining the option to disable either shortcut.
 
 - **Website build guidance.** Describe the Tauri + React interface and provide the frontend installation and locked desktop bundle commands, with the required Windows build tools.

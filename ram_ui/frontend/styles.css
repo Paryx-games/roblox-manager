@@ -79,12 +79,42 @@
 }
 
 .startup-changelog {
-  max-height: 50vh;
+  max-height: 60vh;
   overflow: auto;
-  white-space: pre-wrap;
   font-family: var(--font-sans);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
+  line-height: 1.6;
   color: var(--text-muted);
+}
+
+.startup-changelog h2,
+.startup-changelog h3,
+.startup-changelog strong {
+  color: var(--text-primary);
+}
+
+.startup-changelog h2 {
+  font-size: var(--text-xl);
+}
+
+.startup-changelog h3 {
+  margin-block: var(--space-6) var(--space-3);
+  font-size: var(--text-lg);
+}
+
+.startup-changelog ul {
+  padding-left: var(--space-6);
+  list-style: disc;
+}
+
+.startup-changelog li + li,
+.startup-changelog ul + ul {
+  margin-top: var(--space-3);
+}
+
+.startup-changelog:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
 }
 
 .titlebar .titlebar-update {
@@ -5161,6 +5191,11 @@ button:focus-visible {
   border-radius: var(--radius);
   background: var(--bg-surface);
   animation: popup-enter var(--duration-base) var(--ease-standard) both;
+}
+
+.confirm-modal.changelog-modal {
+  width: min(100%, 800px);
+  max-height: calc(100vh - var(--space-12));
 }
 
 @keyframes popup-enter {

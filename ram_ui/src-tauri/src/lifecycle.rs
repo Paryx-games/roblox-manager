@@ -20,6 +20,36 @@ pub struct StartupStatus {
     legacy_migration_available: bool,
 }
 
+fn release_notes(changelog: &str, version: &str) -> Option<String> {
+    let sections: Vec<_> = changelog.split("\n## ").skip(1).collect();
+    let matching = sections.iter().find(|section| {
+        section
+            .lines()
+            .next()
+            .is_some_and(|heading| heading.trim().trim_start_matches('v') == version)
+    });
+    let section = matching.or_else(|| {
+        version
+            .contains('-')
+            .then(|| {
+                sections.iter().find(|section| {
+                    section
+                        .lines()
+                        .next()
+                        .is_some_and(|heading| heading.trim() == "Unreleased")
+                })
+            })
+            .flatten()
+    })?;
+    let content = section.split_once('\n')?.1;
+    let content = if matching.is_none() {
+        &content[content.find("### ")?..]
+    } else {
+        content.trim()
+    };
+    Some(format!("## v{version}\n\n{}", content.trim()))
+}
+
 fn migrate_favourites(
     runtime: &mut crate::state::RuntimeState,
     directory: &Path,
@@ -58,7 +88,9 @@ pub async fn startup_status(state: tauri::State<'_, AppState>) -> Result<Startup
             .is_some_and(|previous| previous != version);
         Ok(StartupStatus {
             needs_tutorial: runtime.is_first_install && runtime.config.last_seen_version.is_none(),
-            changelog: changed_version.then(|| include_str!("../../../CHANGELOG.md").to_string()),
+            changelog: changed_version
+                .then(|| release_notes(include_str!("../../../CHANGELOG.md"), version))
+                .flatten(),
             passwordless_offer: runtime.unlocked
                 && !runtime.config.offered_passwordless
                 && runtime
@@ -271,6 +303,25 @@ pub async fn open_release_page(url: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn release_notes_select_only_the_installed_version() {
+        let changelog = "# Changelog\n\n## Unreleased\n\nDevelopment links\n\n### Fixed\n\n- Upcoming\n\n## v2.0.0-beta.1\n\n### Added\n\n- Current\n\n## v1.0.0\n\n- Older\n";
+        assert_eq!(
+            release_notes(changelog, "2.0.0-beta.1").unwrap(),
+            "## v2.0.0-beta.1\n\n### Added\n\n- Current"
+        );
+        assert!(release_notes(changelog, "2.0.0").is_none());
+    }
+
+    #[test]
+    fn prerelease_notes_use_unreleased_without_the_development_intro() {
+        let changelog = "# Changelog\r\n\r\n## Unreleased\r\n\r\nDevelopment links\r\n\r\n### Fixed\r\n\r\n- Current\r\n\r\n## v1.0.0\r\n\r\n- Older";
+        assert_eq!(
+            release_notes(changelog, "2.0.0-beta.1").unwrap(),
+            "## v2.0.0-beta.1\n\n### Fixed\r\n\r\n- Current"
+        );
+    }
 
     #[test]
     fn favourites_migrate_without_duplicates_and_invalid_entries_are_retained() {
