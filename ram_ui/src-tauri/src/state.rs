@@ -1,6 +1,6 @@
 use ram_core::crypto::StoreSession;
 use ram_core::models::{AccountStore, AppConfig};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 pub struct RuntimeState {
@@ -25,6 +25,14 @@ pub struct AppState {
     pub is_shutting_down: Arc<std::sync::atomic::AtomicBool>,
 }
 
+fn is_legacy_directory(directory: &Path) -> bool {
+    directory.join("accounts.dat").is_file()
+        || std::fs::read_to_string(directory.join("config.json"))
+            .ok()
+            .and_then(|content| serde_json::from_str::<AppConfig>(&content).ok())
+            .is_some()
+}
+
 impl Default for AppState {
     fn default() -> Self {
         let data_dir = std::env::var_os("APPDATA")
@@ -32,17 +40,10 @@ impl Default for AppState {
             .unwrap_or_else(|| PathBuf::from("."))
             .join("RM");
         let modern_config = data_dir.join("config.json");
-        let legacy_directory = [
-            std::env::current_dir().ok(),
-            std::env::current_exe()
-                .ok()
-                .and_then(|path| path.parent().map(PathBuf::from)),
-        ]
-        .into_iter()
-        .flatten()
-        .find(|directory| {
-            directory.join("config.json").is_file() || directory.join("accounts.dat").is_file()
-        });
+        let legacy_directory = std::env::current_exe()
+            .ok()
+            .and_then(|path| path.parent().map(PathBuf::from))
+            .filter(|directory| is_legacy_directory(directory));
         let source_directory = if modern_config.exists() || data_dir.join("accounts.dat").exists() {
             data_dir.clone()
         } else {
@@ -72,5 +73,28 @@ impl Default for AppState {
             launch_queue: Arc::new(tokio::sync::Mutex::new(None)),
             is_shutting_down: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unrelated_config_is_not_adopted_as_legacy_data() {
+        let directory =
+            std::env::temp_dir().join(format!("rm-legacy-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        ram_core::storage::atomic_write(
+            &directory.join("config.json"),
+            br#"{"otherApplication":true}"#,
+        )
+        .unwrap();
+        assert!(!is_legacy_directory(&directory));
+        AppConfig::default()
+            .save(&directory.join("config.json"))
+            .unwrap();
+        assert!(is_legacy_directory(&directory));
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }

@@ -18,6 +18,7 @@ pub struct StartupStatus {
     changelog: Option<String>,
     passwordless_offer: bool,
     legacy_migration_available: bool,
+    migration_notice: Option<&'static str>,
 }
 
 fn release_notes(changelog: &str, version: &str) -> Option<String> {
@@ -57,6 +58,16 @@ fn migrate_favourites(
     presets::migrate_favourites(&mut runtime.config, directory, &runtime.config_path)
 }
 
+fn try_migrate_favourites(
+    runtime: &mut crate::state::RuntimeState,
+    directory: &Path,
+) -> Option<&'static str> {
+    migrate_favourites(runtime, directory).err().map(|_| {
+        tracing::warn!("Legacy favourite migration needs attention");
+        "Some older favourites could not be migrated. Your original entries were kept. Review your presets and try again after correcting them."
+    })
+}
+
 #[tauri::command]
 pub async fn startup_status(state: tauri::State<'_, AppState>) -> Result<StartupStatus, String> {
     let state = state.inner().clone();
@@ -65,7 +76,7 @@ pub async fn startup_status(state: tauri::State<'_, AppState>) -> Result<Startup
             .runtime
             .lock()
             .map_err(|_| "Application state unavailable")?;
-        migrate_favourites(&mut runtime, &data_directory())?;
+        let migration_notice = try_migrate_favourites(&mut runtime, &data_directory());
         if runtime.unlocked
             && !runtime.config.offered_passwordless
             && runtime
@@ -100,6 +111,7 @@ pub async fn startup_status(state: tauri::State<'_, AppState>) -> Result<Startup
             legacy_migration_available: runtime.config_path != data_directory().join("config.json")
                 && !data_directory().join("config.json").exists()
                 && !data_directory().join("accounts.dat").exists(),
+            migration_notice,
         })
     })
     .await
@@ -356,6 +368,8 @@ mod tests {
                 place_id: 0,
             });
         assert!(migrate_favourites(&mut runtime, &directory).is_err());
+        assert_eq!(runtime.config.favorite_places.len(), 1);
+        assert!(try_migrate_favourites(&mut runtime, &directory).is_some());
         assert_eq!(runtime.config.favorite_places.len(), 1);
         std::fs::remove_dir_all(directory).unwrap();
     }

@@ -801,88 +801,105 @@ fn account_summary(
 }
 
 #[tauri::command]
-fn store_status(state: tauri::State<'_, AppState>) -> Result<StoreStatus, String> {
-    let runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    let exists = runtime.config.accounts_path.is_file();
-    let needs_password = if exists {
-        crypto::peek_mode(&runtime.config.accounts_path)
-            .map_err(|_| "Account store status unavailable".to_string())?
-            .is_some_and(|mode| mode == crypto::StoreMode::Password)
-    } else {
-        false
-    };
-    Ok(StoreStatus {
-        exists,
-        unlocked: runtime.unlocked,
-        needs_password,
-        legacy: runtime.legacy_store,
-        account_count: runtime.accounts.accounts.len(),
-    })
-}
-
-#[tauri::command]
-fn unlock_device(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, AppState>,
-) -> Result<StoreStatus, String> {
-    let (path, runtime_state) = {
+async fn store_status(state: tauri::State<'_, AppState>) -> Result<StoreStatus, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
         let runtime = state
             .runtime
             .lock()
             .map_err(|_| "Account state unavailable".to_string())?;
-        (runtime.config.accounts_path.clone(), state.runtime.clone())
-    };
-    let (accounts, session) =
-        crypto::unlock_with_device(&path).map_err(|error| error.to_string())?;
-    let mut runtime = runtime_state
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    runtime.accounts = accounts;
-    runtime.legacy_store = session.is_legacy();
-    runtime.session = Some(session);
-    runtime.unlocked = true;
-    let _ = app.emit("store-unlocked", ());
-    Ok(StoreStatus {
-        exists: true,
-        unlocked: true,
-        needs_password: false,
-        legacy: runtime.legacy_store,
-        account_count: runtime.accounts.accounts.len(),
+        let exists = runtime.config.accounts_path.is_file();
+        let needs_password = if exists {
+            crypto::peek_mode(&runtime.config.accounts_path)
+                .map_err(|_| "Account store status unavailable".to_string())?
+                .is_some_and(|mode| mode == crypto::StoreMode::Password)
+        } else {
+            false
+        };
+        Ok(StoreStatus {
+            exists,
+            unlocked: runtime.unlocked,
+            needs_password,
+            legacy: runtime.legacy_store,
+            account_count: runtime.accounts.accounts.len(),
+        })
     })
+    .await
+    .map_err(|_| "Account status task failed".to_string())?
 }
 
 #[tauri::command]
-fn create_device_store(
+async fn unlock_device(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<StoreStatus, String> {
-    let runtime_state = state.runtime.clone();
-    let mut runtime = runtime_state
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    if runtime.config.accounts_path.exists() {
-        return Err("Account store already exists".to_string());
-    }
-    if let Some(parent) = runtime.config.accounts_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-    let session = crypto::create_device_session().map_err(|error| error.to_string())?;
-    crypto::save_store(&runtime.config.accounts_path, &runtime.accounts, &session)
-        .map_err(|error| error.to_string())?;
-    runtime.session = Some(session);
-    runtime.unlocked = true;
-    runtime.legacy_store = false;
-    let _ = app.emit("store-unlocked", ());
-    Ok(StoreStatus {
-        exists: true,
-        unlocked: true,
-        needs_password: false,
-        legacy: false,
-        account_count: runtime.accounts.accounts.len(),
+    let state = state.inner().clone();
+    let status = tauri::async_runtime::spawn_blocking(move || {
+        let (path, runtime_state) = {
+            let runtime = state
+                .runtime
+                .lock()
+                .map_err(|_| "Account state unavailable".to_string())?;
+            (runtime.config.accounts_path.clone(), state.runtime.clone())
+        };
+        let (accounts, session) =
+            crypto::unlock_with_device(&path).map_err(|error| error.to_string())?;
+        let mut runtime = runtime_state
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        runtime.accounts = accounts;
+        runtime.legacy_store = session.is_legacy();
+        runtime.session = Some(session);
+        runtime.unlocked = true;
+        Ok::<StoreStatus, String>(StoreStatus {
+            exists: true,
+            unlocked: true,
+            needs_password: false,
+            legacy: runtime.legacy_store,
+            account_count: runtime.accounts.accounts.len(),
+        })
     })
+    .await
+    .map_err(|_| "Device unlock task failed".to_string())??;
+    let _ = app.emit("store-unlocked", ());
+    Ok(status)
+}
+
+#[tauri::command]
+async fn create_device_store(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<StoreStatus, String> {
+    let state = state.inner().clone();
+    let status = tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        if runtime.config.accounts_path.exists() {
+            return Err("Account store already exists".to_string());
+        }
+        if let Some(parent) = runtime.config.accounts_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        let session = crypto::create_device_session().map_err(|error| error.to_string())?;
+        crypto::save_store(&runtime.config.accounts_path, &runtime.accounts, &session)
+            .map_err(|error| error.to_string())?;
+        runtime.session = Some(session);
+        runtime.unlocked = true;
+        runtime.legacy_store = false;
+        Ok(StoreStatus {
+            exists: true,
+            unlocked: true,
+            needs_password: false,
+            legacy: false,
+            account_count: runtime.accounts.accounts.len(),
+        })
+    })
+    .await
+    .map_err(|_| "Device store task failed".to_string())??;
+    let _ = app.emit("store-unlocked", ());
+    Ok(status)
 }
 
 #[tauri::command]
@@ -976,147 +993,172 @@ fn configured_player_path(runtime: &state::RuntimeState, user_id: u64) -> Option
 }
 
 #[tauri::command]
-fn update_account_alias(
+async fn update_account_alias(
     state: tauri::State<'_, AppState>,
     user_id: u64,
     alias: String,
 ) -> Result<AccountSummary, String> {
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    if alias.chars().count() > 64 {
-        return Err("Alias must be 64 characters or fewer".to_string());
-    }
-    let player_path = configured_player_path(&runtime, user_id);
-    let presentation_config = runtime.config.clone();
-    let summary = {
-        let account = runtime
-            .accounts
-            .find_by_id_mut(user_id)
-            .ok_or_else(|| "Account not found".to_string())?;
-        account.alias = alias.trim().to_string();
-        account_summary(account, player_path, &presentation_config)
-    };
-    save_runtime(&runtime)?;
-    Ok(summary)
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        if alias.chars().count() > 64 {
+            return Err("Alias must be 64 characters or fewer".to_string());
+        }
+        let player_path = configured_player_path(&runtime, user_id);
+        let presentation_config = runtime.config.clone();
+        let summary = {
+            let account = runtime
+                .accounts
+                .find_by_id_mut(user_id)
+                .ok_or_else(|| "Account not found".to_string())?;
+            account.alias = alias.trim().to_string();
+            account_summary(account, player_path, &presentation_config)
+        };
+        save_runtime(&runtime)?;
+        Ok(summary)
+    })
+    .await
+    .map_err(|_| "Account alias task failed".to_string())?
 }
 
 #[tauri::command]
-fn toggle_account_pin(
+async fn toggle_account_pin(
     state: tauri::State<'_, AppState>,
     user_id: u64,
 ) -> Result<AccountSummary, String> {
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    let player_path = configured_player_path(&runtime, user_id);
-    let presentation_config = runtime.config.clone();
-    let summary = {
-        let account = runtime
-            .accounts
-            .find_by_id_mut(user_id)
-            .ok_or_else(|| "Account not found".to_string())?;
-        account.is_pinned = !account.is_pinned;
-        account_summary(account, player_path, &presentation_config)
-    };
-    save_runtime(&runtime)?;
-    Ok(summary)
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        let player_path = configured_player_path(&runtime, user_id);
+        let presentation_config = runtime.config.clone();
+        let summary = {
+            let account = runtime
+                .accounts
+                .find_by_id_mut(user_id)
+                .ok_or_else(|| "Account not found".to_string())?;
+            account.is_pinned = !account.is_pinned;
+            account_summary(account, player_path, &presentation_config)
+        };
+        save_runtime(&runtime)?;
+        Ok(summary)
+    })
+    .await
+    .map_err(|_| "Account pin task failed".to_string())?
 }
 
 #[tauri::command]
-fn update_account_group(
+async fn update_account_group(
     state: tauri::State<'_, AppState>,
     user_id: u64,
     group: String,
 ) -> Result<AccountSummary, String> {
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    let group = group.trim();
-    if group.chars().count() > 64 {
-        return Err("Group name must be 64 characters or fewer".to_string());
-    }
-    let player_path = configured_player_path(&runtime, user_id);
-    let presentation_config = runtime.config.clone();
-    let summary = {
-        let account = runtime
-            .accounts
-            .find_by_id_mut(user_id)
-            .ok_or_else(|| "Account not found".to_string())?;
-        account.group = group.to_string();
-        account_summary(account, player_path, &presentation_config)
-    };
-    save_runtime(&runtime)?;
-    Ok(summary)
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        let group = group.trim();
+        if group.chars().count() > 64 {
+            return Err("Group name must be 64 characters or fewer".to_string());
+        }
+        let player_path = configured_player_path(&runtime, user_id);
+        let presentation_config = runtime.config.clone();
+        let summary = {
+            let account = runtime
+                .accounts
+                .find_by_id_mut(user_id)
+                .ok_or_else(|| "Account not found".to_string())?;
+            account.group = group.to_string();
+            account_summary(account, player_path, &presentation_config)
+        };
+        save_runtime(&runtime)?;
+        Ok(summary)
+    })
+    .await
+    .map_err(|_| "Account group task failed".to_string())?
 }
 
 #[tauri::command]
-fn reorder_accounts(
+async fn reorder_accounts(
     state: tauri::State<'_, AppState>,
     user_ids: Vec<u64>,
 ) -> Result<Vec<AccountSummary>, String> {
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    for (sort_order, user_id) in user_ids.iter().enumerate() {
-        if let Some(account) = runtime.accounts.find_by_id_mut(*user_id) {
-            account.sort_order = sort_order as u32;
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        for (sort_order, user_id) in user_ids.iter().enumerate() {
+            if let Some(account) = runtime.accounts.find_by_id_mut(*user_id) {
+                account.sort_order = sort_order as u32;
+            }
         }
-    }
-    let summaries = runtime
-        .accounts
-        .accounts
-        .iter()
-        .map(|account| {
-            account_summary(
-                account,
-                configured_player_path(&runtime, account.user_id),
-                &runtime.config,
-            )
-        })
-        .collect();
-    save_runtime(&runtime)?;
-    Ok(summaries)
+        let summaries = runtime
+            .accounts
+            .accounts
+            .iter()
+            .map(|account| {
+                account_summary(
+                    account,
+                    configured_player_path(&runtime, account.user_id),
+                    &runtime.config,
+                )
+            })
+            .collect();
+        save_runtime(&runtime)?;
+        Ok(summaries)
+    })
+    .await
+    .map_err(|_| "Account ordering task failed".to_string())?
 }
 
 #[tauri::command]
-fn update_player_path(
+async fn update_player_path(
     state: tauri::State<'_, AppState>,
     user_id: u64,
     path: Option<String>,
 ) -> Result<AccountSummary, String> {
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    let path = path.map(std::path::PathBuf::from);
-    if let Some(candidate) = path.as_ref() {
-        if !candidate.is_dir() && !candidate.is_file() {
-            return Err("The Roblox player path does not exist".to_string());
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        let path = path.map(std::path::PathBuf::from);
+        if let Some(candidate) = path.as_ref() {
+            if !candidate.is_dir() && !candidate.is_file() {
+                return Err("The Roblox player path does not exist".to_string());
+            }
         }
-    }
-    if let Some(candidate) = path {
+        if let Some(candidate) = path {
+            runtime
+                .config
+                .custom_player_paths
+                .insert(user_id, candidate);
+        } else {
+            runtime.config.custom_player_paths.remove(&user_id);
+        }
         runtime
             .config
-            .custom_player_paths
-            .insert(user_id, candidate);
-    } else {
-        runtime.config.custom_player_paths.remove(&user_id);
-    }
-    runtime
-        .config
-        .save(&runtime.config_path)
-        .map_err(|error| error.to_string())?;
-    let account = runtime
-        .accounts
-        .find_by_id(user_id)
-        .ok_or_else(|| "Account not found".to_string())?;
-    let player_path = configured_player_path(&runtime, user_id);
-    Ok(account_summary(account, player_path, &runtime.config))
+            .save(&runtime.config_path)
+            .map_err(|error| error.to_string())?;
+        let account = runtime
+            .accounts
+            .find_by_id(user_id)
+            .ok_or_else(|| "Account not found".to_string())?;
+        let player_path = configured_player_path(&runtime, user_id);
+        Ok(account_summary(account, player_path, &runtime.config))
+    })
+    .await
+    .map_err(|_| "Player path task failed".to_string())?
 }
 
 fn save_config(runtime: &state::RuntimeState) -> Result<(), String> {
@@ -1196,48 +1238,57 @@ fn validate_tiling_options(options: &TilingOptions) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_settings(state: tauri::State<'_, AppState>) -> Result<SettingsSnapshot, String> {
-    let runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    let has_password = runtime
-        .session
-        .as_ref()
-        .is_some_and(|session| session.needs_password());
-    let has_discord_webhook = crypto::discord_webhook()
-        .map_err(|error| error.to_string())?
-        .is_some();
-    Ok(SettingsSnapshot {
-        config: SettingsConfig::from_config(&runtime.config),
-        app_version: env!("CARGO_PKG_VERSION"),
-        system_architecture: std::env::consts::ARCH,
-        monitors: process::enumerate_monitors(),
-        has_password,
-        has_discord_webhook,
-        roblox_running: process::is_roblox_running(),
-        info_cards: settings_info_cards(),
+async fn get_settings(state: tauri::State<'_, AppState>) -> Result<SettingsSnapshot, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        let has_password = runtime
+            .session
+            .as_ref()
+            .is_some_and(|session| session.needs_password());
+        let has_discord_webhook = crypto::discord_webhook()
+            .map_err(|error| error.to_string())?
+            .is_some();
+        Ok(SettingsSnapshot {
+            config: SettingsConfig::from_config(&runtime.config),
+            app_version: env!("CARGO_PKG_VERSION"),
+            system_architecture: std::env::consts::ARCH,
+            monitors: process::enumerate_monitors(),
+            has_password,
+            has_discord_webhook,
+            roblox_running: process::is_roblox_running(),
+            info_cards: settings_info_cards(),
+        })
     })
+    .await
+    .map_err(|_| "Settings task failed".to_string())?
 }
 
 #[tauri::command]
-fn save_settings(
+async fn save_settings(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     settings: SettingsUpdate,
 ) -> Result<SettingsConfig, String> {
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    let mut candidate = runtime.config.clone();
-    settings.apply_to_config(&mut candidate)?;
-    candidate
-        .save(&runtime.config_path)
-        .map_err(|error| error.to_string())?;
-    runtime.config = candidate;
-    let settings = SettingsConfig::from_config(&runtime.config);
-    drop(runtime);
+    let state = state.inner().clone();
+    let settings = tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        let mut candidate = runtime.config.clone();
+        settings.apply_to_config(&mut candidate)?;
+        candidate
+            .save(&runtime.config_path)
+            .map_err(|error| error.to_string())?;
+        runtime.config = candidate;
+        Ok::<SettingsConfig, String>(SettingsConfig::from_config(&runtime.config))
+    })
+    .await
+    .map_err(|_| "Settings save task failed".to_string())??;
     accounts::publish(&app);
     let _ = app.emit("settings-updated", &settings);
     Ok(settings)
@@ -1400,22 +1451,36 @@ fn restart_app() -> Result<(), String> {
 }
 
 #[tauri::command]
-fn save_discord_webhook(state: tauri::State<'_, AppState>, url: String) -> Result<(), String> {
+async fn save_discord_webhook(
+    state: tauri::State<'_, AppState>,
+    url: String,
+) -> Result<(), String> {
     if !valid_discord_webhook_url(&url) {
         return Err("Enter a valid Discord webhook URL".to_string());
     }
-    crypto::set_discord_webhook(&url).map_err(|error| error.to_string())?;
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    runtime.config.discord_webhook_url.clear();
-    Ok(())
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crypto::set_discord_webhook(&url)
+            .map_err(|_| "Discord webhook could not be saved".to_string())?;
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        runtime.config.discord_webhook_url.clear();
+        Ok(())
+    })
+    .await
+    .map_err(|_| "Webhook save task failed".to_string())?
 }
 
 #[tauri::command]
-fn remove_discord_webhook() -> Result<(), String> {
-    crypto::delete_discord_webhook().map_err(|error| error.to_string())
+async fn remove_discord_webhook() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        crypto::delete_discord_webhook()
+            .map_err(|_| "Discord webhook could not be removed".to_string())
+    })
+    .await
+    .map_err(|_| "Webhook removal task failed".to_string())?
 }
 
 #[tauri::command]
@@ -1530,9 +1595,22 @@ async fn list_private_servers(
         .runtime
         .lock()
         .map_err(|_| "Application state unavailable".to_string())?;
+    if runtime.config.private_servers != original_servers {
+        return Ok(runtime
+            .config
+            .private_servers
+            .iter()
+            .enumerate()
+            .map(|(index, server)| private_server_summary(index, server, String::new()))
+            .collect());
+    }
     if original_servers != servers {
-        runtime.config.private_servers = servers.clone();
-        save_config(&runtime)?;
+        let mut candidate = runtime.config.clone();
+        candidate.private_servers = servers.clone();
+        candidate
+            .save(&runtime.config_path)
+            .map_err(|_| "Private server details could not be saved".to_string())?;
+        runtime.config = candidate;
     }
     Ok(servers
         .iter()
@@ -1650,129 +1728,163 @@ async fn update_private_server(
 }
 
 #[tauri::command]
-fn remove_private_server(state: tauri::State<'_, AppState>, index: usize) -> Result<(), String> {
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    if index >= runtime.config.private_servers.len() {
-        return Err("Private server not found".to_string());
-    }
-    runtime.config.private_servers.remove(index);
-    save_config(&runtime)
+async fn remove_private_server(
+    state: tauri::State<'_, AppState>,
+    index: usize,
+) -> Result<(), String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        if index >= runtime.config.private_servers.len() {
+            return Err("Private server not found".to_string());
+        }
+        runtime.config.private_servers.remove(index);
+        save_config(&runtime)
+    })
+    .await
+    .map_err(|_| "Private server removal task failed".to_string())?
 }
 
 #[tauri::command]
-fn rename_private_server(
+async fn rename_private_server(
     state: tauri::State<'_, AppState>,
     index: usize,
     name: String,
 ) -> Result<(), String> {
-    let name = name.trim();
-    if name.is_empty() || name.chars().count() > 64 {
-        return Err("Server name must be between 1 and 64 characters".to_string());
-    }
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    let server = runtime
-        .config
-        .private_servers
-        .get_mut(index)
-        .ok_or_else(|| "Private server not found".to_string())?;
-    server.name = name.to_string();
-    save_config(&runtime)
-}
-
-#[tauri::command]
-fn create_account_group(state: tauri::State<'_, AppState>, name: String) -> Result<(), String> {
-    let name = name.trim();
-    if name.is_empty() || name.chars().count() > 64 {
-        return Err("Group name must be between 1 and 64 characters".to_string());
-    }
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    if runtime.config.groups.contains_key(name) {
-        return Err("A group with that name already exists".to_string());
-    }
-    runtime.config.groups.insert(
-        name.to_string(),
-        GroupMeta {
-            color: [59, 130, 246],
-            description: String::new(),
-            sort_order: u32::MAX,
-        },
-    );
-    save_config(&runtime)
-}
-
-#[tauri::command]
-fn delete_account_group(state: tauri::State<'_, AppState>, name: String) -> Result<(), String> {
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    runtime.config.groups.remove(name.trim());
-    for account in &mut runtime.accounts.accounts {
-        if account.group == name.trim() {
-            account.group.clear();
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let name = name.trim();
+        if name.is_empty() || name.chars().count() > 64 {
+            return Err("Server name must be between 1 and 64 characters".to_string());
         }
-    }
-    save_config(&runtime)?;
-    save_runtime(&runtime)
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        let server = runtime
+            .config
+            .private_servers
+            .get_mut(index)
+            .ok_or_else(|| "Private server not found".to_string())?;
+        server.name = name.to_string();
+        save_config(&runtime)
+    })
+    .await
+    .map_err(|_| "Private server rename task failed".to_string())?
 }
 
 #[tauri::command]
-fn update_account_group_meta(
+async fn create_account_group(
+    state: tauri::State<'_, AppState>,
+    name: String,
+) -> Result<(), String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let name = name.trim();
+        if name.is_empty() || name.chars().count() > 64 {
+            return Err("Group name must be between 1 and 64 characters".to_string());
+        }
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        if runtime.config.groups.contains_key(name) {
+            return Err("A group with that name already exists".to_string());
+        }
+        runtime.config.groups.insert(
+            name.to_string(),
+            GroupMeta {
+                color: [59, 130, 246],
+                description: String::new(),
+                sort_order: u32::MAX,
+            },
+        );
+        save_config(&runtime)
+    })
+    .await
+    .map_err(|_| "Group creation task failed".to_string())?
+}
+
+#[tauri::command]
+async fn delete_account_group(
+    state: tauri::State<'_, AppState>,
+    name: String,
+) -> Result<(), String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        runtime.config.groups.remove(name.trim());
+        for account in &mut runtime.accounts.accounts {
+            if account.group == name.trim() {
+                account.group.clear();
+            }
+        }
+        save_config(&runtime)?;
+        save_runtime(&runtime)
+    })
+    .await
+    .map_err(|_| "Group deletion task failed".to_string())?
+}
+
+#[tauri::command]
+async fn update_account_group_meta(
     state: tauri::State<'_, AppState>,
     old_name: String,
     new_name: String,
     color: [u8; 3],
 ) -> Result<Vec<AccountGroupSummary>, String> {
-    let old_name = old_name.trim();
-    let new_name = new_name.trim();
-    if new_name.is_empty() || new_name.chars().count() > 64 {
-        return Err("Group name must be between 1 and 64 characters".to_string());
-    }
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    if old_name.is_empty() || !runtime.config.groups.contains_key(old_name) {
-        return Err("Group not found".to_string());
-    }
-    if old_name != new_name && runtime.config.groups.contains_key(new_name) {
-        return Err("A group with that name already exists".to_string());
-    }
-    let mut metadata = runtime
-        .config
-        .groups
-        .remove(old_name)
-        .ok_or_else(|| "Group not found".to_string())?;
-    metadata.color = color;
-    runtime.config.groups.insert(new_name.to_string(), metadata);
-    for account in &mut runtime.accounts.accounts {
-        if account.group == old_name {
-            account.group = new_name.to_string();
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let old_name = old_name.trim();
+        let new_name = new_name.trim();
+        if new_name.is_empty() || new_name.chars().count() > 64 {
+            return Err("Group name must be between 1 and 64 characters".to_string());
         }
-    }
-    save_config(&runtime)?;
-    save_runtime(&runtime)?;
-    let mut groups = runtime
-        .config
-        .groups
-        .iter()
-        .map(|(name, meta)| AccountGroupSummary {
-            name: name.clone(),
-            color: meta.color,
-            sort_order: meta.sort_order,
-        })
-        .collect::<Vec<_>>();
-    groups.sort_by_key(|group| (group.sort_order, group.name.clone()));
-    Ok(groups)
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        if old_name.is_empty() || !runtime.config.groups.contains_key(old_name) {
+            return Err("Group not found".to_string());
+        }
+        if old_name != new_name && runtime.config.groups.contains_key(new_name) {
+            return Err("A group with that name already exists".to_string());
+        }
+        let mut metadata = runtime
+            .config
+            .groups
+            .remove(old_name)
+            .ok_or_else(|| "Group not found".to_string())?;
+        metadata.color = color;
+        runtime.config.groups.insert(new_name.to_string(), metadata);
+        for account in &mut runtime.accounts.accounts {
+            if account.group == old_name {
+                account.group = new_name.to_string();
+            }
+        }
+        save_config(&runtime)?;
+        save_runtime(&runtime)?;
+        let mut groups = runtime
+            .config
+            .groups
+            .iter()
+            .map(|(name, meta)| AccountGroupSummary {
+                name: name.clone(),
+                color: meta.color,
+                sort_order: meta.sort_order,
+            })
+            .collect::<Vec<_>>();
+        groups.sort_by_key(|group| (group.sort_order, group.name.clone()));
+        Ok(groups)
+    })
+    .await
+    .map_err(|_| "Group update task failed".to_string())?
 }
 
 #[tauri::command]
@@ -1859,19 +1971,24 @@ async fn open_inventory_assets(
 }
 
 #[tauri::command]
-fn remove_account(state: tauri::State<'_, AppState>, user_id: u64) -> Result<(), String> {
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    *runtime.credential_revisions.entry(user_id).or_default() += 1;
-    if !runtime.accounts.remove_by_id(user_id) {
-        return Err("Account not found".to_string());
-    }
-    if runtime.config.use_credential_manager {
-        crypto::credential_delete(user_id).map_err(|error| error.to_string())?;
-    }
-    save_runtime(&runtime)
+async fn remove_account(state: tauri::State<'_, AppState>, user_id: u64) -> Result<(), String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        *runtime.credential_revisions.entry(user_id).or_default() += 1;
+        if !runtime.accounts.remove_by_id(user_id) {
+            return Err("Account not found".to_string());
+        }
+        if runtime.config.use_credential_manager {
+            crypto::credential_delete(user_id).map_err(|error| error.to_string())?;
+        }
+        save_runtime(&runtime)
+    })
+    .await
+    .map_err(|_| "Account removal task failed".to_string())?
 }
 
 #[tauri::command]
@@ -2269,7 +2386,7 @@ async fn list_launch_presets() -> Result<Vec<LaunchPresetSummary>, String> {
 }
 
 #[tauri::command]
-fn save_launch_preset(
+async fn save_launch_preset(
     name: String,
     place_id: u64,
     job_id: Option<String>,
@@ -2282,15 +2399,19 @@ fn save_launch_preset(
     if place_id == 0 {
         return Err("Enter a valid Roblox place ID".to_string());
     }
-    let data_dir = preset_data_dir();
     let preset = LaunchPreset {
         name: trimmed_name.to_string(),
         place_id,
         job_id: job_id.filter(|value| !value.trim().is_empty()),
         data: data.filter(|value| !value.trim().is_empty()),
     };
-    ram_core::presets::save(&data_dir, &preset, None).map_err(|error| error.to_string())?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        ram_core::presets::save(&preset_data_dir(), &preset, None)
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|_| "Preset save task failed".to_string())?
 }
 
 #[tauri::command]
@@ -2328,12 +2449,16 @@ async fn update_launch_preset(
 }
 
 #[tauri::command]
-fn remove_launch_preset(index: usize) -> Result<(), String> {
-    let (presets, _) = load_preset_entries()?;
-    let (path, _) = presets
-        .get(index)
-        .ok_or_else(|| "Preset not found".to_string())?;
-    ram_core::presets::delete(path).map_err(|error| error.to_string())
+async fn remove_launch_preset(index: usize) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (presets, _) = load_preset_entries()?;
+        let (path, _) = presets
+            .get(index)
+            .ok_or_else(|| "Preset not found".to_string())?;
+        ram_core::presets::delete(path).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|_| "Preset deletion task failed".to_string())?
 }
 
 #[tauri::command]
@@ -2410,21 +2535,25 @@ fn list_account_groups(
 }
 
 #[tauri::command]
-fn reorder_account_groups(
+async fn reorder_account_groups(
     state: tauri::State<'_, AppState>,
     names: Vec<String>,
 ) -> Result<Vec<AccountGroupSummary>, String> {
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Account state unavailable".to_string())?;
-    for (sort_order, name) in names.iter().enumerate() {
-        if let Some(group) = runtime.config.groups.get_mut(name) {
-            group.sort_order = sort_order as u32;
+    let state_clone = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state_clone
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable".to_string())?;
+        for (sort_order, name) in names.iter().enumerate() {
+            if let Some(group) = runtime.config.groups.get_mut(name) {
+                group.sort_order = sort_order as u32;
+            }
         }
-    }
-    save_config(&runtime)?;
-    drop(runtime);
+        save_config(&runtime)
+    })
+    .await
+    .map_err(|_| "Group ordering task failed".to_string())??;
     list_account_groups(state)
 }
 

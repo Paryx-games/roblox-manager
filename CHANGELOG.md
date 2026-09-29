@@ -5,6 +5,8 @@
 ### Fixed
 
 - Beta or release-candidate installs can detect the matching stable release, and empty group announcements no longer appear as phantom posts.
+- Account re-addition can repair a missing stored credential, and failed favourite migration no longer blocks startup information.
+- Private-server enrichment preserves concurrent edits, and asset queue actions stay within the selected account.
 
 ## v2.0.0-beta.1
 

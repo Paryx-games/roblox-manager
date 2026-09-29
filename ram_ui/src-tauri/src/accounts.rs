@@ -176,10 +176,7 @@ fn commit_addition(state: &AppState, confirmation_id: &str) -> Result<AccountSum
     let previous = runtime.accounts.clone();
     let previous_credential = if runtime.config.use_credential_manager {
         let value = if runtime.accounts.find_by_id(user_id).is_some() {
-            Some(
-                crypto::credential_load(user_id)
-                    .map_err(|_| "Existing credential could not be backed up")?,
-            )
+            crypto::credential_load(user_id).ok()
         } else {
             None
         };

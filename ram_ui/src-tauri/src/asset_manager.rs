@@ -619,9 +619,20 @@ pub async fn add_asset_files(
 #[tauri::command]
 pub async fn change_asset_queue(
     app: tauri::AppHandle,
+    user_id: u64,
     action: String,
     row_id: Option<String>,
 ) -> Result<AssetWorkspace, String> {
+    let account_state = app.state::<crate::state::AppState>();
+    {
+        let runtime = account_state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked || runtime.accounts.find_by_id(user_id).is_none() {
+            return Err("Select a saved account before changing its queue.".into());
+        }
+    }
     let manager = app.state::<AssetManager>().0.clone();
     let snapshot = tauri::async_runtime::spawn_blocking(move || {
         let mut runtime = manager.lock().map_err(|_| "Asset state unavailable")?;
@@ -639,7 +650,7 @@ pub async fn change_asset_queue(
             },
             _ => return Err("Unknown queue action.".into()),
         };
-        assets::change_queue(&mut runtime.index, queue_action)?;
+        change_account_queue(&mut runtime.index, user_id, queue_action)?;
         runtime.persist(previous)?;
         Ok::<_, String>(runtime.snapshot())
     })
@@ -647,6 +658,36 @@ pub async fn change_asset_queue(
     .map_err(|_| "Queue task unavailable")??;
     let _ = app.emit("assets-updated", &snapshot);
     Ok(snapshot)
+}
+
+fn change_account_queue(
+    index: &mut AssetIndex,
+    user_id: u64,
+    action: assets::QueueAction<'_>,
+) -> Result<(), String> {
+    match action {
+        assets::QueueAction::ClearFinished => {
+            let mut owned = index.clone();
+            owned.records.retain(|row| row.uploaded_by == user_id);
+            assets::change_queue(&mut owned, assets::QueueAction::ClearFinished)?;
+            let retained: HashSet<_> = owned
+                .records
+                .iter()
+                .map(|row| row.row_id.as_str())
+                .collect();
+            index
+                .records
+                .retain(|row| row.uploaded_by != user_id || retained.contains(row.row_id.as_str()));
+        }
+        assets::QueueAction::Retry { row_id } | assets::QueueAction::Remove { row_id } => {
+            let row = index.get(row_id).ok_or("Queue row not found.")?;
+            if row.uploaded_by != user_id {
+                return Err("Choose a queue row for the selected account.".into());
+            }
+            assets::change_queue(index, action)?;
+        }
+    }
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -1034,6 +1075,45 @@ async fn poll_row(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn queue_actions_only_change_the_selected_accounts_rows() {
+        let mut index = AssetIndex::default();
+        for (row_id, user_id) in [("own", 1), ("other", 2)] {
+            let mut row = AssetRecord::staged(
+                row_id.into(),
+                StagedFile {
+                    path: PathBuf::from("synthetic.png"),
+                    sha256: row_id.into(),
+                    bytes: 1,
+                    kind: assets::AssetKind::Decal,
+                },
+                Creator::User(user_id),
+                user_id,
+                Utc::now(),
+            );
+            row.state = AssetState::Failed {
+                message: "Synthetic failure".into(),
+                retryable: true,
+            };
+            index.records.push(row);
+        }
+        assert!(change_account_queue(
+            &mut index,
+            1,
+            assets::QueueAction::Retry { row_id: "other" }
+        )
+        .is_err());
+        assert!(change_account_queue(
+            &mut index,
+            1,
+            assets::QueueAction::Remove { row_id: "other" }
+        )
+        .is_err());
+        change_account_queue(&mut index, 1, assets::QueueAction::ClearFinished).unwrap();
+        assert!(index.get("own").is_none());
+        assert!(index.get("other").is_some());
+    }
 
     #[tokio::test]
     async fn invalid_creators_are_rejected_before_any_request() {
