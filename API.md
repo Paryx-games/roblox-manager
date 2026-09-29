@@ -28,7 +28,7 @@ use std::sync::Arc;
 let jar = Arc::new(Jar::default());
 let url = "https://roblox.com".parse::<Url>().unwrap();
 jar.add_cookie_str(
-    &format!(".ROBLOSECURITY={COOKIE}; Domain=roblox.com; Path=/"),
+    &format!(".ROBLOSECURITY={COOKIE}; Domain=roblox.com; Path=/; Secure"),
     &url,
 );
 
