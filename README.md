@@ -54,7 +54,7 @@
     <li><a href="#features">Features</a></li>
     <li><a href="#usage">Usage</a></li>
     <li><a href="#credits">Credits</a></li>
-    <li><a href="#support">Support</a></li>
+    <li><a href="#support-the-project">Support the Project</a></li>
     <li>
       <a href="#building-from-source">Building From Source</a>
       <ul>
@@ -186,11 +186,13 @@ Use **Refresh accounts** to validate every account or **Revalidate account** for
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Support
+## Support the Project
 
-If Roblox manager saves time or helps you, you can [buy me a coffee](https://buymeacoffee.com/paryx). This is optional but I would greatly appreciate it 😄
+If Roblox Manager saves you time or you enjoy using it, you can support its development on Ko-fi. Donations are completely optional, but greatly appreciated.
 
-<a href="https://buymeacoffee.com/paryx"><img height="44" src="https://cdn.buymeacoffee.com/buttons/v2/lato-yellow.png" alt="Buy me a coffee"></a>
+<a href="https://ko-fi.com/paryx">
+  <img src="https://storage.ko-fi.com/cdn/brandasset/v2/support_me_on_kofi_dark.png" alt="Support me on Ko-fi" height="44">
+</a>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
