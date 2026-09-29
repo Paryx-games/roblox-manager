@@ -27,7 +27,10 @@ use std::sync::Arc;
 
 let jar = Arc::new(Jar::default());
 let url = "https://roblox.com".parse::<Url>().unwrap();
-jar.add_cookie_str(&format!(".ROBLOSECURITY={COOKIE}"), &url);
+jar.add_cookie_str(
+    &format!(".ROBLOSECURITY={COOKIE}; Domain=roblox.com; Path=/"),
+    &url,
+);
 
 let client = Client::builder()
     .cookie_provider(jar)
@@ -126,7 +129,7 @@ Manages Roblox groups: membership, roles, permissions, payouts, relationships, a
 - `POST /v1/groups/{groupId}/change-owner` - transfer group ownership
 - `POST /v1/groups/{groupId}/claim-ownership` - claim an ownerless group
 
-**Rank changes:** the classic `PATCH /v1/groups/{groupId}/users/{userId}` rank-change endpoint wasn't present in the current v1/v2 listing pulled - it may have moved or been folded into membership management. **Confirm exact shape against live docs before wiring this up**, don't assume the old payload still works.
+**Rank changes:** `PATCH /v1/groups/{groupId}/users/{userId}` remains documented for updating a user's role, but Creator Hub marks it **Not Recommended**. Confirm the current request shape and recommended alternative against live docs before wiring it up.
 
 **Also available, less commonly needed:** relationships (allies/enemies), social links, blocked keywords, community tiers, name history, group settings, group creation, group search.
 

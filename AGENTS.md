@@ -139,7 +139,7 @@ robloxmanager/
 - Accounts and cookies are never stored in plaintext on disk.
 - **Envelope Encryption**: The account store (`accounts.dat`) is encrypted with a random 256-bit AES-256-GCM data key. The data key is wrapped in the store header.
 - **Store Modes**:
-  - `StoreMode::Device` (default): Wrapping key is held in the OS Credential Store (`Windows Credential Manager` via `keyring`). Protects cookies against infostealers while unlocking seamlessly on startup without user interaction.
+  - `StoreMode::Device` (default): Wrapping key is held in the OS Credential Store (`Windows Credential Manager` via `keyring`). Protects cookies against theft of the encrypted store file while unlocking seamlessly on startup without user interaction.
   - `StoreMode::Password`: Wrapping key is derived via `Argon2id` from a user-supplied master password.
 - **Crash-Safe Persistence**: All file writes (`accounts.dat`, `config.json`, presets) must go through `ram_core::storage::atomic_write`, which writes to a sibling `.tmp-*` file, fsyncs (`sync_all`), creates a `.bak` backup, and atomically renames the file into place.
 
