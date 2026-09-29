@@ -1,17 +1,14 @@
-//! Windows process management — game launching, mutex patching, instance tracking.
+//! windows process management, game launching, singleton mutex holding, and instance tracking.
 //!
 //! # Multi-instance strategy
 //!
-//! Roblox prevents multiple clients by creating a named mutex
-//! `ROBLOX_singletonEvent`. To allow multi-instancing we:
+//! roblox prevents multiple clients with a named singleton mutex. to allow
+//! multi-instancing, rm creates and holds both `ROBLOX_singletonMutex` and the
+//! legacy `ROBLOX_singletonEvent` in its own process for its lifetime. this
+//! prevents roblox from acquiring the singleton lock exclusively.
 //!
-//! 1. Enumerate all processes named `RobloxPlayerBeta.exe`.
-//! 2. For each, enumerate its handles looking for the singleton mutex.
-//! 3. Duplicate the handle into our process, then close both the remote and
-//!    local copies — effectively releasing the mutex so the next launch succeeds.
-//!
-//! **This technique interacts with Hyperion (Byfron) and carries ban risk.**
-//! It is gated behind `AppConfig::multi_instance_enabled` (default: off).
+//! **this technique interacts with Hyperion (Byfron) and carries ban risk.**
+//! it is gated behind `AppConfig::multi_instance_enabled` (default: off).
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -1231,7 +1228,7 @@ fn window_title(hwnd: windows_sys::Win32::Foundation::HWND) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Multi-instance mutex patching (Windows-only, opt-in)
+// multi-instance singleton mutex holding (windows-only, opt-in)
 // ---------------------------------------------------------------------------
 
 /// Roblox's singleton lock names have changed across client versions. Some
