@@ -54,6 +54,7 @@
     <li><a href="#features">Features</a></li>
     <li><a href="#usage">Usage</a></li>
     <li><a href="#credits">Credits</a></li>
+    <li><a href="#support">Support</a></li>
     <li>
       <a href="#building-from-source">Building From Source</a>
       <ul>
@@ -174,6 +175,14 @@ Use **Refresh accounts** to validate every account or **Revalidate account** for
 <a href="https://github.com/Paryx-games/roblox-manager/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=Paryx-games/roblox-manager" alt="contributors" />
 </a>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Support
+
+If Roblox manager saves time or helps you, you can [buy me a coffee](https://buymeacoffee.com/paryx). This is optional but I would greatly appreciate it 😄
+
+<a href="https://buymeacoffee.com/paryx"><img height="44" src="https://cdn.buymeacoffee.com/buttons/v2/lato-yellow.png" alt="Buy me a coffee"></a>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
