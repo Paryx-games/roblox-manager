@@ -1205,7 +1205,7 @@ export function SettingsPage() {
           id="app-data"
           title="App and data"
         >
-          {draft.utilityEnabled && draft.developerOptions && (
+          {draft.developerOptions && (
             <WarningText>
               Uploads are permanent and public. Every asset is moderated under the account that uploaded it.
             </WarningText>
@@ -1214,14 +1214,14 @@ export function SettingsPage() {
           <SettingRow referenceId="utility_enabled" infoCards={infoCards}>
             <Toggle
               checked={draft.utilityEnabled}
-              label="Show the Utility tab"
+              label="Show Clear Cache in navigation"
               onChange={(utilityEnabled) => updateDraft({ utilityEnabled })}
             />
           </SettingRow>
           <SettingRow referenceId="developer_options" infoCards={infoCards}>
             <Toggle
               checked={draft.developerOptions}
-              label="Show the Assets tab in Utility"
+              label="Show Inventories and Asset Manager"
               onChange={(developerOptions) => updateDraft({ developerOptions })}
             />
           </SettingRow>

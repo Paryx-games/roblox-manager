@@ -9,7 +9,7 @@ The **Inventories** workspace compares owned Roblox items across selected accoun
 
 ## Open the workspace
 
-Enable developer options (**Show the Assets tab in Utility**) in **Settings > App and data**, save the change, then open **Inventories** in the navigation rail. Select accounts in the workspace account picker. Previously selected accounts are carried into the page when it opens.
+Enable **Show Inventories and Asset Manager** in **Settings > App and data**, save the change, then open **Inventories** in the navigation rail. Select accounts in the workspace account picker. Previously selected accounts are carried into the page when it opens.
 
 ## Find items
 

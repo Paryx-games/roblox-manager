@@ -26,7 +26,7 @@ Manual MAC rotation has its own action and may require appropriate permissions a
 
 ## App and data
 
-Developer options control visibility of Inventories and Asset Manager. The current toggle label is **Show the Assets tab in Utility**. Utility visibility preferences are also retained. Logging controls the diagnostic level, and data-location controls show the active paths. Use the Roblox installation section to inspect the selected installation rather than assuming the default installation is always correct.
+**Show Inventories and Asset Manager** controls those two workspaces in the navigation rail. **Show Clear Cache in navigation** adds the separate cache shortcut; it does not control either workspace. Logging controls the diagnostic level, and data-location controls show the active paths. Use the Roblox installation section to inspect the selected installation rather than assuming the default installation is always correct.
 
 The tray keeps the manager available in the background when its main window is closed. Use the tray's exit action to finish the process rather than assuming closing the window stops background work.
 

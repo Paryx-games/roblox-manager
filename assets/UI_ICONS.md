@@ -8,11 +8,11 @@ should be a transparent square SVG with a simple monochrome mark and a
 | --- | --- | --- |
 | accounts clipboard | `assets/icons/accounts.svg` | Accounts navigation and paste-cookie action |
 | groups | `assets/icons/groups.svg` | Groups navigation |
-| lock | `assets/icons/lock.svg` | Servers tab and store unlock screens |
-| star | `assets/icons/star.svg` | Presets tab and preset controls |
-| package | `assets/icons/package.svg` | Assets tab |
-| cap | `assets/icons/inventory.svg` | Inventory tab |
-| settings gear | `assets/icons/settings.svg` | Settings tab |
+| lock | `assets/icons/lock.svg` | Private Servers navigation and store unlock screens |
+| star | `assets/icons/star.svg` | Presets navigation and preset controls |
+| package | `assets/icons/package.svg` | Asset Manager navigation |
+| cap | `assets/icons/inventory.svg` | Inventories navigation |
+| settings gear | `assets/icons/settings.svg` | Settings navigation |
 | upload arrow | `assets/icons/update.svg` | Update notification |
 | globe | `assets/icons/browser.svg` | Browser login and browser-as actions |
 | download | `assets/icons/import.svg` | Bulk import action |

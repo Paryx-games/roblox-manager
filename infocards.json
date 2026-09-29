@@ -61,7 +61,7 @@
   },
   "developer_options": {
     "type": "warning",
-    "text": "Adds the Assets tab to the Utility area. Asset uploads create permanent public Roblox assets and are moderated under the account that uploads them."
+    "text": "Shows Inventories and Asset Manager in the navigation rail. Asset uploads create permanent public Roblox assets and are moderated under the account that uploads them."
   },
   "log_level": {
     "type": "warning",

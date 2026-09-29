@@ -238,7 +238,7 @@ Individual Kill requires an exact process match. Inferred and unmatched clients 
 
 ### Why are Inventories and Asset Manager missing?
 
-Enable the developer-options control in Settings and save it. Its current label is **Show the Assets tab in Utility**; it gates both pages in the navigation rail. See [Settings](guides/settings.md).
+Enable **Show Inventories and Asset Manager** in Settings and save it. This controls both pages in the navigation rail. See [Settings](guides/settings.md).
 
 ### Are all visible advanced settings implemented?
 
