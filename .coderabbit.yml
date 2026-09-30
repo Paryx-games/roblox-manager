@@ -296,28 +296,28 @@ reviews:
         theoretical concerns without an applicable attack or failure path.
 
   auto_review:
-    enabled: true
+    enabled: false
 
-    # review subsequent pushes rather than only the initial pr.
-    auto_incremental_review: true
+    # # review subsequent pushes rather than only the initial pr.
+    # auto_incremental_review: true
 
-    # drafts are intentionally unfinished.
-    drafts: false
+    # # drafts are intentionally unfinished.
+    # drafts: false
 
-    ignore_title_keywords:
-      - "WIP"
-      - "DO NOT MERGE"
-      - "DO NOT REVIEW"
+    # ignore_title_keywords:
+    #   - "WIP"
+    #   - "DO NOT MERGE"
+    #   - "DO NOT REVIEW"
 
-    # the repository's pull request workflows target main.
-    base_branches:
-      - "^main$"
+    # # the repository's pull request workflows target main.
+    # base_branches:
+    #   - "^main$"
 
-    # add bots here if you decide their prs do not need coderabbit.
-    ignore_usernames: []
+    # # add bots here if you decide their prs do not need coderabbit.
+    # ignore_usernames: []
 
-    # leave empty so normal prs are reviewed regardless of labels.
-    labels: []
+    # # leave empty so normal prs are reviewed regardless of labels.
+    # labels: []
 
   # use CodeRabbit checks that add coverage beyond the repository's existing CI.
   tools:
