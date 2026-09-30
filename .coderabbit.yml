@@ -441,8 +441,11 @@ reviews:
         instructions: |
           Check the title and description against PR_CONVENTIONS.md.
           Prefer a Conventional Commit title under 72 characters without emoji.
-          Require the four description sections in order and every checklist item
-          explicitly marked checked or N/A. Use the complete PR description.
+          Require Changes, Testing and Checklist in order. Notes and Screenshots are
+          optional; do not require empty sections or N/A text for omitted sections.
+          Check the four checklist items against the recorded evidence. Accept explicit
+          N/A where applicable; incomplete verification must remain unchecked and be
+          explained in Testing. Use the complete PR description.
 
       - name: "repository policy compliance"
         mode: "warning"
