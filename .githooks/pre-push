@@ -1,15 +1,30 @@
 #!/bin/sh
 
-echo "Running clippy..."
-if ! cargo clippy --workspace --all-targets --all-features --locked -- -D warnings; then
-    echo "Clippy failed - push aborted."
+echo "[pre-push] Installing frontend dependencies..."
+if ! pnpm --dir ram_ui install --frozen-lockfile; then
+    echo "[pre-push] Frontend dependency installation failed - push aborted."
     exit 1
 fi
-echo "Clippy passed."
+echo "[pre-push] Frontend dependencies installed."
 
-echo "Running tests..."
-if ! cargo test --workspace --all-features --locked; then
-    echo "Tests failed - push aborted."
+echo "[pre-push] Building frontend..."
+if ! pnpm --dir ram_ui build; then
+    echo "[pre-push] Frontend build failed - push aborted."
     exit 1
 fi
-echo "Tests passed."
+echo "[pre-push] Frontend build passed."
+
+echo "[pre-push] Running clippy..."
+if ! cargo clippy --workspace --all-targets --all-features --locked -- -D warnings; then
+    echo "[pre-push] Clippy failed - push aborted."
+    exit 1
+fi
+echo "[pre-push] Clippy passed."
+
+echo "[pre-push] Running tests..."
+if ! cargo test --workspace --all-features --locked; then
+    echo "[pre-push] Tests failed - push aborted."
+    exit 1
+fi
+echo "[pre-push] Tests passed."
+echo "[pre-push] All checks passed."

@@ -6,13 +6,13 @@ should be a transparent square SVG with a simple monochrome mark and a
 
 | Former glyph/use | Asset path | UI location |
 | --- | --- | --- |
-| accounts clipboard | `assets/icons/accounts.svg` | top-bar Accounts tab and paste-cookie action |
-| groups | `assets/icons/groups.svg` | top-bar Groups tab |
-| lock | `assets/icons/lock.svg` | Servers tab and store unlock screens |
-| star | `assets/icons/star.svg` | Presets tab and preset controls |
-| package | `assets/icons/package.svg` | Assets tab |
-| cap | `assets/icons/inventory.svg` | Inventory tab |
-| settings gear | `assets/icons/settings.svg` | Settings tab |
+| accounts clipboard | `assets/icons/accounts.svg` | Accounts navigation and paste-cookie action |
+| groups | `assets/icons/groups.svg` | Groups navigation |
+| lock | `assets/icons/lock.svg` | Private Servers navigation and store unlock screens |
+| star | `assets/icons/star.svg` | Presets navigation and preset controls |
+| package | `assets/icons/package.svg` | Asset Manager navigation |
+| cap | `assets/icons/inventory.svg` | Inventories navigation |
+| settings gear | `assets/icons/settings.svg` | Settings navigation |
 | upload arrow | `assets/icons/update.svg` | Update notification |
 | globe | `assets/icons/browser.svg` | Browser login and browser-as actions |
 | download | `assets/icons/import.svg` | Bulk import action |
@@ -25,7 +25,8 @@ should be a transparent square SVG with a simple monochrome mark and a
 | window | `assets/icons/windows.svg` | Tile Windows action |
 | warning | `assets/icons/warning.svg` | Warnings and error labels |
 
-The top navigation currently uses these SVGs through the cached
-`crate::icons::show` helper. Rasterization and missing/invalid asset failures
-are reported through debug tracing. Keep the semantic label beside each icon
-rather than making the image the only control affordance.
+## Active Tauri frontend
+
+React loads the icon set from `ram_ui/frontend/public/icons/` using shared icon controls. Keep the set consistent with `assets/icons/`; use semantic names, accessible button labels and no emoji substitutes. See `DESIGN.md` for the active design rules.
+
+Application, installer and uninstaller icons are separate Windows ICO files selected by `ram_ui/scripts/tauri.mjs`: Development for debug/dev, Alpha or Beta for those pre-release versions, and Live for stable or release candidates. The installer sidebar is the 164 x 314 bitmap under `ram_ui/src-tauri/installer/`, generated from `assets/branding/LogoThumbVertical.png`.

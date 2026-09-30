@@ -5,9 +5,9 @@ icon: circle-info
 
 # Introduction
 
-## Introduction
-
 Roblox Manager keeps Roblox accounts and sessions in one Windows app. Organize accounts, choose a game, and launch the sessions you need.
+
+These guides describe the Tauri v2 interface. Older published releases may use egui and have different controls. The desktop shell and React interface use `ram_core` for reusable account, asset, group, preset, API, storage and process behavior. The encrypted account-store format remains compatible with the existing core implementation.
 
 ### What you can do
 
@@ -18,6 +18,7 @@ Roblox Manager helps you:
 * Save launch presets, private servers, and server targets.
 * Run multiple clients and arrange open windows.
 * Track account presence and developer asset uploads.
+* Inspect running clients and compare inventories across accounts.
 
 ### Who it is for
 
@@ -27,8 +28,9 @@ Roblox Manager supports anyone who regularly uses multiple Roblox accounts. It r
 
 Roblox Manager runs on Windows.
 
-* **Windows 11** is supported.
-* **Windows 10** may work, but remains untested.
+* **Windows 10 and Windows 11, 64-bit**, are the target platforms.
+* The Tauri interface requires **Microsoft WebView2 Runtime**.
+* Compatibility with a target platform does not mean every installer/runtime combination has been manually tested. Check the release notes for testing limitations.
 
 macOS and Linux are not supported.
 

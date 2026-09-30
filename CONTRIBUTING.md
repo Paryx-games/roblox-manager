@@ -4,7 +4,7 @@ Thanks for wanting to work on RM. This project touches Roblox authentication coo
 
 ## Before you start
 
-- Check open [Issues](../../issues) and [Pull Requests](../../pulls) so you're not duplicating work.
+- Check open [Issues](https://github.com/Paryx-games/roblox-manager/issues) and [Pull Requests](https://github.com/Paryx-games/roblox-manager/pulls) so you're not duplicating work.
 - For anything non-trivial (new feature, behavior change, anything touching encryption/process control), open an issue first to discuss the approach before writing code. Small fixes and obvious bugs don't need this.
 - RM is Windows-only right now. Cross-platform support is out of scope unless explicitly discussed in an issue first; don't submit speculative portability branches such as `#[cfg(unix)]`.
 
@@ -12,33 +12,44 @@ Thanks for wanting to work on RM. This project touches Roblox authentication coo
 
 ```text
 ram_core/   Headless models, encryption, storage, Roblox APIs, process control, and tests
-ram_ui/     Native egui application, async bridge, browser subprocesses, and UI components
+ram_ui/frontend/   Active React/TypeScript interface, shared components and typed IPC
+ram_ui/frontend/tokens.css Shared visual tokens imported by the active frontend
+ram_ui/src-tauri/  Tauri commands, windows, background tasks, logging and NSIS packaging
 assets/     Bundled application assets
 ```
 
-`ram_core` has no UI dependency and should stay that way. Logic that doesn't need egui belongs in `ram_core`, not `ram_ui`. The `ram_ui` render loop must stay responsive: networking, storage, authentication, and process work goes through the Tokio-backed backend bridge rather than running synchronously in `update` or a component renderer.
+`ram_core` has no UI dependency. Its reusable domain logic and Roblox API operations live there; Tauri owns desktop state, windows, IPC and event coordination. The v2 branch includes explicitly requested extractions from Tauri into core. Keep future core edits within the limited policy in [AGENTS.md](AGENTS.md). Browser subprocess and Windows startup helpers live in `ram_ui/src-tauri/src/`. React uses typed wrappers in `ram_ui/frontend/lib/ipc.ts`. Read [DESIGN.md](DESIGN.md) and `ram_ui/frontend/tokens.css` before interface edits.
 
 ## Getting set up
 
 ### Prerequisites
 
 - Windows 10 or Windows 11
-- [Rust](https://rustup.rs/) stable, 1.75+
+- [Rust](https://rustup.rs/) stable
+- Node.js 22 and pnpm 11, matching CI
+- Visual Studio Build Tools with Desktop development with C++ and a Windows SDK
 - Roblox installed for local launch testing
 - WebView2 installed for browser-login and browse-as windows
 
 ### Fork and branch
 
-1. Click **Fork** on this repo's GitHub page — this creates your own copy under your GitHub account.
+1. Click **Fork** on this repo's GitHub page to create your own copy under your GitHub account.
 2. Clone *your fork* (not this repo) to your computer, replacing `GITHUB_USERNAME` below with your actual GitHub username:
 
 ```powershell
 git clone https://github.com/GITHUB_USERNAME/roblox-manager.git
 cd roblox-manager
-git checkout -b your-feature-name
+git config core.hooksPath .githooks
+git remote add upstream https://github.com/Paryx-games/roblox-manager.git
+git checkout -b dev/your-feature-name
+pnpm --dir ram_ui install --frozen-lockfile
 ```
 
+Configure the repository hooks immediately after cloning so the project's commit and push checks run automatically.
+
 Branch off the default branch. Keep branch names short and descriptive.
+
+Start the desktop app with `pnpm --dir ram_ui tauri dev`. For an independent debug executable, use `pnpm --dir ram_ui build:debug`, then `target/debug/rm_tauri.exe`. Production packaging uses `pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked` and outputs the executable and NSIS installer under `target/release/`.
 
 ## Making changes
 
@@ -52,17 +63,21 @@ Branch off the default branch. Keep branch names short and descriptive.
 Run these checks locally before pushing:
 
 ```powershell
+cargo fmt --all -- --check
 cargo check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all -- --check
+pnpm --dir ram_ui lint
+pnpm --dir ram_ui typecheck
 ```
 
-A PR should build, pass the workspace tests, and have no clippy warnings. The repository also contains GitLab CI configuration, but local checks are still required before opening a PR.
+A PR should pass Rust and frontend checks with no warnings. GitHub Actions builds the React frontend before the Rust app and verifies release packaging separately. Run the sequence before each focused commit, review the diff, and keep generated files and private data out of it.
 
-If you changed anything that reads or writes account data, config, or presets, manually verify a fresh `%APPDATA%\RM` still works (or that migration from an existing store doesn't corrupt it).
+For data, recovery or migration testing, use a separate test setup and backed-up test stores. Never run start-over or recovery tests against your only store. For installer changes, test on a separate Windows user or VM with fresh install, upgrade, shortcut, cleanup and missing-WebView2 cases. A successful bundle build is not an interactive smoke test.
 
 ## Opening the PR
+
+Follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md) for the required title, description sections and checklist. Add user-facing changes to `CHANGELOG.md` under `Unreleased`, respecting the v2 page-completion exception in AGENTS.md. Documentation-only changes do not need a changelog entry.
 
 - Describe *what* changed and *why*, not just a restatement of the diff.
 - Link the issue it resolves, if any (`Fixes #123`).
@@ -78,7 +93,7 @@ If you changed anything that reads or writes account data, config, or presets, m
 
 ## Reporting bugs vs. reporting vulnerabilities
 
-Regular bugs (crashes, UI issues, launch failures, etc) go in [Issues](../../issues) as normal.
+Regular bugs (crashes, UI issues, launch failures, etc) go in [Issues](https://github.com/Paryx-games/roblox-manager/issues) as normal.
 
 **Do not** open a public issue for anything that could expose cookies, bypass encryption, corrupt protected account data, or otherwise compromise an account. See [SECURITY.md](SECURITY.md) for how to report those privately.
 

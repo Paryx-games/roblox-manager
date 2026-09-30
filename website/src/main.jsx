@@ -61,14 +61,17 @@ const FEATURES = [
 
 const STACK = [
   { name: 'Rust', desc: 'Core + desktop application' },
-  { name: 'egui', desc: 'Interface' },
+  { name: 'Tauri', desc: 'Windows desktop shell' },
+  { name: 'React + TypeScript', desc: 'Interface' },
   { name: 'Windows', desc: '10 / 11' },
 ]
 
 const COMMANDS = [
   'git clone https://github.com/Paryx-games/roblox-manager.git',
   'cd roblox-manager',
-  'cargo build --release',
+  'git config core.hooksPath .githooks',
+  'pnpm --dir ram_ui install --frozen-lockfile',
+  'pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked',
 ]
 
 function StatusStack() {
@@ -207,8 +210,8 @@ function HomePage() {
       <section id="stack" className="stack">
         <div>
           <p className="eyebrow">Built with</p>
-          <h2>Rust, egui, and not much else.</h2>
-          <p>No Electron. No background services phoning home. It's a native window that opens fast and gets out of your way.</p>
+          <h2>Rust, Tauri, and React.</h2>
+          <p>A Rust core handles accounts, encrypted storage, and Roblox operations. Tauri hosts the React interface using Windows WebView2.</p>
         </div>
         <div className="stack-list">
           {STACK.map((s) => (
@@ -220,7 +223,8 @@ function HomePage() {
       <section className="install">
         <div>
           <p className="eyebrow">Building it yourself</p>
-          <h2>Three commands.<br />That's the whole setup.</h2>
+          <h2>Build the desktop app.</h2>
+          <p>Use Windows with Rust, Node 22, pnpm 11, Visual Studio C++ Build Tools, a Windows SDK, and WebView2 installed.</p>
         </div>
         <div className="code-block">
           <code>

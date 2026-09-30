@@ -10,7 +10,7 @@ RM is under active development with no formal release/LTS tracks yet. Security f
 
 **Do not open a public GitHub issue for security vulnerabilities.** Public issues are for ordinary bugs, not exploits. Filing a cookie-theft vector publicly can expose users before a fix exists.
 
-Report privately through [GitHub Security Advisories](../../security/advisories/new) for this repository. This lets us discuss and fix the issue with you before anything becomes public, and you'll get credit in the eventual advisory if you want it.
+Report privately through [GitHub Security Advisories](https://github.com/Paryx-games/roblox-manager/security/advisories/new) for this repository. This lets us discuss and fix the issue with you before anything becomes public, and you'll get credit in the eventual advisory if you want it.
 
 Include, where relevant:
 
@@ -28,7 +28,15 @@ You do not need a working exploit to report something - a credible theoretical i
 - Ways to bypass or corrupt RM's atomic persistence such that account data is silently lost or tampered with
 - Privilege escalation or arbitrary code execution via RM's process control (Roblox client launching, mutex patching, window management)
 - Log or file scrubbing failures - i.e. if you find a spot where cookies, tokens, or user paths leak into logs despite the intended scrubbing
-- Leaks across the UI/backend bridge, browser-login subprocess, or other local IPC boundary
+- Leaks across the UI/backend bridge, Tauri login window, browse-as subprocess, or other local IPC boundary
+
+## Tauri browser and installer boundaries
+
+Stored credentials must remain on the Rust side. Account summaries, Tauri events, user-facing errors and logs must not return raw cookies, tickets, CSRF tokens or protected integration credentials. Explicit cookie entry is an input flow, not permission to expose saved credentials back to React. The main interface, isolated login window and account browsers are separate trust boundaries.
+
+Installer interface-data reset and optional uninstall browser/log cleanup preserve encrypted accounts, configuration, presets, recovery copies and Credential Manager keys. Removing an account from the active store does not revoke the Roblox session; encrypted backups may retain previous entries. Reports about cleanup should distinguish browser data, the active store, backup copies and platform session revocation.
+
+Do not attach live stores, browser profiles or memory dumps to a report. Use synthetic reproduction data and describe the affected boundary. See [the user privacy guide](docs/security/privacy-and-security.md) for data locations and backup limitations.
 
 ## Discord webhook handling
 

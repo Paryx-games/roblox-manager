@@ -753,6 +753,35 @@ fn parse_item_timestamps(body: &serde_json::Value) -> Vec<(u64, DateTime<Utc>)> 
         .collect()
 }
 
+#[derive(Debug)]
+pub enum CreatorValidationError {
+    InvalidCreator,
+    GroupUnavailable,
+    Request(CoreError),
+}
+
+pub async fn validate_creator(
+    client: &RobloxClient,
+    cookie: &str,
+    user_id: u64,
+    creator: Creator,
+) -> Result<(), CreatorValidationError> {
+    match creator {
+        Creator::User(id) if id == user_id && id > 0 => Ok(()),
+        Creator::Group(id) if id > 0 => {
+            let groups = list_publishable_groups(client, cookie)
+                .await
+                .map_err(CreatorValidationError::Request)?;
+            if groups.iter().any(|group| group.group_id == id) {
+                Ok(())
+            } else {
+                Err(CreatorValidationError::GroupUnavailable)
+            }
+        }
+        _ => Err(CreatorValidationError::InvalidCreator),
+    }
+}
+
 /// Groups this account can actually manage assets for.
 ///
 /// Deliberately **not** `groups/roles`, which lists every membership including
@@ -930,9 +959,183 @@ fn operation_id(body: &serde_json::Value) -> Option<&str> {
     (!id.is_empty()).then_some(id)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InventoryItemDetails {
+    pub asset_id: u64,
+    pub name: String,
+    pub asset_type: String,
+    pub icon_url: Option<String>,
+    pub price_robux: Option<u64>,
+}
+
+fn apply_inventory_thumbnails(items: &mut [InventoryItemDetails], response: &serde_json::Value) {
+    if let Some(entries) = response.get("data").and_then(serde_json::Value::as_array) {
+        let icons: std::collections::HashMap<u64, String> = entries
+            .iter()
+            .filter_map(|entry| {
+                let id = entry.get("targetId")?.as_u64()?;
+                let url = entry.get("imageUrl")?.as_str()?;
+                Some((id, crate::api::trusted_roblox_image_url(url)?))
+            })
+            .collect();
+        for item in items.iter_mut() {
+            item.icon_url = icons.get(&item.asset_id).cloned();
+        }
+    }
+}
+
+fn apply_inventory_prices(items: &mut [InventoryItemDetails], response: &serde_json::Value) {
+    if let Some(entries) = response.get("data").and_then(serde_json::Value::as_array) {
+        let prices: std::collections::HashMap<u64, u64> = entries
+            .iter()
+            .filter_map(|entry| Some((entry.get("id")?.as_u64()?, entry.get("price")?.as_u64()?)))
+            .collect();
+        for item in items.iter_mut() {
+            item.price_robux = prices.get(&item.asset_id).copied();
+        }
+    }
+}
+
+fn prepare_inventory_items(mut items: Vec<UserInventoryItem>) -> Vec<InventoryItemDetails> {
+    items.sort_by_key(|item| item.asset_id);
+    items.dedup_by_key(|item| item.asset_id);
+    items
+        .into_iter()
+        .map(|item| InventoryItemDetails {
+            asset_id: item.asset_id,
+            name: item.name,
+            asset_type: item.asset_type,
+            icon_url: None,
+            price_robux: None,
+        })
+        .collect()
+}
+
+async fn enrich_inventory_items(
+    client: &RobloxClient,
+    cookie: &str,
+    items: &mut [InventoryItemDetails],
+) {
+    for batch in items.chunks_mut(50) {
+        let ids = batch
+            .iter()
+            .map(|item| item.asset_id.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        let thumbnail_url = format!(
+            "https://thumbnails.roblox.com/v1/assets?assetIds={ids}&size=150x150&format=Png&isCircular=false"
+        );
+        if let Ok(response) = client
+            .get_json::<serde_json::Value>(&thumbnail_url, "")
+            .await
+        {
+            apply_inventory_thumbnails(batch, &response);
+        }
+
+        let request = serde_json::json!({
+            "items": batch.iter().map(|item| serde_json::json!({
+                "itemType": "Asset",
+                "id": item.asset_id,
+            })).collect::<Vec<_>>()
+        });
+        if let Ok(response) = client
+            .post_json::<serde_json::Value>(
+                "https://catalog.roblox.com/v1/catalog/items/details",
+                cookie,
+                Some(&request),
+            )
+            .await
+        {
+            apply_inventory_prices(batch, &response);
+        }
+    }
+}
+
+pub async fn fetch_account_inventory(
+    client: &RobloxClient,
+    cookie: &str,
+    user_id: u64,
+) -> Result<Vec<InventoryItemDetails>, CoreError> {
+    let mut items = Vec::new();
+    for asset_type in USER_INVENTORY_ASSET_TYPES {
+        let mut fetched = list_user_inventory(client, cookie, user_id, asset_type).await?;
+        items.append(&mut fetched);
+    }
+    let mut items = prepare_inventory_items(items);
+    enrich_inventory_items(client, cookie, &mut items).await;
+    Ok(items)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn creator_validation_rejects_wrong_or_zero_owners_without_network_requests() {
+        let client = RobloxClient::new().unwrap();
+        assert!(
+            validate_creator(&client, "synthetic-credential", 1, Creator::User(1))
+                .await
+                .is_ok()
+        );
+        for creator in [Creator::User(2), Creator::User(0), Creator::Group(0)] {
+            assert!(matches!(
+                validate_creator(&client, "synthetic-credential", 1, creator).await,
+                Err(CreatorValidationError::InvalidCreator)
+            ));
+        }
+    }
+
+    #[test]
+    fn inventory_details_keep_first_category_and_sort_unique_assets() {
+        let items = prepare_inventory_items(vec![
+            user_item(2, "First", "Hat"),
+            user_item(1, "Other", "Gear"),
+            user_item(2, "Duplicate", "Gear"),
+        ]);
+        assert_eq!(
+            items.iter().map(|item| item.asset_id).collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        assert_eq!(items[1].name, "First");
+        assert_eq!(items[1].asset_type, "Hat");
+        assert!(items
+            .iter()
+            .all(|item| item.icon_url.is_none() && item.price_robux.is_none()));
+    }
+
+    #[test]
+    fn inventory_enrichment_pairs_by_id_and_skips_untrusted_or_missing_values() {
+        let mut items =
+            prepare_inventory_items(vec![user_item(1, "One", "Hat"), user_item(2, "Two", "Hat")]);
+        apply_inventory_thumbnails(
+            &mut items,
+            &serde_json::json!({
+                "data": [
+                    { "targetId": 2, "imageUrl": "https://rbxcdn.com/two.png" },
+                    { "targetId": 1, "imageUrl": "https://attacker.invalid/one.png" },
+                    { "targetId": 999, "imageUrl": "https://rbxcdn.com/unrequested.png" }
+                ]
+            }),
+        );
+        apply_inventory_prices(
+            &mut items,
+            &serde_json::json!({
+                "data": [{ "id": 2, "price": 0 }, { "id": 1, "price": "unknown" }]
+            }),
+        );
+        assert!(items[0].icon_url.is_none());
+        assert!(items[0].price_robux.is_none());
+        assert_eq!(
+            items[1].icon_url.as_deref(),
+            Some("https://rbxcdn.com/two.png")
+        );
+        assert_eq!(items[1].price_robux, Some(0));
+        let previous = items.clone();
+        apply_inventory_thumbnails(&mut items, &serde_json::json!({ "data": null }));
+        apply_inventory_prices(&mut items, &serde_json::json!({}));
+        assert_eq!(items, previous);
+    }
 
     fn creation(asset_id: u64, name: &str, kind: AssetKind) -> CreationItem {
         CreationItem {

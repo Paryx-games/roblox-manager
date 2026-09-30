@@ -1,0 +1,83 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const packageDirectory = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const workspaceDirectory = resolve(packageDirectory, "..");
+const cargoManifest = readFileSync(
+  resolve(workspaceDirectory, "Cargo.toml"),
+  "utf8",
+);
+const version = cargoManifest.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+
+if (!version) {
+  console.error("could not find the workspace version in Cargo.toml");
+  process.exit(1);
+}
+
+const tauriVersion = JSON.parse(
+  readFileSync(resolve(packageDirectory, "src-tauri/tauri.conf.json"), "utf8"),
+).version;
+const packageVersion = JSON.parse(
+  readFileSync(resolve(packageDirectory, "package.json"), "utf8"),
+).version;
+if (tauriVersion !== version || packageVersion !== version) {
+  console.error("Cargo.toml, tauri.conf.json, and package.json versions must match");
+  process.exit(1);
+}
+
+const argumentsList = process.argv.slice(2);
+const command = argumentsList[0];
+const isDevelopmentBuild =
+  command === "dev" || argumentsList.includes("--debug");
+const iconName = isDevelopmentBuild
+  ? "Development.ico"
+  : version.includes("-alpha")
+    ? "Alpha.ico"
+    : version.includes("-beta")
+      ? "Beta.ico"
+      : "Live.ico";
+const iconPath = `../../assets/logos/${iconName}`;
+const configOverride = JSON.stringify({
+  bundle: {
+    icon: [iconPath],
+    windows: {
+      nsis: { installerIcon: iconPath, uninstallerIcon: iconPath },
+    },
+  },
+});
+const runnerArgumentsIndex = argumentsList.indexOf("--");
+const configuredArguments = [...argumentsList];
+configuredArguments.splice(
+  runnerArgumentsIndex < 0 ? configuredArguments.length : runnerArgumentsIndex,
+  0,
+  "--config",
+  configOverride,
+);
+const tauriCli = resolve(
+  packageDirectory,
+  "node_modules/@tauri-apps/cli/tauri.js",
+);
+
+const result = spawnSync(
+  process.execPath,
+  [tauriCli, ...configuredArguments],
+  {
+    cwd: packageDirectory,
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      ...(isDevelopmentBuild && !process.env.RUST_LOG
+        ? { RUST_LOG: "info" }
+        : {}),
+    },
+  },
+);
+
+if (result.error) {
+  console.error(`could not start Tauri: ${result.error.message}`);
+  process.exit(1);
+}
+
+process.exit(result.status ?? 1);

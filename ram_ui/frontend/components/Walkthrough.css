@@ -1,0 +1,278 @@
+.is-walkthrough-active .main-col {
+  padding-top: var(--walkthrough-space, 160px);
+}
+
+.walkthrough-overlay {
+  position: fixed;
+  z-index: 100;
+  inset: 36px 0 0;
+  pointer-events: none;
+}
+
+.walkthrough-shade {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.walkthrough-dim {
+  fill: var(--walkthrough-dim);
+}
+
+.walkthrough-outline {
+  fill: none;
+  stroke: var(--walkthrough-outline);
+  stroke-width: var(--border-width);
+}
+
+.walkthrough-hole,
+.walkthrough-outline {
+  rx: var(--radius);
+}
+
+.walkthrough-dock {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-6);
+  left: calc(56px + var(--space-6));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+  max-height: calc(100vh - var(--space-12) * 3);
+  overflow: auto;
+  padding: var(--space-4) var(--space-6);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--walkthrough-dock);
+  backdrop-filter: blur(var(--space-2));
+  pointer-events: auto;
+}
+
+.walkthrough-copy .walkthrough-showcase-hint {
+  margin-top: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.walkthrough-example {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--border-default);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.walkthrough-demo-label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.walkthrough-demo-list {
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--space-2);
+}
+
+.walkthrough-demo-group,
+.walkthrough-demo-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.walkthrough-demo-group {
+  min-height: var(--space-8);
+  padding: 0 var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.walkthrough-demo-group > .account-icon {
+  width: var(--space-3);
+  height: var(--space-3);
+}
+
+.walkthrough-demo-group .group-count {
+  margin-left: auto;
+}
+
+.walkthrough-demo-badge {
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  background: var(--bg-raised);
+  font-size: var(--text-xs);
+}
+
+.walkthrough-demo-actions {
+  flex-wrap: wrap;
+}
+
+.walkthrough-demo-actions .account-button {
+  flex: 0 0 auto;
+}
+
+.walkthrough-demo-actions .account-button:disabled,
+.walkthrough-demo-list .icon-button:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.walkthrough-demo-place {
+  width: 100%;
+  min-height: var(--space-8);
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--bg-raised);
+}
+
+.walkthrough-demo-place:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
+}
+
+.is-walkthrough-complete [data-walkthrough="add-account"] {
+  outline: var(--border-width) solid var(--walkthrough-outline);
+  outline-offset: var(--space-1);
+}
+
+.walkthrough-completion {
+  position: fixed;
+  z-index: 100;
+  top: calc(var(--titlebar-height) + var(--space-3));
+  left: calc(56px + var(--space-6));
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  background: var(--walkthrough-dock);
+  backdrop-filter: blur(var(--space-2));
+  pointer-events: none;
+  font-size: var(--text-sm);
+}
+
+.walkthrough-progress {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.walkthrough-copy h2 {
+  margin: var(--space-1) 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.walkthrough-copy p {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.walkthrough-actions,
+.walkthrough-preview,
+.walkthrough-preview label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.walkthrough-actions .account-button {
+  flex: 0 0 auto;
+}
+
+.walkthrough-skip {
+  min-height: var(--space-8);
+  padding: var(--space-2);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.walkthrough-skip:hover:not(:disabled),
+.walkthrough-skip:focus-visible {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.walkthrough-skip:active:not(:disabled) {
+  background: var(--action-muted);
+}
+
+.walkthrough-skip:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.walkthrough-actions .walkthrough-next {
+  border-color: var(--action-primary);
+  background: var(--action-primary);
+}
+
+.walkthrough-actions .walkthrough-next:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--action-primary), var(--text-primary) 12%);
+}
+
+.walkthrough-actions .walkthrough-next:active:not(:disabled) {
+  background: color-mix(in srgb, var(--action-primary), var(--bg-canvas) 12%);
+}
+
+.walkthrough-actions .walkthrough-next:disabled {
+  border-color: var(--border-default);
+  background: var(--bg-surface);
+}
+
+.walkthrough-preview {
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--border-default);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.walkthrough-preview > span {
+  margin-right: auto;
+}
+
+.walkthrough-preview .account-button {
+  flex: 0 0 auto;
+}
+
+.walkthrough-preview input {
+  max-width: 180px;
+  min-height: var(--space-8);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-disabled);
+  background: var(--bg-surface);
+  cursor: not-allowed;
+}
+
+.walkthrough-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--notification-error);
+  font-size: var(--text-sm);
+}
+
+@media (width < 1000px) {
+  .walkthrough-dock {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .walkthrough-actions {
+    justify-content: flex-end;
+  }
+}

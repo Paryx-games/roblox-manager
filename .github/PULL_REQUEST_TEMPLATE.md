@@ -1,31 +1,24 @@
-## Summary
-
-<!-- What changed, and why? Link related issues with `Closes #123` when applicable. -->
-
 ## Changes
 
--
+<!-- Summarise the change in a short paragraph or bullets. Include what users notice, if relevant, and the reason when it helps explain the change. Link related issues here, e.g. Closes #123. -->
 
 ## Testing
 
-<!-- List the commands and manual checks you ran. -->
+<!-- List checks run and their results. Add brief manual steps for UI or launch changes, and say what remains unverified. -->
 
-- [ ] `cargo fmt --all -- --check`
-- [ ] `cargo check`
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings`
-- [ ] `cargo test --workspace`
-- [ ] Manual testing completed where applicable
+## Notes (optional)
 
-## Review checklist
+<!-- Add anything reviewers need to know: limitations, compatibility, security-sensitive changes, or follow-up work. Delete this section if unnecessary. -->
 
-- [ ] The change is focused and preserves unrelated existing behaviour.
-- [ ] User-facing changes are documented where appropriate.
-- [ ] Persisted application state uses crash-safe storage helpers.
-- [ ] Logs, error messages, screenshots, and other output do not expose cookies, tokens, passwords, or other secrets.
-- [ ] New UI uses the existing semantic theme and component patterns.
-- [ ] The PR title and commits follow Conventional Commits.
-- [ ] I have not included secrets, generated files, or unrelated changes.
+## Screenshots (optional)
 
-## Screenshots or recordings
+<!-- Add screenshots or recordings when they help explain a visual change. Delete this section if unnecessary. -->
 
-<!-- Add visuals for UI changes, or write "Not applicable". -->
+## Checklist
+
+<!-- Check only completed items. For an inapplicable item, replace its checkbox with N/A. Explain incomplete verification in Testing. Detailed requirements live in AGENTS.md and PR_CONVENTIONS.md. -->
+
+- [ ] Full pre-commit verification passed; applicable manual checks are recorded in Testing.
+- [ ] Changelog updated for user-facing changes (N/A otherwise).
+- [ ] Applicable design, security, and core ownership rules checked.
+- [ ] Diff reviewed: one focused change, no unrelated files, secrets, local data, or scratch output.
