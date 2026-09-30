@@ -3,6 +3,7 @@ use reqwest::Method;
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::api::trusted_roblox_image_url;
 use crate::auth::RobloxClient;
 use crate::error::CoreError;
 
@@ -318,4 +319,320 @@ fn parse_announcement(value: &Value) -> Option<GroupAnnouncement> {
         created: parse_date(value.get("created")),
         poster: parse_poster(value.get("poster")),
     })
+}
+
+#[derive(Debug, Clone)]
+pub struct LatestGroupAnnouncement {
+    pub title: String,
+    pub body: String,
+    pub created: Option<String>,
+    pub image_url: Option<String>,
+    pub reactions: Vec<GroupReaction>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupReaction {
+    pub label: String,
+    pub count: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupForumCategory {
+    pub id: String,
+    pub name: String,
+    pub posts: Vec<GroupForumPost>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GroupForumPost {
+    pub id: String,
+    pub title: String,
+    pub body: String,
+    pub created: Option<String>,
+    pub author: Option<String>,
+    pub comment_count: u64,
+}
+
+fn parse_latest_group_announcement(
+    value: &serde_json::Value,
+) -> Option<(LatestGroupAnnouncement, Option<u64>)> {
+    let announcement = match (value.get("announcement"), value.get("data")) {
+        (Some(announcement), _) => announcement,
+        (None, Some(data)) => data.as_array()?.first()?,
+        (None, None) => value,
+    };
+    let title = announcement
+        .get("title")
+        .or_else(|| announcement.get("name"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("Announcement")
+        .to_string();
+    let body = announcement
+        .pointer("/message/content/plainText")
+        .or_else(|| announcement.pointer("/content/plainText"))
+        .or_else(|| announcement.get("message"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let image_url = announcement
+        .pointer("/media/0/imageUrl")
+        .or_else(|| announcement.pointer("/message/media/0/imageUrl"))
+        .or_else(|| announcement.pointer("/message/content/media/0/imageUrl"))
+        .or_else(|| announcement.pointer("/media/0/url"))
+        .and_then(serde_json::Value::as_str)
+        .and_then(trusted_roblox_image_url);
+    let reactions = announcement
+        .pointer("/message/reactions")
+        .or_else(|| announcement.get("reactions"))
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .filter_map(|(index, reaction)| {
+            Some(GroupReaction {
+                label: reaction
+                    .get("name")
+                    .or_else(|| reaction.get("type"))
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("Reaction {}", index + 1)),
+                count: reaction
+                    .get("count")
+                    .or_else(|| reaction.get("reactionCount"))?
+                    .as_u64()?,
+            })
+        })
+        .collect();
+    Some((
+        LatestGroupAnnouncement {
+            title,
+            body,
+            created: announcement
+                .get("createdAt")
+                .or_else(|| announcement.get("created"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string),
+            image_url,
+            reactions,
+        },
+        announcement
+            .pointer("/message/media/assetId")
+            .and_then(serde_json::Value::as_u64),
+    ))
+}
+
+fn parse_forum_post(value: &serde_json::Value) -> Option<GroupForumPost> {
+    let id = value
+        .get("id")?
+        .as_str()
+        .map(str::to_string)
+        .or_else(|| value.get("id")?.as_u64().map(|id| id.to_string()))?;
+    let title = value
+        .get("title")
+        .or_else(|| value.get("subject"))?
+        .as_str()?
+        .to_string();
+    Some(GroupForumPost {
+        id,
+        title,
+        body: value
+            .pointer("/content/plainText")
+            .or_else(|| value.get("body"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        created: value
+            .get("createdAt")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        author: value
+            .pointer("/author/displayName")
+            .or_else(|| value.pointer("/author/username"))
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        comment_count: value
+            .get("commentCount")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or_default(),
+    })
+}
+
+pub async fn fetch_group_forums(
+    client: &RobloxClient,
+    cookie: &str,
+    group_id: u64,
+) -> Option<Vec<GroupForumCategory>> {
+    let url = format!("https://groups.roblox.com/v1/groups/{group_id}/forums");
+    let response = client
+        .get_json::<serde_json::Value>(&url, cookie)
+        .await
+        .ok()?;
+    let categories = response.get("data").and_then(serde_json::Value::as_array)?;
+    let mut forums = Vec::new();
+    for category in categories.iter().take(8) {
+        let Some(id) = category.get("id").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if id.len() != 36
+            || !id
+                .chars()
+                .all(|character| character.is_ascii_hexdigit() || character == '-')
+        {
+            continue;
+        }
+        let Some(name) = category.get("name").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        let posts_url = format!(
+            "https://groups.roblox.com/v1/groups/{group_id}/forums/{id}/posts?limit=10&includeCommentCount=true"
+        );
+        let posts = client
+            .get_json::<serde_json::Value>(&posts_url, cookie)
+            .await
+            .ok()
+            .and_then(|response| {
+                response
+                    .get("data")
+                    .and_then(serde_json::Value::as_array)
+                    .cloned()
+            })
+            .unwrap_or_default()
+            .iter()
+            .filter_map(parse_forum_post)
+            .collect();
+        forums.push(GroupForumCategory {
+            id: id.to_string(),
+            name: name.to_string(),
+            posts,
+        });
+    }
+    Some(forums)
+}
+
+pub async fn fetch_latest_group_announcement(
+    client: &RobloxClient,
+    group_id: u64,
+) -> Option<LatestGroupAnnouncement> {
+    let announcement_url =
+        format!("https://groups.roblox.com/v1/groups/{group_id}/announcements/latest");
+    let announcement = client
+        .get_json::<serde_json::Value>(&announcement_url, "")
+        .await
+        .ok()
+        .and_then(|value| parse_latest_group_announcement(&value));
+    if let Some((mut announcement, image_asset_id)) = announcement {
+        if announcement.image_url.is_none() {
+            if let Some(asset_id) = image_asset_id {
+                let thumbnail_url = format!(
+                    "https://thumbnails.roblox.com/v1/assets?assetIds={asset_id}&size=420x420&format=Png&isCircular=false"
+                );
+                announcement.image_url = client
+                    .get_json::<serde_json::Value>(&thumbnail_url, "")
+                    .await
+                    .ok()
+                    .and_then(|response| response.get("data")?.as_array()?.first().cloned())
+                    .and_then(|image| {
+                        image
+                            .get("imageUrl")?
+                            .as_str()
+                            .and_then(trusted_roblox_image_url)
+                    });
+            }
+        }
+        Some(announcement)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod group_content_tests {
+    use super::*;
+
+    #[test]
+    fn announcement_fallbacks_preserve_text_and_filter_untrusted_media() {
+        let response = serde_json::json!({
+            "announcement": {
+                "title": "Synthetic title",
+                "message": "Synthetic message",
+                "created": "synthetic-timestamp",
+                "media": [{ "imageUrl": "https://rbxcdn.com.attacker.invalid/image.png" }],
+                "reactions": [{ "name": "Useful", "count": 3 }, { "name": "Missing count" }]
+            }
+        });
+        let (announcement, asset_id) = parse_latest_group_announcement(&response).unwrap();
+        assert_eq!(announcement.title, "Synthetic title");
+        assert_eq!(announcement.body, "Synthetic message");
+        assert_eq!(announcement.created.as_deref(), Some("synthetic-timestamp"));
+        assert!(announcement.image_url.is_none());
+        assert!(asset_id.is_none());
+        assert_eq!(announcement.reactions.len(), 1);
+        assert_eq!(announcement.reactions[0].label, "Useful");
+        let (announcement, _) = parse_latest_group_announcement(&serde_json::json!({})).unwrap();
+        assert_eq!(announcement.title, "Announcement");
+        assert!(announcement.body.is_empty());
+        assert!(parse_latest_group_announcement(&serde_json::json!({ "data": [] })).is_none());
+    }
+
+    #[test]
+    fn forum_posts_preserve_identifier_formats_and_skip_malformed_entries() {
+        let response = serde_json::json!({
+            "id": 42,
+            "subject": "Synthetic subject",
+            "body": "Synthetic body",
+            "author": { "username": "Synthetic user" },
+            "commentCount": 7
+        });
+        let post = parse_forum_post(&response).unwrap();
+        assert_eq!(post.id, "42");
+        assert_eq!(post.title, "Synthetic subject");
+        assert_eq!(post.body, "Synthetic body");
+        assert_eq!(post.author.as_deref(), Some("Synthetic user"));
+        assert_eq!(post.comment_count, 7);
+        let post = parse_forum_post(&serde_json::json!({ "id": "synthetic-id", "title": "Title" }))
+            .unwrap();
+        assert_eq!(post.id, "synthetic-id");
+        assert!(post.body.is_empty());
+        assert_eq!(post.comment_count, 0);
+        assert!(parse_forum_post(&serde_json::json!({ "title": "Missing ID" })).is_none());
+        assert!(parse_forum_post(&serde_json::json!({ "id": 1 })).is_none());
+    }
+
+    #[test]
+    fn roblox_images_require_https_and_an_exact_cdn_domain_suffix() {
+        for url in [
+            "https://rbxcdn.com/image.png",
+            "https://subdomain.rbxcdn.com/image.png",
+        ] {
+            assert_eq!(trusted_roblox_image_url(url).as_deref(), Some(url));
+        }
+        for url in [
+            "http://rbxcdn.com/image.png",
+            "https://rbxcdn.com.attacker.invalid/image.png",
+            "https://attacker.invalid/?url=rbxcdn.com",
+            "not-a-url",
+        ] {
+            assert!(trusted_roblox_image_url(url).is_none());
+        }
+    }
+
+    #[test]
+    fn parses_current_announcement_content_and_media() {
+        let response = serde_json::json!({
+            "data": [{
+                "name": "Update",
+                "createdAt": "2026-06-12T01:02:18Z",
+                "message": {
+                    "content": { "plainText": "New content" },
+                    "media": { "assetId": 123456789_u64 },
+                    "reactions": [{ "emoteId": "synthetic-id", "reactionCount": 6 }]
+                }
+            }]
+        });
+        let (announcement, image_asset_id) = parse_latest_group_announcement(&response).unwrap();
+        assert_eq!(announcement.title, "Update");
+        assert_eq!(announcement.body, "New content");
+        assert_eq!(image_asset_id, Some(123456789));
+        assert_eq!(announcement.reactions[0].count, 6);
+    }
 }

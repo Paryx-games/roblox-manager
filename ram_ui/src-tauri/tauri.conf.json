@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Roblox Manager",
+  "version": "2.0.0-beta.1",
+  "identifier": "com.paryxgames.roblox-manager",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Roblox Manager",
+        "width": 1200,
+        "height": 760,
+        "minWidth": 1200,
+        "minHeight": 760,
+        "decorations": false,
+        "resizable": true,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "Paryx Games",
+    "homepage": "https://roblox-manager.gitbook.io/docs",
+    "shortDescription": "Secure Roblox account and instance management",
+    "icon": [
+      "../../assets/logos/Live.ico"
+    ],
+    "windows": {
+      "allowDowngrades": false,
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "../../assets/logos/Live.ico",
+        "uninstallerIcon": "../../assets/logos/Live.ico",
+        "sidebarImage": "installer/sidebar.bmp",
+        "languages": ["English"],
+        "displayLanguageSelector": false,
+        "customLanguageFiles": {
+          "English": "installer/English.nsh"
+        },
+        "installerHooks": "installer/hooks.nsh",
+        "template": "installer/installer.nsi",
+        "compression": "lzma",
+        "startMenuFolder": "Roblox Manager"
+      }
+    }
+  }
+}

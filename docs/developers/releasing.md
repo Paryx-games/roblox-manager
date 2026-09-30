@@ -9,9 +9,9 @@ icon: tag
 
 RM follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
-* **MAJOR** — Breaking changes require migration. This includes incompatible configuration or account-store formats. It also includes removing or renaming dependencies of existing setups, scripts, or integrations. Feature removal alone does not require a major release.
-* **MINOR** — Backward-compatible features, settings, tabs, capabilities, or feature removals.
-* **PATCH** — Bug fixes, wording changes, or UI polish. Do not add capability.
+- **MAJOR** - Breaking changes requiring migration, or a substantial new generation of RM through significant architectural work or a material scope change. Effort alone does not justify a major version. Follow [VERSIONING.md](https://github.com/Paryx-games/roblox-manager/blob/v2/VERSIONING.md) for the complete policy.
+- **MINOR** - Backward-compatible features, settings, tabs, capabilities, or feature removals.
+- **PATCH** - Bug fixes, wording changes, or UI polish. Do not add capability.
 
 ### Pre-releases
 
@@ -19,9 +19,9 @@ RM has no project-wide `0.x` or beta phase. Each version line ships as stable `M
 
 Pre-release identifiers stage an upcoming version before its plain tag:
 
-* **`-alpha.N`** — An early, unfinished build. Expect breakage.
-* **`-beta.N`** — An early test build. It may lack features or contain bugs.
-* **`-rc.N`** — A release candidate for final testing. If no issues appear, publish the plain version next.
+- **`-alpha.N`** - An early, unfinished build. Expect breakage.
+- **`-beta.N`** - An early test build. It may lack features or contain bugs.
+- **`-rc.N`** - A release candidate for final testing. If no issues appear, publish the plain version next.
 
 {% hint style="info" %}
 An `-rc.N` version requires an earlier `-alpha.N` or `-beta.N` for that version. Otherwise, publish the plain version directly.
@@ -31,60 +31,68 @@ Under SemVer, pre-releases sort before their plain release. For example, `v2.0.0
 
 ### Where the version lives
 
-Set the version only in the root `Cargo.toml`. Both crates inherit it. Do not hardcode versions elsewhere.
+The root `Cargo.toml` is the version source of truth. Both Rust crates inherit it. Synchronise the required mirrors in `ram_ui/src-tauri/tauri.conf.json` and `ram_ui/package.json`; do not add independent version constants.
+
+### Windows installer template
+
+The NSIS installer uses `ram_ui/src-tauri/installer/installer.nsi`, based on Tauri Bundler 2.9.4. It adds setup and uninstall choices while retaining Tauri's install, upgrade and WebView2 handling. When upgrading the Tauri CLI, compare this template with the matching upstream version and rebuild the installer before releasing.
 
 ## Publishing a release
 
-`.github/workflows/release.yml` runs only when you push a tag matching `v*`. Normal pushes to `main` or other branches do not publish releases.
+`.github/workflows/release.yml` runs when you push a tag matching `v*`, and can also be re-run manually against an existing tag (see [If GitHub is being stubborn](#if-github-is-being-stubborn)). Normal pushes to `main` or other branches do not publish releases.
 
-1. Bump the version in the root `Cargo.toml`.
-2.  Add `## vX.Y.Z` to `CHANGELOG.md`, above the previous release.
-
-    <div data-gb-custom-block data-tag="hint" data-style="warning" class="hint hint-warning"><p>The workflow fails if it cannot find a <code>## vX.Y.Z</code> heading matching the tag exactly.</p></div>
-3. Sync `Cargo.lock` when dependencies changed:
+1. Update the root Cargo version and both required Tauri/package version mirrors.
+2. Rename `## Unreleased` in `CHANGELOG.md` to `## vX.Y.Z`. If no unreleased section exists, add the heading above the previous release. The workflow requires an exact heading matching the tag.
+3. If dependencies changed, regenerate and review the Cargo and pnpm lockfiles using their package managers. Do not edit lockfiles manually.
+4. Run the full verification sequence in [Contributing](contributing.md), then build the release bundle:
 
 ```powershell
-cargo build
-git diff Cargo.lock
+pnpm --dir ram_ui install --frozen-lockfile
+pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked
 ```
 
-Check that the diff is expected. Include `Cargo.lock` in the release commit. The workflow uses `--locked` and fails with a stale lockfile.
-
-4. Commit the release files:
+5. Test the installer paths below using separate test data. Review the diff and commit the release files:
 
 ```powershell
-git add Cargo.toml Cargo.lock CHANGELOG.md
-git commit -m "chore: bump version to vX.Y.Z"
-```
-
-5. Tag the commit and push the tag:
-
-```powershell
+git add Cargo.toml Cargo.lock CHANGELOG.md ram_ui/src-tauri/tauri.conf.json ram_ui/package.json ram_ui/pnpm-lock.yaml
+git commit -m "chore(release): bump version to vX.Y.Z"
 git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-Pushing the tag triggers the workflow.
+The workflow uses Windows, stable Rust, Node 22 and pnpm 11. It installs frozen frontend dependencies, builds the embedded frontend and NSIS bundle with locked Cargo dependencies, and publishes:
 
-6. The workflow builds the release and publishes it automatically. It renames the executable to `roblox-manager-vX.Y.Z-windows-x64.exe`. It also adds changelog content, GitHub-generated notes, a downloads table, and a SHA256 checksum.
+- `roblox-manager-vX.Y.Z-windows-x64.exe`
+- `roblox-manager-vX.Y.Z-windows-x64-setup.exe`
+- `SHA256SUMS.txt`, covering both executables
 
-### If GitHub is being stubborn
+Release notes combine the maintained changelog, GitHub-generated notes, download descriptions and a VirusTotal report for the direct executable. `VIRUSTOTAL_API_KEY` must be configured as a repository secret. The installer is checksummed; the workflow's VirusTotal upload is for the direct executable.
 
-The workflow has no `workflow_dispatch` trigger. It only runs on tag pushes.
+Local outputs are `target/release/rm_tauri.exe` and `target/release/bundle/nsis/Roblox Manager_<version>_x64-setup.exe`. GitHub asset naming happens later in the release job.
 
-If a fix exists in a newer commit, move the tag:
+## Installer verification
 
-```powershell
-git tag -d vX.Y.Z
-git push origin :refs/tags/vX.Y.Z
-git tag vX.Y.Z
-git push origin vX.Y.Z
-```
+The application and shortcuts are named **Roblox Manager**, with a per-user installation. The build wrapper selects development, alpha, beta or live icons for the app, installer and uninstaller. The sidebar source is `assets/branding/LogoThumbVertical.png`; NSIS consumes `ram_ui/src-tauri/installer/sidebar.bmp` at 164 x 314 pixels. Branding changes need a regenerated bitmap, not just a changed PNG.
 
-This recreates the tag at the latest commit. Pushing it triggers the workflow again.
+Test on a separate Windows user or VM with backed-up test stores:
 
-{% hint style="warning" %}
-Move a tag only before anyone relies on it. Use a new version if users downloaded the executable or automation pins the tag.
-{% endhint %}
+- Fresh install: default writable location, no app elevation, both shortcuts selected by default, and no Start menu folder selection page.
+- Shortcut choices: each checkbox combination and a reinstall with existing shortcuts.
+- Upgrade: newer version over an installed build, retaining accounts, aliases, groups, pins, ordering, settings and presets.
+- Rename transition: an old **RM** installation is detected and setup asks for its uninstall first.
+- Downgrade: older installer cannot replace a newer installed version.
+- Interface reset: clears interface browser data while retaining encrypted application data.
+- Uninstall: cleanup options default off; each optional browser/log cleanup does only what its wording says; open-folder works when the folder exists.
+- Reinstall: retained encrypted data unlocks for the same Windows user, with custom store locations unaffected.
+- Missing WebView2: bootstrapper installs the runtime with internet access; existing-runtime machines do not need a runtime replacement.
+- Silent/update paths: interactive choices are skipped and optional cleanup remains off.
 
-If the tagged commit is correct, rerun it from **Actions**. Use **Re-run all jobs** for transient failures.
+NSIS supports `/S` for silent setup, `/P` for passive mode, `/NS` to suppress shortcut creation, `/R` to run after silent/passive setup, and `/D=...` for the installation directory (last argument). `/UPDATE` is an updater mode, not a user data-cleanup switch. Normal silent/passive setup retains Tauri's shortcut defaults, including desktop creation unless `/NS` is supplied. Never run unattended uninstall/recovery tests against live data.
+
+A terminal bundle build verifies compilation and packaging only. Record which interactive and runtime cases were actually tested before declaring a release verified. See [Installer and uninstall options](../getting-started/installer-options.md) for user-facing defaults and retained data.
+
+## If GitHub is being stubborn
+
+If the tagged commit is correct and the failure was transient, use **Actions > Release > Re-run all jobs**, or **Run workflow** and enter that existing tag.
+
+Both jobs explicitly check out the requested tag. Fixing `main` and manually dispatching the old tag does not include the source, lockfile or changelog fix. For a source correction, publish a new verified version/tag. Move an unpublished, unused tag only after coordination; never move a tag that users or automation already rely on. Retrying can replace release assets, so do not silently rebuild a distributed version with different contents.

@@ -5,8 +5,6 @@ icon: clone
 
 # Multi-instance
 
-## Multi-instance
-
 Multi-instance lets Roblox Manager run more than one Roblox client simultaneously.
 
 Use it when you need several accounts running at once.
@@ -40,6 +38,8 @@ Open Roblox Manager and go to **Settings**.
 ### Turn on multi-instance
 
 Enable the multi-instance option.
+
+Close existing Roblox clients, including tray/background processes, first. The automatic background-process cleanup preference can help with leftover tray processes; it is separate from deliberately killing every running game.
 {% endstep %}
 
 {% step %}
@@ -60,14 +60,16 @@ Return to your account list and launch the accounts you need.
 
 {% tab title="Launch in bulk" %}
 1. Select several accounts with `Ctrl`-click or `Shift`-click.
-2. Open the group panel.
-3. Launch the selected accounts together.
+2. Choose **Bulk launch** in Accounts and enter the destination.
+3. Launch the selected accounts in sequence with the configured launch pacing.
 {% endtab %}
 {% endtabs %}
 
 ### What happens next
 
 Each selected account opens in its own Roblox client session. You can then arrange the open windows as needed.
+
+Use [Instances](instances.md) to focus clients and review exact, inferred or unmatched attribution. Automatic window arrangement uses Settings; **Arrange windows** applies it manually.
 
 {% hint style="info" %}
 Start with two accounts to confirm multi-instance works in your current Roblox version.
