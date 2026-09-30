@@ -357,13 +357,13 @@ RM has no project-wide `0.x`/beta phase - every version line ships stable as `MA
 
 Pre-releases sort before their plain release under SemVer (`v2.0.0-rc.1` < `v2.0.0`) - tooling should never treat a pre-release as latest stable.
 
-**Version source of truth is the root `Cargo.toml`.** Both Rust crates inherit it. The required mirrors in `ram_ui/src-tauri/tauri.conf.json` and `ram_ui/package.json` must match; do not introduce other independent version constants.
+**Version source of truth is the root `Cargo.toml`.** Both Rust crates inherit it, and Tauri derives it with no `version` override in `tauri.conf.json`. `ram_ui/package.json` is the only version mirror. Use `pnpm version:set <version>` or `bump-version.bat`; use `pnpm version:sync` after manual Cargo edits and `pnpm version:check` to validate consistency. Do not introduce other independent version constants.
 
 ### Publishing a release
 
 `.github/workflows/release.yml` runs on pushed `v*` tags and manual `workflow_dispatch` for an existing tag. Normal pushes to `main` never publish. Both release jobs check out the selected tag.
 
-1. Bump the version in the root `Cargo.toml` (and `tauri.conf.json` / `package.json` to match).
+1. Run `bump-version.bat` or `pnpm version:set <version>` from the repository root to bump Cargo and synchronise the frontend mirror and lockfiles. If Cargo was edited manually, run `pnpm version:sync`.
 2. Rename the `## Unreleased` heading in `CHANGELOG.md` to `## vX.Y.Z` (entries should already be there from per-commit updates - see Commit as you go above). If for some reason there's no `## Unreleased` section, add `## vX.Y.Z` above the previous release instead. **The workflow fails if it can't find a heading matching the tag exactly.**
 3. If dependencies changed, sync the lockfiles and check the diffs are expected:
 

@@ -10,6 +10,9 @@ on:
       - "ram_ui/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "bump-version.bat"
       - "clippy.toml"
       - "assets/**"
       - ".github/workflows/release.yml"
@@ -22,6 +25,9 @@ on:
       - "ram_ui/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "bump-version.bat"
       - "clippy.toml"
       - "assets/**"
       - ".github/workflows/release.yml"
@@ -60,6 +66,12 @@ jobs:
       - name: install frontend dependencies
         working-directory: ram_ui
         run: pnpm install --frozen-lockfile
+
+      - name: setup rust for version tooling
+        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
+
+      - name: validate application version
+        run: pnpm --dir ram_ui version:check
 
       - name: build frontend
         working-directory: ram_ui
