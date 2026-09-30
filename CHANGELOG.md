@@ -1,17 +1,6 @@
 # Changelog
 
-## Unreleased
-
-### Fixed
-
-- Beta or release-candidate installs can detect the matching stable release, and empty group announcements no longer appear as phantom posts.
-- Account re-addition can repair a missing stored credential, and failed favourite migration no longer blocks startup information.
-- Private-server enrichment preserves concurrent edits, and asset queue actions stay within the selected account.
-- Saved server launches ignore duplicate clicks, and dialog focus, account selection, inventory selection, and preset or server deletion behave consistently with keyboard and screen-reader controls.
-- Failed group edits restore the previous group settings and leave account organisation unchanged.
-- Clear Cache now reports when there is no cached data instead of claiming to have cleared it.
-
-## v2.0.0-beta.2
+## v2.0.0-beta.3
 
 ### Changed
 
@@ -34,6 +23,12 @@ The v2 beta replaces the egui interface with Tauri and React while retaining the
 - **Startup and recovery.** Restores first-run guidance, upgrade notes, older-data migration, and encrypted-store recovery with protected backup copies.
 - **Browser reliability.** Recovers the main interface from WebView2 browser or renderer failures instead of leaving a black window.
 - **Launch and background behaviour.** Coordinates launch pacing across workspaces and restores configured multi-instance setup, window arrangement, background cleanup, and privacy cleanup.
+- Beta or release-candidate installs can detect the matching stable release, and empty group announcements no longer appear as phantom posts.
+- Account re-addition can repair a missing stored credential, and failed favourite migration no longer blocks startup information.
+- Private-server enrichment preserves concurrent edits, and asset queue actions stay within the selected account.
+- Saved server launches ignore duplicate clicks, and dialog focus, account selection, inventory selection, and preset or server deletion behave consistently with keyboard and screen-reader controls.
+- Failed group edits restore the previous group settings and leave account organisation unchanged.
+- Clear Cache now reports when there is no cached data instead of claiming to have cleared it.
 
 ## v1.16.0
 
