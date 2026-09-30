@@ -1,5 +1,1 @@
 blank_issues_enabled: false
-contact_links:
-  - name: Report a security vulnerability
-    url: https://github.com/Paryx-games/roblox-manager/security/advisories/new
-    about: Report credential exposure, encryption, or other security issues privately.

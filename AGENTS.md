@@ -331,7 +331,7 @@ At release time (see Versioning & Releasing below), the `## Unreleased` heading 
 git push -u origin your-feature-name
 ```
 
-PR description should cover: what changed, why, user-visible behavior, tests run, and any Roblox-version assumptions. Include the design-system checklist items (see DESIGN.md § Enforcement) for any UI change. Report vulnerabilities through [SECURITY.md](SECURITY.md), never as a public issue.
+PR descriptions use Changes, Testing, and the short Checklist in PR_CONVENTIONS.md. Include the reason when useful and user-visible behavior when relevant. Notes and Screenshots are optional. For UI changes, record explicit design-system confirmation and applicable manual checks in Testing (see DESIGN.md's UI review checklist). Call out relevant Roblox-version assumptions and security-sensitive changes. Report vulnerabilities through [SECURITY.md](SECURITY.md), never as a public issue.
 
 **Every PR must follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md)** - title format, required description sections and order, and the required checklist. Treat that file as the authoritative spec for PR title/description/checklist; the summary above is not a substitute for it.
 
@@ -457,7 +457,7 @@ Pre-releases sort before their plain release under SemVer (`v2.0.0-rc.1` < `v2.0
     - Every new interactive component must implement its full required interaction-state set (DESIGN.md § Interaction states) - a button with no visible focus ring is an incomplete component, not a follow-up task.
     - Don't invent a new component for a single-use wrapper (DESIGN.md § 4) - and don't invent a new _pattern_ (a new card style, a new table variant) without flagging it and confirming the approach first, the same way a major architectural change gets flagged under § "Ask before major changes" below.
 
-11. **Pull requests**: every PR must follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md) - title format, the four required description sections in order, and the required checklist stated explicitly (checked or N/A). Don't improvise a different PR shape even for a small change; if the checklist doesn't fit cleanly, that's a signal to split the PR, not to skip items.
+11. **Pull requests**: every PR must follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md) - title format, Changes, Testing, and the short Checklist. Notes and Screenshots are optional. Check completed items, mark inapplicable items N/A, and leave incomplete verification unchecked with an explanation in Testing. Preserve applicable design, security, and core extraction evidence without adding separate boilerplate checklists.
 
 ---
 
@@ -471,6 +471,6 @@ Pre-releases sort before their plain release under SemVer (`v2.0.0-rc.1` < `v2.0
 - **Preserve existing behaviour:** Avoid changing existing functionality unless the task explicitly requires it. Prefer small, targeted changes over unnecessary refactors.
 - **Ask before major changes:** If a requested change would require a significant architectural change, removal of existing functionality, a new design-system pattern not already covered by `DESIGN.md`, or a potentially destructive migration, explain the impact before proceeding.
 - Follow the repository's [Conventional Commits guide](CONVENTIONAL_COMMITS.md) for commit messages, and [VERSIONING.md](VERSIONING.md) for how version numbers are chosen.
-- **Pull requests:** every PR follows [PR_CONVENTIONS.md](PR_CONVENTIONS.md) - required title format, the four description sections in order, and the required checklist stated explicitly.
+- **Pull requests:** every PR follows [PR_CONVENTIONS.md](PR_CONVENTIONS.md) - required title format, Changes, Testing, and the short Checklist, with optional Notes and Screenshots.
 - Full user-facing docs (guides, FAQ, security guidance) live at `https://roblox-manager.gitbook.io/docs` - check there before re-explaining a feature that's already documented for users.
 - All icons use the existing set under `assets/icons` (.pngs OR .svgs ONLY) - see DESIGN.md § Icons for the full rule, including the no-emoji rule.
