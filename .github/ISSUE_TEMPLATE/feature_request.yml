@@ -7,68 +7,32 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping shape RM. It currently targets Windows 10/11 and Roblox account management, game launching, multi-instance use, privacy, and related workflows.
-
-  - type: checkboxes
-    id: checks
-    attributes:
-      label: Before submitting
-      options:
-        - label: I searched existing issues and did not find a duplicate.
-          required: true
-        - label: I understand RM is currently Windows-only.
-          required: true
+        Suggest an improvement for RM. Do not include cookies, tokens, passwords, or private server codes.
 
   - type: textarea
-    id: problem
+    id: suggestion
     attributes:
-      label: Problem to solve
-      description: What workflow is difficult, slow, or impossible today? Include who would benefit.
-      placeholder: "When managing ..., I need ... because ..."
-    validations:
-      required: true
-
-  - type: textarea
-    id: proposal
-    attributes:
-      label: Proposed solution
-      description: Describe the behavior or experience you would like. Concrete examples are useful.
+      label: Suggestion
+      description: Describe what you would like and why it would help.
+      placeholder: "I would like ... because ..."
     validations:
       required: true
 
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternatives considered
-      description: How do you handle this today, and why is that not sufficient?
-
-  - type: dropdown
-    id: area
-    attributes:
-      label: Related area
-      description: Which part of RM would this change affect?
-      options:
-        - Accounts or login
-        - Instances, launching, or window management
-        - Groups or activity
-        - Private Servers or Presets
-        - Inventories or Asset Manager
-        - Settings, privacy, or encrypted storage
-        - Interface or accessibility
-        - Installer or update
-        - Other
-    validations:
-      required: true
+      label: Alternatives (optional)
+      description: Mention any workarounds or other solutions you have considered.
 
   - type: textarea
-    id: context
+    id: examples
     attributes:
-      label: Additional context
-      description: Add mockups, screenshots, links, constraints, or examples of similar behavior elsewhere. Do not include cookies, passwords, or other secrets.
+      label: Examples (optional)
+      description: Add screenshots, mockups, links, or examples of similar behavior.
 
   - type: checkboxes
     id: contribution
     attributes:
-      label: Contribution
+      label: Contribution (optional)
       options:
         - label: I would be interested in helping implement this feature.

@@ -20,9 +20,8 @@ tone_instructions: >-
   actionable findings over speculative or stylistic feedback.
 
 reviews:
-  # assertive asks coderabbit to look harder.
-  # the instructions below prevent that from turning into endless nitpicks.
-  profile: "assertive"
+  # chill balances review feedback; assertive produces more potentially nitpicky feedback.
+  profile: "chill"
 
   # keep coderabbit from automatically approving prs after its findings are resolved.
   # ci and human reviewers remain the actual merge authority.
@@ -40,10 +39,12 @@ reviews:
 
   # useful when coderabbit proposes or generates a title.
   auto_title_instructions: >-
-    Use Conventional Commits where appropriate:
-    type(optional-scope): concise imperative summary.
-    Prefer feat, fix, refactor, perf, test, docs, build, ci or chore.
-    Do not add emoji. Do not end with a period.
+    Follow PR_CONVENTIONS.md and CONVENTIONAL_COMMITS.md:
+    type(optional-scope): lowercase imperative description, ideally no more
+    than 72 characters. Use a permitted type and the most specific applicable
+    repository scope; omit the scope when no single scope honestly fits.
+    Never use ui, misc, general, a version number, or comma-separated scopes.
+    Do not add emoji or a trailing period.
 
   # avoid extra review furniture unless it carries useful information.
   review_status: false
@@ -175,6 +176,27 @@ reviews:
 
         Do not duplicate eslint, biome or formatter-only findings.
 
+    # tauri commands and host lifecycle are an ipc and credential boundary.
+    - path: "ram_ui/src-tauri/**"
+      instructions: |
+        Validate frontend arguments at the command boundary. Check async cancellation,
+        blocking work, event/listener cleanup, and login/browse-as window isolation.
+        Never expose cookies, tickets, passwords or tokens through IPC results, events,
+        errors, logs or URLs. Persist application state through existing atomic storage
+        APIs. Review capability/configuration changes for unintended window permissions.
+        Respect AGENTS.md's core ownership and extraction restrictions.
+
+    # apply rm's actual design system rather than generic visual preferences.
+    - path: "ram_ui/frontend/**"
+      instructions: |
+        Read DESIGN.md, tokens.css and the relevant styles before reviewing UI changes.
+        Check shared tokens, Roboto, existing components, local icons, interaction
+        states, keyboard focus, overlay behavior and reduced motion. Use typed IPC
+        wrappers in lib/ipc.ts; check stale async state and listener/timer cleanup.
+        Require visible pending/error/retry behavior where applicable and no credential
+        exposure. Distinguish documented existing exceptions from new regressions;
+        do not flag unrelated legacy styling or invent new visual patterns.
+
     # python review.
     - path: "**/*.py"
       instructions: |
@@ -295,29 +317,51 @@ reviews:
         Require concrete reasoning for security findings. Do not report vague
         theoretical concerns without an applicable attack or failure path.
 
+    # security-sensitive core operations are files, not security-named directories.
+    - path: "ram_core/src/{crypto,storage,redact,auth,process,accounts,instances}.rs"
+      instructions: |
+        Apply AGENTS.md's security rules and protected-core policy. Trace secret handling,
+        encryption/redaction, atomic persistence, process input validation and launch
+        attribution through callers and failure paths. Flag only concrete new or worsened
+        vulnerabilities or explicitly unsupported core changes. Never quote real secrets
+        in findings or suggest weakening protections to simplify a fix.
+
+    - path: "ram_ui/src-tauri/src/{login,browser_login,webview_recovery,accounts,lifecycle,launcher,instances,state}.rs"
+      instructions: |
+        Review credential capture, window/process isolation, IPC output, persistence,
+        recovery and process actions as security-sensitive. Validate untrusted paths,
+        URLs and process data; preserve exact-attribution safeguards and cleanup.
+        Findings must identify a reachable failure or attack path without exposing secrets.
+
+    - path: "ram_ui/src-tauri/{capabilities/**,tauri.conf.json,installer/**}"
+      instructions: |
+        Check capability scope, remote webview access, navigation/CSP changes and installer
+        filesystem operations for concrete privilege or credential-boundary regressions.
+        Compare against the existing configuration; do not report unrelated pre-existing risks.
+
   auto_review:
-    enabled: true
+    enabled: false
 
-    # review subsequent pushes rather than only the initial pr.
-    auto_incremental_review: true
+    # # review subsequent pushes rather than only the initial pr.
+    # auto_incremental_review: true
 
-    # drafts are intentionally unfinished.
-    drafts: false
+    # # drafts are intentionally unfinished.
+    # drafts: false
 
-    ignore_title_keywords:
-      - "WIP"
-      - "DO NOT MERGE"
-      - "DO NOT REVIEW"
+    # ignore_title_keywords:
+    #   - "WIP"
+    #   - "DO NOT MERGE"
+    #   - "DO NOT REVIEW"
 
-    # the repository's pull request workflows target main.
-    base_branches:
-      - "^main$"
+    # # the repository's pull request workflows target main.
+    # base_branches:
+    #   - "^main$"
 
-    # add bots here if you decide their prs do not need coderabbit.
-    ignore_usernames: []
+    # # add bots here if you decide their prs do not need coderabbit.
+    # ignore_usernames: []
 
-    # leave empty so normal prs are reviewed regardless of labels.
-    labels: []
+    # # leave empty so normal prs are reviewed regardless of labels.
+    # labels: []
 
   # use CodeRabbit checks that add coverage beyond the repository's existing CI.
   tools:
@@ -397,8 +441,11 @@ reviews:
         instructions: |
           Check the title and description against PR_CONVENTIONS.md.
           Prefer a Conventional Commit title under 72 characters without emoji.
-          Require the four description sections in order and every checklist item
-          explicitly marked checked or N/A. Use the complete PR description.
+          Require Changes, Testing and Checklist in order. Notes and Screenshots are
+          optional; do not require empty sections or N/A text for omitted sections.
+          Check the four checklist items against the recorded evidence. Accept explicit
+          N/A where applicable; incomplete verification must remain unchecked and be
+          explained in Testing. Use the complete PR description.
 
       - name: "repository policy compliance"
         mode: "warning"
@@ -481,6 +528,7 @@ knowledge_base:
       - "AGENTS.md"
       - "**/AGENTS.md"
       - "PR_CONVENTIONS.md"
+      - "DESIGN.md"
       - "CONTRIBUTING.md"
       - "**/CONTRIBUTING.md"
       - "CODE_STYLE.md"
