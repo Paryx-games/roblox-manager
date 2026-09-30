@@ -1,34 +1,28 @@
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createVersionTools, printSummary } from "./versions.mjs";
 
 const packageDirectory = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const workspaceDirectory = resolve(packageDirectory, "..");
-const cargoManifest = readFileSync(
-  resolve(workspaceDirectory, "Cargo.toml"),
-  "utf8",
-);
-const version = cargoManifest.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
-
-if (!version) {
-  console.error("could not find the workspace version in Cargo.toml");
-  process.exit(1);
-}
-
-const tauriVersion = JSON.parse(
-  readFileSync(resolve(packageDirectory, "src-tauri/tauri.conf.json"), "utf8"),
-).version;
-const packageVersion = JSON.parse(
-  readFileSync(resolve(packageDirectory, "package.json"), "utf8"),
-).version;
-if (tauriVersion !== version || packageVersion !== version) {
-  console.error("Cargo.toml, tauri.conf.json, and package.json versions must match");
-  process.exit(1);
-}
-
 const argumentsList = process.argv.slice(2);
 const command = argumentsList[0];
+const versions = createVersionTools(workspaceDirectory);
+let version;
+try {
+  if (command?.startsWith("version:")) {
+    if (command === "version:sync" && argumentsList.length === 1) printSummary(versions.synchronize());
+    else if (command === "version:set" && argumentsList.length === 2) printSummary(versions.synchronize({ version: argumentsList[1] }));
+    else if (command === "version:check" && argumentsList.length <= 2) console.log(`Version verified: ${versions.check({ releaseTag: argumentsList[1] })}`);
+    else if (command === "version:bump" && argumentsList.length === 1) await versions.bump();
+    else throw new Error("Usage: version:sync | version:set <version> | version:check [release-tag] | version:bump");
+    process.exit(0);
+  }
+  version = versions.check();
+} catch (error) {
+  console.error(`Version tooling failed: ${error.message}`);
+  process.exit(1);
+}
 const isDevelopmentBuild =
   command === "dev" || argumentsList.includes("--debug");
 const iconName = isDevelopmentBuild
