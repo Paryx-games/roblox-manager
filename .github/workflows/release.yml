@@ -427,6 +427,7 @@ jobs:
           "make_latest=$makeLatest" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Create draft release and upload assets
+        id: create-release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2 # zizmor: ignore[superfluous-actions] keeping the action, works fine and already pinned
         with:
           tag_name: ${{ env.RELEASE_TAG }}
@@ -448,13 +449,15 @@ jobs:
           RELEASE_MAKE_LATEST: ${{ steps.release-type.outputs.make_latest }}
         run: |
           $repository = "${{ github.repository }}"
-          $tag = "$env:RELEASE_TAG"
+          $releaseId = "${{ steps.create-release.outputs.id }}"
 
-          $release = gh api "repos/$repository/releases/tags/$tag" | ConvertFrom-Json
+          if (-not $releaseId) {
+            throw "Draft release ID was not returned by action-gh-release."
+          }
 
           gh api `
             --method PATCH `
-            "repos/$repository/releases/$($release.id)" `
+            "repos/$repository/releases/$releaseId" `
             -F draft=false `
             -F prerelease=$env:RELEASE_PRERELEASE `
             -f make_latest=$env:RELEASE_MAKE_LATEST
