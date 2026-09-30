@@ -11,7 +11,7 @@
 - Failed group edits restore the previous group settings and leave account organisation unchanged.
 - Clear Cache now reports when there is no cached data instead of claiming to have cleared it.
 
-## v2.0.0-beta.1
+## v2.0.0-beta.2
 
 ### Changed
 
