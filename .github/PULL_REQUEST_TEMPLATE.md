@@ -1,35 +1,24 @@
-## What changed and why
+## Changes
 
-<!-- Explain the concrete change and reason. Link related issues. -->
+<!-- Summarise the change in a short paragraph or bullets. Include what users notice, if relevant, and the reason when it helps explain the change. Link related issues here, e.g. Closes #123. -->
 
-## User-visible behavior
+## Testing
 
-<!-- Describe what users notice, or state that behavior is unchanged. -->
+<!-- List checks run and their results. Add brief manual steps for UI or launch changes, and say what remains unverified. -->
 
-## Gotchas
+## Notes (optional)
 
-<!-- Include edge cases, environment assumptions, and outstanding verification. -->
+<!-- Add anything reviewers need to know: limitations, compatibility, security-sensitive changes, or follow-up work. Delete this section if unnecessary. -->
 
-## How to test
+## Screenshots (optional)
 
-<!-- Give concrete commands and applicable Windows/Roblox manual steps. -->
+<!-- Add screenshots or recordings when they help explain a visual change. Delete this section if unnecessary. -->
 
-- [ ] Full pre-commit sequence passed: format, check, workspace tests, strict Clippy, frontend lint, and type checking.
-- [ ] Changelog updated under `## Unreleased` for user-facing changes, or N/A.
-- [ ] Design and security guidance checked where touched, or N/A.
-- [ ] No secrets, local data, generated output, or scratch files in the diff.
-- [ ] Diff reviewed end-to-end; staged changes match the task.
-- [ ] Persisted state uses crash-safe core storage helpers; IPC inputs are validated.
-- [ ] Core edits meet the limited extraction policy, or separate explicit authorisation is recorded; operations, destinations, tests, and Windows checks are documented where applicable.
+## Checklist
 
-### Interface changes
+<!-- Check only completed items. For an inapplicable item, replace its checkbox with N/A. Explain incomplete verification in Testing. Detailed requirements live in AGENTS.md and PR_CONVENTIONS.md. -->
 
-- [ ] Reused existing controls in `ram_ui/frontend/components/` and shared values in `ram_ui/frontend/tokens.css`.
-- [ ] Checked against `DESIGN.md`, including Roboto, icons, colors, shape, and motion.
-- [ ] Verified applicable keyboard/focus, loading, error/retry, disabled, and saving states.
-- [ ] Checked supported window size, display scaling, menu clipping, and reduced motion.
-- [ ] Documented any new reusable component in `DESIGN.md`; no component exists only to wrap a single element.
-
-### Screenshots or recordings
-
-<!-- Add interface visuals when useful, or write Not applicable. -->
+- [ ] Full pre-commit verification passed; applicable manual checks are recorded in Testing.
+- [ ] Changelog updated for user-facing changes (N/A otherwise).
+- [ ] Applicable design, security, and core ownership rules checked.
+- [ ] Diff reviewed: one focused change, no unrelated files, secrets, local data, or scratch output.
