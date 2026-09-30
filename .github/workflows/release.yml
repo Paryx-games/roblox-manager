@@ -50,7 +50,16 @@ jobs:
         uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
 
       - name: Validate application version and release tag
-        run: pnpm --dir ram_ui version:check "$env:RELEASE_TAG"
+        working-directory: ram_ui
+        shell: pwsh
+        run: |
+          if (-not $env:RELEASE_TAG) {
+            throw "RELEASE_TAG is required for release version validation."
+          }
+          pnpm run version:check "$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Application version or release tag validation failed."
+          }
 
       - name: Build application
         working-directory: ram_ui
@@ -450,9 +459,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_PRERELEASE: ${{ steps.release-type.outputs.prerelease }}
           RELEASE_MAKE_LATEST: ${{ steps.release-type.outputs.make_latest }}
+          RELEASE_ID: ${{ steps.create-release.outputs.id }}
         run: |
           $repository = "${{ github.repository }}"
-          $releaseId = "${{ steps.create-release.outputs.id }}"
+          $releaseId = "$env:RELEASE_ID"
 
           if (-not $releaseId) {
             throw "Draft release ID was not returned by action-gh-release."

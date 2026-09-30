@@ -71,7 +71,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
 
       - name: validate application version
-        run: pnpm --dir ram_ui version:check
+        working-directory: ram_ui
+        shell: pwsh
+        run: pnpm run version:check
 
       - name: build frontend
         working-directory: ram_ui
