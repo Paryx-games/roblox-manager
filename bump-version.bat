@@ -20,6 +20,6 @@ if not "%result%"=="0" (
 )
 
 :finish
-rem only pause on double-click so terminal runs don't get stuck
-echo %cmdcmdline% | find /i "/c" >nul && pause
+rem pausing is opt-in so automated launches never wait for another key
+if /i "%~1"=="--pause" pause
 exit /b %result%

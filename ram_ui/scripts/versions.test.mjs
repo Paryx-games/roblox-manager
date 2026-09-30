@@ -153,17 +153,46 @@ test("real frozen pnpm lockfile failure rolls back the bump", (context) => {
   assert.deepEqual(snapshot(directory), before);
 });
 
+function stopBatchProcess(child) {
+  if (!child) return;
+  if (child.exitCode === null && child.pid) {
+    spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true, timeout: 5000 });
+  }
+  child.stdin.destroy();
+  child.stdout.destroy();
+  child.stderr.destroy();
+}
+
+test("Windows batch cleanup terminates a waiting Node descendant", { skip: process.platform !== "win32", timeout: 10000 }, async (context) => {
+  let child;
+  context.after(() => stopBatchProcess(child));
+  const directory = createFixture(context);
+  copyTooling(directory);
+  writeFileSync(resolve(directory, "ram_ui/scripts/tauri.mjs"), "process.stdout.write(String(process.pid)); setInterval(() => {}, 1000);");
+  child = spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "bump-version.bat"], { cwd: directory, windowsHide: true });
+  const descendantProcessId = await new Promise((resolveProcessId, reject) => {
+    child.stdout.once("data", (chunk) => resolveProcessId(Number(chunk.toString())));
+    child.once("error", reject);
+  });
+  assert.ok(Number.isInteger(descendantProcessId) && descendantProcessId > 0);
+  const closed = new Promise((resolveClose) => child.once("close", resolveClose));
+  stopBatchProcess(child);
+  await closed;
+  assert.throws(() => process.kill(descendantProcessId, 0), { code: "ESRCH" });
+});
+
 for (const scenario of [
   { version: "2.0.0-beta.3", answer: "y", status: 0, expected: /Version verified: 2.0.0-beta.2 -> 2.0.0-beta.3/ },
   { version: "2.0.0", answer: "n", status: 0, expected: /Cancelled. No files changed/ },
   { version: "bad", status: 1, expected: /Version tooling failed/ },
 ]) {
   test(`Windows batch interface: ${scenario.version} ${scenario.answer ?? "rejected"}`, { skip: process.platform !== "win32", timeout: 20000 }, async (context) => {
+    let child;
+    context.after(() => stopBatchProcess(child));
     const directory = createFixture(context);
     copyTooling(directory);
     const before = snapshot(directory);
-    const child = spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "bump-version.bat"], { cwd: directory });
-    context.after(() => child.kill());
+    child = spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "bump-version.bat"], { cwd: directory, windowsHide: true });
     let output = "";
     let wasVersionSent = false;
     let wasConfirmationSent = false;

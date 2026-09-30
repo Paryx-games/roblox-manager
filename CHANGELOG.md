@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Debug-only screenshot demo builds with local sample accounts and workspaces. Demo mode uses no saved account data and blocks live operations and changes.
+
+### Fixed
+
+- Version bump tooling exits without an extra keypress by default, preventing Windows batch tests from hanging in CI. Use `bump-version.bat --pause` to keep the result visible until a key is pressed.
+
 ## v2.0.0-rc.1
 
 ### Changed
