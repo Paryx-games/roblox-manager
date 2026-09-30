@@ -31,6 +31,14 @@ Keep `origin` pointed at your fork and `upstream` pointed at RM. Do not work dir
 
 Install with `pnpm --dir ram_ui install --frozen-lockfile`, then run `pnpm --dir ram_ui tauri dev` for hot reload. `pnpm --dir ram_ui build:debug` produces a standalone `target/debug/rm_tauri.exe` with the frontend embedded. A dev-server executable needs Vite running; do not confuse it with the standalone debug build.
 
+## Screenshot demo builds
+
+Run `pnpm --dir ram_ui build:debug --demo` to build a standalone demo executable at `target/debug/rm_tauri.exe`. Alternatively, use `pnpm --dir ram_ui tauri dev --demo` for hot reload. A normal debug executable also accepts `--demo` at startup.
+
+Demo builds always open in demo mode, with local Builderman and Roblox avatars, synthetic accounts, and sample workspaces. They skip normal account/config loading, credential access, file logging, background tasks, and update checks. A separate WebView2 profile keeps browser storage isolated. All commands outside the sample-data allowlist are rejected, including account changes, login, launch, process control, uploads, and settings persistence.
+
+`--demo` is rejected for release builds and custom profiles. Rust also refuses to compile a demo-enabled binary without debug assertions. To return to a normal debug executable, rebuild without `--demo`.
+
 ## Sync before starting
 
 ```powershell

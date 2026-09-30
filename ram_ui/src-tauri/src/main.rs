@@ -1,5 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(all(rm_demo, not(debug_assertions)))]
+compile_error!("Demo mode is only available in debug builds");
+
+#[cfg(debug_assertions)]
+mod demo;
+
 mod accounts;
 mod asset_manager;
 mod background;
@@ -2895,6 +2901,16 @@ mod account_presentation_tests {
 }
 
 fn main() {
+    let is_demo_requested = std::env::args().any(|argument| argument == "--demo");
+    #[cfg(debug_assertions)]
+    if cfg!(rm_demo) || is_demo_requested {
+        demo::run();
+        return;
+    }
+    if is_demo_requested {
+        eprintln!("Demo mode is only available in debug builds");
+        std::process::exit(1);
+    }
     init_logging();
     tracing::info!(
         event = "startup",

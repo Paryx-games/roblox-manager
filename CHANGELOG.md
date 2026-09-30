@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Debug-only screenshot demo builds with local sample accounts and workspaces. Demo mode uses no saved account data and blocks live operations and changes.
+
 ## v2.0.0-rc.1
 
 ### Changed
