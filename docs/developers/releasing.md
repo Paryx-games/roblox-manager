@@ -31,7 +31,11 @@ Under SemVer, pre-releases sort before their plain release. For example, `v2.0.0
 
 ### Where the version lives
 
-The root `Cargo.toml` is the version source of truth. Both Rust crates inherit it. Synchronise the required mirrors in `ram_ui/src-tauri/tauri.conf.json` and `ram_ui/package.json`; do not add independent version constants.
+The root `Cargo.toml` `[workspace.package].version` is the canonical version. Both Rust crates inherit it, and Tauri derives it from Cargo with no `version` override in `tauri.conf.json`. Only `ram_ui/package.json` needs an automatically synchronised mirror.
+
+Run `bump-version.bat` from the repository root for an interactive bump, or `pnpm version:set 2.0.0-beta.3` for automation. Run `pnpm version:sync` after a manual Cargo edit, and `pnpm version:check` to verify consistency without modifying files. These commands also work with `pnpm --dir ram_ui`.
+
+The tools validate the project version format and Windows component limits, require an earlier alpha/beta tag for rc versions, update Cargo.lock through Cargo, and verify the frozen pnpm lockfile offline. Ordinary failures restore the original manifests and lockfiles and return non-zero. Node.js, Cargo and pnpm must be available, with dependency metadata cached. Review interrupted bumps manually. No command commits, tags, pushes or publishes. See [VERSIONING.md](https://github.com/Paryx-games/roblox-manager/blob/v2/VERSIONING.md) for details and limitations.
 
 ### Windows installer template
 
@@ -41,7 +45,7 @@ The NSIS installer uses `ram_ui/src-tauri/installer/installer.nsi`, based on Tau
 
 `.github/workflows/release.yml` runs when you push a tag matching `v*`, and can also be re-run manually against an existing tag (see [If GitHub is being stubborn](#if-github-is-being-stubborn)). Normal pushes to `main` or other branches do not publish releases.
 
-1. Update the root Cargo version and both required Tauri/package version mirrors.
+1. Run `bump-version.bat` or `pnpm version:set X.Y.Z`. If you edited Cargo manually, run `pnpm version:sync`. Review the resulting manifest and lockfile diff.
 2. Rename `## Unreleased` in `CHANGELOG.md` to `## vX.Y.Z`. If no unreleased section exists, add the heading above the previous release. The workflow requires an exact heading matching the tag.
 3. If dependencies changed, regenerate and review the Cargo and pnpm lockfiles using their package managers. Do not edit lockfiles manually.
 4. Run the full verification sequence in [Contributing](contributing.md), then build the release bundle:

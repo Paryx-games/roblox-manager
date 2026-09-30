@@ -49,6 +49,9 @@ jobs:
       - name: Setup rust
         uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
 
+      - name: Validate application version and release tag
+        run: pnpm --dir ram_ui version:check "$env:RELEASE_TAG"
+
       - name: Build application
         working-directory: ram_ui
         run: pnpm tauri build --ci --bundles nsis -- --locked
