@@ -430,6 +430,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2 # zizmor: ignore[superfluous-actions] keeping the action, works fine and already pinned
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ steps.resolve-tag.outputs.sha }}
           files: |
             release/*.exe
             release/SHA256SUMS.txt
