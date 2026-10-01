@@ -93,15 +93,9 @@ This branch contains the Tauri + React v2 interface. The retired egui applicatio
 
 ## Download
 
-Choose the release track that suits you:
+Download Roblox Manager from the [latest release](https://github.com/Paryx-games/roblox-manager/releases/latest). For alpha, beta and earlier versions, browse [all releases](https://github.com/Paryx-games/roblox-manager/releases).
 
-| Release track | Where to find it | What it means |
-| --- | --- | --- |
-| **Latest prerelease** | [All releases](https://github.com/Paryx-games/roblox-manager/releases) | The newest `-alpha.N`, `-beta.N`, or `-rc.N` tag. These are still prereleases under SemVer. |
-| **GitHub's Latest slot** | [Latest release](https://github.com/Paryx-games/roblox-manager/releases/latest) | GitHub's highlighted download. An `-rc.N` release can occupy this slot during final testing. |
-| **Latest actual stable** | [v1.16.0](https://github.com/Paryx-games/roblox-manager/releases/tag/v1.16.0) | The newest final version with no prerelease suffix. This is the stable choice until a newer plain `vX.Y.Z` release ships. |
-
-An RC in GitHub's Latest slot is still a release candidate, not the final stable version. See [CHANGELOG.md](CHANGELOG.md) for what's new in each release.
+The latest release may be a release candidate (`-rc.N`) during final testing. See [CHANGELOG.md](CHANGELOG.md) for what's new.
 
 The Tauri release workflow produces two downloads:
 
