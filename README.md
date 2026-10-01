@@ -44,6 +44,7 @@
 <details>
   <summary>Table of Contents</summary>
   <ol>
+    <li><a href="#showcase-image">Showcase Image</a></li>
     <li><a href="#about-the-project">About The Project</a></li>
     <li>
       <a href="#download">Download</a>
@@ -68,6 +69,10 @@
     <li><a href="#license">License</a></li>
   </ol>
 </details>
+
+## Showcase image
+
+<img src="images/stacked.png" alt="Stacked">
 
 ## About The Project
 
