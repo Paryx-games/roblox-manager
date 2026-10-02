@@ -1,13 +1,1702 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Roblox Manager - A fast, lightweight Roblox account manager for Windows." />
-    <title>Roblox Manager</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#f6f6f3" />
+    <meta
+      name="description"
+      content="Roblox Manager is a free, open-source Windows app for managing Roblox accounts, launching multiple clients, and arranging your windows."
+    />
+    <meta property="og:title" content="Roblox Manager" />
+    <meta
+      property="og:description"
+      content="Manage your Roblox accounts in one Windows app. Free and open source."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="assets/social-preview.png" />
+    <link rel="icon" href="assets/logo.png" />
+    <title>Roblox Manager - For Roblox, built for Windows</title>
+    <style>
+      @font-face {
+        font-family: Roboto;
+        src: url("assets/Roboto.ttf") format("truetype");
+        font-weight: 100 900;
+        font-display: swap;
+      }
+      :root {
+        --canvas: #f6f6f3;
+        --surface: #fff;
+        --ink: #18191d;
+        --muted: #585b65;
+        --line: #d9dadc;
+        --blue: #3e63f6;
+        --secondary: #b8c5ff;
+        --radius: 6px;
+        --s1: 4px;
+        --s2: 8px;
+        --s3: 12px;
+        --s4: 16px;
+        --s5: 20px;
+        --s6: 24px;
+        --s8: 32px;
+        --s10: 40px;
+        --s12: 48px;
+        --s16: 64px;
+        --s20: 80px;
+        --type-xs: 12px;
+        --type-sm: 14px;
+        --type-body: 16px;
+        --type-lead: 20px;
+        --type-heading: 32px;
+        --type-display: 48px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-padding-top: var(--s6);
+      }
+      body {
+        margin: 0;
+        font-family: Roboto, sans-serif;
+        background: var(--canvas);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      button {
+        font: inherit;
+        cursor: pointer;
+        color: inherit;
+      }
+      button:disabled {
+        cursor: default;
+        color: var(--muted);
+      }
+      a:focus-visible,
+      button:focus-visible,
+      [tabindex]:focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 4px;
+      }
+      ::selection {
+        background: var(--secondary);
+      }
+      .container {
+        width: min(1200px, calc(100% - 96px));
+        margin: auto;
+      }
+      .skip {
+        position: absolute;
+        top: -80px;
+        left: var(--s4);
+        padding: var(--s3);
+        background: var(--blue);
+        color: white;
+        z-index: 10;
+      }
+      .skip:focus {
+        top: var(--s4);
+      }
+      .wordmark {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--s3);
+        font-size: var(--type-body);
+        font-weight: 650;
+        letter-spacing: -0.25px;
+      }
+      .wordmark img {
+        width: 28px;
+        height: 28px;
+        filter: brightness(0);
+      }
+      header {
+        height: 96px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--line);
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: var(--s8);
+        font-size: var(--type-sm);
+      }
+      .nav a {
+        color: var(--muted);
+      }
+      .nav a:hover {
+        color: var(--blue);
+      }
+      .nav .nav-download {
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: var(--s3) var(--s4);
+        background: var(--surface);
+      }
+      .menu {
+        display: none;
+        width: 44px;
+        height: 44px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: var(--s3);
+        background: transparent;
+      }
+      .menu-icon {
+        position: relative;
+        width: 20px;
+        height: 16px;
+      }
+      .menu-icon span {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: currentColor;
+        transition:
+          transform var(--motion-base) var(--ease-out),
+          opacity var(--motion-base) var(--ease-out);
+      }
+      .menu-icon span:nth-child(1) {
+        top: 0;
+      }
+      .menu-icon span:nth-child(2) {
+        top: 7px;
+      }
+      .menu-icon span:nth-child(3) {
+        top: 14px;
+      }
+      .menu[aria-expanded="true"] .menu-icon span:nth-child(1) {
+        transform: translateY(7px) rotate(45deg);
+      }
+      .menu[aria-expanded="true"] .menu-icon span:nth-child(2) {
+        opacity: 0;
+      }
+      .menu[aria-expanded="true"] .menu-icon span:nth-child(3) {
+        transform: translateY(-7px) rotate(-45deg);
+      }
+      .hero {
+        padding-top: var(--s16);
+        padding-bottom: var(--s10);
+      }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr;
+        gap: var(--s16);
+        align-items: end;
+      }
+      h1 {
+        font-size: var(--type-display);
+        line-height: 1.12;
+        font-weight: 550;
+        letter-spacing: -2px;
+      }
+      .hero-description > p {
+        font-size: var(--type-body);
+        line-height: 1.6;
+        color: var(--muted);
+        max-width: 400px;
+      }
+      .actions {
+        display: flex;
+        gap: var(--s6);
+        align-items: center;
+        margin-top: var(--s6);
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--s2);
+        padding: var(--s4) var(--s5);
+        border: 1px solid var(--blue);
+        border-radius: var(--radius);
+        background: var(--blue);
+        color: #fff;
+        font-size: var(--type-sm);
+        font-weight: 550;
+        white-space: nowrap;
+      }
+      .button:hover {
+        background: #3155df;
+        border-color: #3155df;
+      }
+      .button:active {
+        background: #254acb;
+      }
+      .inline-link {
+        font-size: var(--type-sm);
+        text-decoration: underline;
+        text-decoration-color: var(--line);
+        text-underline-offset: 4px;
+      }
+      .inline-link:hover {
+        color: var(--blue);
+        text-decoration-color: var(--blue);
+      }
+      .preview {
+        padding-bottom: var(--s20);
+      }
+      .preview-tools {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--s4);
+        margin-bottom: var(--s3);
+        font-size: var(--type-xs);
+        color: var(--muted);
+      }
+      .preview-tools a {
+        color: var(--ink);
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+      .preview-shell {
+        width: 100%;
+        border: 1px solid #2d2e35;
+        border-radius: var(--radius);
+        background: #0a0a0b;
+        overflow: hidden;
+      }
+      .workspace-stage {
+        position: relative;
+        transform-origin: 0 0;
+        width: 1200px;
+        height: 760px;
+      }
+      .workspace-frame {
+        display: block;
+        width: 1200px;
+        height: 760px;
+        border: 0;
+        background: #0a0a0b;
+      }
+      h2 {
+        font-size: var(--type-heading);
+        font-weight: 550;
+        line-height: 1.2;
+        letter-spacing: -0.75px;
+      }
+      .features {
+        padding: var(--s8) 0 var(--s20);
+      }
+      .feature-heading {
+        max-width: 640px;
+        margin-bottom: var(--s8);
+      }
+      .feature-heading p {
+        margin-top: var(--s4);
+        color: var(--muted);
+        font-size: var(--type-body);
+        line-height: 1.6;
+        max-width: 560px;
+      }
+      .feature-tabs {
+        display: flex;
+        gap: var(--s8);
+        margin-bottom: var(--s8);
+        border-bottom: 1px solid var(--line);
+      }
+      .feature-tabs button {
+        position: relative;
+        border: 0;
+        padding: var(--s4) 0;
+        background: transparent;
+        font-size: var(--type-body);
+        color: var(--muted);
+        transition: color var(--motion-base) var(--ease-out);
+      }
+      .feature-tabs button[aria-selected="true"] {
+        color: var(--ink);
+      }
+      .feature-tabs button::after {
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--blue);
+        content: "";
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform var(--motion-medium) var(--ease-out);
+      }
+      .feature-tabs button[aria-selected="true"]::after {
+        transform: scaleX(1);
+      }
+      .feature-tabs button:hover {
+        color: var(--ink);
+      }
+      .feature-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+        align-items: center;
+        gap: var(--s16);
+        min-height: 304px;
+      }
+      .feature-panel[hidden] {
+        display: none;
+      }
+      .feature-copy h3 {
+        font-size: var(--type-heading);
+        line-height: 1.2;
+        font-weight: 500;
+        letter-spacing: -0.75px;
+      }
+      .feature-copy p {
+        margin: var(--s4) 0 var(--s6);
+        font-size: var(--type-body);
+        line-height: 1.6;
+        color: var(--muted);
+        max-width: 400px;
+      }
+      .feature-copy a {
+        color: var(--link);
+        font-size: var(--type-sm);
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+      .workflow {
+        display: flex;
+        min-height: 288px;
+        flex-direction: column;
+        justify-content: center;
+        padding: var(--s8);
+        background: var(--surface);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      .workflow-label {
+        color: var(--muted);
+        font-size: var(--type-xs);
+        margin-bottom: var(--s6);
+      }
+      .workflow-accounts {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--s6);
+      }
+      .workflow-group h4 {
+        margin: 0 0 var(--s3);
+        font-size: var(--type-sm);
+        font-weight: 500;
+      }
+      .workflow-account {
+        display: flex;
+        align-items: center;
+        gap: var(--s3);
+        padding: var(--s3) 0;
+        border-top: 1px solid var(--line);
+        font-size: var(--type-sm);
+      }
+      .workflow-account img {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--canvas);
+      }
+      .workflow-account span {
+        display: flex;
+        flex-direction: column;
+        gap: var(--s1);
+      }
+      .workflow-account small {
+        font-size: var(--type-xs);
+        color: var(--muted);
+      }
+      .workflow-account strong {
+        font-weight: 500;
+      }
+      .workflow-pin {
+        width: 16px;
+        height: 16px;
+        margin-left: auto;
+        color: var(--blue);
+      }
+      .launch-flow {
+        display: flex;
+        align-items: center;
+        gap: var(--s4);
+      }
+      .launch-origin {
+        flex: 1;
+        min-width: 0;
+      }
+      .launch-origin strong {
+        display: block;
+        font-size: var(--type-lead);
+        font-weight: 500;
+        margin-bottom: var(--s2);
+      }
+      .launch-origin span {
+        font-size: var(--type-sm);
+        color: var(--muted);
+      }
+      .flow-arrow {
+        color: var(--blue);
+        font-size: 24px;
+      }
+      .launch-destinations {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: var(--s3);
+      }
+      .launch-destinations span {
+        padding: var(--s3) var(--s4);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        font-size: var(--type-sm);
+      }
+      .workflow-footnote {
+        font-size: var(--type-xs);
+        color: var(--muted);
+        margin-top: var(--s6);
+        line-height: 1.6;
+      }
+      .tiling-display {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--s2);
+        padding: var(--s2);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+      }
+      .tile-window {
+        height: 80px;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: var(--canvas);
+      }
+      .tile-window span {
+        padding: var(--s2);
+        background: var(--surface);
+        font-size: var(--type-xs);
+        color: var(--muted);
+        border-bottom: 1px solid var(--line);
+      }
+      .tile-window i {
+        width: 24px;
+        height: 24px;
+        align-self: center;
+        margin: auto;
+        border: 4px solid var(--secondary);
+        transform: rotate(15deg);
+      }
+      .security {
+        padding: var(--s12) 0 var(--s20);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+        gap: var(--s16);
+        align-items: start;
+      }
+      .security-intro p {
+        margin-top: var(--s4);
+        font-size: var(--type-body);
+        line-height: 1.6;
+        color: var(--muted);
+        max-width: 440px;
+      }
+      .security-intro > a {
+        display: inline-block;
+        margin-top: var(--s6);
+        font-size: var(--type-sm);
+        color: var(--link);
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+      .security-diagram {
+        margin-top: var(--s8);
+        padding: var(--s6);
+        background: var(--surface);
+        border-radius: var(--radius);
+      }
+      .security-route {
+        display: flex;
+        align-items: center;
+        gap: var(--s3);
+        font-size: var(--type-sm);
+      }
+      .security-route > span:first-child,
+      .security-route > span:last-child {
+        padding: var(--s3);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+      }
+      .security-route > span:last-child {
+        color: var(--link);
+      }
+      .security-diagram p {
+        margin-top: var(--s4);
+        font-size: var(--type-xs);
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .redaction {
+        display: flex;
+        align-items: center;
+        gap: var(--s3);
+        margin-top: var(--s4);
+        font-size: var(--type-xs);
+        color: var(--muted);
+      }
+      .redaction code {
+        padding: var(--s2);
+        font: inherit;
+        background: var(--canvas);
+        border-radius: var(--radius);
+      }
+      .security-details details {
+        border-bottom: 1px solid var(--line);
+      }
+      .security-details details:first-child {
+        border-top: 1px solid var(--line);
+      }
+      .security-details summary {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--s4);
+        min-height: 64px;
+        padding: var(--s4) 0;
+        font-size: var(--type-body);
+        font-weight: 500;
+        list-style: none;
+        cursor: pointer;
+      }
+      .security-details summary::-webkit-details-marker {
+        display: none;
+      }
+      .security-details summary::after {
+        content: "+";
+        color: var(--link);
+        font-size: var(--type-lead);
+        transition: transform var(--motion-base) var(--ease-out);
+      }
+      .security-details details[open] summary::after {
+        transform: rotate(45deg);
+      }
+      .security-details summary:hover {
+        color: var(--link);
+      }
+      .security-details summary:focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 4px;
+      }
+      .security-details p {
+        padding: 0 0 var(--s6);
+        font-size: var(--type-sm);
+        line-height: 1.6;
+        color: var(--muted);
+        max-width: 520px;
+      }
+      .security-details > a {
+        display: inline-block;
+        margin-top: var(--s6);
+        font-size: var(--type-sm);
+        color: var(--link);
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+      .installation {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--s8);
+        align-items: center;
+        padding: var(--s8) 0 var(--s12);
+      }
+      .installation h2 {
+        font-size: var(--type-lead);
+        font-weight: 500;
+        letter-spacing: -0.25px;
+      }
+      .installation p {
+        margin-top: var(--s3);
+        font-size: var(--type-sm);
+        line-height: 1.6;
+        color: var(--muted);
+        max-width: 640px;
+      }
+      .installation-download {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--s3);
+      }
+      .download-detail {
+        font-size: var(--type-xs);
+        color: var(--muted);
+      }
+      footer {
+        border-top: 1px solid var(--line);
+        padding: var(--s8) 0;
+      }
+      .mobile-view-label {
+        display: none;
+      }
+      @media (max-width: 1100px) {
+        .hero-grid {
+          gap: var(--s8);
+          grid-template-columns: 1.25fr 1fr;
+        }
+        .actions {
+          gap: var(--s4);
+          flex-wrap: wrap;
+        }
+        .feature-panel,
+        .security {
+          gap: var(--s8);
+        }
+      }
+      @media (max-width: 800px) {
+        .container {
+          width: calc(100% - 48px);
+        }
+        .hero {
+          padding-top: var(--s10);
+          padding-bottom: var(--s8);
+        }
+        .hero-grid {
+          grid-template-columns: 1fr;
+          gap: var(--s6);
+        }
+        :root {
+          --type-display: 40px;
+          --type-heading: 28px;
+        }
+        h1 {
+          letter-spacing: -1px;
+        }
+        .hero-description > p {
+          max-width: 520px;
+        }
+        .preview {
+          padding-bottom: var(--s12);
+        }
+        .preview-shell {
+          height: 576px;
+          overflow: auto;
+        }
+        .workspace-stage {
+          height: 760px;
+          transform: none !important;
+        }
+        .preview-tools {
+          align-items: start;
+        }
+        .preview-tools a {
+          max-width: 132px;
+          text-align: right;
+        }
+        .desktop-view-label {
+          display: none;
+        }
+        .mobile-view-label {
+          display: inline;
+        }
+        .features {
+          padding: var(--s4) 0 var(--s12);
+        }
+        .feature-heading {
+          margin-bottom: var(--s4);
+        }
+        .feature-tabs {
+          gap: var(--s6);
+          margin-bottom: var(--s6);
+        }
+        .feature-tabs button {
+          font-size: var(--type-sm);
+          min-height: 48px;
+        }
+        .feature-panel {
+          grid-template-columns: 1fr;
+          gap: var(--s6);
+        }
+        .feature-copy h3 {
+          font-size: var(--type-lead);
+          letter-spacing: -0.25px;
+        }
+        .feature-copy p {
+          max-width: 520px;
+          font-size: var(--type-sm);
+        }
+        .workflow {
+          min-height: 248px;
+          padding: var(--s6);
+        }
+        .security {
+          grid-template-columns: 1fr;
+          gap: var(--s8);
+          padding: var(--s8) 0 var(--s12);
+        }
+        .security-intro p {
+          font-size: var(--type-sm);
+        }
+        .security-diagram {
+          margin-top: var(--s6);
+        }
+        .installation {
+          gap: var(--s6);
+          padding: var(--s6) 0 var(--s12);
+        }
+      }
+      @media (max-width: 600px) {
+        .installation {
+          grid-template-columns: 1fr;
+        }
+        .launch-flow {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .launch-flow > .flow-arrow {
+          align-self: center;
+          transform: rotate(90deg);
+        }
+        .launch-origin strong {
+          font-size: var(--type-body);
+        }
+        .workflow-accounts {
+          gap: var(--s4);
+        }
+        .workflow-account {
+          gap: var(--s2);
+        }
+        .workflow-account img {
+          width: 28px;
+          height: 28px;
+        }
+        .workflow-account strong {
+          font-size: var(--type-xs);
+        }
+        .security-route {
+          font-size: var(--type-xs);
+          gap: var(--s2);
+        }
+        .security-diagram {
+          padding: var(--s4);
+        }
+        .security-route > span:first-child,
+        .security-route > span:last-child {
+          padding: var(--s2);
+        }
+        .redaction {
+          gap: var(--s2);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+      :root {
+        color-scheme: light dark;
+        --motion-fast: 120ms;
+        --motion-base: 200ms;
+        --motion-medium: 280ms;
+        --motion-slow: 400ms;
+        --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+        --link: var(--blue);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --canvas: #0a0a0b;
+          --surface: #111113;
+          --ink: #f0f0f1;
+          --muted: #a1a1aa;
+          --line: #29292e;
+          --link: var(--secondary);
+        }
+        .wordmark img {
+          filter: brightness(0) invert(1);
+        }
+
+        .nav a:hover,
+        .inline-link:hover {
+          color: var(--link);
+        }
+        ::selection {
+          background: var(--blue);
+          color: #fff;
+        }
+      }
+      .button,
+      .nav a,
+      .inline-link,
+      .feature-copy a,
+      .security a,
+      .menu {
+        transition:
+          color var(--motion-fast) var(--ease-out),
+          background-color var(--motion-fast) var(--ease-out),
+          border-color var(--motion-fast) var(--ease-out),
+          text-decoration-color var(--motion-fast) var(--ease-out);
+      }
+      .feature-copy a:hover,
+      .security a:hover {
+        color: var(--ink);
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .nav.open {
+          animation: arrive var(--motion-base) var(--ease-out) both;
+        }
+      }
+      @keyframes arrive {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .site-footer {
+        padding-top: var(--s12);
+        padding-bottom: var(--s6);
+      }
+      .footer-main {
+        display: grid;
+        grid-template-columns: 1.5fr repeat(3, 1fr);
+        gap: var(--s12);
+      }
+      .footer-intro p {
+        max-width: 264px;
+        margin-top: var(--s4);
+        color: var(--muted);
+        font-size: var(--type-sm);
+        line-height: 1.6;
+      }
+      .footer-support {
+        display: inline-flex;
+        align-items: center;
+        min-height: 40px;
+        margin-top: var(--s3);
+        font-size: var(--type-sm);
+        color: var(--link);
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+      .footer-group {
+        min-width: 0;
+      }
+      .footer-group h2 {
+        font-size: var(--type-sm);
+        font-weight: 550;
+        line-height: 1.6;
+        letter-spacing: 0;
+        margin-bottom: var(--s3);
+      }
+      .footer-links {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--s1);
+      }
+      .footer-links a {
+        display: flex;
+        align-items: center;
+        min-height: 32px;
+        font-size: var(--type-sm);
+        line-height: 1.6;
+        color: var(--muted);
+        transition: color var(--motion-fast) var(--ease-out);
+      }
+      .footer-links a:hover {
+        color: var(--link);
+      }
+      .footer-bottom {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: var(--s6);
+        margin-top: var(--s12);
+        padding-top: var(--s6);
+        border-top: 1px solid var(--line);
+      }
+      .footer-bottom p,
+      .footer-bottom a {
+        color: var(--muted);
+        font-size: var(--type-xs);
+        line-height: 1.6;
+      }
+      .footer-bottom p {
+        max-width: 600px;
+      }
+      .footer-bottom a {
+        white-space: nowrap;
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+      @media (max-width: 1000px) {
+        .footer-main {
+          grid-template-columns: repeat(3, 1fr);
+          gap: var(--s8);
+        }
+        .footer-intro {
+          grid-column: 1/-1;
+        }
+        .footer-intro p {
+          max-width: 420px;
+        }
+        .hero-grid {
+          grid-template-columns: 1fr;
+          gap: var(--s6);
+        }
+        .hero-description > p {
+          max-width: 560px;
+        }
+      }
+      @media (max-width: 600px) {
+        .footer-main {
+          gap: var(--s6) var(--s4);
+        }
+        .footer-links a {
+          min-height: 40px;
+        }
+        .footer-bottom {
+          flex-direction: column;
+          gap: var(--s4);
+        }
+        .footer-group h2 {
+          margin-bottom: var(--s2);
+        }
+      }
+
+      h1 {
+        max-width: 24ch;
+        font-weight: 500;
+        letter-spacing: -1px;
+        line-height: 1.2;
+      }
+      .preview-views {
+        display: none;
+      }
+      .preview-views button {
+        min-height: 44px;
+        padding: var(--s2) var(--s3);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        font-size: var(--type-sm);
+        color: var(--muted);
+        transition:
+          background-color var(--motion-fast) var(--ease-out),
+          color var(--motion-fast) var(--ease-out),
+          border-color var(--motion-fast) var(--ease-out);
+      }
+      .preview-views button[aria-pressed="true"] {
+        color: var(--ink);
+        border-color: var(--link);
+      }
+      .preview-views button:hover {
+        color: var(--ink);
+      }
+      @media (max-width: 1000px) {
+        header {
+          height: 80px;
+          position: relative;
+        }
+        .menu {
+          display: flex;
+        }
+        .nav {
+          display: none;
+          position: absolute;
+          top: 68px;
+          left: 0;
+          right: 0;
+          z-index: 5;
+          background: var(--surface);
+          padding: var(--s6);
+          border: 1px solid var(--line);
+          border-radius: var(--radius);
+          flex-direction: column;
+          align-items: start;
+          gap: var(--s6);
+        }
+        .nav.open {
+          display: flex;
+        }
+      }
+
+      @media (max-width: 800px) {
+        :root {
+          --type-display: 36px;
+        }
+        .preview-views {
+          display: flex;
+          gap: var(--s2);
+          margin-bottom: var(--s3);
+        }
+        .footer-main {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .footer-group:last-child {
+          grid-column: 1/-1;
+        }
+        .footer-group:last-child .footer-links {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: var(--s1) var(--s4);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="container">
+      <a class="wordmark" href="#main" aria-label="Roblox Manager home"
+        ><img src="assets/logo.png" alt="" /><span>Roblox Manager</span></a
+      ><button
+        class="menu"
+        type="button"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="navigation"
+      >
+        <span class="menu-icon" aria-hidden="true"
+          ><span></span><span></span><span></span
+        ></span>
+      </button>
+      <nav class="nav" id="navigation" aria-label="Main navigation">
+        <a href="#features">Features</a><a href="#security">Security</a
+        ><a href="https://roblox-manager.gitbook.io/docs">Documentation</a
+        ><a href="https://github.com/Paryx-games/roblox-manager">GitHub ↗</a
+        ><a
+          class="nav-download"
+          href="https://github.com/Paryx-games/roblox-manager/releases/latest"
+          >Download</a
+        >
+      </nav>
+    </header>
+    <main id="main">
+      <section class="hero container">
+        <div class="hero-grid">
+          <div>
+            <h1>Manage multiple Roblox accounts without signing out</h1>
+          </div>
+          <div class="hero-description">
+            <p>
+              Switch accounts, launch several clients, and save the setups you
+              use to play or test. RM keeps those controls in one Windows
+              desktop app.
+            </p>
+            <div class="actions">
+              <a
+                class="button"
+                href="https://github.com/Paryx-games/roblox-manager/releases/latest"
+                >Download for Windows <span aria-hidden="true">↓</span></a
+              ><a
+                class="inline-link"
+                href="https://roblox-manager.gitbook.io/docs"
+                >Read the docs</a
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+      <section
+        class="preview container"
+        aria-label="Roblox Manager workspace preview"
+      >
+        <div class="preview-tools">
+          <span id="workspace-loading" role="status">Interactive preview</span
+          ><a href="assets/workspace.html" target="_blank" rel="noopener"
+            ><span class="desktop-view-label">Open full-size workspace ↗</span
+            ><span class="mobile-view-label">Open full workspace ↗</span></a
+          >
+        </div>
+        <div class="preview-views" role="group" aria-label="Workspace view">
+          <button
+            type="button"
+            data-preview-view="accounts"
+            aria-pressed="false"
+          >
+            Account list</button
+          ><button
+            type="button"
+            data-preview-view="details"
+            aria-pressed="true"
+          >
+            Launch controls
+          </button>
+        </div>
+        <div
+          class="preview-shell"
+          tabindex="0"
+          aria-label="App workspace. On a small screen, scroll horizontally to see the account list and all controls."
+        >
+          <div class="workspace-stage">
+            <iframe
+              class="workspace-frame"
+              src="assets/workspace.html"
+              title="Interactive Roblox Manager Accounts workspace with demo data"
+            ></iframe>
+          </div>
+        </div>
+      </section>
+      <section
+        class="features container"
+        id="features"
+        aria-labelledby="features-title"
+      >
+        <div class="feature-heading">
+          <h2 id="features-title">Your accounts, your setup</h2>
+          <p>
+            Keep the accounts you play with and the sessions you test in the
+            same workspace.
+          </p>
+        </div>
+        <div class="feature-tabs" role="tablist" aria-label="Explore workflows">
+          <button
+            type="button"
+            role="tab"
+            id="tab-accounts"
+            aria-controls="feature-accounts"
+            aria-selected="true"
+            tabindex="0"
+          >
+            Accounts</button
+          ><button
+            type="button"
+            role="tab"
+            id="tab-launching"
+            aria-controls="feature-launching"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            Launching</button
+          ><button
+            type="button"
+            role="tab"
+            id="tab-tiling"
+            aria-controls="feature-tiling"
+            aria-selected="false"
+            tabindex="-1"
+          >
+            Window tiling
+          </button>
+        </div>
+        <article
+          class="feature-panel"
+          role="tabpanel"
+          id="feature-accounts"
+          aria-labelledby="tab-accounts"
+          tabindex="0"
+        >
+          <div class="feature-copy">
+            <h3>A place for every account</h3>
+            <p>
+              Group your accounts, give them useful aliases, and pin the ones
+              you return to. Choose an account to see its status and launch
+              controls.
+            </p>
+            <a
+              href="https://roblox-manager.gitbook.io/docs/guides/manage-accounts"
+              >Explore account management ↗</a
+            >
+          </div>
+          <div class="workflow" aria-label="Example account organisation">
+            <span class="workflow-label"
+              >Organise around the way you use Roblox</span
+            >
+            <div class="workflow-accounts">
+              <div class="workflow-group">
+                <h4>Playing</h4>
+                <div class="workflow-account">
+                  <img src="assets/builderman.png" alt="" /><span
+                    ><strong>builderman</strong
+                    ><small>Main account</small></span
+                  ><svg
+                    class="workflow-pin"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    aria-label="Pinned"
+                  >
+                    <path d="m16 3 5 5-4 2-3 6-2-2-6 7-3-3 7-6-2-2 6-3z" />
+                  </svg>
+                </div>
+              </div>
+              <div class="workflow-group">
+                <h4>Testing</h4>
+                <div class="workflow-account">
+                  <img src="assets/roblox.png" alt="" /><span
+                    ><strong>Roblox</strong><small>Test account</small></span
+                  >
+                </div>
+              </div>
+            </div>
+            <p class="workflow-footnote">
+              Example accounts from the app's walkthrough
+            </p>
+          </div>
+        </article>
+        <article
+          class="feature-panel"
+          role="tabpanel"
+          id="feature-launching"
+          aria-labelledby="tab-launching"
+          tabindex="0"
+          hidden
+        >
+          <div class="feature-copy">
+            <h3>Return to a familiar session</h3>
+            <p>
+              Save a place and its launch options as a preset. Start several
+              clients or join a specific server without re-entering the same
+              details.
+            </p>
+            <a
+              href="https://roblox-manager.gitbook.io/docs/guides/launch-presets"
+              >Explore launches and presets ↗</a
+            >
+          </div>
+          <div
+            class="workflow"
+            aria-label="A saved preset supplies launch settings to multiple accounts"
+          >
+            <span class="workflow-label"
+              >One saved setup, several accounts</span
+            >
+            <div class="launch-flow">
+              <div class="launch-origin">
+                <strong>Launch preset</strong
+                ><span>Place ID + server options</span>
+              </div>
+              <span class="flow-arrow" aria-hidden="true">→</span>
+              <div class="launch-destinations">
+                <span>Account 1 · Roblox client</span
+                ><span>Account 2 · Roblox client</span
+                ><span>Account 3 · Roblox client</span>
+              </div>
+            </div>
+            <p class="workflow-footnote">
+              RM tracks running clients alongside their managed accounts.
+            </p>
+          </div>
+        </article>
+        <article
+          class="feature-panel"
+          role="tabpanel"
+          id="feature-tiling"
+          aria-labelledby="tab-tiling"
+          tabindex="0"
+          hidden
+        >
+          <div class="feature-copy">
+            <h3>Keep every client in view</h3>
+            <p>
+              Tile running Roblox windows across your connected displays. Adjust
+              the layout and padding to suit the session you're playing or
+              testing.
+            </p>
+            <a href="https://roblox-manager.gitbook.io/docs/guides/instances"
+              >Explore instance management ↗</a
+            >
+          </div>
+          <div
+            class="workflow"
+            aria-label="Diagram of four Roblox windows tiled in a grid"
+          >
+            <span class="workflow-label"
+              >A layout for your connected displays</span
+            >
+            <div class="tiling-display">
+              <div class="tile-window">
+                <span>Roblox client 1</span><i aria-hidden="true"></i>
+              </div>
+              <div class="tile-window">
+                <span>Roblox client 2</span><i aria-hidden="true"></i>
+              </div>
+              <div class="tile-window">
+                <span>Roblox client 3</span><i aria-hidden="true"></i>
+              </div>
+              <div class="tile-window">
+                <span>Roblox client 4</span><i aria-hidden="true"></i>
+              </div>
+            </div>
+            <p class="workflow-footnote">
+              Choose your layout and spacing in the installed app.
+            </p>
+          </div>
+        </article>
+      </section>
+      <section
+        class="security container"
+        id="security"
+        aria-labelledby="security-title"
+      >
+        <div class="security-intro">
+          <h2 id="security-title">Saved locally<br />Protected by default</h2>
+          <p>
+            Your authentication cookies belong in an encrypted account store. RM
+            uses Windows-held keys by default, with the code available for
+            inspection.
+          </p>
+          <a
+            href="https://roblox-manager.gitbook.io/docs/security/privacy-and-security"
+            >Read the security guide ↗</a
+          >
+          <div
+            class="security-diagram"
+            aria-label="Credentials are encrypted before being saved to the account store"
+          >
+            <div class="security-route">
+              <span>Account credentials</span
+              ><span class="flow-arrow" aria-hidden="true">→</span
+              ><span>Encrypted store</span>
+            </div>
+            <p>AES-256-GCM encryption · Windows-managed wrapping key</p>
+            <div class="redaction">
+              <span>Known log secrets</span><span aria-hidden="true">→</span
+              ><code>&lt;redacted&gt;</code>
+            </div>
+          </div>
+        </div>
+        <div class="security-details">
+          <details open>
+            <summary>Encryption before storage</summary>
+            <p>
+              Your account store is encrypted with AES-256-GCM before it reaches
+              disk. Authentication cookies are not saved as plain text.
+            </p>
+          </details>
+          <details>
+            <summary>A key held by Windows</summary>
+            <p>
+              The default wrapping key lives in Windows Credential Manager. If
+              you prefer a master password, the optional password mode derives
+              its wrapping key using Argon2id.
+            </p>
+          </details>
+          <details>
+            <summary>Secret redaction in logs</summary>
+            <p>
+              Known cookie, authentication-ticket, and CSRF-token patterns are
+              redacted before log output is written to disk.
+            </p>
+          </details>
+          <details>
+            <summary>Recovery from interrupted saves</summary>
+            <p>
+              Atomic writes and a backup of the previous store help protect
+              saved data if a write is interrupted.
+            </p>
+          </details>
+          <a
+            href="https://github.com/Paryx-games/roblox-manager/tree/main/ram_core/src"
+            >Inspect the implementation ↗</a
+          >
+        </div>
+      </section>
+      <section
+        class="installation container"
+        aria-labelledby="installation-title"
+      >
+        <div>
+          <h2 id="installation-title">Install on Windows</h2>
+          <p>
+            Download the latest release from GitHub and run the installer. RM
+            supports Windows 10 and 11 and uses WebView2 for its desktop
+            interface. Install Roblox to launch clients.
+          </p>
+        </div>
+        <div class="installation-download">
+          <a
+            class="button"
+            href="https://github.com/Paryx-games/roblox-manager/releases/latest"
+            >Download for Windows <span aria-hidden="true">↓</span></a
+          ><span class="download-detail"
+            >Free and open source · Latest release on GitHub</span
+          >
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer container">
+      <div class="footer-main">
+        <div class="footer-intro">
+          <a class="wordmark" href="#main"
+            ><img src="assets/logo.png" alt="" /><span>Roblox Manager</span></a
+          >
+          <p>
+            Manage your accounts and Roblox sessions from one Windows desktop
+            app.
+          </p>
+          <a class="footer-support" href="https://ko-fi.com/paryx"
+            >Sponsor development <span aria-hidden="true">&nbsp;↗</span></a
+          >
+        </div>
+        <section class="footer-group" aria-labelledby="footer-product">
+          <h2 id="footer-product">Product</h2>
+          <nav class="footer-links" aria-label="Product links">
+            <a
+              href="https://github.com/Paryx-games/roblox-manager/releases/latest"
+              >Download</a
+            >
+            <a href="#features">Features</a>
+            <a href="#security">Security</a>
+            <a href="https://github.com/Paryx-games/roblox-manager/releases"
+              >Release notes</a
+            >
+            <a href="https://github.com/Paryx-games/roblox-manager"
+              >Source code</a
+            >
+          </nav>
+        </section>
+        <section class="footer-group" aria-labelledby="footer-guides">
+          <h2 id="footer-guides">Guides</h2>
+          <nav class="footer-links" aria-label="Documentation links">
+            <a
+              href="https://roblox-manager.gitbook.io/docs/getting-started/first-session"
+              >Getting started</a
+            >
+            <a
+              href="https://roblox-manager.gitbook.io/docs/guides/manage-accounts"
+              >Accounts</a
+            >
+            <a
+              href="https://roblox-manager.gitbook.io/docs/guides/launch-presets"
+              >Launch presets</a
+            >
+            <a href="https://roblox-manager.gitbook.io/docs/faq">FAQ</a>
+          </nav>
+        </section>
+        <section class="footer-group" aria-labelledby="footer-project">
+          <h2 id="footer-project">Project</h2>
+          <nav class="footer-links" aria-label="Project links">
+            <a
+              href="https://roblox-manager.gitbook.io/docs/developers/contributing"
+              >Contributing</a
+            >
+            <a href="https://github.com/Paryx-games/roblox-manager/issues"
+              >Report an issue</a
+            >
+            <a
+              href="https://github.com/Paryx-games/roblox-manager/blob/main/SECURITY.md"
+              >Report a vulnerability</a
+            >
+            <a href="https://ko-fi.com/paryx">Support on Ko-fi</a>
+          </nav>
+        </section>
+      </div>
+      <div class="footer-bottom">
+        <p>
+          An independent project by Paryx. Not affiliated with or endorsed by
+          Roblox Corporation.
+        </p>
+        <a
+          href="https://github.com/Paryx-games/roblox-manager/blob/main/LICENSE"
+          >MIT licensed</a
+        >
+      </div>
+    </footer>
+    <script>
+      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+      function syncTheme() {
+        document.querySelector('meta[name="theme-color"]').content =
+          systemTheme.matches ? "#0a0a0b" : "#f6f6f3";
+      }
+      syncTheme();
+      systemTheme.addEventListener("change", syncTheme);
+      const workspaceFrame = document.querySelector(".workspace-frame");
+      const workspaceLoading = document.getElementById("workspace-loading");
+      const workspaceShell = document.querySelector(".preview-shell");
+      function finishWorkspaceLoading() {
+        workspaceLoading.textContent = "Interactive preview";
+        workspaceShell.setAttribute("aria-busy", "false");
+      }
+      workspaceLoading.textContent = "Loading workspace...";
+      workspaceShell.setAttribute("aria-busy", "true");
+      workspaceFrame.addEventListener("load", finishWorkspaceLoading, {
+        once: true,
+      });
+      try {
+        if (workspaceFrame.contentDocument?.querySelector(".accounts-page"))
+          finishWorkspaceLoading();
+      } catch {}
+      window.addEventListener("message", (event) => {
+        if (
+          event.source === workspaceFrame.contentWindow &&
+          event.data?.type === "workspaceChanged" &&
+          typeof event.data.workspace === "string"
+        ) {
+          workspaceFrame.title = `Interactive Roblox Manager ${event.data.workspace} workspace with demo data`;
+        }
+      });
+      const menuButton = document.querySelector(".menu");
+      const navigation = document.querySelector(".nav");
+      function closeMenu() {
+        navigation.classList.remove("open");
+        menuButton.setAttribute("aria-expanded", "false");
+        menuButton.setAttribute("aria-label", "Open menu");
+      }
+      menuButton.addEventListener("click", () => {
+        const isOpen = menuButton.getAttribute("aria-expanded") === "true";
+        menuButton.setAttribute("aria-expanded", String(!isOpen));
+        menuButton.setAttribute(
+          "aria-label",
+          isOpen ? "Open menu" : "Close menu",
+        );
+        navigation.classList.toggle("open", !isOpen);
+      });
+      navigation.addEventListener("click", (event) => {
+        if (event.target.closest("a")) closeMenu();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (
+          event.key === "Escape" &&
+          menuButton.getAttribute("aria-expanded") === "true"
+        ) {
+          closeMenu();
+          menuButton.focus();
+        }
+      });
+      const previewViewButtons = [
+        ...document.querySelectorAll("[data-preview-view]"),
+      ];
+      function syncPreviewView() {
+        const view =
+          document.querySelector(".preview-shell").scrollLeft < 200
+            ? "accounts"
+            : "details";
+        previewViewButtons.forEach((button) =>
+          button.setAttribute(
+            "aria-pressed",
+            String(button.dataset.previewView === view),
+          ),
+        );
+      }
+      previewViewButtons.forEach((button) =>
+        button.addEventListener("click", () => {
+          document.querySelector(".preview-shell").scrollTo({
+            left: button.dataset.previewView === "accounts" ? 0 : 326,
+            top: 78,
+            behavior: "auto",
+          });
+          syncPreviewView();
+        }),
+      );
+      const shell = document.querySelector(".preview-shell");
+      const stage = document.querySelector(".workspace-stage");
+      let wasMobile = false;
+      function fitWorkspace() {
+        const isMobile = innerWidth <= 800;
+        if (isMobile) {
+          stage.style.transform = "none";
+          shell.style.height = "576px";
+          if (!wasMobile) {
+            shell.scrollLeft = 326;
+            shell.scrollTop = 78;
+          }
+        } else {
+          const scale = shell.clientWidth / 1200;
+          stage.style.transform = `scale(${scale})`;
+          shell.style.height = `${760 * scale}px`;
+          shell.scrollLeft = 0;
+          shell.scrollTop = 0;
+        }
+        wasMobile = isMobile;
+      }
+      function syncPreviewViewport() {
+        syncPreviewView();
+        document.querySelector(".workspace-frame").contentWindow.postMessage(
+          {
+            type: "previewViewport",
+            isMobile: innerWidth <= 800,
+            width: shell.clientWidth,
+            scrollLeft: shell.scrollLeft,
+          },
+          "*",
+        );
+      }
+      window.addEventListener("resize", () => {
+        fitWorkspace();
+        syncPreviewViewport();
+      });
+      shell.addEventListener("scroll", syncPreviewViewport);
+      document
+        .querySelector(".workspace-frame")
+        .addEventListener("load", syncPreviewViewport);
+      fitWorkspace();
+      syncPreviewViewport();
+
+      const featureTabs = [
+        ...document.querySelectorAll('.feature-tabs [role="tab"]'),
+      ];
+      const motionPreference = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      );
+      function selectFeature(tab) {
+        featureTabs.forEach((current) => {
+          const isSelected = current === tab;
+          current.setAttribute("aria-selected", String(isSelected));
+          current.tabIndex = isSelected ? 0 : -1;
+          document.getElementById(
+            current.getAttribute("aria-controls"),
+          ).hidden = !isSelected;
+        });
+        const panel = document.getElementById(
+          tab.getAttribute("aria-controls"),
+        );
+        if (!motionPreference.matches)
+          panel.animate(
+            [
+              { opacity: 0, transform: "translateY(8px)" },
+              { opacity: 1, transform: "translateY(0)" },
+            ],
+            { duration: 280, easing: "cubic-bezier(.22,1,.36,1)" },
+          );
+      }
+      featureTabs.forEach((tab, index) => {
+        tab.addEventListener("click", () => selectFeature(tab));
+        tab.addEventListener("keydown", (event) => {
+          let nextIndex = index;
+          if (event.key === "ArrowRight")
+            nextIndex = (index + 1) % featureTabs.length;
+          else if (event.key === "ArrowLeft")
+            nextIndex = (index + featureTabs.length - 1) % featureTabs.length;
+          else if (event.key === "Home") nextIndex = 0;
+          else if (event.key === "End") nextIndex = featureTabs.length - 1;
+          else return;
+          event.preventDefault();
+          featureTabs[nextIndex].focus();
+          selectFeature(featureTabs[nextIndex]);
+        });
+      });
+      document.querySelectorAll(".security-details details").forEach((detail) =>
+        detail.addEventListener("toggle", () => {
+          if (detail.open && !motionPreference.matches)
+            detail.querySelector("p").animate(
+              [
+                { opacity: 0, transform: "translateY(-4px)" },
+                { opacity: 1, transform: "translateY(0)" },
+              ],
+              { duration: 200, easing: "cubic-bezier(.22,1,.36,1)" },
+            );
+        }),
+      );
+    </script>
   </body>
 </html>
