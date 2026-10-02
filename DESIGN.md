@@ -260,3 +260,11 @@ loads; user input cancels pending scroll restoration. Nothing is written to disk
 Settings search lives in the existing 200px section sidebar and jumps/focuses a
 matching section without filtering away controls. The running-client count opens
 Instances; identified instance accounts link back to their account details.
+
+The Operation centre uses the shared Popup and table styles. It shows the latest
+100 fixed-label summaries and live launch/upload stages for this session, supports
+status filters, and links back to the owning workspace. Clearing completed work
+retains ongoing work. It records no payloads, raw errors, credentials or file paths.
+Game destination controls use public HTTPS Roblox game URLs or safe positive IDs;
+private invite links belong in Private Servers. Recent destinations retain only
+place IDs and public game names, are limited to 20 entries, and live in memory.

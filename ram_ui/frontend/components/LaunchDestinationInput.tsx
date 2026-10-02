@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import Select from "./Select";
 import { parseLaunchDestination } from "../lib/launchDestination";
 import { resolveLaunchDestination } from "../lib/ipc";
 
@@ -37,12 +38,15 @@ export function LaunchDestinationInput({ value, onChange, id, labelledBy }: {
   }, [placeId]);
   const current = lookup?.id === placeId ? lookup : null;
   return <div className="launch-destination">
-    <input id={inputId} aria-label={labelledBy ? undefined : "Place ID or game URL"} aria-labelledby={labelledBy}
+    <div className="launch-destination-controls"><input id={inputId} aria-label={labelledBy ? undefined : "Place ID or game URL"} aria-labelledby={labelledBy}
       aria-invalid={!!input && !placeId} aria-describedby={`${inputId}-hint`} value={input}
-      placeholder="Place ID or https://www.roblox.com/games/…" list={`${inputId}-recent`}
+      placeholder="Place ID or https://www.roblox.com/games/…"
       onChange={(event) => { const next = event.target.value; setInput(next); onChange(parseLaunchDestination(next)?.toString() ?? ""); }} />
-    <datalist id={`${inputId}-recent`}>{Array.from(recentGames, ([gameId, name]) => <option key={gameId} value={gameId}>{name}</option>)}</datalist>
-    <p id={`${inputId}-hint`} className="settings-muted" role="status">{!input ? "Use a place ID or a public game URL. Recent games appear as suggestions."
+    <Select ariaLabel="Recent games" value="" disabled={!recentGames.size} options={[
+      { value: "", label: "Recent games", disabled: true },
+      ...Array.from(recentGames, ([gameId, name]) => ({ value: String(gameId), label: name })).reverse(),
+    ]} onChange={(gameId) => { setInput(gameId); onChange(gameId); }} /></div>
+    <p id={`${inputId}-hint`} className="settings-muted" role="status">{!input ? "Use a place ID or a public game URL. Choose Recent games to reuse a destination."
       : !placeId ? "Enter a positive place ID or a public Roblox game URL without query parameters. Use Private Servers for invite links."
       : current?.name ? `${current.name} · Place ${placeId}`
       : current?.failed ? `Place ${placeId} · Name unavailable; launching is still available.`

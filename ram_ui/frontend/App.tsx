@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { OperationCentre } from "./components/OperationCentre";
+import { recordLaunchProgress, recordAssetProgress } from "./lib/operations";
+import type { AssetWorkspace } from "./lib/ipc";
 import { WorkspaceFrame } from "./components/WorkspaceFrame";
 import { InstancesPage } from "./InstancesPage";
 import { Toast, type ToastItem } from "./Toast";
@@ -110,6 +113,7 @@ function WindowButton({
 }
 
 export function App() {
+  const [isOperationCentreOpen, setIsOperationCentreOpen] = useState(false);
   const [activeNav, setActiveNav] = useState<PageName>("Accounts");
   const displayedNav = activeNav;
   const settingsGuardRef = useRef<SettingsNavigationGuard | null>(null);
@@ -138,6 +142,8 @@ export function App() {
   const [browserPlaceId, setBrowserPlaceId] = useState<number | null>(null);
   const [prefilledPlaceId, setPrefilledPlaceId] = useState<number>();
   const [focusAccountId, setFocusAccountId] = useState<number>();
+  const [requestedSettingsAnchor, setRequestedSettingsAnchor] = useState<string>();
+  const clearSettingsAnchor = useCallback(() => setRequestedSettingsAnchor(undefined), []);
   const clearAccountFocus = useCallback(() => setFocusAccountId(undefined), []);
   const clearPrefilledPlace = useCallback(() => setPrefilledPlaceId(undefined), []);
   const isTourVisible = !!startup?.needsTutorial && (!startup.legacyMigrationAvailable || isMigrationDismissed);
@@ -250,12 +256,17 @@ export function App() {
         }),
         listen<LaunchProgress>("launch-progress", (event) => {
           if (!isActive) return;
+          recordLaunchProgress(event.payload.requestId, event.payload.phase);
           setLaunches((current) => {
             const next = { ...current };
             if (event.payload.phase === "requested" || event.payload.phase === "failed") delete next[event.payload.requestId];
             else next[event.payload.requestId] = event.payload;
             return next;
           });
+        }),
+        listen<AssetWorkspace>("assets-updated", (event) => {
+          if (!isActive) return;
+          for (const row of event.payload.rows) recordAssetProgress(row.rowId, row.state);
         }),
         listen<string>("background-notice", (event) => {
           if (isActive) setRuntimeToast({ id: Date.now(), title: "Background action needs attention", message: event.payload, kind: "warning", duration: "long" });
@@ -341,6 +352,7 @@ export function App() {
           onPrefillApplied={clearPrefilledPlace}
           focusAccountId={focusAccountId}
           onFocusApplied={clearAccountFocus}
+          onNavigatePresets={() => navigateTo("Presets")}
         />
       );
     }
@@ -350,7 +362,7 @@ export function App() {
         setSelectedIds(new Set([id]));
         setFocusAccountId(id);
         navigateTo("Accounts");
-      }} onNavigateSettings={() => navigateTo("Settings")} />;
+      }} onNavigateSettings={() => { setRequestedSettingsAnchor("launching"); navigateTo("Settings"); }} />;
     }
 
     if (page === "Groups") {
@@ -382,7 +394,7 @@ export function App() {
     }
 
     if (page === "Settings") {
-      return <SettingsPage onNavigationGuardChange={updateSettingsGuard} />;
+      return <SettingsPage onNavigationGuardChange={updateSettingsGuard} requestedAnchor={requestedSettingsAnchor} onAnchorApplied={clearSettingsAnchor} />;
     }
 
     if (page === "Inventories") {
@@ -479,6 +491,7 @@ export function App() {
             />
           ))}
           <span className="sidebar-spacer" />
+          <RailButton label="Operation centre" icon="list" active={isOperationCentreOpen} onClick={() => setIsOperationCentreOpen(true)} />
           {settings?.utilityEnabled && <RailButton label="Clear Cache" icon="eraser" disabled={isClearingCache} onClick={() => void clearCache()} />}
           <RailButton
             label="Settings"
@@ -498,6 +511,7 @@ export function App() {
           </div>
         </div>
       </div>
+      {isOperationCentreOpen && <OperationCentre onClose={() => setIsOperationCentreOpen(false)} onNavigate={navigateTo} developerOptions={settings?.developerOptions ?? false} />}
       {pendingNavigation && <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="unsaved-navigation-title" describedBy="unsaved-navigation-message" busy={isNavigationSaving} onClose={() => setPendingNavigation(null)}>
         <div className="confirm-modal-header"><h2 id="unsaved-navigation-title">Save settings before leaving?</h2></div>
         <p id="unsaved-navigation-message" className="confirm-modal-message">Your settings have unsaved changes. Save them, discard them, or stay to keep editing.</p>

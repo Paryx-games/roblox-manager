@@ -4,6 +4,8 @@
 
 ### Added
 
+- Operation centre shows up to 100 session operation summaries, ongoing launch/upload phases, failures and partial results, with workspace links and clear-completed controls. Sensitive inputs and raw diagnostics are excluded.
+
 - Game destinations accept public Roblox game URLs or place IDs, show game names, and suggest recent destinations in Accounts and Presets.
 
 - Session workspace memory restores view preferences, non-sensitive draft names and destinations, and pane scroll positions when changing pages.

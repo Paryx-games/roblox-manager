@@ -1,3 +1,4 @@
+import { parseLaunchDestination } from "./lib/launchDestination";
 import { LaunchDestinationInput } from "./components/LaunchDestinationInput";
 import { useWorkspaceState } from "./hooks/useWorkspaceState";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
@@ -76,9 +77,9 @@ export function PresetsPage({
   const [presets, setPresets] = useState<LaunchPresetSummary[]>([]);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
-  const [presetAccounts, setPresetAccounts] = useWorkspaceState<
+  const [presetAccounts, setPresetAccounts] = useState<
     Record<number, Set<number>>
-  >("presets.presetAccounts", {});
+  >({});
   const [name, setName] = useWorkspaceState("presets.name", "");
   const [placeId, setPlaceId] = useWorkspaceState("presets.placeId", "");
   const [jobId, setJobId] = useState("");
@@ -183,8 +184,7 @@ export function PresetsPage({
     : visiblePresets;
 
   function getPlaceId(value: string) {
-    const parsed = Number.parseInt(value.trim(), 10);
-    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+    return parseLaunchDestination(value);
   }
 
   async function addPreset() {

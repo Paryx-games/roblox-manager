@@ -6765,6 +6765,7 @@ button:focus-visible {
   flex: 1 1 auto;
 }
 
+.settings-section:focus-visible,
 .settings-section [data-settings-anchor]:focus-visible {
   outline: 2px solid var(--action-primary);
   outline-offset: 2px;
@@ -6810,7 +6811,7 @@ button:focus-visible {
   min-width: 0;
 }
 
-.launch-destination > input {
+.launch-destination input {
   width: 100%;
   min-height: var(--space-8);
   padding: var(--space-2);
@@ -6821,16 +6822,16 @@ button:focus-visible {
   font-size: var(--text-sm);
 }
 
-.launch-destination > input:focus-visible {
+.launch-destination input:focus-visible {
   outline: 2px solid var(--action-primary);
   outline-offset: 2px;
 }
 
-.launch-destination > input:hover {
+.launch-destination input:hover {
   border-color: var(--text-muted);
 }
 
-.launch-destination > input[aria-invalid="true"] {
+.launch-destination input[aria-invalid="true"] {
   border-color: var(--notification-error);
 }
 
@@ -6839,10 +6840,65 @@ button:focus-visible {
 }
 
 .preset-destination-field {
-  display: flex;
+  display: grid;
   min-width: 0;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--text-xs);
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
   color: var(--text-muted);
+}
+
+.preset-form .preset-destination-field > label {
+  display: block;
+  padding-top: var(--space-2);
+}
+
+.operation-centre {
+  width: min(900px, calc(100vw - var(--space-12)));
+  max-height: calc(100vh - var(--space-12));
+  display: flex;
+  flex-direction: column;
+}
+
+.operation-centre-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block: var(--space-3);
+}
+
+.operation-centre-toolbar .account-button {
+  width: auto;
+}
+
+.operation-centre-results {
+  min-height: 0;
+  overflow: auto;
+}
+
+.operation-centre-results time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.operation-centre-results .account-button {
+  width: auto;
+}
+
+.operation-centre-results small {
+  max-width: 48ch;
+  white-space: normal;
+}
+
+.launch-destination-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.launch-destination-controls .rm-select-menu {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }

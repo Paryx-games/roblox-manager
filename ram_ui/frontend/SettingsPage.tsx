@@ -344,8 +344,10 @@ export type SettingsNavigationGuard = {
   discard: () => void;
 };
 
-export function SettingsPage({ onNavigationGuardChange }: {
+export function SettingsPage({ onNavigationGuardChange, requestedAnchor, onAnchorApplied }: {
   onNavigationGuardChange: (guard: SettingsNavigationGuard | null) => void;
+  requestedAnchor?: string;
+  onAnchorApplied: () => void;
 }) {
   const [snapshot, setSnapshot] = useState<SettingsSnapshot | null>(null);
   const [draft, setDraft] = useState<SettingsDraft | null>(null);
@@ -500,6 +502,12 @@ export function SettingsPage({ onNavigationGuardChange }: {
       });
     });
   }
+
+  useEffect(() => {
+    if (isLoading || !snapshot || !requestedAnchor) return;
+    navigateToAnchor(requestedAnchor);
+    onAnchorApplied();
+  }, [isLoading, snapshot, requestedAnchor, onAnchorApplied]);
 
   const handleCancelChanges = useCallback(() => {
     if (!savedDraft) return;

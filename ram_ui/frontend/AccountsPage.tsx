@@ -1,3 +1,4 @@
+import { parseLaunchDestination } from "./lib/launchDestination";
 import { LaunchDestinationInput } from "./components/LaunchDestinationInput";
 import { useWorkspaceState } from "./hooks/useWorkspaceState";
 import { listen } from "@tauri-apps/api/event";
@@ -590,6 +591,7 @@ export function AccountsPage({
   onPrefillApplied,
   focusAccountId,
   onFocusApplied,
+  onNavigatePresets,
 }: {
   selectedIds: Set<number>;
   setSelectedIds: Dispatch<SetStateAction<Set<number>>>;
@@ -597,6 +599,7 @@ export function AccountsPage({
   onPrefillApplied: () => void;
   focusAccountId?: number;
   onFocusApplied: () => void;
+  onNavigatePresets: () => void;
 }) {
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryConfirmation, setRecoveryConfirmation] = useState("");
@@ -882,7 +885,7 @@ export function AccountsPage({
       .then((nextAccounts) => {
         if (!mounted) return;
         setAccounts(nextAccounts);
-        setSelectedId((current) => current ?? nextAccounts[0]?.userId ?? null);
+        setSelectedId((current) => nextAccounts.some((account) => account.userId === current) ? current : nextAccounts[0]?.userId ?? null);
         setError(null);
       })
       .catch((loadError: Error) => {
@@ -1003,7 +1006,7 @@ export function AccountsPage({
   const selectedGroupColor =
     groups.find((group) => group.name === selectedAccount?.group)?.color ??
     "var(--text-muted)";
-  const placeIdValid = /^\d+$/.test(placeId.trim());
+  const placeIdValid = /^\d+$/.test(placeId.trim()) && parseLaunchDestination(placeId) !== null;
 
   useEffect(() => {
     setAlias(selectedAccount?.alias ?? "");
@@ -2708,6 +2711,7 @@ export function AccountsPage({
                   >
                     <Icon name="star" />
                   </button>
+                  <button className="account-button" type="button" onClick={onNavigatePresets}>Saved presets</button>
                 </div>
                 {accountNotices.map((notice) => (
                   <TimedNotice

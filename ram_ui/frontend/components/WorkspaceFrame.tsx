@@ -24,6 +24,7 @@ export function WorkspaceFrame({ page, children }: { page: string; children: Rea
         element.scrollLeft = position[1];
         pending.delete(key);
       }
+      if (!pending.size) observer.disconnect();
     }
     function scheduleRestore() {
       if (!pending.size) return;
@@ -43,6 +44,7 @@ export function WorkspaceFrame({ page, children }: { page: string; children: Rea
     root.addEventListener("wheel", takeControl, { passive: true });
     root.addEventListener("pointerdown", takeControl);
     root.addEventListener("keydown", takeControl);
+    root.addEventListener("focusin", takeControl);
     scheduleRestore();
     return () => {
       cancelAnimationFrame(frame);
@@ -51,6 +53,7 @@ export function WorkspaceFrame({ page, children }: { page: string; children: Rea
       root.removeEventListener("wheel", takeControl);
       root.removeEventListener("pointerdown", takeControl);
       root.removeEventListener("keydown", takeControl);
+      root.removeEventListener("focusin", takeControl);
     };
   }, [page]);
 

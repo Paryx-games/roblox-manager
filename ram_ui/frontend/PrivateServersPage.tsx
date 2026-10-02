@@ -71,9 +71,9 @@ export function PrivateServersPage({
   const [openPicker, setOpenPicker] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
-  const [serverAccounts, setServerAccounts] = useWorkspaceState<
+  const [serverAccounts, setServerAccounts] = useState<
     Record<number, Set<number>>
-  >("privateservers.serverAccounts", {});
+  >({});
   const [deleteTarget, setDeleteTarget] = useState<PrivateServerSummary | null>(
     null,
   );

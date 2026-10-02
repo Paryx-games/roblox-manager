@@ -40,7 +40,9 @@ export function SettingsSearch({ contentRef, onNavigate }: {
   const terms = query.trim().toLocaleLowerCase().split(/\s+/);
   const results = index.filter((item) => terms.every((term) => item.text.toLocaleLowerCase().includes(term)));
   return <div className="settings-search">
-    <label className="settings-field-row"><Icon name="search" /><input aria-label="Search settings" placeholder="Search settings…" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+    <label className="settings-field-row"><Icon name="search" /><input aria-label="Search settings" placeholder="Search settings…" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => {
+      if (event.key === "Enter" && query.trim() && results[0]) { event.preventDefault(); onNavigate(results[0].id); }
+    }} /></label>
     {query.trim() && <div className="settings-search-results" aria-label="Settings search results">
       {!results.length && <p role="status">No matching settings. Try another word.</p>}
       {results.map((item) => <button key={item.id} className="account-button" type="button" onClick={() => onNavigate(item.id)}>{item.label}</button>)}

@@ -1,4 +1,17 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { beginOperation, finishOperation } from "./operations";
+
+async function invoke<T>(command: string, args?: Parameters<typeof tauriInvoke>[1]): Promise<T> {
+  const operation = beginOperation(command);
+  try {
+    const result = await tauriInvoke<T>(command, args);
+    finishOperation(operation, command, true, result);
+    return result;
+  } catch (error) {
+    finishOperation(operation, command, false);
+    throw error;
+  }
+}
 
 export async function resolveLaunchDestination(placeId: number): Promise<{ placeId: number; name: string }> {
   return invoke("resolve_launch_destination", { placeId });
