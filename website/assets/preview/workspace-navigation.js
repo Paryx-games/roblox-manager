@@ -15,7 +15,7 @@
   const memberships = new Set(['alex']);
   const settings = new Map([['Multi-instance', true], ['Auto-tile windows', false], ['Confirm before closing clients', true]]);
   let currentWorkspace = 'Accounts';
-  const icon = name => `<img class="account-icon" src="${name}.svg" alt="">`;
+  const icon = name => `<img class="account-icon" src="../icons/${name}.svg" alt="">`;
   const escapeText = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const actionButton = (label, action, iconName) => `<button class="account-button" data-preview-action="${action}">${iconName ? icon(iconName) : ''}${label}</button>`;
   const header = name => `<div class="header-row"><h1 class="header-title">${name}</h1></div>`;

@@ -1565,7 +1565,7 @@ async fn test_discord_webhook(url: String) -> Result<(), String> {
         return Err("Enter a valid Discord webhook URL".to_string());
     }
     let avatar = base64::engine::general_purpose::STANDARD
-        .encode(include_bytes!("../../../assets/Logo.png"));
+        .encode(include_bytes!("../../../assets/branding/Logo.png"));
     let http = reqwest::Client::new();
     let response = http
         .patch(&url)
