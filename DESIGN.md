@@ -171,9 +171,10 @@ requests. Icon-only buttons need accessible names.
 closed. Escape dismissal is available when an `onClose` callback is passed;
 backdrop dismissal is opt-in. Give dialogs accessible titles and keep
 pending/destructive flow dismissal consistent with the existing caller.
-`PopupMenu` supplies a menu container; callers still own positioning,
-keyboard navigation, dismissal, and focus handling. Do not assume the
-wrapper implements those behaviors.
+`PopupMenu` supplies initial focus, arrow/Home/End navigation, Escape dismissal
+and focus restoration, and Tab dismissal. Callers provide the close callback
+and own positioning and outside-pointer dismissal. Escape dismisses only the
+foreground overlay; a nested menu closes before its containing dialog.
 
 `Select` keeps focus on its trigger and supports arrow navigation,
 Enter/Space selection, Escape, and disabled options. `TooltipProvider`
@@ -183,8 +184,12 @@ Loading skeletons use page-specific layouts with a status announcement and
 `aria-busy`. Toasts distinguish info, success, warning, and error; errors
 use `role="alert"`, other kinds use `role="status"`. Their current visible
 durations are 3, 5, or 8 seconds, with a dismiss action and exit animation.
+The countdown pauses while a notification is hovered or contains keyboard focus.
 Keep persistent failures visible in the affected flow when a transient
 notification would not be enough.
+
+Settings prompts to save, discard, or stay before navigation would abandon
+unsaved preferences. Failed saves keep the draft available for correction.
 
 Most shell text is not selectable. Inputs, identifiers, content, and error
 messages have explicit selectable-text rules. Preserve useful copying and
@@ -193,11 +198,9 @@ the page's selection shortcuts without interfering with text editing.
 ### Motion
 
 Use the shared 100/160/240ms durations and standard easing. Loading
-skeletons use the 1200ms loading duration. Existing page changes slide and
-fade through the page-transition layer over 240ms per animation; App.tsx
-switches the displayed page after a 240ms timeout. Reduced-motion CSS
-removes the animation but currently leaves that switching delay in place.
-Do not describe reduced motion as an instant navigation guarantee.
+skeletons use the 1200ms loading duration. Page changes display their destination
+immediately and slide/fade in through the page-transition layer over 240ms. Reduced-motion CSS removes the
+animation; navigation has no animation-related switching delay.
 
 The app responds to `prefers-reduced-motion: reduce`. Keep transitions tied
 to the user's action, and ensure page changes and loading indicators remain
