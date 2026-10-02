@@ -6,6 +6,10 @@
 
 - Debug-only screenshot demo builds with local sample accounts and workspaces. Demo mode uses no saved account data and blocks live operations and changes.
 
+### Changed
+
+- Website arrows, menu controls, and preview icons use locally bundled Lucide SVGs with consistent sizing and strokes.
+
 ### Fixed
 
 - Version bump tooling exits without an extra keypress by default, preventing Windows batch tests from hanging in CI. Use `bump-version.bat --pause` to keep the result visible until a key is pressed.
