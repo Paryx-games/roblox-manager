@@ -14,13 +14,13 @@
       content="Manage your Roblox accounts in one Windows app. Free and open source."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="assets/social-preview.png" />
-    <link rel="icon" href="assets/logo.png" />
+    <meta property="og:image" content="assets/images/social/social-preview.png" />
+    <link rel="icon" href="assets/images/branding/logo.png" />
     <title>Roblox Manager - For Roblox, built for Windows</title>
     <style>
       @font-face {
         font-family: Roboto;
-        src: url("assets/Roboto.ttf") format("truetype");
+        src: url("assets/fonts/roboto/Roboto.ttf") format("truetype");
         font-weight: 100 900;
         font-display: swap;
       }
@@ -158,38 +158,43 @@
         padding: var(--s3);
         background: transparent;
       }
-      .menu-icon {
-        position: relative;
+      .icon {
+        display: inline-block;
+        width: 1em;
+        height: 1em;
+        flex-shrink: 0;
+        vertical-align: -0.15em;
+        background-color: currentColor;
+        mask: var(--icon) center / contain no-repeat;
+      }
+      .icon-arrow-right {
+        --icon: url("assets/icons/arrow-right.svg");
+      }
+      .icon-arrow-up-right {
+        --icon: url("assets/icons/arrow-up-right.svg");
+      }
+      .icon-download {
+        --icon: url("assets/icons/download.svg");
+      }
+      .icon-menu {
+        --icon: url("assets/icons/menu.svg");
+      }
+      .icon-x {
+        --icon: url("assets/icons/x.svg");
+      }
+      .icon-pin {
+        --icon: url("assets/icons/pin.svg");
+      }
+      .menu .icon {
         width: 20px;
-        height: 16px;
+        height: 20px;
       }
-      .menu-icon span {
-        position: absolute;
-        left: 0;
-        right: 0;
-        height: 2px;
-        background: currentColor;
-        transition:
-          transform var(--motion-base) var(--ease-out),
-          opacity var(--motion-base) var(--ease-out);
+      .menu .icon-x,
+      .menu[aria-expanded="true"] .icon-menu {
+        display: none;
       }
-      .menu-icon span:nth-child(1) {
-        top: 0;
-      }
-      .menu-icon span:nth-child(2) {
-        top: 7px;
-      }
-      .menu-icon span:nth-child(3) {
-        top: 14px;
-      }
-      .menu[aria-expanded="true"] .menu-icon span:nth-child(1) {
-        transform: translateY(7px) rotate(45deg);
-      }
-      .menu[aria-expanded="true"] .menu-icon span:nth-child(2) {
-        opacity: 0;
-      }
-      .menu[aria-expanded="true"] .menu-icon span:nth-child(3) {
-        transform: translateY(-7px) rotate(-45deg);
+      .menu[aria-expanded="true"] .icon-x {
+        display: inline-block;
       }
       .hero {
         padding-top: var(--s16);
@@ -587,9 +592,12 @@
         display: none;
       }
       .security-details summary::after {
-        content: "+";
-        color: var(--link);
-        font-size: var(--type-lead);
+        content: "";
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+        background-color: var(--link);
+        mask: url("assets/icons/plus.svg") center / contain no-repeat;
         transition: transform var(--motion-base) var(--ease-out);
       }
       .security-details details[open] summary::after {
@@ -1066,7 +1074,7 @@
     <a class="skip" href="#main">Skip to content</a>
     <header class="container">
       <a class="wordmark" href="#main" aria-label="Roblox Manager home"
-        ><img src="assets/logo.png" alt="" /><span>Roblox Manager</span></a
+        ><img src="assets/images/branding/logo.png" alt="" /><span>Roblox Manager</span></a
       ><button
         class="menu"
         type="button"
@@ -1074,14 +1082,13 @@
         aria-expanded="false"
         aria-controls="navigation"
       >
-        <span class="menu-icon" aria-hidden="true"
-          ><span></span><span></span><span></span
-        ></span>
+        <span class="icon icon-menu" aria-hidden="true"></span>
+        <span class="icon icon-x" aria-hidden="true"></span>
       </button>
       <nav class="nav" id="navigation" aria-label="Main navigation">
         <a href="#features">Features</a><a href="#security">Security</a
         ><a href="https://roblox-manager.gitbook.io/docs">Documentation</a
-        ><a href="https://github.com/Paryx-games/roblox-manager">GitHub ↗</a
+        ><a href="https://github.com/Paryx-games/roblox-manager">GitHub <span class="icon icon-arrow-up-right" aria-hidden="true"></span></a
         ><a
           class="nav-download"
           href="https://github.com/Paryx-games/roblox-manager/releases/latest"
@@ -1105,7 +1112,7 @@
               <a
                 class="button"
                 href="https://github.com/Paryx-games/roblox-manager/releases/latest"
-                >Download for Windows <span aria-hidden="true">↓</span></a
+                >Download for Windows <span aria-hidden="true"><span class="icon icon-download" aria-hidden="true"></span></span></a
               ><a
                 class="inline-link"
                 href="https://roblox-manager.gitbook.io/docs"
@@ -1121,9 +1128,9 @@
       >
         <div class="preview-tools">
           <span id="workspace-loading" role="status">Interactive preview</span
-          ><a href="assets/workspace.html" target="_blank" rel="noopener"
-            ><span class="desktop-view-label">Open full-size workspace ↗</span
-            ><span class="mobile-view-label">Open full workspace ↗</span></a
+          ><a href="assets/preview/workspace.html" target="_blank" rel="noopener"
+            ><span class="desktop-view-label">Open full-size workspace <span class="icon icon-arrow-up-right" aria-hidden="true"></span></span
+            ><span class="mobile-view-label">Open full workspace <span class="icon icon-arrow-up-right" aria-hidden="true"></span></span></a
           >
         </div>
         <div class="preview-views" role="group" aria-label="Workspace view">
@@ -1149,7 +1156,7 @@
           <div class="workspace-stage">
             <iframe
               class="workspace-frame"
-              src="assets/workspace.html"
+              src="assets/preview/workspace.html"
               title="Interactive Roblox Manager Accounts workspace with demo data"
             ></iframe>
           </div>
@@ -1213,7 +1220,7 @@
             </p>
             <a
               href="https://roblox-manager.gitbook.io/docs/guides/manage-accounts"
-              >Explore account management ↗</a
+              >Explore account management <span class="icon icon-arrow-up-right" aria-hidden="true"></span></a
             >
           </div>
           <div class="workflow" aria-label="Example account organisation">
@@ -1224,25 +1231,16 @@
               <div class="workflow-group">
                 <h4>Playing</h4>
                 <div class="workflow-account">
-                  <img src="assets/builderman.png" alt="" /><span
+                  <img src="assets/images/avatars/builderman.png" alt="" /><span
                     ><strong>builderman</strong
                     ><small>Main account</small></span
-                  ><svg
-                    class="workflow-pin"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    aria-label="Pinned"
-                  >
-                    <path d="m16 3 5 5-4 2-3 6-2-2-6 7-3-3 7-6-2-2 6-3z" />
-                  </svg>
+                  ><span class="workflow-pin icon icon-pin" role="img" aria-label="Pinned"></span>
                 </div>
               </div>
               <div class="workflow-group">
                 <h4>Testing</h4>
                 <div class="workflow-account">
-                  <img src="assets/roblox.png" alt="" /><span
+                  <img src="assets/images/avatars/roblox.png" alt="" /><span
                     ><strong>Roblox</strong><small>Test account</small></span
                   >
                 </div>
@@ -1270,7 +1268,7 @@
             </p>
             <a
               href="https://roblox-manager.gitbook.io/docs/guides/launch-presets"
-              >Explore launches and presets ↗</a
+              >Explore launches and presets <span class="icon icon-arrow-up-right" aria-hidden="true"></span></a
             >
           </div>
           <div
@@ -1285,7 +1283,7 @@
                 <strong>Launch preset</strong
                 ><span>Place ID + server options</span>
               </div>
-              <span class="flow-arrow" aria-hidden="true">→</span>
+              <span class="flow-arrow" aria-hidden="true"><span class="icon icon-arrow-right" aria-hidden="true"></span></span>
               <div class="launch-destinations">
                 <span>Account 1 · Roblox client</span
                 ><span>Account 2 · Roblox client</span
@@ -1313,7 +1311,7 @@
               testing.
             </p>
             <a href="https://roblox-manager.gitbook.io/docs/guides/instances"
-              >Explore instance management ↗</a
+              >Explore instance management <span class="icon icon-arrow-up-right" aria-hidden="true"></span></a
             >
           </div>
           <div
@@ -1357,7 +1355,7 @@
           </p>
           <a
             href="https://roblox-manager.gitbook.io/docs/security/privacy-and-security"
-            >Read the security guide ↗</a
+            >Read the security guide <span class="icon icon-arrow-up-right" aria-hidden="true"></span></a
           >
           <div
             class="security-diagram"
@@ -1365,12 +1363,12 @@
           >
             <div class="security-route">
               <span>Account credentials</span
-              ><span class="flow-arrow" aria-hidden="true">→</span
+              ><span class="flow-arrow" aria-hidden="true"><span class="icon icon-arrow-right" aria-hidden="true"></span></span
               ><span>Encrypted store</span>
             </div>
             <p>AES-256-GCM encryption · Windows-managed wrapping key</p>
             <div class="redaction">
-              <span>Known log secrets</span><span aria-hidden="true">→</span
+              <span>Known log secrets</span><span aria-hidden="true"><span class="icon icon-arrow-right" aria-hidden="true"></span></span
               ><code>&lt;redacted&gt;</code>
             </div>
           </div>
@@ -1407,7 +1405,7 @@
           </details>
           <a
             href="https://github.com/Paryx-games/roblox-manager/tree/main/ram_core/src"
-            >Inspect the implementation ↗</a
+            >Inspect the implementation <span class="icon icon-arrow-up-right" aria-hidden="true"></span></a
           >
         </div>
       </section>
@@ -1427,7 +1425,7 @@
           <a
             class="button"
             href="https://github.com/Paryx-games/roblox-manager/releases/latest"
-            >Download for Windows <span aria-hidden="true">↓</span></a
+            >Download for Windows <span aria-hidden="true"><span class="icon icon-download" aria-hidden="true"></span></span></a
           ><span class="download-detail"
             >Free and open source · Latest release on GitHub</span
           >
@@ -1438,14 +1436,14 @@
       <div class="footer-main">
         <div class="footer-intro">
           <a class="wordmark" href="#main"
-            ><img src="assets/logo.png" alt="" /><span>Roblox Manager</span></a
+            ><img src="assets/images/branding/logo.png" alt="" /><span>Roblox Manager</span></a
           >
           <p>
             Manage your accounts and Roblox sessions from one Windows desktop
             app.
           </p>
           <a class="footer-support" href="https://ko-fi.com/paryx"
-            >Sponsor development <span aria-hidden="true">&nbsp;↗</span></a
+            >Sponsor development <span aria-hidden="true"><span class="icon icon-arrow-up-right" aria-hidden="true"></span></span></a
           >
         </div>
         <section class="footer-group" aria-labelledby="footer-product">
