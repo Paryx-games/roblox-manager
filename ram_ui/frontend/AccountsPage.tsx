@@ -827,28 +827,6 @@ export function AccountsPage({
   }, [groupContextMenu]);
 
   useEffect(() => {
-    if (!showAddForm) return;
-
-    function dismissOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") closeAddForm();
-    }
-
-    document.addEventListener("keydown", dismissOnEscape);
-    return () => document.removeEventListener("keydown", dismissOnEscape);
-  }, [showAddForm, addFormClosing]);
-
-  useEffect(() => {
-    if (!groupEditor) return;
-
-    function dismissOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setGroupEditor(null);
-    }
-
-    document.addEventListener("keydown", dismissOnEscape);
-    return () => document.removeEventListener("keydown", dismissOnEscape);
-  }, [groupEditor]);
-
-  useEffect(() => {
     return () => {
       if (addFormCloseTimer.current !== null) {
         window.clearTimeout(addFormCloseTimer.current);
@@ -2052,6 +2030,7 @@ export function AccountsPage({
           {groupContextMenu && (
             <PopupMenu
               className="account-group-menu group-context-menu"
+              onClose={() => setGroupContextMenu(null)}
               style={{ left: groupContextMenu.x, top: groupContextMenu.y }}
               menuRef={(element) => {
                 groupMenuRef.current = element;
@@ -2088,6 +2067,7 @@ export function AccountsPage({
             isClosing={addFormClosing}
             labelledBy="add-account-title"
             busy={browserLoginLoading}
+            onClose={closeAddForm}
           >
               <div className="add-account-modal-header">
                 <div>
@@ -2252,6 +2232,8 @@ export function AccountsPage({
             className="group-editor"
             backdropClassName="group-editor-backdrop"
             labelledBy="group-editor-title"
+            onClose={() => setGroupEditor(null)}
+            busy={mutationLoading}
           >
               <div className="group-editor-header">
                 <h2 id="group-editor-title">
@@ -2518,6 +2500,7 @@ export function AccountsPage({
                   {showAccountMenu && (
                     <PopupMenu
                       className={`account-actions-menu ${accountMenuPlacement}`}
+                      onClose={() => setShowAccountMenu(false)}
                     >
                       <button
                         type="button"

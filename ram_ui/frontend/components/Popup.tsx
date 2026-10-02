@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { useOverlayDismiss } from "../hooks/useOverlayDismiss";
 
 type PopupProps = {
   children: ReactNode;
@@ -26,6 +27,7 @@ export function Popup({
   busy = false,
 }: PopupProps) {
   const dialogRef = useRef<HTMLElement>(null);
+  useOverlayDismiss(dialogRef, busy || isClosing ? undefined : onClose);
 
   useEffect(() => {
     const previousFocus = document.activeElement;
@@ -36,6 +38,8 @@ export function Popup({
 
     function keepFocusInDialog(event: KeyboardEvent) {
       if (event.key !== "Tab") return;
+      const dialogs = document.querySelectorAll<HTMLElement>('[data-rm-overlay][aria-modal="true"]');
+      if (dialogs[dialogs.length - 1] !== dialogElement) return;
       const focusable = Array.from(
         dialogElement.querySelectorAll<HTMLElement>(
           'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
@@ -69,23 +73,15 @@ export function Popup({
     };
   }, []);
 
-  useEffect(() => {
-    if (!onClose) return;
-    function dismissOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose?.();
-    }
-    document.addEventListener("keydown", dismissOnEscape);
-    return () => document.removeEventListener("keydown", dismissOnEscape);
-  }, [onClose]);
-
   return (
     <div
       className={`${backdropClassName} ${isClosing ? "is-closing" : ""}`.trim()}
       role="presentation"
-      onPointerDown={closeOnBackdrop ? () => onClose?.() : undefined}
+      onPointerDown={closeOnBackdrop && !busy && !isClosing ? () => onClose?.() : undefined}
     >
       <section
         ref={dialogRef}
+        data-rm-overlay
         tabIndex={-1}
         className={`${className} ${isClosing ? "is-closing" : ""}`.trim()}
         role={role}

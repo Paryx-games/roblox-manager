@@ -12,6 +12,10 @@
 
 ### Fixed
 
+- Settings now offers Save, Discard, or Stay before leaving with unsaved preferences; failed saves preserve the draft.
+- Page navigation responds immediately without waiting for an exit animation, including with reduced motion enabled.
+- Popup menus support consistent arrow, Home/End, and Escape controls with focus restoration. Escape closes a nested menu before its parent dialog, and pending dialogs prevent Escape/backdrop dismissal.
+- Confirmations use explicit Cancel labels, notifications pause while hovered or keyboard-focused, and unfinished launch settings explain that their saved values are not applied yet.
 - Version bump tooling exits without an extra keypress by default, preventing Windows batch tests from hanging in CI. Use `bump-version.bat --pause` to keep the result visible until a key is pressed.
 
 ## v2.0.0-rc.1
