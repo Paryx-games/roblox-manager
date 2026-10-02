@@ -1,3 +1,4 @@
+import { useWorkspaceState } from "./hooks/useWorkspaceState";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -74,16 +75,16 @@ export function PresetsPage({
   const [presets, setPresets] = useState<LaunchPresetSummary[]>([]);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
-  const [presetAccounts, setPresetAccounts] = useState<
+  const [presetAccounts, setPresetAccounts] = useWorkspaceState<
     Record<number, Set<number>>
-  >({});
-  const [name, setName] = useState("");
-  const [placeId, setPlaceId] = useState("");
+  >("presets.presetAccounts", {});
+  const [name, setName] = useWorkspaceState("presets.name", "");
+  const [placeId, setPlaceId] = useWorkspaceState("presets.placeId", "");
   const [jobId, setJobId] = useState("");
   const [data, setData] = useState("");
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<PresetSort>("custom");
-  const [descending, setDescending] = useState(false);
+  const [search, setSearch] = useWorkspaceState("presets.search", "");
+  const [sort, setSort] = useWorkspaceState<PresetSort>("presets.sort", "custom");
+  const [descending, setDescending] = useWorkspaceState("presets.descending", false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

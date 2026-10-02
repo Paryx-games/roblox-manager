@@ -1,3 +1,4 @@
+import { useWorkspaceState } from "./hooks/useWorkspaceState";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useState } from "react";
 import {
@@ -139,7 +140,7 @@ function MembershipStatus({
     return <span className="groups-data">Not a member</span>;
   return (
     <span className="groups-status-text">
-      {membership.roleName || "Member"} · rank {membership.roleRank}
+      {membership.roleName || "Member"} Â· rank {membership.roleRank}
     </span>
   );
 }
@@ -151,9 +152,10 @@ export function GroupsPage({
 }: GroupsPageProps) {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
-  const [mode, setMode] = useState<GroupMode>("name");
-  const [input, setInput] = useState("");
+  const [mode, setMode] = useWorkspaceState<GroupMode>("groups.mode", "name");
+  const [input, setInput] = useWorkspaceState("groups.input", "");
   const [searchResults, setSearchResults] = useState<GroupSearchResult[]>([]);
+  const [rememberedGroup, setRememberedGroup] = useWorkspaceState<number | null>("groups.groupId", null);
   const [workspace, setWorkspace] = useState<GroupWorkspace | null>(null);
   const [pendingGroup, setPendingGroup] = useState<Pick<
     GroupSearchResult,
@@ -211,6 +213,18 @@ export function GroupsPage({
     setError(null);
   }
 
+  useEffect(() => {
+    if (isAccountsLoading || !rememberedGroup) return;
+    let active = true;
+    setLoading(true);
+    void loadGroup(rememberedGroup, selectedAccounts.map((account) => account.userId))
+      .then((value) => { if (active) setWorkspace(value); })
+      .catch(() => { if (active) setError("The previous group could not be loaded. Search again to retry."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+    // restore once after the account list is ready; explicit actions own later requests
+  }, [isAccountsLoading]);
+
   async function submitSearch() {
     const value = input.trim();
     if (!value) {
@@ -224,6 +238,7 @@ export function GroupsPage({
     setError(null);
     setActionNotice(null);
     setWorkspace(null);
+    setRememberedGroup(null);
     if (mode === "id") {
       setSearchResults([]);
       const groupId = Number(value);
@@ -256,6 +271,7 @@ export function GroupsPage({
     setError(null);
     setActionNotice(null);
     try {
+      setRememberedGroup(groupId);
       setWorkspace(
         await loadGroup(
           groupId,
@@ -492,7 +508,7 @@ export function GroupsPage({
                     </span>
                     <span>
                       {result.memberCount.toLocaleString()} members
-                      {result.hasVerifiedBadge ? " · Verified" : ""}
+                      {result.hasVerifiedBadge ? " Â· Verified" : ""}
                     </span>
                     {result.description && <small>{result.description}</small>}
                     <span className="groups-result-action">
@@ -519,6 +535,7 @@ export function GroupsPage({
                   type="button"
                   onClick={() => {
                     setWorkspace(null);
+                    setRememberedGroup(null);
                     setError(null);
                     setActionNotice(null);
                   }}
@@ -602,8 +619,8 @@ export function GroupsPage({
                             {post.body && <p>{post.body}</p>}
                             <span>
                               {post.author || "Unknown author"}
-                              {post.created ? ` · ${formatDate(post.created)}` : ""}
-                              {` · ${post.commentCount} comments`}
+                              {post.created ? ` Â· ${formatDate(post.created)}` : ""}
+                              {` Â· ${post.commentCount} comments`}
                             </span>
                           </article>
                         )) : <p className="groups-forum-empty">No posts in this forum.</p>}

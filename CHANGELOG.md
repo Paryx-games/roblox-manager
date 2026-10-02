@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Session workspace memory restores view preferences, non-sensitive draft names and destinations, and pane scroll positions when changing pages.
+- Settings search jumps to matching sections; running counts and instance account names link to their workspaces.
+
 ## v2.0.0
 
 ### Added

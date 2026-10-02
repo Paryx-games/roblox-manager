@@ -1,3 +1,5 @@
+import { useWorkspaceState } from "./hooks/useWorkspaceState";
+import { SettingsSearch } from "./components/SettingsSearch";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import {
   useCallback,
@@ -363,7 +365,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
   const [newFlagName, setNewFlagName] = useState("");
   const [newFlagValue, setNewFlagValue] = useState("");
   const [isAddingFlag, setIsAddingFlag] = useState(false);
-  const [activeAnchor, setActiveAnchor] = useState("account-storage");
+  const [activeAnchor, setActiveAnchor] = useWorkspaceState("settings.activeAnchor", "account-storage");
   const settingsPageRef = useRef<HTMLElement>(null);
   const navigationTargetRef = useRef<string | null>(null);
   const navigationTimeoutRef = useRef<number | null>(null);
@@ -394,14 +396,6 @@ export function SettingsPage({ onNavigationGuardChange }: {
   useEffect(() => {
     void loadSettings();
   }, []);
-
-  useEffect(() => {
-    if (isLoading) return;
-    const animationFrame = window.requestAnimationFrame(() => {
-      settingsPageRef.current?.scrollTo({ top: 0, behavior: "auto" });
-    });
-    return () => window.cancelAnimationFrame(animationFrame);
-  }, [isLoading]);
 
   useEffect(() => {
     const page = settingsPageRef.current;
@@ -488,6 +482,8 @@ export function SettingsPage({ onNavigationGuardChange }: {
         `[data-settings-anchor="${anchorId}"]`,
       );
       if (!page || !anchor) return;
+      anchor.tabIndex = -1;
+      anchor.focus({ preventScroll: true });
       const scrollPadding = Number.parseFloat(
         window.getComputedStyle(page).scrollPaddingTop,
       ) || 0;
@@ -785,10 +781,10 @@ export function SettingsPage({ onNavigationGuardChange }: {
       </div>
       <main className={`content settings-page ${isDirty ? "has-unsaved-changes" : ""}`}>
         <div className="settings-layout">
-          <SettingsSidebar
-            activeAnchor={activeAnchor}
-            onNavigate={navigateToAnchor}
-          />
+          <div className="settings-navigation">
+            <SettingsSearch contentRef={settingsPageRef} onNavigate={navigateToAnchor} />
+            <SettingsSidebar activeAnchor={activeAnchor} onNavigate={navigateToAnchor} />
+          </div>
           <section ref={settingsPageRef} className="settings-content" aria-label="Settings controls" data-walkthrough="preferences">
             <div className="settings-workspace">
             <div className="settings-content-inner">

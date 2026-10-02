@@ -6749,3 +6749,59 @@ button:focus-visible {
     width: 100%;
   }
 }
+
+.settings-navigation {
+  width: 200px;
+  flex: 0 0 200px;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.settings-navigation .settings-sidebar {
+  width: 100%;
+  height: auto;
+  flex: 1 1 auto;
+}
+
+.settings-section [data-settings-anchor]:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
+}
+
+.settings-search {
+  padding: var(--space-3);
+  border-bottom: var(--border-width) solid var(--border-default);
+}
+
+.settings-search-results {
+  max-height: 30vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.settings-search-results .account-button {
+  white-space: normal;
+  text-align: left;
+}
+
+.titlebar .titlebar-runtime-status {
+  width: auto;
+  min-height: var(--space-6);
+  flex: 0 0 auto;
+}
+
+.settings-navigation .settings-sidebar-subsections {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-navigation .settings-sidebar-link {
+  width: 100%;
+  text-align: left;
+}

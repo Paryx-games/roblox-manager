@@ -1,3 +1,4 @@
+import { useWorkspaceState } from "./hooks/useWorkspaceState";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -56,23 +57,23 @@ export function PrivateServersPage({
   onNavigateAccounts: () => void;
 }) {
   const [servers, setServers] = useState<PrivateServerSummary[]>([]);
-  const [name, setName] = useState("");
+  const [name, setName] = useWorkspaceState("privateservers.name", "");
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<"custom" | "name" | "recent" | "status">(
+  const [search, setSearch] = useWorkspaceState("privateservers.search", "");
+  const [sort, setSort] = useWorkspaceState<"custom" | "name" | "recent" | "status">("privateservers.sort",
     "custom",
   );
-  const [descending, setDescending] = useState(false);
+  const [descending, setDescending] = useWorkspaceState("privateservers.descending", false);
   const [showBanner, setShowBanner] = useState(true);
   const [openPicker, setOpenPicker] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
-  const [serverAccounts, setServerAccounts] = useState<
+  const [serverAccounts, setServerAccounts] = useWorkspaceState<
     Record<number, Set<number>>
-  >({});
+  >("privateservers.serverAccounts", {});
   const [deleteTarget, setDeleteTarget] = useState<PrivateServerSummary | null>(
     null,
   );

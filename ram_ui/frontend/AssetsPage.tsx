@@ -1,3 +1,4 @@
+import { useWorkspaceState } from "./hooks/useWorkspaceState";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -78,7 +79,7 @@ export function AssetsPage({
   const [isGroupOrderUnavailable, setIsGroupOrderUnavailable] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const groupIdPrefix = useId();
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(
+  const [selectedUserId, setSelectedUserId] = useWorkspaceState<number | null>("assets.selectedUserId",
     () => initialSelectedIds.values().next().value ?? null,
   );
   const [workspace, setWorkspace] = useState<AssetWorkspace>({
@@ -92,24 +93,24 @@ export function AssetsPage({
   const [accountsError, setAccountsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
-  const [tab, setTab] = useState<"queue" | "library" | "creations">("queue");
-  const [creatorId, setCreatorId] = useState("user");
+  const [tab, setTab] = useWorkspaceState<"queue" | "library" | "creations">("assets.tab", "queue");
+  const [creatorId, setCreatorId] = useWorkspaceState("assets.creatorId", "user");
   const [creatorGroups, setCreatorGroups] = useState<AssetUniverse[]>([]);
   const [creatorError, setCreatorError] = useState<string | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [uploadConfirmation, setUploadConfirmation] = useState<string[] | null>(null);
   const [queueEdit, setQueueEdit] = useState<{ rowId: string; name: string; kind: string; creatorId: string } | null>(null);
   const [manualUniverseId, setManualUniverseId] = useState("");
-  const [creationKind, setCreationKind] = useState("Decal");
+  const [creationKind, setCreationKind] = useWorkspaceState("assets.creationKind", "Decal");
   const [creations, setCreations] = useState<CreationRow[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoadingCreations, setIsLoadingCreations] = useState(false);
   const [creationsError, setCreationsError] = useState<string | null>(null);
   const [creationRefresh, setCreationRefresh] = useState(0);
   const creationRequest = useRef(0);
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [density, setDensity] = useState("details");
+  const [search, setSearch] = useWorkspaceState("assets.search", "");
+  const [typeFilter, setTypeFilter] = useWorkspaceState("assets.typeFilter", "all");
+  const [density, setDensity] = useWorkspaceState("assets.density", "details");
   const [universes, setUniverses] = useState<AssetUniverse[]>([]);
   const [universeId, setUniverseId] = useState("");
   const [isLoadingUniverses, setIsLoadingUniverses] = useState(false);

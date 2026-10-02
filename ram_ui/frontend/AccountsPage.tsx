@@ -1,3 +1,4 @@
+import { useWorkspaceState } from "./hooks/useWorkspaceState";
 import { listen } from "@tauri-apps/api/event";
 import { Icon as SharedIcon } from "./components/Icon";
 import { openAccountGuide } from "./lib/ipc";
@@ -585,10 +586,16 @@ export function AccountsPage({
   selectedIds,
   setSelectedIds,
   prefilledPlaceId,
+  onPrefillApplied,
+  focusAccountId,
+  onFocusApplied,
 }: {
   selectedIds: Set<number>;
   setSelectedIds: Dispatch<SetStateAction<Set<number>>>;
   prefilledPlaceId?: number;
+  onPrefillApplied: () => void;
+  focusAccountId?: number;
+  onFocusApplied: () => void;
 }) {
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryConfirmation, setRecoveryConfirmation] = useState("");
@@ -602,13 +609,24 @@ export function AccountsPage({
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(
     null,
   );
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [search, setSearch] = useState("");
-  const [sortMode, setSortMode] = useState<SortMode>("custom");
-  const [descending, setDescending] = useState(false);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [placeId, setPlaceId] = useState("");
-  useEffect(() => { if (prefilledPlaceId) setPlaceId(String(prefilledPlaceId)); }, [prefilledPlaceId]);
+  const [selectedId, setSelectedId] = useWorkspaceState<number | null>("accounts.selectedId", null);
+  const [search, setSearch] = useWorkspaceState("accounts.search", "");
+  const [sortMode, setSortMode] = useWorkspaceState<SortMode>("accounts.sortMode", "custom");
+  const [descending, setDescending] = useWorkspaceState("accounts.descending", false);
+  const [collapsed, setCollapsed] = useWorkspaceState<Record<string, boolean>>("accounts.collapsed", {});
+  const [placeId, setPlaceId] = useWorkspaceState("accounts.placeId", "");
+  useEffect(() => {
+    if (!prefilledPlaceId) return;
+    setPlaceId(String(prefilledPlaceId));
+    onPrefillApplied();
+  }, [prefilledPlaceId, onPrefillApplied, setPlaceId]);
+  useEffect(() => {
+    if (!focusAccountId) return;
+    setSelectedId(focusAccountId);
+    setSearch("");
+    setCollapsed({});
+    onFocusApplied();
+  }, [focusAccountId, onFocusApplied, setSelectedId, setSearch, setCollapsed]);
   const [jobId, setJobId] = useState("");
   const [launchData, setLaunchData] = useState("");
   const [connectionQuery, setConnectionQuery] = useState("");

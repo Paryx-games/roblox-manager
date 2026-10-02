@@ -250,3 +250,13 @@ This document was checked against the current source. It does not certify
 that every existing page satisfies every accessibility or interaction
 requirement. For new visual patterns not covered here, discuss the approach
 before implementation as required by AGENTS.md.
+
+## Session workspace navigation
+
+View preferences and selected identifiers are retained in memory across workspace
+changes. Credential inputs, passwords, webhook URLs, private-server links,
+and launch data are excluded. Panes restore their scroll positions after data
+loads; user input cancels pending scroll restoration. Nothing is written to disk.
+Settings search lives in the existing 200px section sidebar and jumps/focuses a
+matching section without filtering away controls. The running-client count opens
+Instances; identified instance accounts link back to their account details.

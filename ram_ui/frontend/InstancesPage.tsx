@@ -8,7 +8,7 @@ import { arrangeAccountWindows, focusInstance, getSettings, joinUserGame, killAl
 
 const phaseLabels = { waiting: "Waiting for launch slot", authenticating: "Authenticating", launching: "Starting Roblox", requested: "Launch requested", failed: "Launch failed" };
 
-export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsChange, launches, isLoading, error, onRefresh }: {
+export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsChange, launches, isLoading, error, onRefresh, onNavigateAccount, onNavigateSettings }: {
   workspace: InstanceWorkspace;
   accounts: AccountSummary[];
   selectedIds: Set<number>;
@@ -17,6 +17,8 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
   isLoading: boolean;
   error: string | null;
   onRefresh: () => Promise<void>;
+  onNavigateAccount: (id: number) => void;
+  onNavigateSettings: () => void;
 }) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -77,6 +79,7 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
     <main className="instances-page assets-page" data-walkthrough="instances">
       <div className="assets-main">
         <div className="assets-toolbar instances-toolbar">
+          <button className="account-button" type="button" onClick={onNavigateSettings}><Icon name="settings" />Launch settings</button>
           <span className="instances-count" role="status">{isLoading ? "Checking running clients..." : `${workspace.runningCount} Roblox client${workspace.runningCount === 1 ? "" : "s"} running`}</span>
           <div className="instances-toolbar-actions">
           <button className="account-button" type="button" disabled={isLoading || pendingAction !== null} onClick={() => void onRefresh()}><Icon name="refresh" />{isLoading ? "Refreshing..." : "Refresh"}</button>
@@ -99,7 +102,7 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
                 const canJoin = instance.userId !== null && launchAccounts.some((account) => selectedIds.has(account.userId) && account.userId !== instance.userId);
                 const launchedAt = instance.launchedAt ? new Date(instance.launchedAt).toLocaleString() : "Unknown";
                 return <tr key={`${instance.pid}:${instance.startTime}`}>
-                  <td><strong>{instance.label}</strong>{instance.userId !== null && <small className="selectable-text">{instance.userId}</small>}</td>
+                  <td>{instance.userId !== null ? <button className="assets-copy" type="button" aria-label={`View account ${instance.label}`} onClick={() => onNavigateAccount(instance.userId!)}>{instance.label}</button> : <strong>{instance.label}</strong>}{instance.userId !== null && <small className="selectable-text">{instance.userId}</small>}</td>
                   <td className="selectable-text">{instance.pid}</td>
                   <td className="assets-secondary-column selectable-text">{instance.placeId ?? "Unknown"}</td>
                   <td><span className="instances-attribution" tabIndex={0} data-attribution={instance.attribution} data-tip={instance.attribution === "exact" ? "Verified from this client's launch token. Individual close is available." : instance.attribution === "inferred" ? "Estimated from launch order. Individual close is disabled." : "RM could not identify this client's account. Individual close and server join are disabled."}>{instance.attribution === "exact" ? "Exact" : instance.attribution === "inferred" ? "Inferred" : "Unmatched"}</span></td>

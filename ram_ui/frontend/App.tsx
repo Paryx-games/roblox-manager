@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { WorkspaceFrame } from "./components/WorkspaceFrame";
 import { InstancesPage } from "./InstancesPage";
 import { Toast, type ToastItem } from "./Toast";
 import { Popup } from "./components/Popup";
@@ -136,6 +137,9 @@ export function App() {
   const [update, setUpdate] = useState<[string, string] | null>(null);
   const [browserPlaceId, setBrowserPlaceId] = useState<number | null>(null);
   const [prefilledPlaceId, setPrefilledPlaceId] = useState<number>();
+  const [focusAccountId, setFocusAccountId] = useState<number>();
+  const clearAccountFocus = useCallback(() => setFocusAccountId(undefined), []);
+  const clearPrefilledPlace = useCallback(() => setPrefilledPlaceId(undefined), []);
   const isTourVisible = !!startup?.needsTutorial && (!startup.legacyMigrationAvailable || isMigrationDismissed);
 
   useEffect(() => {
@@ -334,12 +338,19 @@ export function App() {
           selectedIds={selectedIds}
           setSelectedIds={setSelectedIds}
           prefilledPlaceId={prefilledPlaceId}
+          onPrefillApplied={clearPrefilledPlace}
+          focusAccountId={focusAccountId}
+          onFocusApplied={clearAccountFocus}
         />
       );
     }
 
     if (page === "Instances") {
-      return <InstancesPage workspace={workspace} accounts={accounts} selectedIds={selectedIds} onSelectedIdsChange={setSelectedIds} launches={Object.values(launches)} isLoading={isInstancesLoading} error={instancesError} onRefresh={refreshInstances} />;
+      return <InstancesPage workspace={workspace} accounts={accounts} selectedIds={selectedIds} onSelectedIdsChange={setSelectedIds} launches={Object.values(launches)} isLoading={isInstancesLoading} error={instancesError} onRefresh={refreshInstances} onNavigateAccount={(id) => {
+        setSelectedIds(new Set([id]));
+        setFocusAccountId(id);
+        navigateTo("Accounts");
+      }} onNavigateSettings={() => navigateTo("Settings")} />;
     }
 
     if (page === "Groups") {
@@ -428,7 +439,7 @@ export function App() {
         <span className="titlebar-logo" aria-label="Roblox Manager">
           <Icon name="feather" />
         </span>
-        <span className="titlebar-runtime-status" role="status">{workspace.runningCount} Roblox running{Object.keys(launches).length ? ` | ${Object.keys(launches).length} launches pending` : ""}</span>
+        <button className="titlebar-runtime-status account-button" type="button" data-tip="Open running instances" onClick={() => navigateTo("Instances")}>{workspace.runningCount} Roblox running{Object.keys(launches).length ? ` | ${Object.keys(launches).length} launches pending` : ""}</button>
         <span className="titlebar-version">
           {import.meta.env.VITE_RM_VERSION}
         </span>
@@ -480,12 +491,9 @@ export function App() {
 
         <div className="main-col" data-walkthrough="workspace">
           <div className="page-transition-viewport">
-            <div
-              key={displayedNav}
-              className="page-transition-layer"
-            >
+            <WorkspaceFrame key={displayedNav} page={displayedNav}>
               {renderPage(displayedNav)}
-            </div>
+            </WorkspaceFrame>
             <span className="sr-only" aria-live="polite">{displayedNav} page</span>
           </div>
         </div>
