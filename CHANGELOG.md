@@ -8,15 +8,43 @@
 
 ### Changed
 
+The stable v2 release replaces the egui interface with Tauri and React while retaining the encrypted account store and existing core workflows.
+
+- **Navigation and shared interface.** Adds dedicated workspaces, consistent controls and notifications, account anonymisation, and reduced-motion support.
+- **Accounts.** Rebuilds account browsing, grouping, search, multi-selection, profile details, credential management, import/export, and game launching.
+- **Instances.** Shows running Roblox clients with account attribution and controls to focus, arrange, join a server, or close clients.
+- **Groups.** Adds group search, membership management, announcements, and forums.
+- **Private Servers.** Manages saved server links and launches selected accounts into them.
+- **Presets.** Manages saved launch destinations and launches them with multiple accounts.
+- **Inventories.** Compares items across accounts with filters, shared/unique views, and asset ID export.
+- **Asset Manager.** Manages creations, staged uploads, moderation results, and experience access grants.
+- **Settings.** Groups launch, privacy, storage, integration, and interface controls with clear save and discard handling.
+- **Windows distribution.** Provides a per-user Roblox Manager installer and portable executable. The installer offers shortcut and browser-data choices, optional uninstall cleanup, WebView2 setup, and downgrade protection.
+
 - Website arrows, menu controls, and preview icons use locally bundled Lucide SVGs with consistent sizing and strokes.
 
 ### Fixed
 
+- **Account credentials.** Re-adding an existing account preserves its organisation. Refresh no longer treats inconclusive Roblox challenges or request failures as proof of invalid credentials, and browser login completes or fails without leaving the app waiting indefinitely.
+- **Startup and recovery.** Restores first-run guidance, upgrade notes, older-data migration, and encrypted-store recovery with protected backup copies.
+- **Browser reliability.** Recovers the main interface from WebView2 browser or renderer failures instead of leaving a black window.
+- **Launch and background behaviour.** Coordinates launch pacing across workspaces and restores configured multi-instance setup, window arrangement, background cleanup, and privacy cleanup.
+- Beta or release-candidate installs can detect the matching stable release, and empty group announcements no longer appear as phantom posts.
+- Account re-addition can repair a missing stored credential, and failed favourite migration no longer blocks startup information.
+- Private-server enrichment preserves concurrent edits, and asset queue actions stay within the selected account.
+- Saved server launches ignore duplicate clicks, and dialog focus, account selection, inventory selection, and preset or server deletion behave consistently with keyboard and screen-reader controls.
+- Failed group edits restore the previous group settings and leave account organisation unchanged.
+- Clear Cache now reports when there is no cached data instead of claiming to have cleared it.
 - Settings now offers Save, Discard, or Stay before leaving with unsaved preferences; failed saves preserve the draft.
 - Page navigation responds immediately without waiting for an exit animation, including with reduced motion enabled.
 - Popup menus support consistent arrow, Home/End, and Escape controls with focus restoration. Escape closes a nested menu before its parent dialog, and pending dialogs prevent Escape/backdrop dismissal.
 - Confirmations use explicit Cancel labels, notifications pause while hovered or keyboard-focused, and unfinished launch settings explain that their saved values are not applied yet.
 - Version bump tooling exits without an extra keypress by default, preventing Windows batch tests from hanging in CI. Use `bump-version.bat --pause` to keep the result visible until a key is pressed.
+
+### Known limitations
+
+- Auto-launching a game on startup, custom game arguments, FastFlags, and automatic MAC rotation have saved configuration controls but are not applied to those automatic behaviours yet. **Start RM with Windows** and **Rotate MAC address now** work independently of those unfinished features.
+- Inventories and Asset Manager are available when developer options are enabled in Settings.
 
 ## v2.0.0-rc.1
 
