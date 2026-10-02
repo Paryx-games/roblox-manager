@@ -140,7 +140,7 @@ function MembershipStatus({
     return <span className="groups-data">Not a member</span>;
   return (
     <span className="groups-status-text">
-      {membership.roleName || "Member"} Â· rank {membership.roleRank}
+      {membership.roleName || "Member"} · rank {membership.roleRank}
     </span>
   );
 }
@@ -508,7 +508,7 @@ export function GroupsPage({
                     </span>
                     <span>
                       {result.memberCount.toLocaleString()} members
-                      {result.hasVerifiedBadge ? " Â· Verified" : ""}
+                      {result.hasVerifiedBadge ? " · Verified" : ""}
                     </span>
                     {result.description && <small>{result.description}</small>}
                     <span className="groups-result-action">
@@ -619,8 +619,8 @@ export function GroupsPage({
                             {post.body && <p>{post.body}</p>}
                             <span>
                               {post.author || "Unknown author"}
-                              {post.created ? ` Â· ${formatDate(post.created)}` : ""}
-                              {` Â· ${post.commentCount} comments`}
+                              {post.created ? ` · ${formatDate(post.created)}` : ""}
+                              {` · ${post.commentCount} comments`}
                             </span>
                           </article>
                         )) : <p className="groups-forum-empty">No posts in this forum.</p>}

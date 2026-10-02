@@ -1,3 +1,4 @@
+import { LaunchDestinationInput } from "./components/LaunchDestinationInput";
 import { useWorkspaceState } from "./hooks/useWorkspaceState";
 import { listen } from "@tauri-apps/api/event";
 import { Icon as SharedIcon } from "./components/Icon";
@@ -2653,14 +2654,8 @@ export function AccountsPage({
                 }
               >
                 <div className="account-field">
-                  <label htmlFor="place-id">Place ID</label>
-                  <input
-                    id="place-id"
-                    className={!placeIdValid && placeId ? "has-error" : ""}
-                    value={placeId}
-                    onChange={(event) => setPlaceId(event.target.value)}
-                    inputMode="numeric"
-                  />
+                  <label htmlFor="place-id">Place ID or game URL</label>
+                  <LaunchDestinationInput id="place-id" value={placeId} onChange={setPlaceId} />
                 </div>
                 <div className="account-field-grid">
                   <div className="account-field">

@@ -5,6 +5,7 @@ compile_error!("Demo mode is only available in debug builds");
 
 #[cfg(debug_assertions)]
 mod demo;
+mod destination;
 
 mod accounts;
 mod asset_manager;
@@ -3034,6 +3035,7 @@ fn main() {
             open_inventory_assets,
             remove_account,
             launch_account,
+            destination::resolve_launch_destination,
             list_private_servers,
             add_private_server,
             remove_private_server,

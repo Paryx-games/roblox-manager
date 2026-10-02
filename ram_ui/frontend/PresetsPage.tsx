@@ -1,3 +1,4 @@
+import { LaunchDestinationInput } from "./components/LaunchDestinationInput";
 import { useWorkspaceState } from "./hooks/useWorkspaceState";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -320,15 +321,10 @@ export function PresetsPage({
                 maxLength={80}
               />
             </label>
-            <label>
-              <span>Place ID</span>
-              <input
-                value={placeId}
-                onChange={(event) => setPlaceId(event.target.value)}
-                placeholder="e.g. 920587237"
-                inputMode="numeric"
-              />
-            </label>
+            <div className="preset-destination-field">
+              <label htmlFor="preset-place-id">Place ID or game URL</label>
+              <LaunchDestinationInput id="preset-place-id" value={placeId} onChange={setPlaceId} />
+            </div>
             <label>
               <span>Job ID (optional)</span>
               <input
@@ -590,14 +586,8 @@ export function PresetsPage({
               maxLength={80}
               autoComplete="off"
             />
-            <label htmlFor="preset-edit-place-id">Place ID</label>
-            <input
-              id="preset-edit-place-id"
-              value={editPlaceId}
-              onChange={(event) => setEditPlaceId(event.target.value)}
-              inputMode="numeric"
-              autoComplete="off"
-            />
+            <label htmlFor="preset-edit-place-id">Place ID or game URL</label>
+            <LaunchDestinationInput id="preset-edit-place-id" value={editPlaceId} onChange={setEditPlaceId} />
             <label htmlFor="preset-edit-job-id">Job ID (optional)</label>
             <input
               id="preset-edit-job-id"

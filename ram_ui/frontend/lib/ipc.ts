@@ -1,5 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export async function resolveLaunchDestination(placeId: number): Promise<{ placeId: number; name: string }> {
+  return invoke("resolve_launch_destination", { placeId });
+}
+
 export type PresenceStatus = "online" | "warning" | "danger" | "neutral";
 
 export interface AccountSummary {
