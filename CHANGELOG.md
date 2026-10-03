@@ -2,11 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- **Client launch controls.** Save shared FPS limit, manual graphics quality, fullscreen and audio mute overrides from Instances. Enable Apply on launch to apply them before every RM launch; existing clients are unchanged. Disabling overrides stops RM reapplying them and leaves Roblox's last saved settings intact.
+- Roblox settings updates preserve unrelated XML properties and use atomic writes with a backup. Missing, invalid or unsupported settings stop an overridden launch with a visible error.
+
 ### Changed
 
-- Instances stacks the join-account picker and helper text, gives kill actions a red treatment, and removes independent client-controls scrolling.
+- **Instances.** Adds selectable running-client rows beside a controls panel, preserves focus, join, arrange and kill actions, and stacks the panels on narrower layouts. The join-account picker and helper text are stacked, kill buttons use red action styling, and controls share workspace scrolling.
 
-- Instances now pairs selectable running-client rows with a client controls panel, retaining focus, join, arrange and kill actions. FPS, graphics, fullscreen and audio controls are adjustable previews only, clearly labelled as inactive and temporary.
+### Notes
+
+- Launch controls use the standard Windows Roblox GlobalBasicSettings_13.xml file. Start Roblox once before enabling overrides. These are shared launch defaults, not live per-instance settings.
 
 ## v2.0.0
 

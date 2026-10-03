@@ -744,6 +744,22 @@ export interface InstanceWorkspace {
   runningCount: number;
 }
 
+export interface ClientLaunchSettings {
+  enabled: boolean;
+  fps: number;
+  graphics: number;
+  fullscreen: boolean;
+  muted: boolean;
+}
+
+export function getClientLaunchSettings(): Promise<ClientLaunchSettings> {
+  return invoke<ClientLaunchSettings>("get_client_launch_settings");
+}
+
+export function saveClientLaunchSettings(settings: ClientLaunchSettings): Promise<ClientLaunchSettings> {
+  return invoke<ClientLaunchSettings>("save_client_launch_settings", { settings });
+}
+
 export interface LaunchProgress {
   requestId: string;
   userId: number;

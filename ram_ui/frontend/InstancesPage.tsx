@@ -7,12 +7,11 @@ import { Icon } from "./components/Icon";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { ConfirmModal } from "./ConfirmModal";
 import { Toast, type ToastItem } from "./Toast";
-import { arrangeAccountWindows, focusInstance, getSettings, joinUserGame, killAllAccounts, killInstance, operationError, type AccountSummary, type InstanceSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
+import { arrangeAccountWindows, focusInstance, getSettings, getClientLaunchSettings, saveClientLaunchSettings, joinUserGame, killAllAccounts, killInstance, operationError, type AccountSummary, type ClientLaunchSettings, type InstanceSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 
 const phaseLabels = { waiting: "Waiting for launch slot", authenticating: "Authenticating", launching: "Starting Roblox", requested: "Launch requested", failed: "Launch failed" };
 
-type ClientPreview = { fps: string; graphics: number; fullscreen: boolean; muted: boolean };
-const defaultPreview: ClientPreview = { fps: "60", graphics: 5, fullscreen: false, muted: false };
+const defaultSettings: ClientLaunchSettings = { enabled: false, fps: 60, graphics: 5, fullscreen: false, muted: false };
 const fpsOptions = ["30", "60", "120", "144", "240"].map((value) => ({ value, label: `${value} FPS` }));
 
 export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsChange, launches, isLoading, error, onRefresh }: {
@@ -30,27 +29,55 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
   const [closeTarget, setCloseTarget] = useState<InstanceSummary | "all" | null>(null);
   const [toast, setToast] = useState<ToastItem | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [previews, setPreviews] = useState<Record<string, ClientPreview>>({});
+  const [draft, setDraft] = useState<ClientLaunchSettings>(defaultSettings);
+  const [savedSettings, setSavedSettings] = useState<ClientLaunchSettings>(defaultSettings);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsRevision, setSettingsRevision] = useState(0);
   const actionPending = useRef(false);
   const launchAccounts = accounts.filter((account) => account.canLaunch && !account.cookieExpired);
   const selectedInstance = workspace.instances.find((instance) => instanceKey(instance) === selectedKey);
-  const preview = selectedKey ? previews[selectedKey] ?? defaultPreview : defaultPreview;
-  const controlsDisabled = isLoading || error !== null;
+  const controlsDisabled = settingsLoading || settingsError !== null || pendingAction !== null;
+  const hasSettingsChanges = JSON.stringify(draft) !== JSON.stringify(savedSettings);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSettingsLoading(true);
+    setSettingsError(null);
+    void getClientLaunchSettings().then((settings) => {
+      if (cancelled) return;
+      setDraft(settings);
+      setSavedSettings(settings);
+    }).catch((failure) => {
+      if (!cancelled) setSettingsError(operationError(failure, "Client launch settings could not be loaded."));
+    }).finally(() => { if (!cancelled) setSettingsLoading(false); });
+    return () => { cancelled = true; };
+  }, [settingsRevision]);
 
   useEffect(() => {
     if (isLoading || error) return;
     const liveKeys = new Set(workspace.instances.map(instanceKey));
     setSelectedKey((current) => current && liveKeys.has(current) ? current : null);
-    setPreviews((current) => {
-      const entries = Object.entries(current).filter(([key]) => liveKeys.has(key));
-      return entries.length === Object.keys(current).length ? current : Object.fromEntries(entries);
-    });
   }, [workspace.instances, isLoading, error]);
 
-  function updatePreview(update: Partial<ClientPreview>) {
-    if (!selectedInstance || controlsDisabled) return;
-    const key = instanceKey(selectedInstance);
-    setPreviews((current) => ({ ...current, [key]: { ...defaultPreview, ...current[key], ...update } }));
+  function updateSettings(update: Partial<ClientLaunchSettings>) {
+    if (controlsDisabled) return;
+    setDraft((current) => ({ ...current, ...update }));
+  }
+
+  async function saveControls() {
+    await runAction("save-controls", async () => {
+      const saved = await saveClientLaunchSettings(draft);
+      setDraft(saved);
+      setSavedSettings(saved);
+    }, draft.enabled ? "Settings saved for future Roblox launches" : "Launch overrides disabled");
+  }
+
+  async function resetControls() {
+    await runAction("reset-controls", async () => {
+      await saveClientLaunchSettings(defaultSettings);
+      setSettingsRevision((current) => current + 1);
+    }, "Launch overrides reset");
   }
 
   async function runAction(action: string, operation: () => Promise<unknown>, success?: string) {
@@ -134,17 +161,20 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
           </section>
           <section className="instances-controls-panel settings-section" aria-labelledby="client-controls-heading">
             <h2 id="client-controls-heading">Client controls</h2>
-            <p className="instances-description">Adjust settings for the selected client.</p>
-            {selectedInstance ? <>
-              <InstanceIdentity instance={selectedInstance} account={accounts.find((account) => account.userId === selectedInstance.userId)} />
-              <div className="instances-preview-notice" id="client-preview-notice" role="note"><Icon name="info-mark" tone="current-color" /><p><strong>Preview only — controls do not work yet.</strong> Temporary values; not applied to Roblox or saved.</p></div>
-              <div role="group" aria-label="Client settings preview" aria-describedby="client-preview-notice">
-                <SettingRow label="FPS limit" description="Choose a maximum frame rate.">{() => <Select value={preview.fps} options={fpsOptions} onChange={(fps) => updatePreview({ fps })} ariaLabel="FPS limit (preview only)" disabled={controlsDisabled} />}</SettingRow>
-                <SettingRow label="Graphics quality" description="Choose a quality level from 1 to 10.">{(labelId, descriptionId) => <RangeField min={1} max={10} value={preview.graphics} onChange={(graphics) => updatePreview({ graphics })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
-                <SettingRow label="Fullscreen" description="Show the client in fullscreen.">{(labelId, descriptionId) => <ToggleField checked={preview.fullscreen} onChange={(fullscreen) => updatePreview({ fullscreen })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
-                <SettingRow label="Muted audio" description="Mute this client's audio output.">{(labelId, descriptionId) => <ToggleField checked={preview.muted} onChange={(muted) => updatePreview({ muted })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
+            <p className="instances-description">Shared settings for new Roblox clients.</p>
+            {selectedInstance && <InstanceIdentity instance={selectedInstance} account={accounts.find((account) => account.userId === selectedInstance.userId)} />}
+            {settingsLoading ? <LoadingSkeleton layout="status" label="Loading client launch settings" /> : settingsError ? <div className="instances-empty" role="alert"><p className="selectable-text">{settingsError}</p><button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => setSettingsRevision((current) => current + 1)}>Retry</button><button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => void resetControls()}>{pendingAction === "reset-controls" ? "Resetting..." : "Reset launch settings"}</button></div> : <>
+              <div className="instances-controls-notice" id="client-controls-notice" role="note"><Icon name="info-mark" tone="current-color" /><p><strong>Shared defaults for future launches.</strong> Running clients are unchanged. Overrides off leaves Roblox's last saved settings.</p></div>
+              <div role="group" aria-label="Shared client launch settings" aria-describedby="client-controls-notice">
+                <SettingRow label="Apply on launch" description="Use these overrides for new clients.">{(labelId, descriptionId) => <ToggleField checked={draft.enabled} onChange={(enabled) => updateSettings({ enabled })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
+                <SettingRow label="FPS limit" description="Choose a maximum frame rate.">{() => <Select value={String(draft.fps)} options={fpsOptions} onChange={(fps) => updateSettings({ fps: Number(fps) })} ariaLabel="FPS limit for future launches" disabled={controlsDisabled} />}</SettingRow>
+                <SettingRow label="Graphics quality" description="Choose a quality level from 1 to 10.">{(labelId, descriptionId) => <RangeField min={1} max={10} value={draft.graphics} onChange={(graphics) => updateSettings({ graphics })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
+                <SettingRow label="Fullscreen" description="Start new clients in fullscreen.">{(labelId, descriptionId) => <ToggleField checked={draft.fullscreen} onChange={(fullscreen) => updateSettings({ fullscreen })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
+                <SettingRow label="Muted audio" description="Start new clients with audio muted.">{(labelId, descriptionId) => <ToggleField checked={draft.muted} onChange={(muted) => updateSettings({ muted })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
               </div>
-            </> : <div className="instances-empty"><Icon name="settings" /><strong>Select a client</strong><p>Choose a running client to view its controls.</p></div>}
+              {hasSettingsChanges && <p className="instances-description" role="status">Unsaved launch settings</p>}
+              <button className="account-button" type="button" disabled={controlsDisabled || !hasSettingsChanges} onClick={() => void saveControls()}>{pendingAction === "save-controls" ? "Saving..." : "Save launch settings"}</button>
+            </>}
           </section>
         </div>
       </div>

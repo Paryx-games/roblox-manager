@@ -51,7 +51,7 @@ Keep the compact desktop layout and each page's existing composition:
   account details and recovery flows.
 - Instances shows selectable client rows with attribution and process actions
   beside a client controls panel. The panel stacks below the list on narrower layouts;
-  unfinished controls are adjustable temporary previews with an explicit notice.
+  controls are saved shared launch defaults with an explicit notice that running clients are unchanged.
 - Groups uses account/group selection and detail sections for group content.
 - Private Servers and Presets use their existing lists, filters, and editing flows.
 - Inventories uses a 220px account sidebar, a grid/list workspace, and a

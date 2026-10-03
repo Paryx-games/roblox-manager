@@ -10,6 +10,7 @@ mod accounts;
 mod asset_manager;
 mod background;
 mod benchmark;
+mod client_settings;
 mod instances;
 mod launcher;
 mod lifecycle;
@@ -2996,6 +2997,8 @@ fn main() {
             asset_manager::grant_asset_access,
             asset_manager::reveal_asset_file,
             instances::list_instances,
+            client_settings::get_client_launch_settings,
+            client_settings::save_client_launch_settings,
             instances::focus_instance,
             instances::kill_instance,
             accounts::confirm_account_addition,
