@@ -27,7 +27,7 @@
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.70.1",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^5.2.0",
     "eslint": "^9.17.0",
     "stylelint": "^16.12.0",
     "stylelint-config-standard": "^36.0.1",
