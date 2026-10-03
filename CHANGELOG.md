@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Accounts places Connections below the main launch controls, with a labelled search field, clear user identity cards and grouped actions in the existing theme.
+
 - Accounts launch-data examples are clickable, append query arguments without replacing existing values, and become grey with a strikethrough when their argument is already present.
 - Right-click uses RM's custom menus where available and no longer opens the default browser menu elsewhere in the main interface.
 

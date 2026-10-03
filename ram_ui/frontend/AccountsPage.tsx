@@ -2723,6 +2723,189 @@ export function AccountsPage({
                 ))}
               </section>
 
+              <section className="account-card connections-card">
+                <h3>Connections</h3>
+                <p>
+                  Search Roblox by username or user ID, then choose an action.
+                </p>
+                <form className="connections-row" onSubmit={(event) => { event.preventDefault(); if (!isConnectionSearchLoading) void searchConnections(); }}>
+                  <input
+                    value={connectionQuery}
+                    onChange={(event) => setConnectionQuery(event.target.value)}
+                    placeholder="Username or user ID"
+                    aria-label="Username or user ID"
+                    disabled={isConnectionSearchLoading}
+                  />
+                  <button
+                    className="account-button"
+                    type="submit"
+                    disabled={isConnectionSearchLoading}
+                  >
+                    <Icon name="search" />
+                    {isConnectionSearchLoading ? "Searching..." : "Search Roblox"}
+                  </button>
+                </form>
+                {isConnectionSearchLoading && <LoadingSkeleton layout="results" label="Searching Roblox users" count={3} />}
+                {!isConnectionSearchLoading && connectionResults.length > 0 && (
+                  <div className="connection-results">
+                    {connectionResults.map((result) => (
+                      <div className="connection-result" key={result.userId}>
+                        <span className="connection-avatar">
+                          {result.avatarUrl ? (
+                            <img src={result.avatarUrl} alt="" />
+                          ) : (
+                            result.username.slice(0, 1).toUpperCase()
+                          )}
+                        </span>
+                        <div className="connection-identity">
+                          <strong>{result.displayName}</strong>
+                          <span>@{result.username}</span>
+                          <span>ID: {result.userId}</span>
+                        </div>
+                        <div className="connection-actions">
+                          <button
+                            className="account-button"
+                            disabled={mutationLoading}
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(
+                                result.userId,
+                                "follow",
+                              )
+                            }
+                          >
+                            Follow
+                          </button>
+                          <button
+                            className="account-button"
+                            disabled={mutationLoading}
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(
+                                result.userId,
+                                "friend",
+                              )
+                            }
+                          >
+                            Friend
+                          </button>
+                          <button
+                            className="account-button"
+                            disabled={mutationLoading}
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(result.userId, "block")
+                            }
+                          >
+                            Block
+                          </button>
+                          <button
+                            className="account-button"
+                            disabled={mutationLoading}
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(
+                                result.userId,
+                                "unfollow",
+                              )
+                            }
+                          >
+                            Unfollow
+                          </button>
+                          <button
+                            className="account-button"
+                            disabled={mutationLoading}
+                            type="button"
+                            onClick={() => void joinTargetGame(result.userId)}
+                          >
+                            Join game
+                          </button>
+                          {selectedIds.size > 1 && (
+                            <>
+                              <button
+                                className="account-button"
+                                disabled={mutationLoading}
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "friend",
+                                  )
+                                }
+                              >
+                                Friend selected
+                              </button>
+                              <button
+                                className="account-button"
+                                disabled={mutationLoading}
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "follow",
+                                  )
+                                }
+                              >
+                                Follow selected
+                              </button>
+                              <button
+                                className="account-button"
+                                disabled={mutationLoading}
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "unfollow",
+                                  )
+                                }
+                              >
+                                Unfollow selected
+                              </button>
+                              <button
+                                className="account-button"
+                                disabled={mutationLoading}
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "block",
+                                  )
+                                }
+                              >
+                                Block selected
+                              </button>
+                              <button
+                                className="account-button"
+                                disabled={mutationLoading}
+                                type="button"
+                                onClick={() =>
+                                  void Promise.all(
+                                    [...selectedIds].map((userId) =>
+                                      joinUserGame(userId, result.userId),
+                                    ),
+                                  ).then(
+                                    () =>
+                                      setNotice(
+                                        "Join requested for selected accounts.",
+                                      ),
+                                    () =>
+                                      setNotice(
+                                        "The target user could not be joined by every account.",
+                                      ),
+                                  )
+                                }
+                              >
+                                Join selected
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
               <section className="account-card">
                 <div className="account-card-header">
                   <h3>Roblox inventory</h3>
@@ -2837,167 +3020,7 @@ export function AccountsPage({
                 </div>
               </section>
 
-              <section className="account-card connections-card">
-                <h3>Connections</h3>
-                <p>
-                  Search a managed username or user ID, then choose an action.
-                </p>
-                <div className="connections-row">
-                  <input
-                    value={connectionQuery}
-                    onChange={(event) => setConnectionQuery(event.target.value)}
-                    placeholder="Username or user ID"
-                  />
-                  <button
-                    className="account-button"
-                    type="button"
-                    onClick={() => void searchConnections()}
-                    disabled={isConnectionSearchLoading}
-                  >
-                    <Icon name="search" />
-                    Search Roblox
-                  </button>
-                </div>
-                {isConnectionSearchLoading && <LoadingSkeleton layout="results" label="Searching Roblox users" count={3} />}
-                {!isConnectionSearchLoading && connectionResults.length > 0 && (
-                  <div className="connection-results">
-                    {connectionResults.map((result) => (
-                      <div className="connection-result" key={result.userId}>
-                        <span className="connection-avatar">
-                          {result.avatarUrl ? (
-                            <img src={result.avatarUrl} alt="" />
-                          ) : (
-                            result.username.slice(0, 1).toUpperCase()
-                          )}
-                        </span>
-                        <div className="connection-identity">
-                          <strong>{result.displayName}</strong>
-                          <span>@{result.username}</span>
-                          <span>ID: {result.userId}</span>
-                        </div>
-                        <div className="connection-actions">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void applyConnectionAction(
-                                result.userId,
-                                "follow",
-                              )
-                            }
-                          >
-                            Follow
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void applyConnectionAction(
-                                result.userId,
-                                "friend",
-                              )
-                            }
-                          >
-                            Friend
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void applyConnectionAction(result.userId, "block")
-                            }
-                          >
-                            Block
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void applyConnectionAction(
-                                result.userId,
-                                "unfollow",
-                              )
-                            }
-                          >
-                            Unfollow
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void joinTargetGame(result.userId)}
-                          >
-                            Join game
-                          </button>
-                          {selectedIds.size > 1 && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "friend",
-                                  )
-                                }
-                              >
-                                Friend selected
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "follow",
-                                  )
-                                }
-                              >
-                                Follow selected
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "unfollow",
-                                  )
-                                }
-                              >
-                                Unfollow selected
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "block",
-                                  )
-                                }
-                              >
-                                Block selected
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void Promise.all(
-                                    [...selectedIds].map((userId) =>
-                                      joinUserGame(userId, result.userId),
-                                    ),
-                                  ).then(
-                                    () =>
-                                      setNotice(
-                                        "Join requested for selected accounts.",
-                                      ),
-                                    () =>
-                                      setNotice(
-                                        "The target user could not be joined by every account.",
-                                      ),
-                                  )
-                                }
-                              >
-                                Join selected
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
+
             </>
           )}
         </section>

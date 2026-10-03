@@ -6049,15 +6049,13 @@ button:focus-visible {
   margin-bottom: var(--space-3);
 }
 
-.inventory-list,
-.connection-results {
+.inventory-list {
   display: flex;
   flex-direction: column;
   border-top: var(--border-width) solid var(--border-default);
 }
 
-.inventory-row,
-.connection-result {
+.inventory-row {
   display: flex;
   min-height: 36px;
   align-items: center;
@@ -6067,8 +6065,7 @@ button:focus-visible {
   font-size: var(--text-sm);
 }
 
-.inventory-row strong,
-.connection-result strong {
+.inventory-row strong {
   min-width: 0;
   flex: 1;
   overflow: hidden;
@@ -6126,8 +6123,7 @@ button:focus-visible {
   text-align: right;
 }
 
-.inventory-row > span:last-child,
-.connection-result > div:first-child span {
+.inventory-row > span:last-child {
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
@@ -6715,25 +6711,43 @@ button:focus-visible {
   .inventories-filter-toggle .account-icon { transition: none; }
 }
 
-.connection-result > div:first-child {
+.connections-row input {
+  flex: 1 1 240px;
+}
+
+.connections-row > .account-button {
+  flex: 0 0 auto;
+}
+
+.connection-results {
   display: flex;
-  min-width: 0;
-  flex: 1;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.connection-result {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: var(--space-12) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
 }
 
 .connection-avatar {
   display: flex;
-  width: var(--space-8);
-  height: var(--space-8);
-  flex: 0 0 var(--space-8);
+  width: var(--space-12);
+  height: var(--space-12);
   align-items: center;
   justify-content: center;
   overflow: hidden;
   border-radius: var(--radius);
   color: var(--text-primary);
-  background: var(--bg-raised);
+  background: var(--bg-surface);
 }
 
 .connection-avatar img {
@@ -6742,16 +6756,18 @@ button:focus-visible {
   object-fit: cover;
 }
 
-.connection-result {
-  flex-wrap: wrap;
-}
-
 .connection-identity {
   display: flex;
   min-width: 0;
-  flex: 1;
   flex-direction: column;
   gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.connection-identity strong {
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  font-weight: 500;
 }
 
 .connection-identity span {
@@ -6761,25 +6777,16 @@ button:focus-visible {
 
 .connection-actions {
   display: flex;
-  width: 100%;
+  grid-column: 1 / -1;
   flex-wrap: wrap;
   gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--border-default);
 }
 
-.connection-actions button {
-  min-height: 28px;
-  padding: 0 var(--space-2);
-  border: var(--border-width) solid var(--border-default);
-  border-radius: var(--radius);
-  color: var(--text-primary);
-  background: var(--bg-surface);
-  cursor: pointer;
-  font-size: var(--text-xs);
-}
-
-.connection-actions button:hover,
-.connection-actions button:focus-visible {
-  background: var(--bg-raised);
+.connection-actions .account-button {
+  min-height: var(--space-8);
+  flex: 0 0 auto;
 }
 
 @media (max-width: 900px) {
