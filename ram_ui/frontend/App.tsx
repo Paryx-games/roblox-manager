@@ -8,7 +8,7 @@ import { Walkthrough, walkthroughSteps } from "./components/Walkthrough";
 import { WalkthroughAccounts, type DemoAccountName } from "./components/WalkthroughAccounts";
 import { ConfirmModal } from "./ConfirmModal";
 import { benchmarkReady, acknowledgeStartup, checkReleaseUpdate, clearPassword, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
-import { listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
+import { defaultPageVisibility, workspacePages, listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
 import { GroupsPage } from "./GroupsPage";
@@ -195,9 +195,11 @@ export function App() {
     ]).then((results) => results.forEach((result) => { if (result.status === "fulfilled") { if (isActive) stops.push(result.value); else result.value(); } }));
     return () => { isActive = false; stops.forEach((stop) => stop()); };
   }, []);
-  const visibleNavItems = navItems.filter((item) =>
-    item.page === "Asset Manager" || item.page === "Inventories" ? settings?.developerOptions : true,
-  );
+  const visibility = { ...defaultPageVisibility, ...settings?.pageVisibility };
+  const visibleNavItems = navItems.filter((item) => {
+    const page = workspacePages.find((page) => page.label === item.page);
+    return isTourVisible || !page || visibility[page.key];
+  });
 
   async function clearCache() {
     if (isClearingCache) return;
@@ -294,8 +296,13 @@ export function App() {
   }, [isInstancesLoading, settings, startup]);
 
   useEffect(() => {
-    if (settings && !settings.developerOptions && (activeNav === "Asset Manager" || activeNav === "Inventories")) setActiveNav("Accounts");
-  }, [settings, activeNav]);
+    if (!settings || isTourVisible || activeNav === "Settings") return;
+    const visibility = { ...defaultPageVisibility, ...settings.pageVisibility };
+    const active = workspacePages.find((page) => page.label === activeNav);
+    if (active && !visibility[active.key]) {
+      setActiveNav(workspacePages.find((page) => visibility[page.key])?.label ?? "Settings");
+    }
+  }, [settings, activeNav, isTourVisible]);
 
 
   useEffect(() => {

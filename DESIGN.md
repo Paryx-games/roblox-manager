@@ -34,7 +34,8 @@ The title bar shows running/pending counts, the version, an available-update
 action, and custom window controls. The navigation rail uses 44px buttons,
 local icons, tooltips, and a blue active indicator. Accounts, Instances,
 Groups, Private Servers, and Presets are the regular workspaces. Inventories
-and Asset Manager appear when developer options are enabled; Settings sits
+and Asset Manager default to hidden. Settings offers saved visibility toggles
+for individual workspaces; Settings remains accessible and sits
 below the rail spacer.
 
 `--titlebar-height` still declares 40px but does not size the current title

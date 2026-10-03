@@ -20,6 +20,8 @@ import {
   clearPassword,
   enableMultiInstance,
   getSettings,
+  defaultPageVisibility,
+  workspacePages,
   openDataFolder,
   removeDiscordWebhook,
   restartApp,
@@ -94,7 +96,7 @@ const SETTINGS_SECTION_GROUPS: SettingsSectionGroup[] = [
         id: "app-data",
         label: "App and data",
         subsections: [
-          { id: "development", label: "Development" },
+          { id: "page-visibility", label: "Visible pages" },
           { id: "logging", label: "Logging" },
           { id: "data-location", label: "Data location" },
         ],
@@ -121,7 +123,7 @@ const SETTINGS_SECTION_GROUPS: SettingsSectionGroup[] = [
 const LOG_LEVELS: LogLevel[] = ["Error", "Warn", "Info", "Debug", "Trace"];
 
 function draftFromConfig(config: SettingsConfig): SettingsDraft {
-  return { ...config };
+  return { ...config, pageVisibility: { ...defaultPageVisibility, ...config.pageVisibility } };
 }
 
 function settingTitle(value: string) {
@@ -1229,24 +1231,19 @@ export function SettingsPage({ onNavigationGuardChange }: {
           id="app-data"
           title="App and data"
         >
-          {draft.developerOptions && (
+          {draft.pageVisibility.assetManager && (
             <WarningText>
               Uploads are permanent and public. Every asset is moderated under the account that uploaded it.
             </WarningText>
           )}
-          <SubsectionHeading id="development">Development</SubsectionHeading>
+          <SubsectionHeading id="page-visibility">Visible pages</SubsectionHeading>
+          <p className="settings-muted">Choose which workspaces appear in navigation. Settings remains available so you can re-enable hidden pages.</p>
+          {workspacePages.map(({ key, label }) => <div className="settings-row" key={key}><Toggle checked={draft.pageVisibility[key]} label={`Show ${label}`} onChange={(visible) => updateDraft({ pageVisibility: { ...draft.pageVisibility, [key]: visible } })} /></div>)}
           <SettingRow referenceId="utility_enabled" infoCards={infoCards}>
             <Toggle
               checked={draft.utilityEnabled}
               label="Show Clear Cache in navigation"
               onChange={(utilityEnabled) => updateDraft({ utilityEnabled })}
-            />
-          </SettingRow>
-          <SettingRow referenceId="developer_options" infoCards={infoCards}>
-            <Toggle
-              checked={draft.developerOptions}
-              label="Show Inventories and Asset Manager"
-              onChange={(developerOptions) => updateDraft({ developerOptions })}
             />
           </SettingRow>
           <SubsectionHeading id="logging">Logging</SubsectionHeading>

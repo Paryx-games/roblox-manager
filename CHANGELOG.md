@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Settings offers individual saved visibility toggles for each workspace. Inventories and Asset Manager default off; other workspaces default on. Settings stays accessible to restore hidden pages.
+
 ### Changed
 
 - Accounts places Connections below the main launch controls, with a labelled search field, clear user identity cards and grouped actions in the existing theme.
