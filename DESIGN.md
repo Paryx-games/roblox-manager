@@ -186,8 +186,9 @@ provides shared `data-tip` tooltips. Tooltips supplement accessible names.
 
 Loading skeletons use page-specific layouts with a status announcement and
 `aria-busy`. Toasts distinguish info, success, warning, and error; errors
-use `role="alert"`, other kinds use `role="status"`. Their current visible
-durations are 3, 5, or 8 seconds, with a dismiss action and exit animation.
+use `role="alert"`, other kinds use `role="status"`. Their minimum visible
+durations are 3, 5, or 8 seconds; longer messages receive reading time up to
+20 seconds, with a dismiss action and exit animation.
 The countdown pauses while a notification is hovered or contains keyboard focus.
 Keep persistent failures visible in the affected flow when a transient
 notification would not be enough.

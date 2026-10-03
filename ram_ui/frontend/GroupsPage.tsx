@@ -216,8 +216,8 @@ export function GroupsPage({
     if (!value) {
       setError(
         mode === "name"
-          ? "Enter a group name to search."
-          : "Enter a numeric Roblox group ID.",
+          ? "Enter a Roblox group name in the search field, then select Search to find matching groups."
+          : "Enter a positive numeric Roblox group ID to load the group directly. A username or group name cannot be used in ID mode.",
       );
       return;
     }
@@ -228,7 +228,7 @@ export function GroupsPage({
       setSearchResults([]);
       const groupId = Number(value);
       if (!Number.isSafeInteger(groupId) || groupId <= 0) {
-        setError("Enter a numeric Roblox group ID.");
+        setError("Enter a positive numeric Roblox group ID to load the group directly. A username or group name cannot be used in ID mode.");
         return;
       }
       await openGroup(groupId, {
@@ -241,7 +241,7 @@ export function GroupsPage({
     try {
       setSearchResults(await searchGroups(value));
     } catch {
-      setError("Roblox group search failed.");
+      setError("Roblox group search could not be completed. Check your connection and try the group name again, or search by numeric group ID.");
     } finally {
       setSearching(false);
     }
@@ -263,7 +263,7 @@ export function GroupsPage({
         ),
       );
     } catch {
-      setError("Roblox group could not be loaded.");
+      setError("The Roblox group details and account memberships could not be loaded. Check the group ID and connection, then select the group again.");
     } finally {
       setLoading(false);
       setPendingGroup(null);
@@ -272,7 +272,7 @@ export function GroupsPage({
 
   async function updateMembership(join: boolean) {
     if (!workspace || !selectedAccounts.length) {
-      setActionNotice("Select at least one account first.");
+      setActionNotice("Select at least one managed account before requesting a Roblox group membership change.");
       return;
     }
     const userIds = selectedAccounts
@@ -281,8 +281,8 @@ export function GroupsPage({
     if (!userIds.length) {
       setActionNotice(
         join
-          ? "All selected accounts are already in the group."
-          : "None of the selected accounts are in the group.",
+          ? "Every selected account is already a member of this Roblox group. No join requests were sent."
+          : "None of the selected accounts belong to this Roblox group. No leave requests were sent.",
       );
       return;
     }
@@ -298,7 +298,7 @@ export function GroupsPage({
       const failed = results.filter((result) => !result.ok);
       if (failed.length) {
         setError(
-          `${failed.length} account${failed.length === 1 ? "" : "s"} could not be updated.`,
+          `${results.length - failed.length} of ${results.length} ${join ? "join" : "leave"} requests succeeded for ${workspace.group.name}. ${failed.length} account${failed.length === 1 ? "" : "s"} could not be updated. Refresh memberships and complete any Roblox verification before retrying.`,
         );
         if (failed[0]?.challenge) {
           const account = selectedAccounts.find(
@@ -310,8 +310,8 @@ export function GroupsPage({
       } else {
         setActionNotice(
           join
-            ? "Selected accounts joined the group."
-            : "Selected accounts left the group.",
+            ? `${userIds.length} selected accounts joined ${workspace.group.name} (group ${workspace.group.id}). Memberships are being refreshed.`
+            : `${userIds.length} selected accounts left ${workspace.group.name} (group ${workspace.group.id}). Memberships are being refreshed.`,
         );
       }
       await openGroup(workspace.group.id);
@@ -319,7 +319,7 @@ export function GroupsPage({
       setError(
         reason instanceof Error
           ? reason.message
-          : "Group membership could not be changed.",
+          : "The group membership request could not be completed for every selected account. Refresh memberships before retrying; some requests may already have succeeded.",
       );
     } finally {
       setAction(null);

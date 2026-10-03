@@ -23,6 +23,7 @@ import {
   defaultPageVisibility,
   workspacePages,
   openDataFolder,
+  operationError,
   removeDiscordWebhook,
   restartApp,
   rotateMacAddress,
@@ -375,7 +376,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
     nextNoticeId.current += 1;
     setNotices((current) => [
       ...current,
-      { id, kind, title: kind === "error" ? "Settings error" : kind === "info" ? "Settings" : "Done", message, duration: "standard" },
+      { id, kind, title: kind === "error" ? "Settings action failed" : kind === "info" ? "Settings information" : "Settings action successful", message, duration: "standard" },
     ]);
   }, []);
 
@@ -517,8 +518,8 @@ export function SettingsPage({ onNavigationGuardChange }: {
     setNotices([]);
   }, [savedDraft]);
 
-  function showError(error: unknown) {
-    notify("error", String(error));
+  function showError(error: unknown, context = "The settings operation") {
+    notify("error", `${context} could not be completed. ${operationError(error, "Check the affected setting and try again.")}`);
   }
 
   const handleSave = useCallback(async () => {
@@ -538,10 +539,10 @@ export function SettingsPage({ onNavigationGuardChange }: {
       setSnapshot((current) => (current ? { ...current, config } : current));
       setDraft(draftFromConfig(config));
       if (shouldRestart) {
-        notify("info", "Restarting RM to apply the log level");
+        notify("info", `Settings were saved. RM is restarting to apply the ${draft.logLevel} logging level; other saved preferences will be restored at startup.`);
         await restartApp();
       } else {
-        notify("success", "Settings saved");
+        notify("success", "Your settings and workspace visibility choices were saved. Navigation now follows the saved page choices; launch preferences apply to future launches.");
       }
       return true;
     } catch (error) {
@@ -550,7 +551,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
       } catch {
         // keep the last known settings so the draft remains available
       }
-      notify("error", String(error));
+      notify("error", `Settings could not be saved. ${operationError(error, "Check the settings and try again.")} Your draft remains available for correction and retry.`);
       return false;
     } finally {
       setIsSaving(false);
@@ -649,19 +650,17 @@ export function SettingsPage({ onNavigationGuardChange }: {
     setBusyAction(action);
     try {
       const result = await callback();
-      const message =
-        action === "orphaned-data"
-          ? `${String(result)} orphaned profile(s) removed`
-          : action === "caches"
-            ? "Application caches cleared"
-            : action === "tile"
-              ? "Roblox windows arranged"
-              : action === "mac"
-                ? "MAC address rotated"
-                : "Action completed";
+      const messages: Record<string, string> = {
+        "orphaned-data": `${String(result)} unused account-browser profiles were removed. Browser profiles belonging to saved accounts were kept.`,
+        caches: Number(result) > 0 ? `${String(result)} application cache entries were removed. RM can fetch this cached information again when needed.` : "No application cache entries needed removal. Your accounts, presets and settings were not changed.",
+        tile: "Roblox window arrangement was requested using the current monitor and grid settings. Check the running windows to verify their placement.",
+        mac: "A MAC address change was requested for the network adapter. The adapter may reconnect; use Windows network settings to check the resulting address.",
+        "data-folder": "File Explorer was asked to open RM's data folder. This folder contains application settings, encrypted account storage and logs.",
+      };
+      const message = messages[action] ?? `The ${action} settings request finished. Review the corresponding setting to confirm its effect.`;
       notify("success", message);
     } catch (error) {
-      showError(error);
+      showError(error, ({ "data-folder": "Opening the data folder", "orphaned-data": "Removing unused browser profiles", caches: "Clearing application caches", tile: "Arranging Roblox windows", mac: "Changing the network adapter MAC address" } as Record<string, string>)[action] ?? "The settings request");
     } finally {
       setBusyAction(null);
     }
@@ -675,9 +674,9 @@ export function SettingsPage({ onNavigationGuardChange }: {
       setSnapshot(await getSettings());
       setNewPassword("");
       setConfirmPassword("");
-      notify("success", "Master password updated");
+      notify("success", "The master password protecting your encrypted account store was changed. Use the new password the next time RM asks you to unlock it.");
     } catch (error) {
-      showError(error);
+      showError(error, "Changing the master password");
     } finally {
       setBusyAction(null);
     }
@@ -690,9 +689,9 @@ export function SettingsPage({ onNavigationGuardChange }: {
       setSnapshot(await getSettings());
       setNewPassword("");
       setConfirmPassword("");
-      notify("success", "RM will stop asking for a password");
+      notify("success", "The account store now uses device encryption through Windows Credential Manager. RM can unlock it on this PC without a master-password prompt.");
     } catch (error) {
-      showError(error);
+      showError(error, "Switching to device encryption");
     } finally {
       setBusyAction(null);
     }
@@ -707,9 +706,9 @@ export function SettingsPage({ onNavigationGuardChange }: {
       setSnapshot((current) =>
         current ? { ...current, hasDiscordWebhook: true } : current,
       );
-      notify("success", "Discord webhook saved");
+      notify("success", "The Discord webhook was saved in secure credential storage. Use Test webhook to verify that the selected channel receives messages.");
     } catch (error) {
-      showError(error);
+      showError(error, "Saving the Discord webhook");
     } finally {
       setWebhookBusy(null);
     }
@@ -719,9 +718,9 @@ export function SettingsPage({ onNavigationGuardChange }: {
     setWebhookBusy("test");
     try {
       await testDiscordWebhook(webhookUrl.trim());
-      notify("success", "Discord webhook test sent");
+      notify("success", "A test notification was sent to the configured Discord webhook. Check the destination channel to confirm that it arrived.");
     } catch (error) {
-      showError(error);
+      showError(error, "Sending the Discord webhook test");
     } finally {
       setWebhookBusy(null);
     }
@@ -734,9 +733,9 @@ export function SettingsPage({ onNavigationGuardChange }: {
       setSnapshot((current) =>
         current ? { ...current, hasDiscordWebhook: false } : current,
       );
-      notify("success", "Discord webhook removed");
+      notify("success", "The saved Discord webhook was removed from secure credential storage. Configure a new webhook before requesting further notifications.");
     } catch (error) {
-      showError(error);
+      showError(error, "Removing the saved Discord webhook");
     } finally {
       setBusyAction(null);
     }
@@ -1510,7 +1509,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
           onConfirm={() => {
             updateDraft({ logLevel: pendingLogLevel });
             setPendingLogLevel(null);
-            notify("info", "Save Settings to apply the new log level.");
+            notify("info", "The new log level is selected but not saved yet. Save Settings to persist it and restart RM with that logging level.");
           }}
           message={
             <>

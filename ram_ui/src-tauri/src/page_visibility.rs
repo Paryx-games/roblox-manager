@@ -67,7 +67,7 @@ pub fn save_settings(
             Some(bytes) => storage::atomic_swap(config_path, &bytes).is_ok(),
             None => std::fs::remove_file(config_path).is_ok(),
         };
-        return Err(if restored { "Page visibility could not be saved. Application settings were restored; retry saving." } else { "Page visibility could not be saved and application settings could not be restored. Reload Settings before retrying." }.into());
+        return Err(if restored { "Page visibility could not be saved. Application settings were restored; retry saving." } else { "Page visibility could not be saved and application settings could not be restored. Restart RM to reload the saved application settings before retrying." }.into());
     }
     Ok(())
 }

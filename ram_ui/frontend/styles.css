@@ -3951,7 +3951,7 @@ button:focus-visible {
     transparent 0 calc(100% - var(--notice-progress)),
     var(--text-primary) calc(100% - var(--notice-progress)) 100%
   );
-  animation: notice-timer-progress 5s linear forwards;
+  animation: notice-timer-progress var(--notice-duration, 5000ms) linear forwards;
 }
 
 @property --notice-progress {

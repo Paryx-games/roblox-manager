@@ -131,7 +131,7 @@ export function PrivateServersPage({
       setServers(await listPrivateServers());
       setError(null);
     } catch {
-      setError("Private servers could not be loaded.");
+      setError("Saved private-server bookmarks could not be loaded. Reopen the workspace to retry; saved bookmarks were not changed.");
     } finally {
       setLoading(false);
     }
@@ -179,7 +179,7 @@ export function PrivateServersPage({
       setError(
         reason instanceof Error
           ? reason.message
-          : "The private server could not be added.",
+          : "The private-server bookmark could not be saved. Check its name and Roblox private-server URL, then try again.",
       );
     } finally {
       setSaving(false);
@@ -196,7 +196,7 @@ export function PrivateServersPage({
       setError(
         reason instanceof Error
           ? reason.message
-          : "The private server could not be launched.",
+          : "The private-server launch request could not be completed for all selected accounts. Check their sessions and server access; earlier clients may already have launched.",
       );
     } finally {
       launchingIndexRef.current = null;
@@ -212,7 +212,7 @@ export function PrivateServersPage({
       setDeleteTarget(null);
       await reload();
     } catch {
-      setError("The private server could not be removed.");
+      setError("The private-server bookmark could not be removed from RM. Refresh the list before retrying; deleting a bookmark does not delete the Roblox server.");
     } finally {
       setDeleting(false);
     }
@@ -222,7 +222,7 @@ export function PrivateServersPage({
       const clipboardText = await navigator.clipboard.readText();
       if (clipboardText) setUrl(clipboardText);
     } catch {
-      setError("Clipboard access is unavailable.");
+      setError("The private-server link could not be copied or pasted. Check clipboard access, then retry the requested clipboard action.");
     }
   }
   async function copyLink(index: number, url: string) {
@@ -234,7 +234,7 @@ export function PrivateServersPage({
         setCopiedIndex((current) => (current === index ? null : current));
       }, 3000);
     } catch {
-      setError("Clipboard access is unavailable.");
+      setError("The private-server link could not be copied or pasted. Check clipboard access, then retry the requested clipboard action.");
     }
   }
   function openEdit(server: PrivateServerSummary) {
@@ -281,7 +281,7 @@ export function PrivateServersPage({
       setError(
         reason instanceof Error
           ? reason.message
-          : "The private server could not be updated.",
+          : "The private-server edits could not be saved. Check the bookmark name and server URL; your draft remains in the editor.",
       );
     } finally {
       setEditSaving(false);
@@ -293,7 +293,7 @@ export function PrivateServersPage({
       behavior: "smooth",
       block: "start",
     });
-    setError("Paste a private server link for this game to add it.");
+    setError("Paste this game's Roblox private-server link into the add-server form and give the bookmark a name before saving it.");
   }
   return (
     <>

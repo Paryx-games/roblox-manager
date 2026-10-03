@@ -207,10 +207,10 @@ export function App() {
     try {
       const clearedCount = await clearApplicationCaches();
       setRuntimeToast(clearedCount > 0
-        ? { id: Date.now(), title: "Cache cleared", message: `${clearedCount} cached items cleared.`, kind: "success", duration: "standard" }
-        : { id: Date.now(), title: "No cache to clear", message: "There is no cached application data to clear.", kind: "info", duration: "standard" });
+        ? { id: Date.now(), title: "Cache cleared", message: `${clearedCount} application cache entries were removed. RM can fetch this information again when the related workspace is opened.`, kind: "success", duration: "standard" }
+        : { id: Date.now(), title: "No cache to clear", message: "RM found no application cache entries to remove. Your accounts, presets and settings were not changed.", kind: "info", duration: "standard" });
     } catch (error) {
-      setRuntimeToast({ id: Date.now(), title: "Cache could not be cleared", message: operationError(error, "Try again from Settings."), kind: "error", duration: "long" });
+      setRuntimeToast({ id: Date.now(), title: "Cache could not be cleared", message: operationError(error, "Application cache cleanup could not be completed. Open Settings and retry Clear Cache after checking access to the RM data folder."), kind: "error", duration: "long" });
     } finally { setIsClearingCache(false); }
   }
 
@@ -265,7 +265,7 @@ export function App() {
           if (isActive) stops.push(result.value);
           else result.value();
         } else if (isActive) {
-          setRuntimeToast({ id: Date.now(), title: "Live updates unavailable", message: "Use Refresh in Accounts or Instances to reconnect.", kind: "error", duration: "long" });
+          setRuntimeToast({ id: Date.now(), title: "Live updates unavailable", message: "RM could not connect to live account, client or launch updates. Use Refresh in Accounts or Instances to reload the latest state and reconnect.", kind: "error", duration: "long" });
         }
       }
       if (!isActive) return;

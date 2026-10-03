@@ -160,7 +160,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
         if (!isCurrent) return;
         if (accountResult.status === "rejected") {
           setAccountIds(new Set());
-          setError("Accounts could not be loaded. Reopen this page to retry.");
+          setError("Managed accounts could not be loaded for inventory browsing. Reopen Inventories or refresh Accounts to reconnect before selecting inventories.");
           return;
         }
         if (groupResult.status === "fulfilled") setGroupOrder(groupResult.value.map((group) => group.name));
@@ -177,7 +177,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
       .catch(() => {
         if (isCurrent) {
           setAccountIds(new Set());
-          setError("Accounts could not be loaded. Reopen this page to retry.");
+          setError("Managed accounts could not be loaded for inventory browsing. Reopen Inventories or refresh Accounts to reconnect before selecting inventories.");
         }
       })
       .finally(() => {
@@ -346,7 +346,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
       if (copyTimeoutRef.current !== null) window.clearTimeout(copyTimeoutRef.current);
       copyTimeoutRef.current = window.setTimeout(() => setCopiedId(null), 1600);
     } catch {
-      setError("Clipboard access is unavailable.");
+      setError("The selected inventory asset IDs could not be copied. Check clipboard access and retry Copy IDs; no credentials are included in this action.");
     }
   }
 
@@ -356,7 +356,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     try {
       await openInventoryAssets(browserTargets);
     } catch {
-      setError("Selected items could not be opened on Roblox.");
+      setError("The selected inventory item pages could not all be opened on Roblox. Check browser access and account sessions; earlier pages may already be open.");
     } finally {
       setIsOpeningItems(false);
     }
@@ -368,7 +368,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     try {
       for (const userId of accountIds) await browseAsAccount(userId, true);
     } catch {
-      setError("The full Roblox inventory could not be opened.");
+      setError("The full Roblox inventory browser could not be opened for every selected account. Check their sessions; earlier account browsers may already be open.");
     } finally {
       setIsOpeningInventory(false);
     }
