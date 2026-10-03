@@ -1587,8 +1587,6 @@ export function AccountsPage({
       } else {
         setNotice("Join requests were sent for the selected accounts. Check Instances for startup; Roblox still controls whether each account can access the target server.");
       }
-    } catch {
-      setNotice("Not every selected account could request a join into the target user's game. Earlier requests may already have started clients; review Instances and server permissions before retrying.");
     } finally {
       connectionRequestPending.current = false;
       setMutationLoading(false);
