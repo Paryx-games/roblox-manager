@@ -48,12 +48,19 @@ export function Toast({
   placement?: "viewport" | "stack";
 }) {
   const [exiting, setExiting] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const paused = hovered || focused;
+  const remainingRef = useRef({ id: item.id, duration: DURATION_MS[item.duration] });
   const dismissRef = useRef(onDismiss);
   dismissRef.current = onDismiss;
 
   useEffect(() => {
     setExiting(false);
-    const duration = DURATION_MS[item.duration];
+    if (remainingRef.current.id !== item.id) remainingRef.current = { id: item.id, duration: DURATION_MS[item.duration] };
+    if (paused) return;
+    const started = performance.now();
+    const duration = remainingRef.current.duration;
     const exitTimeout = window.setTimeout(() => setExiting(true), duration);
     const dismissTimeout = window.setTimeout(
       () => dismissRef.current(),
@@ -62,8 +69,9 @@ export function Toast({
     return () => {
       window.clearTimeout(exitTimeout);
       window.clearTimeout(dismissTimeout);
+      remainingRef.current.duration = Math.max(0, duration - (performance.now() - started));
     };
-  }, [item.id]);
+  }, [item.id, item.duration, paused]);
 
   const notification = (
     <div
@@ -71,6 +79,12 @@ export function Toast({
         exiting ? "is-exiting" : ""
       }`}
       role={item.kind === "error" ? "alert" : "status"}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+      }}
     >
       <span className="toast-icon">
         <Icon name={kindIcon(item.kind)} tone="current-color" />

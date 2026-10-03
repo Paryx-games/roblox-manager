@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { Icon } from "./Icon";
+import { useOverlayDismiss } from "../hooks/useOverlayDismiss";
 
 type SelectOption = {
   value: string;
@@ -45,6 +46,8 @@ export default function Select({
 
   const selectedOption =
     options.find((option) => option.value === value) ?? options[0];
+
+  useOverlayDismiss(rootRef, closeMenu, isOpen);
 
   function closeMenu() {
     if (animationFrameRef.current !== null) {
@@ -132,6 +135,7 @@ export default function Select({
       className="rm-select"
       data-animated={shouldAnimate ? "true" : "false"}
       data-sizing={sizing}
+      data-rm-overlay={isOpen ? "" : undefined}
     >
       {sizing === "content" && (
         <div className="rm-select-width" aria-hidden="true">

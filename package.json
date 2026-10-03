@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "scripts": {
+    "version:sync": "node ram_ui/scripts/tauri.mjs version:sync",
+    "version:set": "node ram_ui/scripts/tauri.mjs version:set",
+    "version:check": "node ram_ui/scripts/tauri.mjs version:check"
+  }
+}

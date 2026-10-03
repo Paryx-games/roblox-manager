@@ -533,6 +533,7 @@ export function PrivateServersPage({
                         {openMenu === server.index && (
                           <PopupMenu
                             className={`private-server-menu ${menuPlacement}`}
+                            onClose={() => setOpenMenu(null)}
                           >
                             <button
                               type="button"
@@ -601,6 +602,7 @@ export function PrivateServersPage({
           }
           confirmLabel={deleting ? "Deleting..." : "Delete"}
           confirmDisabled={deleting}
+          busy={deleting}
           onConfirm={() => void confirmDelete()}
           onCancel={() => {
             if (!deleting) setDeleteTarget(null);
@@ -616,6 +618,7 @@ export function PrivateServersPage({
           }}
           closeOnBackdrop
           labelledBy="edit-private-server-title"
+          busy={editSaving}
         >
             <div className="add-account-modal-header">
               <div>

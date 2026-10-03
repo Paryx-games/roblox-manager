@@ -38,3 +38,5 @@ jobs:
 
       - name: run zizmor
         run: zizmor .github/workflows/
+        env:
+          ZIZMOR_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

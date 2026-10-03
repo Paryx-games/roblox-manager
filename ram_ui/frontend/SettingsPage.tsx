@@ -335,7 +335,16 @@ function SettingsContext({
   );
 }
 
-export function SettingsPage() {
+export type SettingsNavigationGuard = {
+  isDirty: boolean;
+  isBusy: boolean;
+  save: () => Promise<boolean>;
+  discard: () => void;
+};
+
+export function SettingsPage({ onNavigationGuardChange }: {
+  onNavigationGuardChange: (guard: SettingsNavigationGuard | null) => void;
+}) {
   const [snapshot, setSnapshot] = useState<SettingsSnapshot | null>(null);
   const [draft, setDraft] = useState<SettingsDraft | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -496,7 +505,7 @@ export function SettingsPage() {
     });
   }
 
-  function handleCancelChanges() {
+  const handleCancelChanges = useCallback(() => {
     if (!savedDraft) return;
     setDraft(savedDraft);
     setPendingLogLevel(null);
@@ -504,14 +513,15 @@ export function SettingsPage() {
     setNewFlagName("");
     setNewFlagValue("");
     setNotices([]);
-  }
+  }, [savedDraft]);
 
   function showError(error: unknown) {
     notify("error", String(error));
   }
 
   const handleSave = useCallback(async () => {
-    if (!draft || !snapshot || !isDirty || isSaving) return;
+    if (!draft || !snapshot || isSaving) return false;
+    if (!isDirty) return true;
     const shouldRestart = draft.logLevel !== snapshot.config.logLevel;
     const { startupWithWindows, ...settingsUpdate } = draft;
     setIsSaving(true);
@@ -531,6 +541,7 @@ export function SettingsPage() {
       } else {
         notify("success", "Settings saved");
       }
+      return true;
     } catch (error) {
       try {
         setSnapshot(await getSettings());
@@ -538,10 +549,21 @@ export function SettingsPage() {
         // keep the last known settings so the draft remains available
       }
       notify("error", String(error));
+      return false;
     } finally {
       setIsSaving(false);
     }
   }, [draft, snapshot, isDirty, isSaving, notify]);
+
+  useEffect(() => {
+    onNavigationGuardChange({
+      isDirty,
+      isBusy: isSaving || busyAction !== null || webhookBusy !== null,
+      save: handleSave,
+      discard: handleCancelChanges,
+    });
+    return () => onNavigationGuardChange(null);
+  }, [onNavigationGuardChange, isDirty, isSaving, busyAction, webhookBusy, handleSave, handleCancelChanges]);
 
   async function refreshSystemStatus() {
     if (isRefreshingStatus) return;
@@ -810,6 +832,7 @@ export function SettingsPage() {
                 label="Auto-launch on startup"
                 onChange={(autoLaunchOnStartup) => updateDraft({ autoLaunchOnStartup })}
               />
+              <p className="settings-muted">Not implemented yet. This preference is saved, but games are not launched automatically.</p>
               {draft.autoLaunchOnStartup && (
                 <label className="settings-inline-field">
                   <span>Account ID:</span>
@@ -1147,6 +1170,7 @@ export function SettingsPage() {
               onChange={(macRotationEnabled) => updateDraft({ macRotationEnabled })}
             />
           </SettingRow>
+          <p className="settings-muted">Automatic rotation is not implemented yet. Use Rotate MAC address now for a manual change.</p>
           {draft.macRotationEnabled && (
             <div className="settings-indent">
               <SettingRow referenceId="mac_preserve_oui" infoCards={infoCards}>
@@ -1314,7 +1338,7 @@ export function SettingsPage() {
               />
             </label>
           </SettingRow>
-          <p className="settings-muted">Examples: -a 3 -t username=... (passed directly to RobloxPlayerBeta.exe)</p>
+          <p className="settings-muted">Not implemented yet. Custom arguments are saved but are not passed to Roblox.</p>
           <SubsectionHeading id="fast-flags">Fast flags</SubsectionHeading>
           <SettingRow referenceId="roblox_fast_flags" infoCards={infoCards}>
             {Object.keys(draft.robloxFastFlags).length === 0 ? (
@@ -1332,7 +1356,7 @@ export function SettingsPage() {
               </div>
             )}
           </SettingRow>
-          <p className="settings-muted">Experimental Roblox ClientSettings toggles; written before launch</p>
+          <p className="settings-muted">Not implemented yet. Flags are saved but are not written to Roblox ClientSettings before launch.</p>
           {isAddingFlag ? (
             <div className="settings-flag-editor">
               <input aria-label="Flag name" placeholder="Flag name" value={newFlagName} onChange={(event) => setNewFlagName(event.target.value)} />

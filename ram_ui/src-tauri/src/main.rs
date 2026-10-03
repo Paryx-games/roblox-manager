@@ -1,8 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(all(rm_demo, not(debug_assertions)))]
+compile_error!("Demo mode is only available in debug builds");
+
+#[cfg(debug_assertions)]
+mod demo;
+
 mod accounts;
 mod asset_manager;
 mod background;
+mod benchmark;
 mod instances;
 mod launcher;
 mod lifecycle;
@@ -1559,7 +1566,7 @@ async fn test_discord_webhook(url: String) -> Result<(), String> {
         return Err("Enter a valid Discord webhook URL".to_string());
     }
     let avatar = base64::engine::general_purpose::STANDARD
-        .encode(include_bytes!("../../../assets/Logo.png"));
+        .encode(include_bytes!("../../../assets/branding/Logo.png"));
     let http = reqwest::Client::new();
     let response = http
         .patch(&url)
@@ -2895,6 +2902,16 @@ mod account_presentation_tests {
 }
 
 fn main() {
+    let is_demo_requested = std::env::args().any(|argument| argument == "--demo");
+    #[cfg(debug_assertions)]
+    if cfg!(rm_demo) || is_demo_requested {
+        demo::run();
+        return;
+    }
+    if is_demo_requested {
+        eprintln!("Demo mode is only available in debug builds");
+        std::process::exit(1);
+    }
     init_logging();
     tracing::info!(
         event = "startup",
@@ -2955,14 +2972,19 @@ fn main() {
                 .find(|window| window.label == "main")
                 .ok_or("Main window configuration unavailable")?;
             let profile = app.path().app_local_data_dir()?.join("interface-webview");
-            let window = tauri::WebviewWindowBuilder::from_config(app.handle(), configuration)?
-                .data_directory(profile)
-                .build()?;
+            let mut builder =
+                tauri::WebviewWindowBuilder::from_config(app.handle(), configuration)?
+                    .data_directory(profile);
+            if benchmark::event_name().is_some() {
+                builder = builder.initialization_script("window.__RM_BENCHMARK__ = true;");
+            }
+            let window = builder.build()?;
             webview_recovery::monitor(app.handle(), &window)?;
             app.manage(background::start(app.handle()));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            benchmark::benchmark_ready,
             asset_manager::list_asset_workspace,
             asset_manager::add_asset_files,
             asset_manager::upload_assets,

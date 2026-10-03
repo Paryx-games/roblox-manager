@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { InstancesPage } from "./InstancesPage";
 import { Toast, type ToastItem } from "./Toast";
@@ -7,14 +7,14 @@ import { ReleaseNotes } from "./components/ReleaseNotes";
 import { Walkthrough, walkthroughSteps } from "./components/Walkthrough";
 import { WalkthroughAccounts, type DemoAccountName } from "./components/WalkthroughAccounts";
 import { ConfirmModal } from "./ConfirmModal";
-import { acknowledgeStartup, checkReleaseUpdate, clearPassword, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
+import { benchmarkReady, acknowledgeStartup, checkReleaseUpdate, clearPassword, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
 import { listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
 import { GroupsPage } from "./GroupsPage";
 import { PrivateServersPage } from "./PrivateServersPage";
 import { PresetsPage } from "./PresetsPage";
-import { SettingsPage } from "./SettingsPage";
+import { SettingsPage, type SettingsNavigationGuard } from "./SettingsPage";
 import { InventoriesPage } from "./InventoriesPage";
 import { AssetsPage } from "./AssetsPage";
 import { isSelectAllShortcut, isTextSelectionTarget } from "./lib/selectAllShortcut";
@@ -110,13 +110,19 @@ function WindowButton({
 
 export function App() {
   const [activeNav, setActiveNav] = useState<PageName>("Accounts");
-  const [displayedNav, setDisplayedNav] = useState<PageName>("Accounts");
-  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
+  const displayedNav = activeNav;
+  const settingsGuardRef = useRef<SettingsNavigationGuard | null>(null);
+  const [pendingNavigation, setPendingNavigation] = useState<PageName | null>(null);
+  const [isNavigationSaving, setIsNavigationSaving] = useState(false);
+  const updateSettingsGuard = useCallback((guard: SettingsNavigationGuard | null) => {
+    settingsGuardRef.current = guard;
+  }, []);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [workspace, setWorkspace] = useState<InstanceWorkspace>({ instances: [], runningCount: 0 });
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [launches, setLaunches] = useState<Record<string, LaunchProgress>>({});
   const [isInstancesLoading, setIsInstancesLoading] = useState(true);
+  const benchmarkDataReady = useRef(false);
   const [instancesError, setInstancesError] = useState<string | null>(null);
   const [runtimeToast, setRuntimeToast] = useState<ToastItem | null>(null);
   const [settings, setSettings] = useState<SettingsConfig | null>(null);
@@ -267,11 +273,25 @@ export function App() {
       if (instanceResult.status === "fulfilled" && !hasInstanceEvent) setWorkspace(instanceResult.value);
       if (instanceResult.status === "rejected" && !hasInstanceEvent) setInstancesError("Running instances could not be loaded. Retry to reconnect.");
       if (accountResult.status === "fulfilled" && !hasAccountEvent) setAccounts(accountResult.value);
+      if (window.__RM_BENCHMARK__) {
+        benchmarkDataReady.current = (instanceResult.status === "fulfilled" || hasInstanceEvent)
+          && (accountResult.status === "fulfilled" || hasAccountEvent);
+      }
       setIsInstancesLoading(false);
     }
     void subscribe();
     return () => { isActive = false; stops.forEach((stop) => stop()); };
   }, []);
+
+  useEffect(() => {
+    if (!window.__RM_BENCHMARK__ || !benchmarkDataReady.current || isInstancesLoading || !settings || !startup) return;
+    // allow the committed initial shell/data a paint opportunity before notifying the harness.
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => { void benchmarkReady().catch(() => {}); });
+    });
+    return () => { cancelAnimationFrame(firstFrame); cancelAnimationFrame(secondFrame); };
+  }, [isInstancesLoading, settings, startup]);
 
   useEffect(() => {
     if (settings && !settings.developerOptions && (activeNav === "Asset Manager" || activeNav === "Inventories")) setActiveNav("Accounts");
@@ -282,37 +302,43 @@ export function App() {
     function onKeyDown(event: KeyboardEvent) {
       if (isSelectAllShortcut(event) && !isTextSelectionTarget(event.target)) event.preventDefault();
     }
-    function onTransitionKeyDown(event: KeyboardEvent) {
-      if (activeNav === displayedNav || !isSelectAllShortcut(event) || isTextSelectionTarget(event.target)) return;
-      event.preventDefault();
-      event.stopPropagation();
-    }
-    window.addEventListener("keydown", onTransitionKeyDown, true);
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      window.removeEventListener("keydown", onTransitionKeyDown, true);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [activeNav, displayedNav]);
-
-  useEffect(() => {
-    if (activeNav === displayedNav) return;
-
-    setIsPageTransitioning(true);
-    const transitionTimeout = window.setTimeout(() => {
-      setDisplayedNav(activeNav);
-      setIsPageTransitioning(false);
-    }, 240);
-
-    return () => window.clearTimeout(transitionTimeout);
-  }, [activeNav, displayedNav]);
+  }, []);
 
   function navigateTo(nextPage: PageName) {
     if (nextPage === activeNav) {
       return;
     }
 
+    const guard = settingsGuardRef.current;
+    if (activeNav === "Settings" && guard) {
+      if (guard.isBusy) return;
+      if (guard.isDirty) {
+        setPendingNavigation(nextPage);
+        return;
+      }
+    }
     setActiveNav(nextPage);
+  }
+
+  async function saveBeforeNavigating() {
+    if (!pendingNavigation || isNavigationSaving) return;
+    const guard = settingsGuardRef.current;
+    if (!guard || guard.isBusy) return;
+    setIsNavigationSaving(true);
+    try {
+      if (await guard.save()) {
+        setActiveNav(pendingNavigation);
+        setPendingNavigation(null);
+      } else {
+        setPendingNavigation(null);
+      }
+    } finally {
+      setIsNavigationSaving(false);
+    }
   }
 
   function renderPage(page: PageName) {
@@ -360,7 +386,7 @@ export function App() {
     }
 
     if (page === "Settings") {
-      return <SettingsPage />;
+      return <SettingsPage onNavigationGuardChange={updateSettingsGuard} />;
     }
 
     if (page === "Inventories") {
@@ -470,9 +496,8 @@ export function App() {
         <div className="main-col" data-walkthrough="workspace">
           <div className="page-transition-viewport">
             <div
-              className={`page-transition-layer ${
-                isPageTransitioning ? "is-transitioning" : ""
-              }`}
+              key={displayedNav}
+              className="page-transition-layer"
             >
               {renderPage(displayedNav)}
             </div>
@@ -480,10 +505,23 @@ export function App() {
           </div>
         </div>
       </div>
+      {pendingNavigation && <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="unsaved-navigation-title" describedBy="unsaved-navigation-message" busy={isNavigationSaving} onClose={() => setPendingNavigation(null)}>
+        <div className="confirm-modal-header"><h2 id="unsaved-navigation-title">Save settings before leaving?</h2></div>
+        <p id="unsaved-navigation-message" className="confirm-modal-message">Your settings have unsaved changes. Save them, discard them, or stay to keep editing.</p>
+        <div className="confirm-modal-actions">
+          <button className="account-button" type="button" disabled={isNavigationSaving} onClick={() => setPendingNavigation(null)}>Stay</button>
+          <button className="account-button" type="button" disabled={isNavigationSaving} onClick={() => {
+            settingsGuardRef.current?.discard();
+            setActiveNav(pendingNavigation);
+            setPendingNavigation(null);
+          }}>Discard</button>
+          <button className="account-button primary" type="button" disabled={isNavigationSaving} onClick={() => void saveBeforeNavigating()}>{isNavigationSaving ? "Saving..." : "Save and leave"}</button>
+        </div>
+      </Popup>}
       {runtimeToast && <Toast item={runtimeToast} onDismiss={() => setRuntimeToast(null)} />}
       {startup?.legacyMigrationAvailable && !isMigrationDismissed ? <ConfirmModal title="Migrate older RM data?" message="Copy your older configuration and encrypted account store into the standard RM data folder. Original files remain in place; existing modern data will never be overwritten." confirmLabel={isStartupPending ? "Migrating..." : "Copy to RM data folder"} confirmDisabled={isStartupPending} confirmIcon="import" onConfirm={() => void completeStartup(migrateLegacyData)} onCancel={() => setIsMigrationDismissed(true)} /> : isTourVisible ? <Walkthrough
         stepIndex={tutorialStep}
-        isPageReady={displayedNav === walkthroughSteps[tutorialStep].page && !isPageTransitioning}
+        isPageReady={displayedNav === walkthroughSteps[tutorialStep].page}
         isPending={isStartupPending}
         error={startupError}
         onBack={() => setTutorialStep((step) => Math.max(0, step - 1))}
@@ -492,7 +530,7 @@ export function App() {
         onReturnToStep={() => navigateTo(walkthroughSteps[tutorialStep].page)}
       /> : startup?.changelog ? <Popup className="confirm-modal changelog-modal" backdropClassName="confirm-modal-backdrop" labelledBy="changelog-title">
         <h2 id="changelog-title">What's changed in RM</h2><ReleaseNotes markdown={startup.changelog} /><button className="account-button" type="button" disabled={isStartupPending} onClick={() => void completeStartup(() => acknowledgeStartup("version"))}>Continue</button>
-      </Popup> : startup?.passwordlessOffer ? <ConfirmModal title="Stop asking for a password on this PC?" message="Device encryption keeps your store encrypted and unlocks it through Windows Credential Manager. Keep a master password if you need to move the store between PCs." confirmLabel={isStartupPending ? "Changing encryption..." : "Use device encryption"} confirmDisabled={isStartupPending} confirmIcon="lock" onConfirm={() => void completeStartup(async () => { await clearPassword(); await acknowledgeStartup("passwordless"); })} onCancel={() => { if (!isStartupPending) void completeStartup(() => acknowledgeStartup("passwordless")); }} /> : browserPlaceId ? <ConfirmModal title="Launch this game through RM?" message={`The account browser blocked an external Roblox launch for Place ID ${browserPlaceId}. Prefill it in Accounts, then choose which account to launch.`} confirmLabel="Prefill Place ID" confirmIcon="game" onConfirm={() => { setPrefilledPlaceId(browserPlaceId); setBrowserPlaceId(null); setActiveNav("Accounts"); }} onCancel={() => setBrowserPlaceId(null)} /> : null}
+      </Popup> : startup?.passwordlessOffer ? <ConfirmModal title="Stop asking for a password on this PC?" message="Device encryption keeps your store encrypted and unlocks it through Windows Credential Manager. Keep a master password if you need to move the store between PCs." confirmLabel={isStartupPending ? "Changing encryption..." : "Use device encryption"} confirmDisabled={isStartupPending} confirmIcon="lock" onConfirm={() => void completeStartup(async () => { await clearPassword(); await acknowledgeStartup("passwordless"); })} onCancel={() => { if (!isStartupPending) void completeStartup(() => acknowledgeStartup("passwordless")); }} /> : browserPlaceId ? <ConfirmModal title="Launch this game through RM?" message={`The account browser blocked an external Roblox launch for Place ID ${browserPlaceId}. Prefill it in Accounts, then choose which account to launch.`} confirmLabel="Prefill Place ID" confirmIcon="game" onConfirm={() => { setPrefilledPlaceId(browserPlaceId); setBrowserPlaceId(null); navigateTo("Accounts"); }} onCancel={() => setBrowserPlaceId(null)} /> : null}
       {startupError && <Toast item={{ id: 1, title: "Startup action needs attention", message: startupError, kind: "error", duration: "long" }} onDismiss={() => setStartupError(null)} />}
       {isTourCompletionVisible && displayedNav === "Accounts" && <div className="walkthrough-completion" role="status">You're ready. Use the highlighted + button to add an account.</div>}
     </div>
