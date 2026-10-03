@@ -7,7 +7,7 @@ import { ReleaseNotes } from "./components/ReleaseNotes";
 import { Walkthrough, walkthroughSteps } from "./components/Walkthrough";
 import { WalkthroughAccounts, type DemoAccountName } from "./components/WalkthroughAccounts";
 import { ConfirmModal } from "./ConfirmModal";
-import { acknowledgeStartup, checkReleaseUpdate, clearPassword, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
+import { benchmarkReady, acknowledgeStartup, checkReleaseUpdate, clearPassword, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
 import { listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
@@ -122,6 +122,7 @@ export function App() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [launches, setLaunches] = useState<Record<string, LaunchProgress>>({});
   const [isInstancesLoading, setIsInstancesLoading] = useState(true);
+  const benchmarkDataReady = useRef(false);
   const [instancesError, setInstancesError] = useState<string | null>(null);
   const [runtimeToast, setRuntimeToast] = useState<ToastItem | null>(null);
   const [settings, setSettings] = useState<SettingsConfig | null>(null);
@@ -272,11 +273,25 @@ export function App() {
       if (instanceResult.status === "fulfilled" && !hasInstanceEvent) setWorkspace(instanceResult.value);
       if (instanceResult.status === "rejected" && !hasInstanceEvent) setInstancesError("Running instances could not be loaded. Retry to reconnect.");
       if (accountResult.status === "fulfilled" && !hasAccountEvent) setAccounts(accountResult.value);
+      if (window.__RM_BENCHMARK__) {
+        benchmarkDataReady.current = (instanceResult.status === "fulfilled" || hasInstanceEvent)
+          && (accountResult.status === "fulfilled" || hasAccountEvent);
+      }
       setIsInstancesLoading(false);
     }
     void subscribe();
     return () => { isActive = false; stops.forEach((stop) => stop()); };
   }, []);
+
+  useEffect(() => {
+    if (!window.__RM_BENCHMARK__ || !benchmarkDataReady.current || isInstancesLoading || !settings || !startup) return;
+    // allow the committed initial shell/data a paint opportunity before notifying the harness.
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => { void benchmarkReady().catch(() => {}); });
+    });
+    return () => { cancelAnimationFrame(firstFrame); cancelAnimationFrame(secondFrame); };
+  }, [isInstancesLoading, settings, startup]);
 
   useEffect(() => {
     if (settings && !settings.developerOptions && (activeNav === "Asset Manager" || activeNav === "Inventories")) setActiveNav("Accounts");

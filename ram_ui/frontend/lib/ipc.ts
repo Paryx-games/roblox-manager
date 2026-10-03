@@ -1,5 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 
+declare global {
+  interface Window { __RM_BENCHMARK__?: boolean; }
+}
+
+export function benchmarkReady(): Promise<void> {
+  return invoke<void>("benchmark_ready");
+}
+
 export type PresenceStatus = "online" | "warning" | "danger" | "neutral";
 
 export interface AccountSummary {
