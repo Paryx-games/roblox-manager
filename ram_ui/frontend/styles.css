@@ -6397,8 +6397,9 @@ button:focus-visible {
   transition: border-color var(--duration-fast) var(--ease-standard);
 }
 @keyframes inventory-tile-enter { from { opacity: 0; } to { opacity: 1; } }
-.inventories-tile:hover { border-color: var(--text-muted); }
-.inventories-tile.is-selected { border-color: var(--action-primary); }
+.inventories-tile:hover { border-color: var(--text-muted); background: var(--bg-raised); }
+.inventories-tile.is-selected,
+.inventories-tile:has(> .inventories-tile-select:active) { border-color: var(--action-primary); background: var(--action-muted); }
 .inventories-tile-select {
   display: flex;
   width: 100%;
@@ -6425,6 +6426,9 @@ button:focus-visible {
 }
 
 .inventories-thumbnail > img:not(.account-icon) { width: 100%; height: 100%; object-fit: contain; }
+.inventories-tile:hover .inventories-thumbnail,
+.inventories-tile.is-selected .inventories-thumbnail,
+.inventories-tile:has(> .inventories-tile-select:active) .inventories-thumbnail { background: transparent; }
 .inventories-thumbnail .account-icon { width: var(--space-12); height: var(--space-12); }
 .inventories-tile-check {
   position: absolute;
@@ -6524,7 +6528,6 @@ button:focus-visible {
 .inventories-selected-options p { color: var(--text-muted); font-size: var(--text-sm); }
 .inventories-dock-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .inventories-selection .account-button { min-height: var(--space-8); flex: 0 0 auto; font-size: var(--text-xs); }
-.inventories-tile-select:active,
 .inventories-selected-options button:active,
 .inventories-page .account-button:not(:disabled):active { background: var(--action-muted); }
 
@@ -6550,7 +6553,8 @@ button:focus-visible {
 .inventories-grid.is-list[data-size="large"] { --inventory-list-thumbnail-size: var(--space-12); --inventory-list-padding: var(--space-4); }
 .inventories-grid.is-list .inventories-tile { display: flex; align-items: center; background: var(--bg-surface); }
 .inventories-grid.is-list .inventories-tile:hover { background: var(--bg-raised); }
-.inventories-grid.is-list .inventories-tile.is-selected { background: var(--action-muted); }
+.inventories-grid.is-list .inventories-tile.is-selected,
+.inventories-grid.is-list .inventories-tile:has(> .inventories-tile-select:active) { background: var(--action-muted); }
 .inventories-grid.is-list .inventories-tile-select { min-width: 0; flex: 1; flex-direction: row; align-items: center; gap: var(--space-3); padding: var(--inventory-list-padding) var(--space-4); }
 .inventories-grid.is-list .inventories-thumbnail { width: var(--inventory-list-thumbnail-size); height: var(--inventory-list-thumbnail-size); flex: 0 0 var(--inventory-list-thumbnail-size); }
 .inventories-grid.is-list .inventories-thumbnail .account-icon { width: var(--space-6); height: var(--space-6); }
