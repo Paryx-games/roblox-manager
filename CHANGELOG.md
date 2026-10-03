@@ -6,6 +6,10 @@
 
 - Right-click uses RM's custom menus where available and no longer opens the default browser menu elsewhere in the main interface.
 
+### Fixed
+
+- Instances applies hover, pressed and selected backgrounds to the whole client row, preventing a split strip above its actions.
+
 ## v2.1.0
 
 ### Added

@@ -95,7 +95,12 @@
   background: var(--bg-surface);
 }
 
-.instance-row[data-selected="true"] {
+.instance-row:hover {
+  background: var(--bg-raised);
+}
+
+.instance-row[data-selected="true"],
+.instance-row:has(> .instance-row-select:active) {
   border-color: var(--action-primary);
   background: var(--action-muted);
 }
@@ -113,14 +118,6 @@
   background: transparent;
   cursor: pointer;
   text-align: left;
-}
-
-.instance-row-select:hover {
-  background: var(--bg-raised);
-}
-
-.instance-row-select:active {
-  background: var(--action-muted);
 }
 
 .instance-row-select > .instance-identity {
