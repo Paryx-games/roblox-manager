@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { CSSProperties } from "react";
 import type { AccountSummary } from "../lib/ipc";
 import { AccountAvatar } from "./AccountAvatar";
@@ -113,15 +112,6 @@ export function AccountPicker({
   useEffect(() => {
     if (!open) return;
     optionRefs.current[0]?.focus();
-    function closeOnEscape(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onOpenChange(false);
-        triggerRef.current?.focus();
-      }
-    }
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
   }, [onOpenChange, open]);
 
   function selectAccount(id: number | undefined) {
@@ -142,27 +132,6 @@ export function AccountPicker({
     onSelectedGroupChange?.(group);
     onOpenChange(false);
     triggerRef.current?.focus();
-  }
-
-  function handleMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (!optionRefs.current.length) return;
-    const currentIndex = optionRefs.current.findIndex(
-      (option) => option === document.activeElement,
-    );
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      const direction = event.key === "ArrowDown" ? 1 : -1;
-      const nextIndex =
-        (currentIndex + direction + optionRefs.current.length) %
-        optionRefs.current.length;
-      optionRefs.current[nextIndex]?.focus();
-    } else if (event.key === "Home") {
-      event.preventDefault();
-      optionRefs.current[0]?.focus();
-    } else if (event.key === "End") {
-      event.preventDefault();
-      optionRefs.current[optionRefs.current.length - 1]?.focus();
-    }
   }
 
   return (
@@ -241,7 +210,7 @@ export function AccountPicker({
       {open && (
         <PopupMenu
           className={`account-picker-menu ${isMenuAbove ? "is-above" : ""}`}
-          onKeyDown={handleMenuKeyDown}
+          onClose={() => onOpenChange(false)}
         >
           {mode !== "groups" &&
             accounts.map((account, index) => {

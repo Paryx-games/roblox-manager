@@ -44,7 +44,9 @@
 <details>
   <summary>Table of Contents</summary>
   <ol>
+    <li><a href="#showcase-image">Showcase Image</a></li>
     <li><a href="#about-the-project">About The Project</a></li>
+    <li><a href="#performance">Performance</a></li>
     <li>
       <a href="#download">Download</a>
       <ul>
@@ -62,12 +64,17 @@
         <li><a href="#build">Build</a></li>
       </ul>
     </li>
+    <li><a href="#benchmarking">Benchmarking</a></li>
     <li><a href="#development-commands">Development Commands</a></li>
     <li><a href="#reporting-issues--requesting-features">Reporting Issues & Requesting Features</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
   </ol>
 </details>
+
+## Showcase image
+
+<img src="images/stacked.png" alt="Stacked">
 
 ## About The Project
 
@@ -91,17 +98,15 @@ This branch contains the Tauri + React v2 interface. The retired egui applicatio
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## Performance
+
+Roblox Manager is designed to remain lightweight while managing your accounts. Performance is measured with a reproducible Windows benchmark covering the application and its WebView2 processes. Results depend on your hardware, saved accounts and settings; see [Benchmarking](#benchmarking) to measure your own setup.
+
 ## Download
 
-Choose the release track that suits you:
+Download Roblox Manager from the [latest release](https://github.com/Paryx-games/roblox-manager/releases/latest). For alpha, beta and earlier versions, browse [all releases](https://github.com/Paryx-games/roblox-manager/releases).
 
-| Release track | Where to find it | What it means |
-| --- | --- | --- |
-| **Latest prerelease** | [All releases](https://github.com/Paryx-games/roblox-manager/releases) | The newest `-alpha.N`, `-beta.N`, or `-rc.N` tag. These are still prereleases under SemVer. |
-| **GitHub's Latest slot** | [Latest release](https://github.com/Paryx-games/roblox-manager/releases/latest) | GitHub's highlighted download. An `-rc.N` release can occupy this slot during final testing. |
-| **Latest actual stable** | [v1.16.0](https://github.com/Paryx-games/roblox-manager/releases/tag/v1.16.0) | The newest final version with no prerelease suffix. This is the stable choice until a newer plain `vX.Y.Z` release ships. |
-
-An RC in GitHub's Latest slot is still a release candidate, not the final stable version. See [CHANGELOG.md](CHANGELOG.md) for what's new in each release.
+The latest release may be a release candidate (`-rc.N`) during final testing. See [CHANGELOG.md](CHANGELOG.md) for what's new.
 
 The Tauri release workflow produces two downloads:
 
@@ -225,6 +230,12 @@ pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked
 The executable is `target/release/rm_tauri.exe`. The installer is under `target/release/bundle/nsis/`, normally `Roblox Manager_<version>_x64-setup.exe`. A plain `cargo build` does not build and bundle the React frontend; use the Tauri wrapper for distributable builds.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Benchmarking
+
+The Roblox Manager benchmark is **public and reproducible, and anyone can run it themselves**. It measures startup, CPU, memory, process resources and I/O for RM and its WebView2 process group, and saves raw samples and statistics in one timestamped CSV per session.
+
+The standard 10-run benchmark takes roughly 10 minutes; a quick mode checks the setup in under a minute on a typical machine. Close unnecessary applications and leave the computer untouched until the benchmark finishes. Follow [the benchmark instructions](benchmarks/README.md) for requirements, commands and interpretation.
 
 ## Development Commands
 

@@ -30,13 +30,32 @@ GitHub's Latest release slot is an exception for release candidates: the workflo
 
 ## Where the version lives
 
-The root `Cargo.toml` is the version source of truth. Both Rust crates inherit it. Synchronise the required version mirrors in `ram_ui/src-tauri/tauri.conf.json` and `ram_ui/package.json` when preparing a release; do not introduce independent version constants.
+The root `Cargo.toml` `[workspace.package].version` is the only canonical application version. Both Rust crates use `version.workspace = true`. Tauri inherits the Rust package version because `tauri.conf.json` omits `version`. The frontend package still has a version field for pnpm/npm; it is an automatically maintained mirror, not an independent source.
+
+From the repository root:
+
+```powershell
+pnpm version:sync
+pnpm version:set 2.0.0-beta.3
+pnpm version:check
+.\bump-version.bat
+```
+
+These commands are also available with `pnpm --dir ram_ui`. `version:sync` keeps the canonical version, synchronises `ram_ui/package.json`, removes any Tauri version override, and updates workspace package versions in `Cargo.lock` using `cargo update --workspace --offline`. `version:set <version>` first validates the requested version, then changes only the canonical Cargo declaration and performs the same synchronisation. The batch utility displays the current version, asks for a new value and confirms the change before calling the shared tooling. It works from any current directory. Nothing commits, tags, pushes or publishes.
+
+Accepted versions are `MAJOR.MINOR.PATCH` with major >= 1, optionally followed by `-alpha.N`, `-beta.N` or `-rc.N`. No `v` prefix, leading zeroes, other prerelease labels or build metadata are accepted. Components are limited to 65535 for Windows version resources. An rc requires an existing alpha/beta Git tag for the same base version; fetch release tags before bumping if necessary.
+
+Node.js, Cargo and pnpm must be on PATH. Synchronisation uses cached Cargo dependency metadata and verifies `ram_ui/pnpm-lock.yaml` with an offline, frozen, lockfile-only pnpm install with lifecycle scripts disabled. pnpm lockfile format 9 does not store the root package version, so a version-only bump needs no pnpm dependency update. If dependency metadata or the pnpm lockfile is stale or unavailable, the command fails rather than updating dependencies. Install dependencies normally first and retry.
+
+All manifest edits preserve surrounding text and line endings. Repeated synchronisation with unchanged inputs leaves file contents unchanged. The commands validate every workspace member's resolved Cargo version and inheritance, the frontend mirror, the absence of a Tauri override, and workspace versions in `Cargo.lock`. `version:check [release-tag]` also compares an optional tag with `v<canonical-version>`; CI and release builds check consistency without repairing it. Existing icon selection, build arguments, changelog requirements and release publishing behaviour remain unchanged.
+
+If a write, lockfile update or final validation fails, synchronisation restores the original manifests and lockfiles and exits non-zero, reporting the failed step. A failed restoration is explicitly reported. This rollback handles ordinary command failures, not a killed process or power loss; review the diff after an interrupted bump and rerun synchronisation. Do not run simultaneous bumps or edit the affected manifests during a bump.
 
 ## Publishing a release
 
 Releases are built and published by `.github/workflows/release.yml`, which runs on pushes of tags matching `v*`, and can also be re-run manually against an existing tag (see [If GitHub is being stubborn](#if-github-is-being-stubborn)). Nothing publishes on a normal push to `main` or any other branch.
 
-1. Bump the root `Cargo.toml` version and synchronise `ram_ui/src-tauri/tauri.conf.json` and `ram_ui/package.json`.
+1. Run `bump-version.bat` or `pnpm version:set X.Y.Z` from the repository root. If Cargo was edited manually, run `pnpm version:sync`. Review the manifest and lockfile diff.
 
 2. Rename `## Unreleased` to `## vX.Y.Z` in `CHANGELOG.md`, preserving its entries. If there is no unreleased section, add the release heading above the previous release.
 
