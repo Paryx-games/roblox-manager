@@ -17,6 +17,8 @@
 
 ### Fixed
 
+- Connections marks individual and batch actions as pending, preventing duplicate or conflicting requests until the active request finishes.
+
 - Instances centres its empty-state icon, heading and description inside a dashed outline, matching the shared Presets empty-state style.
 - Instances applies hover, pressed and selected backgrounds to the whole client row, preventing a split strip above its actions.
 - Inventories keeps tile and list-row backgrounds uniform while hovering, pressing or selecting, without a separate thumbnail or caption overlay.

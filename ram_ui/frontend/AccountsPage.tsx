@@ -639,6 +639,7 @@ export function AccountsPage({
   const [password, setPassword] = useState("");
   const [alias, setAlias] = useState("");
   const [mutationLoading, setMutationLoading] = useState(false);
+  const connectionRequestPending = useRef(false);
   const [browserLoginLoading, setBrowserLoginLoading] = useState(false);
   const [browserLoginOverlayVisible, setBrowserLoginOverlayVisible] =
     useState(false);
@@ -1524,12 +1525,17 @@ export function AccountsPage({
   }
 
   async function applyConnectionAction(targetUserId: number, action: string) {
-    if (!selectedAccount) return;
+    if (!selectedAccount || mutationLoading || connectionRequestPending.current) return;
+    connectionRequestPending.current = true;
+    setMutationLoading(true);
     try {
       await runConnectionAction(selectedAccount.userId, targetUserId, action);
       setNotice(`Roblox accepted the ${action === "friend" ? "friend request" : action + " request"} from ${selectedAccount.label} to user ${targetUserId}. ${action === "friend" ? "The recipient must accept before appearing in the friends list." : "Check the target profile to confirm the relationship state."}`);
     } catch {
       setNotice(`The ${action} request from ${selectedAccount.label} to user ${targetUserId} could not be completed. Refresh the account session and check the target profile before retrying.`);
+    } finally {
+      connectionRequestPending.current = false;
+      setMutationLoading(false);
     }
   }
 
@@ -1538,7 +1544,8 @@ export function AccountsPage({
     action: string,
   ) {
     const ids = [...selectedIds];
-    if (!ids.length) return;
+    if (!ids.length || mutationLoading || connectionRequestPending.current) return;
+    connectionRequestPending.current = true;
     setMutationLoading(true);
     try {
       for (const userId of ids) {
@@ -1548,17 +1555,42 @@ export function AccountsPage({
     } catch {
       setNotice(`The ${action} batch targeting user ${targetUserId} stopped before all selected accounts completed. Earlier requests may have succeeded; check their profiles before retrying.`);
     } finally {
+      connectionRequestPending.current = false;
       setMutationLoading(false);
     }
   }
 
   async function joinTargetGame(targetUserId: number) {
-    if (!selectedAccount) return;
+    if (!selectedAccount || mutationLoading || connectionRequestPending.current) return;
+    connectionRequestPending.current = true;
+    setMutationLoading(true);
     try {
       await joinUserGame(selectedAccount.userId, targetUserId);
       setNotice(`A join request was sent from ${selectedAccount.label} to user ${targetUserId}'s game. Check Instances for the new client; Roblox still controls server access.`);
     } catch {
       setNotice("Roblox could not join the target user's game. The user may be offline, in a private server, or have join permissions that exclude this account.");
+    } finally {
+      connectionRequestPending.current = false;
+      setMutationLoading(false);
+    }
+  }
+
+  async function joinSelectedTargetGame(targetUserId: number) {
+    if (!selectedIds.size || mutationLoading || connectionRequestPending.current) return;
+    connectionRequestPending.current = true;
+    setMutationLoading(true);
+    try {
+      const results = await Promise.allSettled([...selectedIds].map((userId) => joinUserGame(userId, targetUserId)));
+      if (results.some((result) => result.status === "rejected")) {
+        setNotice("Not every selected account could request a join into the target user's game. Earlier requests may already have started clients; review Instances and server permissions before retrying.");
+      } else {
+        setNotice("Join requests were sent for the selected accounts. Check Instances for startup; Roblox still controls whether each account can access the target server.");
+      }
+    } catch {
+      setNotice("Not every selected account could request a join into the target user's game. Earlier requests may already have started clients; review Instances and server permissions before retrying.");
+    } finally {
+      connectionRequestPending.current = false;
+      setMutationLoading(false);
     }
   }
 
@@ -2880,22 +2912,7 @@ export function AccountsPage({
                                 className="account-button"
                                 disabled={mutationLoading}
                                 type="button"
-                                onClick={() =>
-                                  void Promise.all(
-                                    [...selectedIds].map((userId) =>
-                                      joinUserGame(userId, result.userId),
-                                    ),
-                                  ).then(
-                                    () =>
-                                      setNotice(
-                                        "Join requests were sent for the selected accounts. Check Instances for startup; Roblox still controls whether each account can access the target server.",
-                                      ),
-                                    () =>
-                                      setNotice(
-                                        "Not every selected account could request a join into the target user's game. Earlier requests may already have started clients; review Instances and server permissions before retrying.",
-                                      ),
-                                  )
-                                }
+                                onClick={() => void joinSelectedTargetGame(result.userId)}
                               >
                                 Join selected
                               </button>
