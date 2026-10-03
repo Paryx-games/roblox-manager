@@ -7,6 +7,15 @@ const packageDirectory = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const workspaceDirectory = resolve(packageDirectory, "..");
 const argumentsList = process.argv.slice(2);
 const command = argumentsList[0];
+const runnerSeparator = argumentsList.indexOf("--");
+const cliArguments = argumentsList.slice(0, runnerSeparator < 0 ? argumentsList.length : runnerSeparator);
+const isDemo = cliArguments.includes("--demo");
+if (isDemo && !((command === "dev" && !cliArguments.includes("--release")) ||
+  (command === "build" && cliArguments.includes("--debug"))) ||
+  (isDemo && cliArguments.some((argument) => argument === "--profile" || argument.startsWith("--profile=")))) {
+  console.error("Demo mode requires dev or build --debug, without a custom profile. Release demos are prohibited.");
+  process.exit(1);
+}
 const versions = createVersionTools(workspaceDirectory);
 let version;
 try {
@@ -41,8 +50,9 @@ const configOverride = JSON.stringify({
     },
   },
 });
-const runnerArgumentsIndex = argumentsList.indexOf("--");
-const configuredArguments = [...argumentsList];
+const configuredArguments = argumentsList.filter((argument, index) =>
+  !(isDemo && index < cliArguments.length && argument === "--demo"));
+const runnerArgumentsIndex = configuredArguments.indexOf("--");
 configuredArguments.splice(
   runnerArgumentsIndex < 0 ? configuredArguments.length : runnerArgumentsIndex,
   0,
@@ -62,6 +72,7 @@ const result = spawnSync(
     stdio: "inherit",
     env: {
       ...process.env,
+      RM_DEMO: isDemo ? "1" : "0",
       ...(isDevelopmentBuild && !process.env.RUST_LOG
         ? { RUST_LOG: "info" }
         : {}),

@@ -33,7 +33,7 @@ Under SemVer, pre-releases sort before their plain release. For example, `v2.0.0
 
 The root `Cargo.toml` `[workspace.package].version` is the canonical version. Both Rust crates inherit it, and Tauri derives it from Cargo with no `version` override in `tauri.conf.json`. Only `ram_ui/package.json` needs an automatically synchronised mirror.
 
-Run `bump-version.bat` from the repository root for an interactive bump, or `pnpm version:set 2.0.0-beta.3` for automation. Run `pnpm version:sync` after a manual Cargo edit, and `pnpm version:check` to verify consistency without modifying files. These commands also work with `pnpm --dir ram_ui`.
+Run `bump-version.bat` from the repository root for an interactive bump, or `pnpm version:set 2.0.0-beta.3` for automation. The batch script exits after the result; use `bump-version.bat --pause` when you want it to wait for a key before closing. Run `pnpm version:sync` after a manual Cargo edit, and `pnpm version:check` to verify consistency without modifying files. These commands also work with `pnpm --dir ram_ui`.
 
 The tools validate the project version format and Windows component limits, require an earlier alpha/beta tag for rc versions, update Cargo.lock through Cargo, and verify the frozen pnpm lockfile offline. Ordinary failures restore the original manifests and lockfiles and return non-zero. Node.js, Cargo and pnpm must be available, with dependency metadata cached. Review interrupted bumps manually. No command commits, tags, pushes or publishes. See [VERSIONING.md](https://github.com/Paryx-games/roblox-manager/blob/v2/VERSIONING.md) for details and limitations.
 

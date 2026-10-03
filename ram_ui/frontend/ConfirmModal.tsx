@@ -9,6 +9,7 @@ type ConfirmModalProps = {
   onCancel: () => void;
   confirmDisabled?: boolean;
   confirmIcon?: string;
+  busy?: boolean;
 };
 
 function ModalIcon({ name }: { name: string }) {
@@ -30,6 +31,7 @@ export function ConfirmModal({
   onCancel,
   confirmDisabled = false,
   confirmIcon = "delete",
+  busy = false,
 }: ConfirmModalProps) {
   return (
     <Popup
@@ -40,6 +42,7 @@ export function ConfirmModal({
       role="alertdialog"
       labelledBy="confirm-modal-title"
       describedBy="confirm-modal-message"
+      busy={busy}
     >
         <div className="confirm-modal-header">
           <h2 id="confirm-modal-title">{title}</h2>
@@ -48,6 +51,7 @@ export function ConfirmModal({
             type="button"
             aria-label="Cancel"
             data-tip="Cancel"
+            disabled={busy}
             onClick={onCancel}
           >
             <ModalIcon name="close" />
@@ -57,14 +61,14 @@ export function ConfirmModal({
           {message}
         </div>
         <div className="confirm-modal-actions">
-          <button className="account-button" type="button" onClick={onCancel}>
+          <button className="account-button" type="button" disabled={busy} onClick={onCancel}>
             <ModalIcon name="close" />
-            No
+            Cancel
           </button>
           <button
             className="account-button confirm-modal-danger"
             type="button"
-            disabled={confirmDisabled}
+            disabled={confirmDisabled || busy}
             onClick={onConfirm}
           >
             <ModalIcon name={confirmIcon} />
