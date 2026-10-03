@@ -5841,6 +5841,40 @@ button:focus-visible {
   font-family: var(--font-sans);
 }
 
+.account-data-examples {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.account-data-example {
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  background: var(--bg-raised);
+  cursor: pointer;
+  font-size: var(--text-xs);
+}
+
+.account-data-example:hover:not(:disabled),
+.account-data-example:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.account-data-example:active:not(:disabled) {
+  background: var(--action-muted);
+}
+
+.account-data-example:disabled {
+  color: var(--text-disabled);
+  background: var(--bg-surface);
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
 .account-action-row {
   margin-top: var(--space-3);
 }

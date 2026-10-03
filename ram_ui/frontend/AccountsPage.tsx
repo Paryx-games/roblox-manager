@@ -72,6 +72,12 @@ import {
   type ToastKind,
 } from "./Toast";
 
+const launchDataExamples = ["linkCode=CODE", "accessCode=CODE", "userId=123456789"];
+
+function hasDataArgument(data: string, key: string) {
+  return new URLSearchParams(data.trim().replace(/^[?&]+/, "")).has(key);
+}
+
 type SortMode =
   | "custom"
   | "username"
@@ -611,6 +617,15 @@ export function AccountsPage({
   useEffect(() => { if (prefilledPlaceId) setPlaceId(String(prefilledPlaceId)); }, [prefilledPlaceId]);
   const [jobId, setJobId] = useState("");
   const [launchData, setLaunchData] = useState("");
+  function appendDataExample(argument: string) {
+    const key = argument.split("=", 1)[0];
+    setLaunchData((current) => {
+      if (hasDataArgument(current, key)) return current;
+      const data = current.trim();
+      if (!data) return `?${argument}`;
+      return `${data}${/[?&]$/.test(data) ? "" : "&"}${argument}`;
+    });
+  }
   const [connectionQuery, setConnectionQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -2664,10 +2679,13 @@ export function AccountsPage({
                     />
                   </div>
                 </div>
-                <p className="account-hint">
-                  Examples: <code>?linkCode=CODE</code>{" "}
-                  <code>?accessCode=CODE</code> <code>?userId=123456789</code>
-                </p>
+                <div className="account-hint account-data-examples" aria-label="Launch data examples">
+                  <span>Examples:</span>
+                  {launchDataExamples.map((argument) => {
+                    const present = hasDataArgument(launchData, argument.split("=", 1)[0]);
+                    return <button className="account-data-example" type="button" key={argument} disabled={present} aria-label={`Add ${argument} to Data`} data-tip={present ? "This argument is already in Data" : "Append this example to Data"} onClick={() => appendDataExample(argument)}>?{argument}</button>;
+                  })}
+                </div>
                 <div className="account-action-row">
                   <button
                     className="account-button primary"

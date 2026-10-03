@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Accounts launch-data examples are clickable, append query arguments without replacing existing values, and become grey with a strikethrough when their argument is already present.
 - Right-click uses RM's custom menus where available and no longer opens the default browser menu elsewhere in the main interface.
 
 ### Fixed
