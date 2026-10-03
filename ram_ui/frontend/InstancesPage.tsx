@@ -108,13 +108,15 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
           <div className="instances-toolbar-actions">
           <button className="account-button" type="button" disabled={isLoading || pendingAction !== null} onClick={() => void onRefresh()}><Icon name="refresh" />{isLoading ? "Refreshing..." : "Refresh"}</button>
           <button className="account-button" type="button" disabled={!workspace.runningCount || pendingAction !== null || isLoading} onClick={() => void runAction("arrange", arrangeAccountWindows, "Windows arranged")}><Icon name="grid" />{pendingAction === "arrange" ? "Arranging..." : "Arrange windows"}</button>
-          <button className="account-button" type="button" disabled={!workspace.runningCount || pendingAction !== null || isLoading} onClick={() => void requestKillAll()}><Icon name="kill" />{pendingAction === "check-confirmation" || pendingAction === "close" ? "Working..." : "Kill all Roblox"}</button>
+          <button className="account-button danger" type="button" disabled={!workspace.runningCount || pendingAction !== null || isLoading} onClick={() => void requestKillAll()}><Icon name="kill" tone="current-color" />{pendingAction === "check-confirmation" || pendingAction === "close" ? "Working..." : "Kill all Roblox"}</button>
           </div>
         </div>
-        <div className="assets-toolbar">
+        <div className="assets-toolbar instances-join-section">
+          <div className="instances-join-fields">
           <span className="instances-picker-label">Join server as</span>
           <AccountPicker accounts={launchAccounts} mode="multiple" open={isPickerOpen} onOpenChange={setIsPickerOpen} selectedIds={selectedIds} onSelectedIdsChange={onSelectedIdsChange} disabled={pendingAction !== null || !launchAccounts.length} unselectedLabel="Select accounts to join a server" />
           <span className="instances-description">{launchAccounts.length ? "Choose accounts, then use Join server on a matched client." : "Add a valid account in Accounts to join a client's server."}</span>
+          </div>
           <span className="instances-count" role="status">{isLoading ? "Checking clients..." : error ? "Client status unavailable" : `${workspace.runningCount} client${workspace.runningCount === 1 ? "" : "s"} running`}</span>
         </div>
         {launches.length > 0 && <div className="assets-notice" role="status">{launches.map((launch) => <p key={launch.requestId}>{accounts.find((account) => account.userId === launch.userId)?.label ?? "Account"}: {phaseLabels[launch.phase]}</p>)}</div>}
@@ -126,7 +128,7 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
                 return <InstanceRow key={instanceKey(instance)} instance={instance} account={accounts.find((account) => account.userId === instance.userId)} selected={selectedKey === instanceKey(instance)} onSelect={() => setSelectedKey(instanceKey(instance))} actions={<>
                     <button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => void runAction(`focus-${instance.pid}`, () => focusInstance(instance), "Instance focused")}><Icon name="focus" />{pendingAction === `focus-${instance.pid}` ? "Focusing..." : "Focus"}</button>
                     <button className="account-button" type="button" disabled={!canJoin || pendingAction !== null} data-tip={instance.userId === null ? "Identify this client's account before joining its server" : !canJoin ? "Select another valid account above to join this client's server" : "Launch the selected accounts into this client's server"} onClick={() => void joinServer(instance)}><Icon name="launch" />{pendingAction === `join-${instance.pid}` ? "Joining..." : "Join server"}</button>
-                    <button className="account-button" type="button" disabled={instance.attribution !== "exact" || pendingAction !== null} data-tip={instance.attribution === "exact" ? "Close this verified Roblox client" : "An exact account match is required to kill an individual client"} onClick={() => setCloseTarget(instance)}><Icon name="kill" />Kill</button>
+                    <button className="account-button danger" type="button" disabled={instance.attribution !== "exact" || pendingAction !== null} data-tip={instance.attribution === "exact" ? "Close this verified Roblox client" : "An exact account match is required to kill an individual client"} onClick={() => setCloseTarget(instance)}><Icon name="kill" tone="current-color" />Kill</button>
                   </>} />;
               })}</ul>}
           </section>
@@ -135,7 +137,7 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
             <p className="instances-description">Adjust settings for the selected client.</p>
             {selectedInstance ? <>
               <InstanceIdentity instance={selectedInstance} account={accounts.find((account) => account.userId === selectedInstance.userId)} />
-              <div className="instances-preview-notice" id="client-preview-notice" role="note"><Icon name="info-mark" tone="current-color" /><p><strong>Preview only — controls do not work yet.</strong> Changes do not affect Roblox and are not saved. Values are temporary for each client while this page is open.</p></div>
+              <div className="instances-preview-notice" id="client-preview-notice" role="note"><Icon name="info-mark" tone="current-color" /><p><strong>Preview only — controls do not work yet.</strong> Temporary values; not applied to Roblox or saved.</p></div>
               <div role="group" aria-label="Client settings preview" aria-describedby="client-preview-notice">
                 <SettingRow label="FPS limit" description="Choose a maximum frame rate.">{() => <Select value={preview.fps} options={fpsOptions} onChange={(fps) => updatePreview({ fps })} ariaLabel="FPS limit (preview only)" disabled={controlsDisabled} />}</SettingRow>
                 <SettingRow label="Graphics quality" description="Choose a quality level from 1 to 10.">{(labelId, descriptionId) => <RangeField min={1} max={10} value={preview.graphics} onChange={(graphics) => updatePreview({ graphics })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>

@@ -80,7 +80,7 @@ changes.
 | --- | --- |
 | Surfaces | `--bg-canvas`, `--bg-surface`, `--bg-raised` |
 | Text | `--text-primary`, `--text-muted`, `--text-disabled` |
-| Borders and actions | `--border-default`, `--action-primary`, `--action-muted` |
+| Borders and actions | `--border-default`, `--action-primary`, `--action-danger`, `--action-muted` |
 | Live status | `--status-online`, `--status-warning`, `--status-danger`, `--status-neutral` |
 | Other semantic states | `--notification-*`, `--access-*`, `--ownership-*` |
 | Guided tour | `--walkthrough-outline`, `--walkthrough-dim`, `--walkthrough-dock` |
@@ -99,6 +99,7 @@ Use the three neutral surface levels for depth, with no box shadows. Blue
 `--action-primary` identifies actions, selection, and keyboard focus.
 Reserve live-status colors for account, instance, and process state; use
 notification, access, and ownership tokens for their separate meanings.
+Destructive action buttons use `--action-danger`, with a subdued disabled state.
 Do not rely on color alone: retain text, icons, or accessible labels.
 
 The current stylesheet has legacy exceptions: close-window hover and some

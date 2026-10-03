@@ -39,6 +39,17 @@
   font-size: var(--text-sm);
 }
 
+.instances-join-fields {
+  display: grid;
+  min-width: 0;
+  justify-items: start;
+  gap: var(--space-2);
+}
+
+.instances-join-fields .account-picker {
+  margin: 0;
+}
+
 .instances-page .account-picker-trigger:disabled {
   color: var(--text-disabled);
   cursor: not-allowed;
@@ -50,16 +61,17 @@
   min-height: 0;
   flex: 1;
   grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-rows: minmax(max-content, 1fr);
   gap: var(--space-4);
   padding: var(--space-4) var(--space-6);
-  overflow: hidden;
+  overflow: auto;
 }
 
 .instances-workspace > section {
   min-width: 0;
   min-height: 0;
   padding: var(--space-4);
-  overflow: auto;
+  overflow: visible;
 }
 
 .instances-workspace h2 {
@@ -205,7 +217,7 @@
 }
 
 .instances-controls-panel > .instance-identity {
-  margin-top: var(--space-4);
+  margin-top: var(--space-2);
   padding: var(--space-3);
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
@@ -217,7 +229,7 @@
   align-items: flex-start;
   gap: var(--space-2);
   margin-top: var(--space-3);
-  padding: var(--space-3);
+  padding: var(--space-2);
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
   color: var(--text-muted);
@@ -245,8 +257,8 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-3);
-  padding: var(--space-3) 0;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
   border-bottom: var(--border-width) solid var(--border-default);
 }
 
@@ -356,6 +368,7 @@
 @media (width < 1000px) {
   .instances-workspace {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
     grid-auto-rows: max-content;
     align-content: start;
     overflow: auto;
@@ -5873,6 +5886,29 @@ button:focus-visible {
   color: var(--text-disabled);
   background: var(--bg-surface);
   cursor: not-allowed;
+}
+
+.account-button.danger {
+  color: var(--action-danger);
+  border-color: color-mix(in srgb, var(--action-danger) 40%, var(--border-default));
+}
+
+.account-button.danger:not(:disabled):hover,
+.account-button.danger:not(:disabled):focus-visible {
+  background: color-mix(in srgb, var(--action-danger) 10%, var(--bg-raised));
+}
+
+.account-button.danger:not(:disabled):active {
+  background: color-mix(in srgb, var(--action-danger) 18%, var(--bg-raised));
+}
+
+.account-button.danger:disabled {
+  color: color-mix(in srgb, var(--action-danger) 40%, var(--text-disabled));
+  border-color: var(--border-default);
+}
+
+.account-button.danger .account-icon-current-color {
+  filter: none;
 }
 
 .account-button.account-accent-button:disabled {

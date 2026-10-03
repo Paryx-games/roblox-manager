@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Instances stacks the join-account picker and helper text, gives kill actions a red treatment, and removes independent client-controls scrolling.
+
 - Instances now pairs selectable running-client rows with a client controls panel, retaining focus, join, arrange and kill actions. FPS, graphics, fullscreen and audio controls are adjustable previews only, clearly labelled as inactive and temporary.
 
 ## v2.0.0
