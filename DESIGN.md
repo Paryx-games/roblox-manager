@@ -49,7 +49,9 @@ Keep the compact desktop layout and each page's existing composition:
 
 - Accounts combines a compact header, account selection and actions, and
   account details and recovery flows.
-- Instances presents running clients in a table with attribution and process actions.
+- Instances shows selectable client rows with attribution and process actions
+  beside a client controls panel. The panel stacks below the list on narrower layouts;
+  unfinished controls are adjustable temporary previews with an explicit notice.
 - Groups uses account/group selection and detail sections for group content.
 - Private Servers and Presets use their existing lists, filters, and editing flows.
 - Inventories uses a 220px account sidebar, a grid/list workspace, and a

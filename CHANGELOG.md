@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Instances now pairs selectable running-client rows with a client controls panel, retaining focus, join, arrange and kill actions. FPS, graphics, fullscreen and audio controls are adjustable previews only, clearly labelled as inactive and temporary.
+
 ## v2.0.0
 
 ### Added
