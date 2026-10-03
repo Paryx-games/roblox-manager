@@ -60,6 +60,7 @@ import {
 import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
 import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
+import { isTextSelectionTarget } from "./lib/selectAllShortcut";
 import Select from "./components/Select";
 import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
@@ -67,10 +68,17 @@ import { PromptModal } from "./components/PromptModal";
 import {
   Toast,
   ToastStack,
+  notificationReadingTime,
   type ToastDuration,
   type ToastItem,
   type ToastKind,
 } from "./Toast";
+
+const launchDataExamples = ["linkCode=CODE", "accessCode=CODE", "userId=123456789"];
+
+function hasDataArgument(data: string, key: string) {
+  return new URLSearchParams(data.trim().replace(/^[?&]+/, "")).has(key);
+}
 
 type SortMode =
   | "custom"
@@ -239,7 +247,7 @@ function noticeKind(message: string): ToastKind {
     return "warning";
   }
   if (
-    /saved|added|requested|refreshed|completed|opened|exported|closed/i.test(
+    /saved|added|requested|refreshed|completed|opened|exported|closed|copied|removed|deleted|created|accepted/i.test(
       message,
     )
   ) {
@@ -249,7 +257,7 @@ function noticeKind(message: string): ToastKind {
 }
 
 function noticeTitle(kind: ToastKind) {
-  return kind[0].toUpperCase() + kind.slice(1);
+  return kind === "error" ? "Account action failed" : kind === "warning" ? "Account action needs attention" : kind === "success" ? "Account action successful" : "Account information";
 }
 
 function TimedNotice({
@@ -262,19 +270,20 @@ function TimedNotice({
   const [exiting, setExiting] = useState(false);
   const dismissRef = useRef(onDismiss);
   dismissRef.current = onDismiss;
+  const duration = notificationReadingTime(message, 5000);
 
   useEffect(() => {
     setExiting(false);
-    const exitTimeout = window.setTimeout(() => setExiting(true), 5000);
-    const dismissTimeout = window.setTimeout(() => dismissRef.current(), 5300);
+    const exitTimeout = window.setTimeout(() => setExiting(true), duration);
+    const dismissTimeout = window.setTimeout(() => dismissRef.current(), duration + 300);
     return () => {
       window.clearTimeout(exitTimeout);
       window.clearTimeout(dismissTimeout);
     };
-  }, [message]);
+  }, [message, duration]);
 
   return (
-    <div className={`account-notice-shell ${exiting ? "is-exiting" : ""}`}>
+    <div className={`account-notice-shell ${exiting ? "is-exiting" : ""}`} style={{ "--notice-duration": `${duration}ms` } as CSSProperties}>
       <p className="account-notice" role="status">
         <span className="notice-timer" aria-hidden="true" />
         {message}
@@ -611,6 +620,15 @@ export function AccountsPage({
   useEffect(() => { if (prefilledPlaceId) setPlaceId(String(prefilledPlaceId)); }, [prefilledPlaceId]);
   const [jobId, setJobId] = useState("");
   const [launchData, setLaunchData] = useState("");
+  function appendDataExample(argument: string) {
+    const key = argument.split("=", 1)[0];
+    setLaunchData((current) => {
+      if (hasDataArgument(current, key)) return current;
+      const data = current.trim();
+      if (!data) return `?${argument}`;
+      return `${data}${/[?&]$/.test(data) ? "" : "&"}${argument}`;
+    });
+  }
   const [connectionQuery, setConnectionQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -622,6 +640,7 @@ export function AccountsPage({
   const [password, setPassword] = useState("");
   const [alias, setAlias] = useState("");
   const [mutationLoading, setMutationLoading] = useState(false);
+  const connectionRequestPending = useRef(false);
   const [browserLoginLoading, setBrowserLoginLoading] = useState(false);
   const [browserLoginOverlayVisible, setBrowserLoginOverlayVisible] =
     useState(false);
@@ -687,9 +706,9 @@ export function AccountsPage({
     return confirmAccountAddition(outcome.confirmationId);
   }
 
-  function notifyAccountAddition(account: AccountSummary, message = "Account added.") {
+  function notifyAccountAddition(account: AccountSummary, message = "Account added to RM's encrypted store. It is now available in the account list; refresh its status before launching if its session was not validated.") {
     if (accounts.some((existing) => existing.userId === account.userId)) {
-      setNotice("That account already exists. Its saved credential was updated.", "warning", "standard", "Account already exists");
+      setNotice("This Roblox account was already managed by RM. Its saved credential was replaced; existing account organisation was preserved. Refresh the account to verify the updated session.", "warning", "standard", "Account already exists");
     } else {
       setNotice(message);
     }
@@ -1045,7 +1064,7 @@ export function AccountsPage({
         }),
       );
     } catch {
-      setNotice("Presence could not be refreshed.");
+      setNotice("Roblox presence could not be refreshed for the selected accounts. Check your connection and use Refresh to retry.");
     } finally {
       setPresenceLoading(false);
     }
@@ -1102,9 +1121,9 @@ export function AccountsPage({
       setAccounts(
         await reorderAccounts(ordered.map((account) => account.userId)),
       );
-      setNotice("Account order saved.");
+      setNotice("Your custom account order was saved and will be restored when RM starts again.");
     } catch {
-      setNotice("The account move could not be saved.");
+      setNotice("The account move could not be saved. Refresh the account list to check its current group and order before retrying.");
     }
   }
 
@@ -1127,9 +1146,9 @@ export function AccountsPage({
     try {
       const groups = await reorderAccountGroups(nextOrder);
       setGroupOrder(groups.map((group) => group.name));
-      setNotice("Group order saved.");
+      setNotice("Your custom group order was saved. Account groups will keep this order after restarting RM.");
     } catch {
-      setNotice("The group order could not be saved.");
+      setNotice("The group order could not be saved. Refresh the account list before trying to move the group again.");
     }
   }
 
@@ -1158,7 +1177,7 @@ export function AccountsPage({
 
   async function bulkLaunch() {
     if (!placeIdValid) {
-      setNotice("Enter a numeric Place ID before bulk launching.");
+      setNotice("Enter a positive numeric Place ID before launching the selected accounts. No batch launch requests were sent.");
       return;
     }
     setMutationLoading(true);
@@ -1166,7 +1185,7 @@ export function AccountsPage({
       for (const userId of selectedIds) {
         await launchAccountIpc(userId, Number(placeId), jobId, launchData);
       }
-      setNotice(`${selectedIds.size} launches requested.`);
+      setNotice(`Launch requests were sent for ${selectedIds.size} selected accounts into Place ID ${placeId}. Check Instances to follow client startup and attribution.`);
     } catch (error) {
       setNotice(operationError(error, "Bulk launch stopped because one account could not launch."));
     } finally {
@@ -1176,11 +1195,11 @@ export function AccountsPage({
 
   function launchAccount() {
     if (!placeIdValid) {
-      setAccountNotice("Enter a numeric Place ID before launching.");
+      setAccountNotice("Enter a positive numeric Roblox Place ID in the launch controls before requesting a client launch.");
       return;
     }
     if (!selectedAccount?.canLaunch) {
-      setAccountNotice("This account is not ready to launch.");
+      setAccountNotice("The selected account cannot launch with its current session or restrictions. Refresh its status or replace its credential before retrying.");
       return;
     }
     setMutationLoading(true);
@@ -1196,7 +1215,7 @@ export function AccountsPage({
         jobId,
         launchData,
       );
-      setAccountNotice("Launch requested.");
+      setAccountNotice(`Launch requested for ${selectedAccount.label} into Place ID ${placeId}. Roblox still needs to start and connect; check Instances for the running client.`);
     } catch (error) {
       setAccountNotice(operationError(error, "Roblox could not be launched for this account."));
     } finally {
@@ -1213,16 +1232,16 @@ export function AccountsPage({
 
   async function savePreset() {
     if (!placeIdValid) {
-      setAccountNotice("Enter a numeric Place ID before saving a preset.");
+      setAccountNotice("Enter a positive numeric Roblox Place ID before saving the current launch options as a preset.");
       return;
     }
     const name = (await requestPrompt("Preset name"))?.trim();
     if (!name) return;
     try {
       await saveLaunchPreset(name, Number(placeId), jobId, launchData);
-      setAccountNotice("Preset saved.");
+      setAccountNotice("The launch preset was saved with the current destination and launch options. Open Presets to select accounts and launch it.");
     } catch {
-      setAccountNotice("The preset could not be saved.");
+      setAccountNotice("The launch preset could not be saved. Check the Place ID and preset name, then try saving it again.");
     }
   }
 
@@ -1265,9 +1284,9 @@ export function AccountsPage({
           account.userId === updated.userId ? updated : account,
         ),
       );
-      setNotice("Changes have been saved.", "info", "standard", "Account information updated");
+      setNotice("The selected account's alias was saved and will be retained after restarting RM.", "info", "standard", "Account information updated");
     } catch {
-      setNotice("The alias could not be saved.");
+      setNotice("The account alias could not be saved. Keep your edited alias and try again after refreshing the account list.");
     } finally {
       setMutationLoading(false);
     }
@@ -1283,7 +1302,7 @@ export function AccountsPage({
         ),
       );
     } catch {
-      setNotice("The pin state could not be saved.");
+      setNotice("The account pin change could not be saved. Refresh the list to check its current pinned state before retrying.");
     } finally {
       setPinningIds((current) => {
         const next = new Set(current);
@@ -1307,9 +1326,9 @@ export function AccountsPage({
           account.userId === updated.userId ? updated : account,
         ),
       );
-      setNotice("Group saved.");
+      setNotice("The account group changes were saved and will be retained after restarting RM.");
     } catch {
-      setNotice("The group could not be saved.");
+      setNotice("The account group changes could not be saved. Refresh the account list to check the current group name and membership before retrying.");
     }
   }
 
@@ -1321,7 +1340,7 @@ export function AccountsPage({
         await createAccountGroup(name);
         await saveGroup(name);
       } catch {
-        setNotice("The group could not be created.");
+        setNotice("A new account group could not be created. Use a unique group name and try again.");
       }
       return;
     }
@@ -1365,7 +1384,7 @@ export function AccountsPage({
     const name = groupEditor.name.trim();
     const color = hexToRgb(groupEditor.color);
     if (!name || !color) {
-      setNotice("Enter a group name and choose a valid color.");
+      setNotice("Enter a nonempty account-group name and a valid colour before saving. No group changes were submitted.");
       return;
     }
     setMutationLoading(true);
@@ -1393,10 +1412,10 @@ export function AccountsPage({
       }
       setGroupEditor(null);
       setNotice(
-        groupEditor.originalName === null ? "Group created." : "Group saved.",
+        groupEditor.originalName === null ? "The new account group was created. You can now assign managed accounts to it." : "The account group changes were saved and will be retained after restarting RM.",
       );
     } catch {
-      setNotice("The group could not be saved.");
+      setNotice("The account group changes could not be saved. Refresh the account list to check the current group name and membership before retrying.");
     } finally {
       setMutationLoading(false);
     }
@@ -1424,9 +1443,9 @@ export function AccountsPage({
         return next;
       });
       setGroupOrder((current) => current.filter((group) => group !== name));
-      setNotice("Group deleted.");
+      setNotice("The account group was deleted. Its managed accounts were kept and moved to Ungrouped.");
     } catch {
-      setNotice("The group could not be deleted.");
+      setNotice("The account group could not be deleted. Refresh the list to check whether the group still exists before retrying.");
     } finally {
       setMutationLoading(false);
     }
@@ -1436,9 +1455,9 @@ export function AccountsPage({
     if (!selectedAccount) return;
     try {
       await updatePlayerPath(selectedAccount.userId, playerPath.trim() || null);
-      setNotice("Player path saved.");
+      setNotice("The Roblox player path was saved for this account. Future launches use this setting; running clients are unchanged.");
     } catch {
-      setNotice("The player path could not be saved.");
+      setNotice("The Roblox player path could not be saved for this account. Check the executable path and try again.");
     }
   }
 
@@ -1447,7 +1466,7 @@ export function AccountsPage({
     try {
       await openAccountUrl(selectedAccount.userId, inventory);
     } catch {
-      setNotice("Roblox could not be opened.");
+      setNotice("The requested Roblox page could not be opened in a browser. Check the selected account and browser availability, then retry.");
     }
   }
 
@@ -1455,9 +1474,9 @@ export function AccountsPage({
     if (!selectedAccount) return;
     try {
       await navigator.clipboard.writeText(selectedAccount.username);
-      setNotice("Username copied.");
+      setNotice("The selected account's Roblox username was copied to the clipboard. Paste it into the destination application.");
     } catch {
-      setNotice("Username could not be copied.");
+      setNotice("The Roblox username could not be copied. Check clipboard access and click Copy username again.");
     }
   }
 
@@ -1471,9 +1490,9 @@ export function AccountsPage({
       );
       setAccounts(remaining);
       setSelectedId(remaining[0]?.userId ?? null);
-      setNotice("Account removed.");
+      setNotice("The selected account was removed from RM's encrypted store. This does not delete the Roblox account or close its running client.");
     } catch {
-      setNotice("The account could not be removed.");
+      setNotice("The account could not be removed from RM. Refresh the account list to check whether it is still saved before retrying.");
     } finally {
       setMutationLoading(false);
     }
@@ -1485,7 +1504,7 @@ export function AccountsPage({
     try {
       setInventory(await fetchAccountInventory(selectedAccount.userId));
     } catch {
-      setNotice("Inventory could not be loaded for this account.");
+      setNotice("Roblox inventory could not be loaded for the selected account. Check its session and connection, then use Refresh inventory to retry.");
     } finally {
       setInventoryLoading(false);
     }
@@ -1493,26 +1512,31 @@ export function AccountsPage({
 
   async function searchConnections() {
     if (!connectionQuery.trim()) {
-      setNotice("Enter a username or user ID to search.");
+      setNotice("Enter a Roblox username or numeric user ID in Connections, then select Search Roblox.");
       return;
     }
     try {
       setIsConnectionSearchLoading(true);
       setConnectionResults(await searchConnectionUsers(connectionQuery));
     } catch {
-      setNotice("Roblox user search failed.");
+      setNotice("Roblox user search could not be completed. Check your connection and the entered username or user ID, then search again.");
     } finally {
       setIsConnectionSearchLoading(false);
     }
   }
 
   async function applyConnectionAction(targetUserId: number, action: string) {
-    if (!selectedAccount) return;
+    if (!selectedAccount || mutationLoading || connectionRequestPending.current) return;
+    connectionRequestPending.current = true;
+    setMutationLoading(true);
     try {
       await runConnectionAction(selectedAccount.userId, targetUserId, action);
-      setNotice("Connection action completed.");
+      setNotice(`Roblox accepted the ${action === "friend" ? "friend request" : action + " request"} from ${selectedAccount.label} to user ${targetUserId}. ${action === "friend" ? "The recipient must accept before appearing in the friends list." : "Check the target profile to confirm the relationship state."}`);
     } catch {
-      setNotice("The connection action could not be completed.");
+      setNotice(`The ${action} request from ${selectedAccount.label} to user ${targetUserId} could not be completed. Refresh the account session and check the target profile before retrying.`);
+    } finally {
+      connectionRequestPending.current = false;
+      setMutationLoading(false);
     }
   }
 
@@ -1521,27 +1545,51 @@ export function AccountsPage({
     action: string,
   ) {
     const ids = [...selectedIds];
-    if (!ids.length) return;
+    if (!ids.length || mutationLoading || connectionRequestPending.current) return;
+    connectionRequestPending.current = true;
     setMutationLoading(true);
     try {
       for (const userId of ids) {
         await runConnectionAction(userId, targetUserId, action);
       }
-      setNotice(`${action} completed for ${ids.length} account(s).`);
+      setNotice(`Roblox accepted ${action} requests for all ${ids.length} selected accounts targeting user ${targetUserId}. Review the target profile for the resulting relationship state.`);
     } catch {
-      setNotice(`${action} could not be completed for every account.`);
+      setNotice(`The ${action} batch targeting user ${targetUserId} stopped before all selected accounts completed. Earlier requests may have succeeded; check their profiles before retrying.`);
     } finally {
+      connectionRequestPending.current = false;
       setMutationLoading(false);
     }
   }
 
   async function joinTargetGame(targetUserId: number) {
-    if (!selectedAccount) return;
+    if (!selectedAccount || mutationLoading || connectionRequestPending.current) return;
+    connectionRequestPending.current = true;
+    setMutationLoading(true);
     try {
       await joinUserGame(selectedAccount.userId, targetUserId);
-      setNotice("Join requested.");
+      setNotice(`A join request was sent from ${selectedAccount.label} to user ${targetUserId}'s game. Check Instances for the new client; Roblox still controls server access.`);
     } catch {
-      setNotice("The target user is not currently joinable.");
+      setNotice("Roblox could not join the target user's game. The user may be offline, in a private server, or have join permissions that exclude this account.");
+    } finally {
+      connectionRequestPending.current = false;
+      setMutationLoading(false);
+    }
+  }
+
+  async function joinSelectedTargetGame(targetUserId: number) {
+    if (!selectedIds.size || mutationLoading || connectionRequestPending.current) return;
+    connectionRequestPending.current = true;
+    setMutationLoading(true);
+    try {
+      const results = await Promise.allSettled([...selectedIds].map((userId) => joinUserGame(userId, targetUserId)));
+      if (results.some((result) => result.status === "rejected")) {
+        setNotice("Not every selected account could request a join into the target user's game. Earlier requests may already have started clients; review Instances and server permissions before retrying.");
+      } else {
+        setNotice("Join requests were sent for the selected accounts. Check Instances for startup; Roblox still controls whether each account can access the target server.");
+      }
+    } finally {
+      connectionRequestPending.current = false;
+      setMutationLoading(false);
     }
   }
 
@@ -1551,9 +1599,9 @@ export function AccountsPage({
     setMutationLoading(true);
     try {
       for (const userId of ids) await browseAsAccount(userId);
-      setNotice(`Opened ${ids.length} authenticated browser(s).`);
+      setNotice(`Requested account browsers for ${ids.length} selected accounts. Each browser uses its own authenticated session; close the windows when finished.`);
     } catch {
-      setNotice("One or more authenticated browsers could not be opened.");
+      setNotice("At least one selected account browser could not be opened. Earlier browsers may already be open; check them before retrying.");
     } finally {
       setMutationLoading(false);
     }
@@ -1562,9 +1610,9 @@ export function AccountsPage({
   async function copySelectedIds() {
     try {
       await navigator.clipboard.writeText([...selectedIds].join("\n"));
-      setNotice("Account IDs copied.");
+      setNotice("The selected managed account IDs were copied to the clipboard, one ID per line. No credentials were copied.");
     } catch {
-      setNotice("Account IDs could not be copied.");
+      setNotice("The selected account IDs could not be copied. Check clipboard access and retry the copy action.");
     }
   }
 
@@ -1584,9 +1632,9 @@ export function AccountsPage({
             updates.find((item) => item.userId === account.userId) ?? account,
         ),
       );
-      setNotice("Player path updated.");
+      setNotice("The selected accounts' Roblox player paths were saved. The new choice applies to future launches.");
     } catch {
-      setNotice("The player path could not be updated for every account.");
+      setNotice("The Roblox player path could not be updated for every selected account. Earlier updates may have succeeded; review the account paths before retrying.");
     } finally {
       setMutationLoading(false);
     }
@@ -1611,9 +1659,9 @@ export function AccountsPage({
         }
       }
       setCommonInventory([...counts.values()].map(({ item }) => item));
-      setNotice(`${counts.size} common inventory item(s) found.`);
+      setNotice(`Found ${counts.size} inventory items shared by all ${selectedIds.size} selected accounts. Review the comparison results before opening or copying asset IDs.`);
     } catch {
-      setNotice("Common inventory could not be loaded.");
+      setNotice("Shared inventory items could not be compared across the selected accounts. Refresh their inventories and retry the comparison.");
     } finally {
       setCommonInventoryLoading(false);
     }
@@ -1651,7 +1699,7 @@ export function AccountsPage({
     link.download = "roblox-accounts.csv";
     link.click();
     URL.revokeObjectURL(url);
-    setNotice(`Exported ${accounts.length} account(s).`);
+    setNotice(`Exported ${accounts.length} managed accounts to roblox-accounts.csv with usernames and metadata. Authentication cookies were excluded.`);
   }
 
   async function addManagedAccount() {
@@ -1692,7 +1740,7 @@ export function AccountsPage({
       setForceAddUsername("");
       setAddError(null);
       closeAddForm();
-      notifyAccountAddition(account, "Account added without validation.");
+      notifyAccountAddition(account, "The account was added without Roblox validation. Refresh it before launching to check the saved session and any account restrictions.");
     } catch (error) {
       setNotice(
         error instanceof Error
@@ -1707,7 +1755,7 @@ export function AccountsPage({
   async function importAccounts() {
     const cookies = parseCookies(bulkCookieInput);
     if (!cookies.length) {
-      setNotice("Paste at least one Roblox security cookie.");
+      setNotice("Paste at least one valid Roblox security cookie into the import field before starting the account import.");
       return;
     }
     setMutationLoading(true);
@@ -1740,7 +1788,7 @@ export function AccountsPage({
     setMutationLoading(false);
     setBulkCookieInput("");
     setBulkFileName("");
-    setNotice(`Bulk import finished: ${added} of ${cookies.length} added.`);
+    setNotice(`Account import finished: ${added} of ${cookies.length} entries processed successfully; ${cookies.length - added} failed or were cancelled. Review the per-entry results before retrying.`, added === cookies.length ? "success" : added > 0 ? "warning" : "error");
     setBulkProgress(null);
   }
 
@@ -1758,7 +1806,7 @@ export function AccountsPage({
       if (settings.config.confirmKillAll) setKillAllConfirmation(true);
       else await confirmKillAll();
     } catch {
-      setNotice("The kill-all preference could not be checked. Try again.");
+      setNotice("RM could not read the kill-all confirmation setting, so no clients were closed. Reload Settings and try again.");
     }
   }
 
@@ -1767,9 +1815,9 @@ export function AccountsPage({
     setMutationLoading(true);
     try {
       const count = await killAllAccounts();
-      setNotice(`Closed ${count} Roblox client(s).`);
+      setNotice(`Closed ${count} Roblox clients, including any clients outside RM. Refresh Instances to confirm which processes remain.`);
     } catch {
-      setNotice("Roblox clients could not be closed.");
+      setNotice("The Roblox close request could not be completed. Refresh Instances to see which clients are still running before retrying.");
     } finally {
       setMutationLoading(false);
     }
@@ -1785,7 +1833,7 @@ export function AccountsPage({
       setBrowserLoginOverlayVisible(false);
       const account = outcome ? await finishAddition(outcome) : null;
       if (!account) {
-        setNotice("Browser login was canceled.");
+        setNotice("Browser login was cancelled before a managed account was added. Open the login window again when you are ready.");
         return;
       }
       upsertAccount(account);
@@ -1811,9 +1859,9 @@ export function AccountsPage({
     if (!selectedAccount) return;
     try {
       await browseAsAccount(selectedAccount.userId, inventory);
-      setAccountNotice("Opening authenticated Roblox browser...");
+      setAccountNotice(`An authenticated ${inventory ? "inventory" : "Roblox"} browser was requested for ${selectedAccount.label}. Each account browser uses an isolated session.`);
     } catch {
-      setAccountNotice("The authenticated Roblox browser could not be opened.");
+      setAccountNotice("The selected account's authenticated browser could not be opened. Refresh its session and retry Open browser; no new browser was confirmed.");
     }
   }
 
@@ -1840,7 +1888,7 @@ export function AccountsPage({
       <main
         className="accounts-page"
         aria-busy={loading}
-        onContextMenu={(event) => event.preventDefault()}
+        onContextMenu={(event) => { if (!isTextSelectionTarget(event.target)) event.preventDefault(); }}
       >
         <aside className="accounts-list-panel" aria-label="Managed accounts" data-walkthrough="accounts">
           <div className="accounts-list-head">
@@ -2617,7 +2665,7 @@ export function AccountsPage({
                     </div>
                     <div className="account-warning-help">
                       <div><h3>Need help?</h3><p>If you recently changed your password, you'll need to log in again. Your saved account data (name, ID, etc.) will be kept.</p></div>
-                      <button className="account-button" type="button" onClick={() => void openAccountGuide().catch(() => setNotice("The account guide could not be opened."))}><SharedIcon name="square-arrow-out-up-right" />Learn more</button>
+                      <button className="account-button" type="button" onClick={() => void openAccountGuide().catch(() => setNotice("The account recovery guide could not be opened in your browser. Check browser availability and retry Learn more."))}><SharedIcon name="square-arrow-out-up-right" />Learn more</button>
                     </div>
                   </div>
                 </section>
@@ -2664,10 +2712,13 @@ export function AccountsPage({
                     />
                   </div>
                 </div>
-                <p className="account-hint">
-                  Examples: <code>?linkCode=CODE</code>{" "}
-                  <code>?accessCode=CODE</code> <code>?userId=123456789</code>
-                </p>
+                <div className="account-hint account-data-examples" aria-label="Launch data examples">
+                  <span>Examples:</span>
+                  {launchDataExamples.map((argument) => {
+                    const present = hasDataArgument(launchData, argument.split("=", 1)[0]);
+                    return <button className="account-data-example" type="button" key={argument} disabled={present} aria-label={`Add ${argument} to Data`} data-tip={present ? "This argument is already in Data" : "Append this example to Data"} onClick={() => appendDataExample(argument)}>?{argument}</button>;
+                  })}
+                </div>
                 <div className="account-action-row">
                   <button
                     className="account-button primary"
@@ -2703,6 +2754,174 @@ export function AccountsPage({
                     onDismiss={() => dismissAccountNotice(notice.id)}
                   />
                 ))}
+              </section>
+
+              <section className="account-card connections-card">
+                <h3>Connections</h3>
+                <p>
+                  Search Roblox by username or user ID, then choose an action.
+                </p>
+                <form className="connections-row" onSubmit={(event) => { event.preventDefault(); if (!isConnectionSearchLoading) void searchConnections(); }}>
+                  <input
+                    value={connectionQuery}
+                    onChange={(event) => setConnectionQuery(event.target.value)}
+                    placeholder="Username or user ID"
+                    aria-label="Username or user ID"
+                    disabled={isConnectionSearchLoading}
+                  />
+                  <button
+                    className="account-button"
+                    type="submit"
+                    disabled={isConnectionSearchLoading}
+                  >
+                    <Icon name="search" />
+                    {isConnectionSearchLoading ? "Searching..." : "Search Roblox"}
+                  </button>
+                </form>
+                {isConnectionSearchLoading && <LoadingSkeleton layout="results" label="Searching Roblox users" count={3} />}
+                {!isConnectionSearchLoading && connectionResults.length > 0 && (
+                  <div className="connection-results">
+                    {connectionResults.map((result) => (
+                      <div className="connection-result" key={result.userId}>
+                        <span className="connection-avatar">
+                          {result.avatarUrl ? (
+                            <img src={result.avatarUrl} alt="" />
+                          ) : (
+                            result.username.slice(0, 1).toUpperCase()
+                          )}
+                        </span>
+                        <div className="connection-identity">
+                          <strong>{result.displayName}</strong>
+                          <span>@{result.username}</span>
+                          <span>ID: {result.userId}</span>
+                        </div>
+                        <div className="connection-actions">
+                          <button
+                            className="account-button"
+                            disabled={mutationLoading}
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(
+                                result.userId,
+                                "follow",
+                              )
+                            }
+                          >
+                            Follow
+                          </button>
+                          <button
+                            className="account-button"
+                            disabled={mutationLoading}
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(
+                                result.userId,
+                                "friend",
+                              )
+                            }
+                          >
+                            Friend
+                          </button>
+                          <button
+                            className="account-button"
+                            disabled={mutationLoading}
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(result.userId, "block")
+                            }
+                          >
+                            Block
+                          </button>
+                          <button
+                            className="account-button"
+                            disabled={mutationLoading}
+                            type="button"
+                            onClick={() =>
+                              void applyConnectionAction(
+                                result.userId,
+                                "unfollow",
+                              )
+                            }
+                          >
+                            Unfollow
+                          </button>
+                          <button
+                            className="account-button"
+                            disabled={mutationLoading}
+                            type="button"
+                            onClick={() => void joinTargetGame(result.userId)}
+                          >
+                            Join game
+                          </button>
+                          {selectedIds.size > 1 && (
+                            <>
+                              <button
+                                className="account-button"
+                                disabled={mutationLoading}
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "friend",
+                                  )
+                                }
+                              >
+                                Friend selected
+                              </button>
+                              <button
+                                className="account-button"
+                                disabled={mutationLoading}
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "follow",
+                                  )
+                                }
+                              >
+                                Follow selected
+                              </button>
+                              <button
+                                className="account-button"
+                                disabled={mutationLoading}
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "unfollow",
+                                  )
+                                }
+                              >
+                                Unfollow selected
+                              </button>
+                              <button
+                                className="account-button"
+                                disabled={mutationLoading}
+                                type="button"
+                                onClick={() =>
+                                  void applyBulkConnectionAction(
+                                    result.userId,
+                                    "block",
+                                  )
+                                }
+                              >
+                                Block selected
+                              </button>
+                              <button
+                                className="account-button"
+                                disabled={mutationLoading}
+                                type="button"
+                                onClick={() => void joinSelectedTargetGame(result.userId)}
+                              >
+                                Join selected
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
 
               <section className="account-card">
@@ -2819,167 +3038,7 @@ export function AccountsPage({
                 </div>
               </section>
 
-              <section className="account-card connections-card">
-                <h3>Connections</h3>
-                <p>
-                  Search a managed username or user ID, then choose an action.
-                </p>
-                <div className="connections-row">
-                  <input
-                    value={connectionQuery}
-                    onChange={(event) => setConnectionQuery(event.target.value)}
-                    placeholder="Username or user ID"
-                  />
-                  <button
-                    className="account-button"
-                    type="button"
-                    onClick={() => void searchConnections()}
-                    disabled={isConnectionSearchLoading}
-                  >
-                    <Icon name="search" />
-                    Search Roblox
-                  </button>
-                </div>
-                {isConnectionSearchLoading && <LoadingSkeleton layout="results" label="Searching Roblox users" count={3} />}
-                {!isConnectionSearchLoading && connectionResults.length > 0 && (
-                  <div className="connection-results">
-                    {connectionResults.map((result) => (
-                      <div className="connection-result" key={result.userId}>
-                        <span className="connection-avatar">
-                          {result.avatarUrl ? (
-                            <img src={result.avatarUrl} alt="" />
-                          ) : (
-                            result.username.slice(0, 1).toUpperCase()
-                          )}
-                        </span>
-                        <div className="connection-identity">
-                          <strong>{result.displayName}</strong>
-                          <span>@{result.username}</span>
-                          <span>ID: {result.userId}</span>
-                        </div>
-                        <div className="connection-actions">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void applyConnectionAction(
-                                result.userId,
-                                "follow",
-                              )
-                            }
-                          >
-                            Follow
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void applyConnectionAction(
-                                result.userId,
-                                "friend",
-                              )
-                            }
-                          >
-                            Friend
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void applyConnectionAction(result.userId, "block")
-                            }
-                          >
-                            Block
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void applyConnectionAction(
-                                result.userId,
-                                "unfollow",
-                              )
-                            }
-                          >
-                            Unfollow
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void joinTargetGame(result.userId)}
-                          >
-                            Join game
-                          </button>
-                          {selectedIds.size > 1 && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "friend",
-                                  )
-                                }
-                              >
-                                Friend selected
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "follow",
-                                  )
-                                }
-                              >
-                                Follow selected
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "unfollow",
-                                  )
-                                }
-                              >
-                                Unfollow selected
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "block",
-                                  )
-                                }
-                              >
-                                Block selected
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void Promise.all(
-                                    [...selectedIds].map((userId) =>
-                                      joinUserGame(userId, result.userId),
-                                    ),
-                                  ).then(
-                                    () =>
-                                      setNotice(
-                                        "Join requested for selected accounts.",
-                                      ),
-                                    () =>
-                                      setNotice(
-                                        "The target user could not be joined by every account.",
-                                      ),
-                                  )
-                                }
-                              >
-                                Join selected
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
+
             </>
           )}
         </section>

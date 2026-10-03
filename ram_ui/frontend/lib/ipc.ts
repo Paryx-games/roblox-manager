@@ -204,6 +204,31 @@ export interface MonitorGeometry {
   work_h: number;
 }
 
+export interface PageVisibility {
+  accounts: boolean;
+  instances: boolean;
+  groups: boolean;
+  privateServers: boolean;
+  presets: boolean;
+  inventories: boolean;
+  assetManager: boolean;
+}
+
+export const defaultPageVisibility: PageVisibility = {
+  accounts: true, instances: true, groups: true, privateServers: true,
+  presets: true, inventories: false, assetManager: false,
+};
+
+export const workspacePages = [
+  { key: "accounts", label: "Accounts" },
+  { key: "instances", label: "Instances" },
+  { key: "groups", label: "Groups" },
+  { key: "privateServers", label: "Private Servers" },
+  { key: "presets", label: "Presets" },
+  { key: "inventories", label: "Inventories" },
+  { key: "assetManager", label: "Asset Manager" },
+] as const;
+
 export interface SettingsConfig {
   useCredentialManager: boolean;
   startupWithWindows: boolean;
@@ -235,6 +260,7 @@ export interface SettingsConfig {
   renameRobloxWindows: boolean;
   anonymizeNames: boolean;
   developerOptions: boolean;
+  pageVisibility: PageVisibility;
   utilityEnabled: boolean;
   logLevel: LogLevel;
 }
@@ -742,6 +768,22 @@ export interface InstanceSummary {
 export interface InstanceWorkspace {
   instances: InstanceSummary[];
   runningCount: number;
+}
+
+export interface ClientLaunchSettings {
+  enabled: boolean;
+  fps: number;
+  graphics: number;
+  fullscreen: boolean;
+  muted: boolean;
+}
+
+export function getClientLaunchSettings(): Promise<ClientLaunchSettings> {
+  return invoke<ClientLaunchSettings>("get_client_launch_settings");
+}
+
+export function saveClientLaunchSettings(settings: ClientLaunchSettings): Promise<ClientLaunchSettings> {
+  return invoke<ClientLaunchSettings>("save_client_launch_settings", { settings });
 }
 
 export interface LaunchProgress {

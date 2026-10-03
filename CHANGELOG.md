@@ -1,5 +1,49 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Settings offers individual saved visibility toggles for each workspace. Inventories and Asset Manager default off; other workspaces default on. Settings stays accessible to restore hidden pages.
+
+### Changed
+
+- Notifications and inline operation feedback across all workspaces now name the operation, include relevant account, item or batch context, and explain recovery steps or when a request still needs Roblox to complete it. Longer toasts stay visible for more reading time and still pause on hover or keyboard focus.
+
+- Accounts places Connections below the main launch controls, with a labelled search field, clear user identity cards and grouped actions in the existing theme.
+
+- Accounts launch-data examples are clickable, append query arguments without replacing existing values, and become grey with a strikethrough when their argument is already present.
+- Right-click uses RM's custom menus where available and no longer opens the default browser menu elsewhere in the main interface.
+
+### Fixed
+
+- Group membership results stay visible during refresh, including partial failures; switching groups still clears prior feedback.
+
+- Text fields retain the standard editing context menu for Copy/Paste while page backgrounds continue to suppress the browser menu.
+
+- Live-update failure notifications distinguish reloading data with Refresh from retrying subscriptions by restarting RM.
+
+- Connections marks individual and batch actions as pending, preventing duplicate or conflicting requests until the active request finishes.
+
+- Instances centres its empty-state icon, heading and description inside a dashed outline, matching the shared Presets empty-state style.
+- Instances applies hover, pressed and selected backgrounds to the whole client row, preventing a split strip above its actions.
+- Inventories keeps tile and list-row backgrounds uniform while hovering, pressing or selecting, without a separate thumbnail or caption overlay.
+
+## v2.1.0
+
+### Added
+
+- **Client launch controls.** Save shared FPS limit, manual graphics quality, fullscreen and audio mute overrides from Instances. Enable Apply on launch to apply them before every RM launch; existing clients are unchanged. Disabling overrides stops RM reapplying them and leaves Roblox's last saved settings intact.
+- Roblox settings updates preserve unrelated XML properties and use atomic writes with a backup. Missing, invalid or unsupported settings stop an overridden launch with a visible error.
+
+### Changed
+
+- **Instances.** Adds selectable running-client rows beside a controls panel, preserves focus, join, arrange and kill actions, and stacks the panels on narrower layouts. The join-account picker and helper text are stacked, kill buttons use red action styling, and controls share workspace scrolling.
+
+### Notes
+
+- Launch controls use the standard Windows Roblox GlobalBasicSettings_13.xml file. Start Roblox once before enabling overrides. These are shared launch defaults, not live per-instance settings.
+
 ## v2.0.0
 
 ### Added

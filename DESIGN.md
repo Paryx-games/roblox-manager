@@ -34,7 +34,8 @@ The title bar shows running/pending counts, the version, an available-update
 action, and custom window controls. The navigation rail uses 44px buttons,
 local icons, tooltips, and a blue active indicator. Accounts, Instances,
 Groups, Private Servers, and Presets are the regular workspaces. Inventories
-and Asset Manager appear when developer options are enabled; Settings sits
+and Asset Manager default to hidden. Settings offers saved visibility toggles
+for individual workspaces; Settings remains accessible and sits
 below the rail spacer.
 
 `--titlebar-height` still declares 40px but does not size the current title
@@ -49,7 +50,9 @@ Keep the compact desktop layout and each page's existing composition:
 
 - Accounts combines a compact header, account selection and actions, and
   account details and recovery flows.
-- Instances presents running clients in a table with attribution and process actions.
+- Instances shows selectable client rows with attribution and process actions
+  beside a client controls panel. The panel stacks below the list on narrower layouts;
+  controls are saved shared launch defaults with an explicit notice that running clients are unchanged.
 - Groups uses account/group selection and detail sections for group content.
 - Private Servers and Presets use their existing lists, filters, and editing flows.
 - Inventories uses a 220px account sidebar, a grid/list workspace, and a
@@ -78,7 +81,7 @@ changes.
 | --- | --- |
 | Surfaces | `--bg-canvas`, `--bg-surface`, `--bg-raised` |
 | Text | `--text-primary`, `--text-muted`, `--text-disabled` |
-| Borders and actions | `--border-default`, `--action-primary`, `--action-muted` |
+| Borders and actions | `--border-default`, `--action-primary`, `--action-danger`, `--action-muted` |
 | Live status | `--status-online`, `--status-warning`, `--status-danger`, `--status-neutral` |
 | Other semantic states | `--notification-*`, `--access-*`, `--ownership-*` |
 | Guided tour | `--walkthrough-outline`, `--walkthrough-dim`, `--walkthrough-dock` |
@@ -97,6 +100,7 @@ Use the three neutral surface levels for depth, with no box shadows. Blue
 `--action-primary` identifies actions, selection, and keyboard focus.
 Reserve live-status colors for account, instance, and process state; use
 notification, access, and ownership tokens for their separate meanings.
+Destructive action buttons use `--action-danger`, with a subdued disabled state.
 Do not rely on color alone: retain text, icons, or accessible labels.
 
 The current stylesheet has legacy exceptions: close-window hover and some
@@ -182,8 +186,9 @@ provides shared `data-tip` tooltips. Tooltips supplement accessible names.
 
 Loading skeletons use page-specific layouts with a status announcement and
 `aria-busy`. Toasts distinguish info, success, warning, and error; errors
-use `role="alert"`, other kinds use `role="status"`. Their current visible
-durations are 3, 5, or 8 seconds, with a dismiss action and exit animation.
+use `role="alert"`, other kinds use `role="status"`. Their minimum visible
+durations are 3, 5, or 8 seconds; longer messages receive reading time up to
+20 seconds, with a dismiss action and exit animation.
 The countdown pauses while a notification is hovered or contains keyboard focus.
 Keep persistent failures visible in the affected flow when a transient
 notification would not be enough.

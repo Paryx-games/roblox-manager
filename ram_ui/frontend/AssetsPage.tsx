@@ -189,25 +189,25 @@ export function AssetsPage({
     setSelectedRows((current) => { const next = new Set(current); if (next.has(rowId)) next.delete(rowId); else next.add(rowId); return next; });
   }
 
-  async function runAssetAction(operation: () => Promise<void>) {
+  async function runAssetAction(context: string, operation: () => Promise<void>) {
     if (mutationPending.current) return;
     mutationPending.current = true; setIsMutating(true);
     try { await operation(); }
-    catch (error) { notify("Asset action could not be completed", operationError(error, "Refresh and try again.")); }
+    catch (error) { notify(`${context} failed`, `${context} could not be completed. ${operationError(error, "Refresh Asset Manager to check the queue and account state before retrying.")}`); }
     finally { mutationPending.current = false; if (isMounted.current) setIsMutating(false); }
   }
 
   async function saveQueueEdit() {
     if (!queueEdit || !selectedUserId) return;
     const edit = queueEdit;
-    await runAssetAction(async () => {
+    await runAssetAction("Save queued asset details", async () => {
       const result = await updateAssetRow(selectedUserId, { rowId: edit.rowId, name: edit.name, kind: edit.kind, creator: resolveCreator(edit.creatorId) });
       if (isMounted.current) { setWorkspace(result); setQueueEdit(null); }
     });
   }
 
   async function copyText(text: string) {
-    await runAssetAction(async () => { await navigator.clipboard.writeText(text); notify("Copied", text, "success"); });
+    await runAssetAction("Copy asset information", async () => { await navigator.clipboard.writeText(text); notify("Asset information copied", `The selected asset value was copied to the clipboard: ${text}. Paste it into the destination application.`, "success"); });
   }
 
   useEffect(() => {
@@ -378,7 +378,7 @@ export function AssetsPage({
     } catch {
       notify(
         "Queue could not be updated",
-        "Refresh the workspace and try again.",
+        "The asset queue update failed. Refresh Asset Manager to check which rows remain before retrying the queue action.",
       );
     } finally {
       mutationPending.current = false;
@@ -402,7 +402,7 @@ export function AssetsPage({
     } catch {
       notify(
         "Upload could not be started",
-        "Check the account session and queued files, then try again.",
+        "Roblox could not start the requested asset upload. Refresh the uploading account and review queued file types and creator permissions before retrying.",
       );
     } finally {
       mutationPending.current = false;
@@ -413,11 +413,11 @@ export function AssetsPage({
   async function copyAssetId(assetId: number) {
     try {
       await navigator.clipboard.writeText(String(assetId));
-      notify("Asset ID copied", String(assetId), "success");
+      notify("Asset ID copied", `Asset ID ${assetId} was copied to the clipboard. Paste this identifier into Roblox Studio or another asset tool.`, "success");
     } catch {
       notify(
         "Asset ID could not be copied",
-        "Allow clipboard access and try again.",
+        "The asset identifier could not be copied. Check clipboard access and retry Copy asset ID.",
       );
     }
   }
@@ -461,10 +461,10 @@ export function AssetsPage({
   const selectableRows = tab === "creations" ? visibleCreationRows.map((row) => `creation-${row.assetId}`) : rows.filter((row) => tab === "library" || row.state === "queued").map((row) => row.rowId);
   async function grantAccess() {
     if (!selectedUserId) return;
-    await runAssetAction(async () => {
+    await runAssetAction("Grant experience access", async () => {
       const result = await grantAssetAccess(selectedUserId, Number(manualUniverseId || universeId), selectedAssetIds);
       if (result.notice) { notify("Permissions checked; local update failed", result.notice, "warning"); return; }
-      notify("Experience access checked", `${result.granted.length} of ${selectedAssetIds.length} assets confirmed. ${result.failures.length ? `Roblox refused ${result.failures.length} permission requests.` : result.granted.length < selectedAssetIds.length ? "Some permissions were not confirmed. Check Creator Dashboard." : ""}`, result.granted.length === selectedAssetIds.length ? "success" : "warning");
+      notify("Experience access checked", `${result.granted.length} of ${selectedAssetIds.length} selected assets have confirmed access for experience ${Number(manualUniverseId || universeId)}. ${result.failures.length ? `Roblox refused ${result.failures.length} permission requests.` : result.granted.length < selectedAssetIds.length ? "Some permissions were not confirmed. Check Creator Dashboard." : ""}`, result.granted.length === selectedAssetIds.length ? "success" : "warning");
     });
   }
   const hasFinishedRows = ownedRows.some(
@@ -805,7 +805,7 @@ export function AssetsPage({
                         <Icon name="copy" />
                       </button>
                     )}
-                    <div className="assets-row-actions"><button className="account-button" type="button" disabled={isMutating} onClick={() => void runAssetAction(() => revealAssetFile(row.rowId))}>Reveal file</button><button className="account-button" type="button" disabled={isMutating || row.assetId === null} onClick={() => void copyText(`https://www.roblox.com/library/${row.assetId}`)}>Copy link</button><button className="account-button" type="button" disabled={isMutating} onClick={() => void copyText(row.displayName)}>Copy name</button></div>
+                    <div className="assets-row-actions"><button className="account-button" type="button" disabled={isMutating} onClick={() => void runAssetAction("Open asset file location", () => revealAssetFile(row.rowId))}>Reveal file</button><button className="account-button" type="button" disabled={isMutating || row.assetId === null} onClick={() => void copyText(`https://www.roblox.com/library/${row.assetId}`)}>Copy link</button><button className="account-button" type="button" disabled={isMutating} onClick={() => void copyText(row.displayName)}>Copy name</button></div>
                   </article>
                 ))}
               </div>
@@ -873,7 +873,7 @@ export function AssetsPage({
                       <td>
                         <div className="assets-row-actions">
                           {(row.state === "queued" || row.state === "duplicate") && <button className="account-button" type="button" disabled={isMutating || workspace.isUploading} onClick={() => setQueueEdit({ rowId: row.rowId, name: row.displayName, kind: row.kind, creatorId: row.creator.kind === "group" ? String(row.creator.id) : "user" })}><Icon name="edit" />Edit</button>}
-                          <button className="account-button" type="button" disabled={isMutating} onClick={() => void runAssetAction(() => revealAssetFile(row.rowId))}><Icon name="folder" />Reveal file</button>
+                          <button className="account-button" type="button" disabled={isMutating} onClick={() => void runAssetAction("Open asset file location", () => revealAssetFile(row.rowId))}><Icon name="folder" />Reveal file</button>
                           <button className="account-button" type="button" disabled={isMutating} onClick={() => void copyText(row.displayName)}>Copy name</button>
                           {row.assetId !== null && <button className="account-button" type="button" disabled={isMutating} onClick={() => void copyText(`https://www.roblox.com/library/${row.assetId}`)}>Copy link</button>}
                           {row.canRetry && (

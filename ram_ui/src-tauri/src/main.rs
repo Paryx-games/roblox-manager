@@ -10,10 +10,12 @@ mod accounts;
 mod asset_manager;
 mod background;
 mod benchmark;
+mod client_settings;
 mod instances;
 mod launcher;
 mod lifecycle;
 mod login;
+mod page_visibility;
 mod state;
 mod webview_recovery;
 
@@ -283,6 +285,8 @@ struct SettingsUpdate {
     rename_roblox_windows: bool,
     anonymize_names: bool,
     developer_options: bool,
+    #[serde(default)]
+    page_visibility: page_visibility::PageVisibility,
     utility_enabled: bool,
     log_level: LogLevel,
 }
@@ -320,6 +324,8 @@ struct SettingsConfig {
     rename_roblox_windows: bool,
     anonymize_names: bool,
     developer_options: bool,
+    #[serde(default)]
+    page_visibility: page_visibility::PageVisibility,
     utility_enabled: bool,
     log_level: LogLevel,
 }
@@ -360,6 +366,7 @@ impl SettingsConfig {
             rename_roblox_windows: config.rename_roblox_windows,
             anonymize_names: config.anonymize_names,
             developer_options: config.developer_options,
+            page_visibility: page_visibility::PageVisibility::default(),
             utility_enabled: config.utility_enabled,
             log_level: config.log_level,
         }
@@ -1329,8 +1336,10 @@ async fn get_settings(state: tauri::State<'_, AppState>) -> Result<SettingsSnaps
         let has_discord_webhook = crypto::discord_webhook()
             .map_err(|error| error.to_string())?
             .is_some();
+        let mut settings_config = SettingsConfig::from_config(&runtime.config);
+        settings_config.page_visibility = page_visibility::load(&runtime.config_path);
         Ok(SettingsSnapshot {
-            config: SettingsConfig::from_config(&runtime.config),
+            config: settings_config,
             app_version: env!("CARGO_PKG_VERSION"),
             system_architecture: std::env::consts::ARCH,
             monitors: process::enumerate_monitors(),
@@ -1357,12 +1366,13 @@ async fn save_settings(
             .lock()
             .map_err(|_| "Application state unavailable".to_string())?;
         let mut candidate = runtime.config.clone();
+        let pages = settings.page_visibility.clone();
         settings.apply_to_config(&mut candidate)?;
-        candidate
-            .save(&runtime.config_path)
-            .map_err(|error| error.to_string())?;
+        page_visibility::save_settings(&runtime.config_path, &candidate, &pages)?;
         runtime.config = candidate;
-        Ok::<SettingsConfig, String>(SettingsConfig::from_config(&runtime.config))
+        let mut config = SettingsConfig::from_config(&runtime.config);
+        config.page_visibility = pages;
+        Ok::<SettingsConfig, String>(config)
     })
     .await
     .map_err(|_| "Settings save task failed".to_string())??;
@@ -2996,6 +3006,8 @@ fn main() {
             asset_manager::grant_asset_access,
             asset_manager::reveal_asset_file,
             instances::list_instances,
+            client_settings::get_client_launch_settings,
+            client_settings::save_client_launch_settings,
             instances::focus_instance,
             instances::kill_instance,
             accounts::confirm_account_addition,

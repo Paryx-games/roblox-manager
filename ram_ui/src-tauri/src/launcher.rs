@@ -130,6 +130,7 @@ async fn launch_queued(
     let tracking_state = state.clone();
     let place_id = request.place_id;
     let token = tauri::async_runtime::spawn_blocking(move || {
+        crate::client_settings::apply_before_launch(&tracking_state)?;
         instances::note_launch(&tracking_state, user_id, place_id)
     })
     .await

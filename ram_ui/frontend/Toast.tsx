@@ -19,6 +19,15 @@ const DURATION_MS: Record<ToastDuration, number> = {
   long: 8000,
 };
 
+export function notificationReadingTime(text: string, minimum: number) {
+  const wordCount = text.trim().split(/\s+/).length;
+  return Math.max(minimum, Math.min(20000, 1500 + wordCount * 220));
+}
+
+function notificationDuration(item: ToastItem) {
+  return notificationReadingTime(`${item.title} ${item.message}`, DURATION_MS[item.duration]);
+}
+
 function kindIcon(kind: ToastKind) {
   const icons: Record<ToastKind, string> = {
     success: "check",
@@ -51,13 +60,13 @@ export function Toast({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const paused = hovered || focused;
-  const remainingRef = useRef({ id: item.id, duration: DURATION_MS[item.duration] });
+  const remainingRef = useRef({ id: item.id, duration: notificationDuration(item) });
   const dismissRef = useRef(onDismiss);
   dismissRef.current = onDismiss;
 
   useEffect(() => {
     setExiting(false);
-    if (remainingRef.current.id !== item.id) remainingRef.current = { id: item.id, duration: DURATION_MS[item.duration] };
+    if (remainingRef.current.id !== item.id) remainingRef.current = { id: item.id, duration: notificationDuration(item) };
     if (paused) return;
     const started = performance.now();
     const duration = remainingRef.current.duration;

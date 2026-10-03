@@ -55,6 +55,9 @@ fn response(command: &str) -> Result<Value, &'static str> {
         }]),
         "list_account_group_colors" => json!({"Demo accounts": [107, 112, 128]}),
         "list_instances" => json!({"instances": [], "runningCount": 0}),
+        "get_client_launch_settings" => {
+            json!(crate::client_settings::ClientLaunchSettings::default())
+        }
         "list_private_servers" => json!([{
             "index": 0, "name": "Demo hangout", "placeId": 123456789,
             "placeName": "Example experience", "iconUrl": "", "url": "https://example.invalid/demo"

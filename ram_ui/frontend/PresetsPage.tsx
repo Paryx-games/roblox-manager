@@ -112,7 +112,7 @@ export function PresetsPage({
       setPresets(await listLaunchPresets());
       setError(null);
     } catch {
-      setError("Presets could not be loaded.");
+      setError("Saved launch presets could not be loaded. Reopen this workspace to retry; no saved presets were changed.");
     } finally {
       setLoading(false);
     }
@@ -199,7 +199,7 @@ export function PresetsPage({
       await reload();
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "The preset could not be saved.",
+        reason instanceof Error ? reason.message : "The launch preset could not be saved. Check its name and positive numeric Place ID, then retry.",
       );
     } finally {
       setSaving(false);
@@ -217,7 +217,7 @@ export function PresetsPage({
       setError(
         reason instanceof Error
           ? reason.message
-          : "The preset could not be launched.",
+          : "The preset launch request could not be completed for all chosen accounts. Check their sessions and the destination; earlier clients may already have launched.",
       );
     } finally {
       setLaunchingIndex(null);
@@ -233,7 +233,7 @@ export function PresetsPage({
       setDeleteTarget(null);
       await reload();
     } catch {
-      setError("The preset could not be removed.");
+      setError("The saved preset could not be removed. Refresh the preset list before trying to delete it again.");
     } finally {
       setDeleting(false);
     }
@@ -270,7 +270,7 @@ export function PresetsPage({
       setError(
         reason instanceof Error
           ? reason.message
-          : "The preset could not be updated.",
+          : "The preset edits could not be saved. Check the name and Place ID; your draft is still available in the editor.",
       );
     } finally {
       setEditSaving(false);
@@ -285,7 +285,7 @@ export function PresetsPage({
         setCopiedValue((current) => (current === value ? null : current));
       }, 1400);
     } catch {
-      setError("Clipboard access is unavailable.");
+      setError("The preset value could not be copied to the clipboard. Check clipboard access and retry the copy button.");
     }
   }
 

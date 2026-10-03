@@ -8,7 +8,7 @@ import { Walkthrough, walkthroughSteps } from "./components/Walkthrough";
 import { WalkthroughAccounts, type DemoAccountName } from "./components/WalkthroughAccounts";
 import { ConfirmModal } from "./ConfirmModal";
 import { benchmarkReady, acknowledgeStartup, checkReleaseUpdate, clearPassword, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
-import { listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
+import { defaultPageVisibility, workspacePages, listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
 import { GroupsPage } from "./GroupsPage";
@@ -195,9 +195,11 @@ export function App() {
     ]).then((results) => results.forEach((result) => { if (result.status === "fulfilled") { if (isActive) stops.push(result.value); else result.value(); } }));
     return () => { isActive = false; stops.forEach((stop) => stop()); };
   }, []);
-  const visibleNavItems = navItems.filter((item) =>
-    item.page === "Asset Manager" || item.page === "Inventories" ? settings?.developerOptions : true,
-  );
+  const visibility = { ...defaultPageVisibility, ...settings?.pageVisibility };
+  const visibleNavItems = navItems.filter((item) => {
+    const page = workspacePages.find((page) => page.label === item.page);
+    return isTourVisible || !page || visibility[page.key];
+  });
 
   async function clearCache() {
     if (isClearingCache) return;
@@ -205,10 +207,10 @@ export function App() {
     try {
       const clearedCount = await clearApplicationCaches();
       setRuntimeToast(clearedCount > 0
-        ? { id: Date.now(), title: "Cache cleared", message: `${clearedCount} cached items cleared.`, kind: "success", duration: "standard" }
-        : { id: Date.now(), title: "No cache to clear", message: "There is no cached application data to clear.", kind: "info", duration: "standard" });
+        ? { id: Date.now(), title: "Cache cleared", message: `${clearedCount} application cache entries were removed. RM can fetch this information again when the related workspace is opened.`, kind: "success", duration: "standard" }
+        : { id: Date.now(), title: "No cache to clear", message: "RM found no application cache entries to remove. Your accounts, presets and settings were not changed.", kind: "info", duration: "standard" });
     } catch (error) {
-      setRuntimeToast({ id: Date.now(), title: "Cache could not be cleared", message: operationError(error, "Try again from Settings."), kind: "error", duration: "long" });
+      setRuntimeToast({ id: Date.now(), title: "Cache could not be cleared", message: operationError(error, "Application cache cleanup could not be completed. Open Settings and retry Clear Cache after checking access to the RM data folder."), kind: "error", duration: "long" });
     } finally { setIsClearingCache(false); }
   }
 
@@ -263,7 +265,7 @@ export function App() {
           if (isActive) stops.push(result.value);
           else result.value();
         } else if (isActive) {
-          setRuntimeToast({ id: Date.now(), title: "Live updates unavailable", message: "Use Refresh in Accounts or Instances to reconnect.", kind: "error", duration: "long" });
+          setRuntimeToast({ id: Date.now(), title: "Live updates unavailable", message: "RM could not connect to live account, client or launch updates. Use Refresh in Accounts or Instances to reload the latest state. Restart RM to retry the live-update connection.", kind: "error", duration: "long" });
         }
       }
       if (!isActive) return;
@@ -294,17 +296,28 @@ export function App() {
   }, [isInstancesLoading, settings, startup]);
 
   useEffect(() => {
-    if (settings && !settings.developerOptions && (activeNav === "Asset Manager" || activeNav === "Inventories")) setActiveNav("Accounts");
-  }, [settings, activeNav]);
+    if (!settings || isTourVisible || activeNav === "Settings") return;
+    const visibility = { ...defaultPageVisibility, ...settings.pageVisibility };
+    const active = workspacePages.find((page) => page.label === activeNav);
+    if (active && !visibility[active.key]) {
+      setActiveNav(workspacePages.find((page) => visibility[page.key])?.label ?? "Settings");
+    }
+  }, [settings, activeNav, isTourVisible]);
 
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (isSelectAllShortcut(event) && !isTextSelectionTarget(event.target)) event.preventDefault();
     }
+    function onContextMenu(event: Event) {
+      if (isTextSelectionTarget(event.target)) return;
+      event.preventDefault();
+    }
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("contextmenu", onContextMenu, true);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("contextmenu", onContextMenu, true);
     };
   }, []);
 

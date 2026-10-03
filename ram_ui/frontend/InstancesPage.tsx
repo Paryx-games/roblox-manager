@@ -1,12 +1,18 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AccountPicker } from "./components/AccountPicker";
+import { InstanceIdentity, InstanceRow, instanceKey } from "./components/InstanceRow";
+import { RangeField, SettingRow, ToggleField } from "./components/SettingRow";
+import Select from "./components/Select";
 import { Icon } from "./components/Icon";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { ConfirmModal } from "./ConfirmModal";
 import { Toast, type ToastItem } from "./Toast";
-import { arrangeAccountWindows, focusInstance, getSettings, joinUserGame, killAllAccounts, killInstance, operationError, type AccountSummary, type InstanceSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
+import { arrangeAccountWindows, focusInstance, getSettings, getClientLaunchSettings, saveClientLaunchSettings, joinUserGame, killAllAccounts, killInstance, operationError, type AccountSummary, type ClientLaunchSettings, type InstanceSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 
 const phaseLabels = { waiting: "Waiting for launch slot", authenticating: "Authenticating", launching: "Starting Roblox", requested: "Launch requested", failed: "Launch failed" };
+
+const defaultSettings: ClientLaunchSettings = { enabled: false, fps: 60, graphics: 5, fullscreen: false, muted: false };
+const fpsOptions = ["30", "60", "120", "144", "240"].map((value) => ({ value, label: `${value} FPS` }));
 
 export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsChange, launches, isLoading, error, onRefresh }: {
   workspace: InstanceWorkspace;
@@ -22,18 +28,67 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [closeTarget, setCloseTarget] = useState<InstanceSummary | "all" | null>(null);
   const [toast, setToast] = useState<ToastItem | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [draft, setDraft] = useState<ClientLaunchSettings>(defaultSettings);
+  const [savedSettings, setSavedSettings] = useState<ClientLaunchSettings>(defaultSettings);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsRevision, setSettingsRevision] = useState(0);
   const actionPending = useRef(false);
   const launchAccounts = accounts.filter((account) => account.canLaunch && !account.cookieExpired);
+  const selectedInstance = workspace.instances.find((instance) => instanceKey(instance) === selectedKey);
+  const controlsDisabled = settingsLoading || settingsError !== null || pendingAction !== null;
+  const hasSettingsChanges = JSON.stringify(draft) !== JSON.stringify(savedSettings);
 
-  async function runAction(action: string, operation: () => Promise<unknown>, success?: string) {
+  useEffect(() => {
+    let cancelled = false;
+    setSettingsLoading(true);
+    setSettingsError(null);
+    void getClientLaunchSettings().then((settings) => {
+      if (cancelled) return;
+      setDraft(settings);
+      setSavedSettings(settings);
+    }).catch((failure) => {
+      if (!cancelled) setSettingsError(operationError(failure, "Client launch settings could not be loaded."));
+    }).finally(() => { if (!cancelled) setSettingsLoading(false); });
+    return () => { cancelled = true; };
+  }, [settingsRevision]);
+
+  useEffect(() => {
+    if (isLoading || error) return;
+    const liveKeys = new Set(workspace.instances.map(instanceKey));
+    setSelectedKey((current) => current && liveKeys.has(current) ? current : null);
+  }, [workspace.instances, isLoading, error]);
+
+  function updateSettings(update: Partial<ClientLaunchSettings>) {
+    if (controlsDisabled) return;
+    setDraft((current) => ({ ...current, ...update }));
+  }
+
+  async function saveControls() {
+    await runAction("save-controls", async () => {
+      const saved = await saveClientLaunchSettings(draft);
+      setDraft(saved);
+      setSavedSettings(saved);
+    }, draft.enabled ? "Settings saved for future Roblox launches" : "Launch overrides disabled", draft.enabled ? `${draft.fps} FPS, graphics quality ${draft.graphics}, fullscreen ${draft.fullscreen ? "on" : "off"} and audio mute ${draft.muted ? "on" : "off"} were saved as shared defaults. Existing clients are unchanged.` : "RM will stop reapplying shared overrides before launch. Roblox keeps its last saved settings; existing clients are unchanged.");
+  }
+
+  async function resetControls() {
+    await runAction("reset-controls", async () => {
+      await saveClientLaunchSettings(defaultSettings);
+      setSettingsRevision((current) => current + 1);
+    }, "Launch overrides reset", "Saved shared launch overrides were reset and disabled. Roblox retains its last saved settings; running clients were not changed.");
+  }
+
+  async function runAction(action: string, operation: () => Promise<unknown>, success?: string, detail?: string) {
     if (actionPending.current) return;
     actionPending.current = true;
     setPendingAction(action);
     try {
       await operation();
-      if (success) setToast({ id: Date.now(), title: success, message: "", kind: "success", duration: "standard" });
+      if (success) setToast({ id: Date.now(), title: success, message: detail ?? "The selected instance request finished. Refresh the client list to check the latest process state.", kind: "success", duration: "standard" });
     } catch (error) {
-      setToast({ id: Date.now(), title: "Instance action failed", message: operationError(error, "The action could not be completed. Refresh and try again."), kind: "error", duration: "long" });
+      setToast({ id: Date.now(), title: "Instance action failed", message: `The ${action.startsWith("focus-") ? "focus client" : action.startsWith("join-") ? "join server" : action === "close" ? "close client" : action === "save-controls" ? "save launch settings" : action === "reset-controls" ? "reset launch settings" : action === "check-confirmation" ? "read the close-confirmation setting" : action === "arrange" ? "arrange Roblox windows" : action} request failed. ${operationError(error, "Refresh the client list and retry.")}`, kind: "error", duration: "long" });
     } finally {
       actionPending.current = false;
       setPendingAction(null);
@@ -47,7 +102,7 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
       else {
         await killAllAccounts();
         await onRefresh();
-        setToast({ id: Date.now(), title: "Roblox clients closed", message: "", kind: "success", duration: "standard" });
+        setToast({ id: Date.now(), title: "Roblox clients closed", message: "A close request was completed for all detected Roblox clients, including clients outside RM. The running-client list was refreshed.", kind: "success", duration: "standard" });
       }
     });
   }
@@ -60,7 +115,7 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
       if (target === "all") await killAllAccounts();
       else await killInstance(target);
       await onRefresh();
-    }, target === "all" ? "Roblox clients closed" : "Instance closed");
+    }, target === "all" ? "Roblox clients closed" : "Instance closed", target === "all" ? "All detected Roblox clients were requested to close, including clients outside RM. The client list was refreshed." : `${target.label} (PID ${target.pid}) was verified and requested to close. The client list was refreshed; other clients were not targeted.`);
   }
 
   async function joinServer(target: InstanceSummary) {
@@ -69,50 +124,58 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
     const userIds = launchAccounts.filter((account) => selectedIds.has(account.userId) && account.userId !== targetUserId).map((account) => account.userId);
     await runAction(`join-${target.pid}`, async () => {
       for (const userId of userIds) await joinUserGame(userId, targetUserId);
-    }, `${userIds.length} server join${userIds.length === 1 ? "" : "s"} requested`);
+    }, `${userIds.length} server join${userIds.length === 1 ? "" : "s"} requested`, `Join requests were sent for ${userIds.length} selected accounts targeting user ${targetUserId}. Check Instances for startup; Roblox still controls server access.`);
   }
 
   return <>
-    <div className="header-row"><h1 className="header-title">Instances</h1></div>
     <main className="instances-page assets-page" data-walkthrough="instances">
       <div className="assets-main">
         <div className="assets-toolbar instances-toolbar">
-          <span className="instances-count" role="status">{isLoading ? "Checking running clients..." : `${workspace.runningCount} Roblox client${workspace.runningCount === 1 ? "" : "s"} running`}</span>
+          <div className="instances-heading"><h1 className="header-title">Instances</h1><p className="instances-description">Manage and control your running Roblox clients.</p></div>
           <div className="instances-toolbar-actions">
           <button className="account-button" type="button" disabled={isLoading || pendingAction !== null} onClick={() => void onRefresh()}><Icon name="refresh" />{isLoading ? "Refreshing..." : "Refresh"}</button>
-          <button className="account-button" type="button" disabled={!workspace.runningCount || pendingAction !== null || isLoading} onClick={() => void runAction("arrange", arrangeAccountWindows, "Windows arranged")}><Icon name="grid" />{pendingAction === "arrange" ? "Arranging..." : "Arrange windows"}</button>
-          <button className="account-button" type="button" disabled={!workspace.runningCount || pendingAction !== null || isLoading} onClick={() => void requestKillAll()}><Icon name="kill" />{pendingAction === "check-confirmation" || pendingAction === "close" ? "Working..." : "Kill all Roblox"}</button>
+          <button className="account-button" type="button" disabled={!workspace.runningCount || pendingAction !== null || isLoading} onClick={() => void runAction("arrange", arrangeAccountWindows, "Windows arranged", "Window arrangement was requested using your saved monitor and grid settings. Check the running Roblox windows for their resulting layout.")}><Icon name="grid" />{pendingAction === "arrange" ? "Arranging..." : "Arrange windows"}</button>
+          <button className="account-button danger" type="button" disabled={!workspace.runningCount || pendingAction !== null || isLoading} onClick={() => void requestKillAll()}><Icon name="kill" tone="current-color" />{pendingAction === "check-confirmation" || pendingAction === "close" ? "Working..." : "Kill all Roblox"}</button>
           </div>
         </div>
-        <div className="assets-toolbar">
+        <div className="assets-toolbar instances-join-section">
+          <div className="instances-join-fields">
           <span className="instances-picker-label">Join server as</span>
           <AccountPicker accounts={launchAccounts} mode="multiple" open={isPickerOpen} onOpenChange={setIsPickerOpen} selectedIds={selectedIds} onSelectedIdsChange={onSelectedIdsChange} disabled={pendingAction !== null || !launchAccounts.length} unselectedLabel="Select accounts to join a server" />
           <span className="instances-description">{launchAccounts.length ? "Choose accounts, then use Join server on a matched client." : "Add a valid account in Accounts to join a client's server."}</span>
+          </div>
+          <span className="instances-count" role="status">{isLoading ? "Checking clients..." : error ? "Client status unavailable" : `${workspace.runningCount} client${workspace.runningCount === 1 ? "" : "s"} running`}</span>
         </div>
         {launches.length > 0 && <div className="assets-notice" role="status">{launches.map((launch) => <p key={launch.requestId}>{accounts.find((account) => account.userId === launch.userId)?.label ?? "Account"}: {phaseLabels[launch.phase]}</p>)}</div>}
-        <div className="assets-panel">
-          <table className="assets-table">
-            <caption className="instances-caption">Running clients</caption>
-            <thead><tr><th scope="col">Account</th><th scope="col">PID</th><th scope="col" className="assets-secondary-column">Place ID</th><th scope="col">Match</th><th scope="col" className="assets-secondary-column">Launched</th><th scope="col" className="instances-actions-column">Actions</th></tr></thead>
-            <tbody>
-              {isLoading ? <tr><td colSpan={6}><LoadingSkeleton layout="results" label="Loading running instances" /></td></tr> : error ? <tr><td colSpan={6}><div role="alert"><p className="selectable-text">{error}</p><button className="account-button" type="button" onClick={() => void onRefresh()}><Icon name="refresh" />Retry</button></div></td></tr> : workspace.instances.length === 0 ? <tr><td colSpan={6}>No Roblox clients running. Launch an account from Accounts, Presets or Private Servers to track it here.</td></tr> : workspace.instances.map((instance) => {
+        <div className="instances-workspace">
+          <section className="instances-list-panel settings-section" aria-labelledby="running-clients-heading" aria-busy={isLoading}>
+            <h2 id="running-clients-heading">Running clients{!isLoading && !error && ` (${workspace.instances.length})`}</h2>
+            {isLoading ? <LoadingSkeleton layout="results" label="Loading running instances" /> : error ? <div className="instances-empty" role="alert"><p className="selectable-text">{error}</p><button className="account-button" type="button" onClick={() => void onRefresh()}><Icon name="refresh" />Retry</button></div> : workspace.instances.length === 0 ? <div className="account-empty-inline"><Icon name="app-window" /><strong>No Roblox clients running</strong><span>Launch an account from Accounts, Presets or Private Servers to track it here.</span></div> : <ul className="instances-client-list">{workspace.instances.map((instance) => {
                 const canJoin = instance.userId !== null && launchAccounts.some((account) => selectedIds.has(account.userId) && account.userId !== instance.userId);
-                const launchedAt = instance.launchedAt ? new Date(instance.launchedAt).toLocaleString() : "Unknown";
-                return <tr key={`${instance.pid}:${instance.startTime}`}>
-                  <td><strong>{instance.label}</strong>{instance.userId !== null && <small className="selectable-text">{instance.userId}</small>}</td>
-                  <td className="selectable-text">{instance.pid}</td>
-                  <td className="assets-secondary-column selectable-text">{instance.placeId ?? "Unknown"}</td>
-                  <td><span className="instances-attribution" tabIndex={0} data-attribution={instance.attribution} data-tip={instance.attribution === "exact" ? "Verified from this client's launch token. Individual close is available." : instance.attribution === "inferred" ? "Estimated from launch order. Individual close is disabled." : "RM could not identify this client's account. Individual close and server join are disabled."}>{instance.attribution === "exact" ? "Exact" : instance.attribution === "inferred" ? "Inferred" : "Unmatched"}</span></td>
-                  <td className="assets-secondary-column">{launchedAt}</td>
-                  <td className="instances-actions-column"><div className="assets-row-actions">
-                    <button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => void runAction(`focus-${instance.pid}`, () => focusInstance(instance), "Instance focused")}><Icon name="focus" />{pendingAction === `focus-${instance.pid}` ? "Focusing..." : "Focus"}</button>
+                return <InstanceRow key={instanceKey(instance)} instance={instance} account={accounts.find((account) => account.userId === instance.userId)} selected={selectedKey === instanceKey(instance)} onSelect={() => setSelectedKey(instanceKey(instance))} actions={<>
+                    <button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => void runAction(`focus-${instance.pid}`, () => focusInstance(instance), "Instance focused", `${instance.label} (PID ${instance.pid}) was requested to come to the foreground.`)}><Icon name="focus" />{pendingAction === `focus-${instance.pid}` ? "Focusing..." : "Focus"}</button>
                     <button className="account-button" type="button" disabled={!canJoin || pendingAction !== null} data-tip={instance.userId === null ? "Identify this client's account before joining its server" : !canJoin ? "Select another valid account above to join this client's server" : "Launch the selected accounts into this client's server"} onClick={() => void joinServer(instance)}><Icon name="launch" />{pendingAction === `join-${instance.pid}` ? "Joining..." : "Join server"}</button>
-                    <button className="account-button" type="button" disabled={instance.attribution !== "exact" || pendingAction !== null} data-tip={instance.attribution === "exact" ? "Close this verified Roblox client" : "An exact account match is required to kill an individual client"} onClick={() => setCloseTarget(instance)}><Icon name="kill" />Kill</button>
-                  </div></td>
-                </tr>;
-              })}
-            </tbody>
-          </table>
+                    <button className="account-button danger" type="button" disabled={instance.attribution !== "exact" || pendingAction !== null} data-tip={instance.attribution === "exact" ? "Close this verified Roblox client" : "An exact account match is required to kill an individual client"} onClick={() => setCloseTarget(instance)}><Icon name="kill" tone="current-color" />Kill</button>
+                  </>} />;
+              })}</ul>}
+          </section>
+          <section className="instances-controls-panel settings-section" aria-labelledby="client-controls-heading">
+            <h2 id="client-controls-heading">Client controls</h2>
+            <p className="instances-description">Shared settings for new Roblox clients.</p>
+            {selectedInstance && <InstanceIdentity instance={selectedInstance} account={accounts.find((account) => account.userId === selectedInstance.userId)} />}
+            {settingsLoading ? <LoadingSkeleton layout="status" label="Loading client launch settings" /> : settingsError ? <div className="instances-empty" role="alert"><p className="selectable-text">{settingsError}</p><button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => setSettingsRevision((current) => current + 1)}>Retry</button><button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => void resetControls()}>{pendingAction === "reset-controls" ? "Resetting..." : "Reset launch settings"}</button></div> : <>
+              <div className="instances-controls-notice" id="client-controls-notice" role="note"><Icon name="info-mark" tone="current-color" /><p><strong>Shared defaults for future launches.</strong> Running clients are unchanged. Overrides off leaves Roblox's last saved settings.</p></div>
+              <div role="group" aria-label="Shared client launch settings" aria-describedby="client-controls-notice">
+                <SettingRow label="Apply on launch" description="Use these overrides for new clients.">{(labelId, descriptionId) => <ToggleField checked={draft.enabled} onChange={(enabled) => updateSettings({ enabled })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
+                <SettingRow label="FPS limit" description="Choose a maximum frame rate.">{() => <Select value={String(draft.fps)} options={fpsOptions} onChange={(fps) => updateSettings({ fps: Number(fps) })} ariaLabel="FPS limit for future launches" disabled={controlsDisabled} />}</SettingRow>
+                <SettingRow label="Graphics quality" description="Choose a quality level from 1 to 10.">{(labelId, descriptionId) => <RangeField min={1} max={10} value={draft.graphics} onChange={(graphics) => updateSettings({ graphics })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
+                <SettingRow label="Fullscreen" description="Start new clients in fullscreen.">{(labelId, descriptionId) => <ToggleField checked={draft.fullscreen} onChange={(fullscreen) => updateSettings({ fullscreen })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
+                <SettingRow label="Muted audio" description="Start new clients with audio muted.">{(labelId, descriptionId) => <ToggleField checked={draft.muted} onChange={(muted) => updateSettings({ muted })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
+              </div>
+              {hasSettingsChanges && <p className="instances-description" role="status">Unsaved launch settings</p>}
+              <button className="account-button" type="button" disabled={controlsDisabled || !hasSettingsChanges} onClick={() => void saveControls()}>{pendingAction === "save-controls" ? "Saving..." : "Save launch settings"}</button>
+            </>}
+          </section>
         </div>
       </div>
     </main>
