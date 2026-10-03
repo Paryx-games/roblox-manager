@@ -17,6 +17,8 @@
 
 ### Fixed
 
+- Live-update failure notifications distinguish reloading data with Refresh from retrying subscriptions by restarting RM.
+
 - Connections marks individual and batch actions as pending, preventing duplicate or conflicting requests until the active request finishes.
 
 - Instances centres its empty-state icon, heading and description inside a dashed outline, matching the shared Presets empty-state style.

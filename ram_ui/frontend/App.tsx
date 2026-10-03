@@ -265,7 +265,7 @@ export function App() {
           if (isActive) stops.push(result.value);
           else result.value();
         } else if (isActive) {
-          setRuntimeToast({ id: Date.now(), title: "Live updates unavailable", message: "RM could not connect to live account, client or launch updates. Use Refresh in Accounts or Instances to reload the latest state and reconnect.", kind: "error", duration: "long" });
+          setRuntimeToast({ id: Date.now(), title: "Live updates unavailable", message: "RM could not connect to live account, client or launch updates. Use Refresh in Accounts or Instances to reload the latest state. Restart RM to retry the live-update connection.", kind: "error", duration: "long" });
         }
       }
       if (!isActive) return;
