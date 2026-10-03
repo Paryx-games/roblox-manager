@@ -46,6 +46,7 @@
   <ol>
     <li><a href="#showcase-image">Showcase Image</a></li>
     <li><a href="#about-the-project">About The Project</a></li>
+    <li><a href="#performance">Performance</a></li>
     <li>
       <a href="#download">Download</a>
       <ul>
@@ -63,6 +64,7 @@
         <li><a href="#build">Build</a></li>
       </ul>
     </li>
+    <li><a href="#benchmarking">Benchmarking</a></li>
     <li><a href="#development-commands">Development Commands</a></li>
     <li><a href="#reporting-issues--requesting-features">Reporting Issues & Requesting Features</a></li>
     <li><a href="#contributing">Contributing</a></li>
@@ -95,6 +97,10 @@ This branch contains the Tauri + React v2 interface. The retired egui applicatio
 - [React](https://react.dev/)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Performance
+
+Roblox Manager is designed to remain lightweight while managing your accounts. Performance is measured with a reproducible Windows benchmark covering the application and its WebView2 processes. Results depend on your hardware, saved accounts and settings; see [Benchmarking](#benchmarking) to measure your own setup.
 
 ## Download
 
@@ -224,6 +230,12 @@ pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked
 The executable is `target/release/rm_tauri.exe`. The installer is under `target/release/bundle/nsis/`, normally `Roblox Manager_<version>_x64-setup.exe`. A plain `cargo build` does not build and bundle the React frontend; use the Tauri wrapper for distributable builds.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Benchmarking
+
+The Roblox Manager benchmark is **public and reproducible, and anyone can run it themselves**. It measures startup, CPU, memory, process resources and I/O for RM and its WebView2 process group, and saves raw samples and statistics in one timestamped CSV per session.
+
+The standard 10-run benchmark takes roughly 10 minutes; a quick mode checks the setup in under a minute on a typical machine. Close unnecessary applications and leave the computer untouched until the benchmark finishes. Follow [the benchmark instructions](benchmarks/README.md) for requirements, commands and interpretation.
 
 ## Development Commands
 

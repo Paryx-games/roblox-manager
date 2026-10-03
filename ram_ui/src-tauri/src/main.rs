@@ -9,6 +9,7 @@ mod demo;
 mod accounts;
 mod asset_manager;
 mod background;
+mod benchmark;
 mod instances;
 mod launcher;
 mod lifecycle;
@@ -2971,14 +2972,19 @@ fn main() {
                 .find(|window| window.label == "main")
                 .ok_or("Main window configuration unavailable")?;
             let profile = app.path().app_local_data_dir()?.join("interface-webview");
-            let window = tauri::WebviewWindowBuilder::from_config(app.handle(), configuration)?
-                .data_directory(profile)
-                .build()?;
+            let mut builder =
+                tauri::WebviewWindowBuilder::from_config(app.handle(), configuration)?
+                    .data_directory(profile);
+            if benchmark::event_name().is_some() {
+                builder = builder.initialization_script("window.__RM_BENCHMARK__ = true;");
+            }
+            let window = builder.build()?;
             webview_recovery::monitor(app.handle(), &window)?;
             app.manage(background::start(app.handle()));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            benchmark::benchmark_ready,
             asset_manager::list_asset_workspace,
             asset_manager::add_asset_files,
             asset_manager::upload_assets,
