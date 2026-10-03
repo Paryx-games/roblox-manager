@@ -3266,7 +3266,7 @@ version = "2.0.0"
 dependencies = [
  "aes-gcm",
  "argon2",
- "base64 0.22.1",
+ "base64 0.23.1",
  "chrono",
  "keyring",
  "rand 0.8.7",
