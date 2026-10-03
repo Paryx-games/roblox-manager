@@ -2,9 +2,10 @@
 /target/
 ram_ui/src-tauri/target/
 
-# local checklist
+# local stuff
 TODO.md
 PERSONAL.md
+mockups/
 
 # local configuration
 config.toml

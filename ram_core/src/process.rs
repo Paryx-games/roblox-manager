@@ -296,11 +296,11 @@ static LAST_LAUNCHTIME: AtomicI64 = AtomicI64::new(0);
 /// out, so a sweep landing in between cannot see the client first.
 pub fn next_launchtime() -> i64 {
     let now = chrono::Utc::now().timestamp_millis();
-    // `fetch_update` retries its compare-exchange internally, so two threads
+    // `try_update` retries its compare-exchange internally, so two threads
     // racing here still come away with different numbers. The closure never
     // returns `None`, so the `Result` cannot actually be `Err`.
     let previous = LAST_LAUNCHTIME
-        .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |last| {
+        .try_update(Ordering::SeqCst, Ordering::SeqCst, |last| {
             Some(if now > last { now } else { last + 1 })
         })
         .unwrap_or(now);

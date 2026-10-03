@@ -479,7 +479,7 @@ export function PresetsPage({
                           <Icon name="more" />
                         </button>
                         {openMenu === preset.index && (
-                          <PopupMenu className={`private-server-menu ${menuPlacement}`}>
+                          <PopupMenu className={`private-server-menu ${menuPlacement}`} onClose={() => setOpenMenu(null)}>
                             <button
                               type="button"
                               role="menuitem"
@@ -545,6 +545,7 @@ export function PresetsPage({
           }
           confirmLabel={deleting ? "Deleting..." : "Delete"}
           confirmDisabled={deleting}
+          busy={deleting}
           onConfirm={() => void confirmDelete()}
           onCancel={() => {
             if (!deleting) setDeleteTarget(null);
@@ -561,6 +562,7 @@ export function PresetsPage({
           }}
           closeOnBackdrop
           labelledBy="edit-preset-title"
+          busy={editSaving}
         >
           <div className="add-account-modal-header">
             <div>
