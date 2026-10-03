@@ -99,6 +99,15 @@
   background: var(--bg-raised);
 }
 
+.instances-list-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.instances-list-panel > .account-empty-inline {
+  flex: 1;
+}
+
 .instance-row[data-selected="true"],
 .instance-row:has(> .instance-row-select:active) {
   border-color: var(--action-primary);
