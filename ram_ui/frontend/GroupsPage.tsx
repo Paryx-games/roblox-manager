@@ -250,11 +250,14 @@ export function GroupsPage({
   async function openGroup(
     groupId: number,
     requestedGroup?: Pick<GroupSearchResult, "name" | "hasVerifiedBadge">,
+    preserveActionFeedback = false,
   ) {
     setLoading(true);
     setPendingGroup(requestedGroup ?? null);
-    setError(null);
-    setActionNotice(null);
+    if (!preserveActionFeedback) {
+      setError(null);
+      setActionNotice(null);
+    }
     try {
       setWorkspace(
         await loadGroup(
@@ -263,7 +266,8 @@ export function GroupsPage({
         ),
       );
     } catch {
-      setError("The Roblox group details and account memberships could not be loaded. Check the group ID and connection, then select the group again.");
+      const refreshError = "The Roblox group details and account memberships could not be loaded. Check the group ID and connection, then select the group again.";
+      setError((current) => preserveActionFeedback && current ? `${current} ${refreshError}` : refreshError);
     } finally {
       setLoading(false);
       setPendingGroup(null);
@@ -314,7 +318,7 @@ export function GroupsPage({
             : `${userIds.length} selected accounts left ${workspace.group.name} (group ${workspace.group.id}). Memberships are being refreshed.`,
         );
       }
-      await openGroup(workspace.group.id);
+      await openGroup(workspace.group.id, undefined, true);
     } catch (reason) {
       setError(
         reason instanceof Error

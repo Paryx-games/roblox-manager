@@ -17,6 +17,8 @@
 
 ### Fixed
 
+- Group membership results stay visible during refresh, including partial failures; switching groups still clears prior feedback.
+
 - Text fields retain the standard editing context menu for Copy/Paste while page backgrounds continue to suppress the browser menu.
 
 - Live-update failure notifications distinguish reloading data with Refresh from retrying subscriptions by restarting RM.
