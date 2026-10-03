@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Right-click uses RM's custom menus where available and no longer opens the default browser menu elsewhere in the main interface.
+
 ## v2.1.0
 
 ### Added

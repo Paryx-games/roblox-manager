@@ -302,9 +302,14 @@ export function App() {
     function onKeyDown(event: KeyboardEvent) {
       if (isSelectAllShortcut(event) && !isTextSelectionTarget(event.target)) event.preventDefault();
     }
+    function onContextMenu(event: Event) {
+      event.preventDefault();
+    }
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("contextmenu", onContextMenu, true);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("contextmenu", onContextMenu, true);
     };
   }, []);
 
