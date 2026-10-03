@@ -60,6 +60,7 @@ import {
 import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
 import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
+import { isTextSelectionTarget } from "./lib/selectAllShortcut";
 import Select from "./components/Select";
 import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
@@ -1889,7 +1890,7 @@ export function AccountsPage({
       <main
         className="accounts-page"
         aria-busy={loading}
-        onContextMenu={(event) => event.preventDefault()}
+        onContextMenu={(event) => { if (!isTextSelectionTarget(event.target)) event.preventDefault(); }}
       >
         <aside className="accounts-list-panel" aria-label="Managed accounts" data-walkthrough="accounts">
           <div className="accounts-list-head">

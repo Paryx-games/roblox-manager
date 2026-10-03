@@ -310,6 +310,7 @@ export function App() {
       if (isSelectAllShortcut(event) && !isTextSelectionTarget(event.target)) event.preventDefault();
     }
     function onContextMenu(event: Event) {
+      if (isTextSelectionTarget(event.target)) return;
       event.preventDefault();
     }
     window.addEventListener("keydown", onKeyDown);

@@ -17,6 +17,8 @@
 
 ### Fixed
 
+- Text fields retain the standard editing context menu for Copy/Paste while page backgrounds continue to suppress the browser menu.
+
 - Live-update failure notifications distinguish reloading data with Refresh from retrying subscriptions by restarting RM.
 
 - Connections marks individual and batch actions as pending, preventing duplicate or conflicting requests until the active request finishes.
