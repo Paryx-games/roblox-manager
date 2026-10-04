@@ -670,6 +670,10 @@ export async function getSettings(): Promise<SettingsSnapshot> {
   return invoke<SettingsSnapshot>("get_settings");
 }
 
+export async function browseRobloxDirectory(): Promise<string | null> {
+  return invoke<string | null>("browse_roblox_directory");
+}
+
 export async function saveSettings(
   settings: SettingsUpdate,
 ): Promise<SettingsConfig> {

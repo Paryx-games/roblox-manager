@@ -38,6 +38,7 @@ use state::AppState;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tauri::{Emitter, Manager};
+use tauri_plugin_dialog::DialogExt;
 use tracing_subscriber::fmt::writer::{MakeWriter, MakeWriterExt};
 use tracing_subscriber::EnvFilter;
 
@@ -1351,6 +1352,39 @@ async fn get_settings(state: tauri::State<'_, AppState>) -> Result<SettingsSnaps
     })
     .await
     .map_err(|_| "Settings task failed".to_string())?
+}
+
+#[tauri::command]
+async fn browse_roblox_directory(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut dialog = app
+            .dialog()
+            .file()
+            .set_title("Select the folder containing RobloxPlayerBeta.exe");
+        if let Some(player) = process::find_roblox_player() {
+            if let Some(directory) = player.parent() {
+                dialog = dialog.set_directory(directory);
+            }
+        }
+        let Some(directory) = dialog.blocking_pick_folder() else {
+            return Ok(None);
+        };
+        let directory = directory
+            .into_path()
+            .map_err(|_| "Choose a local Roblox installation folder".to_string())?;
+        let player = directory.join(process::ROBLOX_PLAYER_EXE);
+        if !directory.is_absolute() || !player.is_file() {
+            return Err(
+                "Choose the installation folder containing RobloxPlayerBeta.exe, usually inside Roblox\\Versions".to_string(),
+            );
+        }
+        let player = player
+            .to_str()
+            .ok_or_else(|| "The Roblox player path contains unsupported characters".to_string())?;
+        Ok(Some(player.to_string()))
+    })
+    .await
+    .map_err(|_| "The Roblox folder picker could not be opened. Try again".to_string())?
 }
 
 #[tauri::command]
@@ -3024,6 +3058,7 @@ fn main() {
             unlock_device,
             unlock_password,
             get_settings,
+            browse_roblox_directory,
             save_settings,
             set_startup_with_windows,
             enable_multi_instance,

@@ -14,6 +14,7 @@ import Select from "./components/Select";
 import { Toast, ToastStack, type ToastItem, type ToastKind } from "./Toast";
 import {
   arrangeSettingsWindows,
+  browseRobloxDirectory,
   changePassword,
   cleanOrphanedData,
   clearApplicationCaches,
@@ -522,8 +523,21 @@ export function SettingsPage({ onNavigationGuardChange }: {
     notify("error", `${context} could not be completed. ${operationError(error, "Check the affected setting and try again.")}`);
   }
 
+  async function handleBrowseRobloxDirectory() {
+    if (busyAction !== null || isSaving) return;
+    setBusyAction("roblox-directory");
+    try {
+      const playerPath = await browseRobloxDirectory();
+      if (playerPath !== null) updateDraft({ robloxPlayerPath: playerPath });
+    } catch (error) {
+      showError(error, "Selecting the Roblox installation folder");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   const handleSave = useCallback(async () => {
-    if (!draft || !snapshot || isSaving) return false;
+    if (!draft || !snapshot || isSaving || busyAction === "roblox-directory") return false;
     if (!isDirty) return true;
     const shouldRestart = draft.logLevel !== snapshot.config.logLevel;
     const { startupWithWindows, ...settingsUpdate } = draft;
@@ -556,7 +570,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
     } finally {
       setIsSaving(false);
     }
-  }, [draft, snapshot, isDirty, isSaving, notify]);
+  }, [draft, snapshot, isDirty, isSaving, busyAction, notify]);
 
   useEffect(() => {
     onNavigationGuardChange({
@@ -1303,20 +1317,32 @@ export function SettingsPage({ onNavigationGuardChange }: {
           title="Roblox installation"
         >
           <SettingRow referenceId="roblox_player_path" infoCards={infoCards}>
-            <label className="settings-field-row settings-field-grow">
-              <span>Player path</span>
+            <div className="settings-field-row settings-field-grow">
+              <label htmlFor="roblox-player-path">Player path</label>
               <input
+                id="roblox-player-path"
                 className="settings-wide-input"
                 type="text"
+                disabled={busyAction === "roblox-directory" || isSaving}
                 value={draft.robloxPlayerPath ?? ""}
                 placeholder="Auto-detect RobloxPlayerBeta.exe"
                 onChange={(event) =>
                   updateDraft({ robloxPlayerPath: event.target.value || null })
                 }
               />
-            </label>
+              <button
+                className="account-button settings-browse-button"
+                type="button"
+                disabled={busyAction !== null || isSaving}
+                aria-busy={busyAction === "roblox-directory"}
+                onClick={() => void handleBrowseRobloxDirectory()}
+              >
+                <Icon name="folder" />
+                {busyAction === "roblox-directory" ? "Browsing..." : "Browse"}
+              </button>
+            </div>
           </SettingRow>
-          <p className="settings-muted">Leave empty to detect the latest Roblox installation automatically.</p>
+          <p className="settings-muted">Browse to the folder containing RobloxPlayerBeta.exe, then save Settings. Leave empty to detect Roblox automatically.</p>
         </Section>
 
         <Section
@@ -1460,7 +1486,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
           <button
             className={`account-button ${isDirty ? "primary" : ""}`}
             type="button"
-            disabled={!isDirty || isSaving}
+            disabled={!isDirty || isSaving || busyAction === "roblox-directory"}
             onClick={() => void handleSave()}
           >
             <Icon name="save" />
@@ -1483,10 +1509,10 @@ export function SettingsPage({ onNavigationGuardChange }: {
         <div className="settings-unsaved-bar">
           <span role="status">You have unsaved changes!</span>
           <div className="settings-unsaved-actions">
-            <button className="account-button" type="button" disabled={isSaving} onClick={handleCancelChanges}>
+            <button className="account-button" type="button" disabled={isSaving || busyAction === "roblox-directory"} onClick={handleCancelChanges}>
               Cancel
             </button>
-            <button className="account-button primary" type="button" disabled={isSaving} onClick={() => void handleSave()}>
+            <button className="account-button primary" type="button" disabled={isSaving || busyAction === "roblox-directory"} onClick={() => void handleSave()}>
               <Icon name="save" />
               {isSaving ? "Saving..." : "Save"}
             </button>
