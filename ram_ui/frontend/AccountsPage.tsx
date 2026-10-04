@@ -2513,6 +2513,7 @@ export function AccountsPage({
                   <div className="account-selection-heading">
                     <div className="account-selection-avatars" aria-hidden="true">
                       {selectedAccounts.slice(0, 3).map((account) => <AccountAvatar key={account.userId} account={account} large />)}
+                      {selectedAccounts.length > 3 && <span className="account-selection-overflow">+{selectedAccounts.length - 3}</span>}
                     </div>
                     <div className="account-profile-copy">
                       <h2>{selectedAccounts.length} accounts selected</h2>

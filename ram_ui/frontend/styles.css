@@ -5334,8 +5334,27 @@ button:focus-visible {
 }
 
 .account-selection-avatars {
+  position: relative;
   display: flex;
   padding-right: var(--space-2);
+}
+
+.account-selection-overflow {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  min-width: var(--space-8);
+  height: var(--space-8);
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-1);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: 50%;
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .account-selection-avatars .account-avatar + .account-avatar {
