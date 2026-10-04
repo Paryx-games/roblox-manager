@@ -15,6 +15,7 @@ import {
 } from "react";
 import {
   confirmAccountAddition,
+  browseRobloxDirectory,
   cancelAccountAddition,
   type AccountAddition,
   getSettings,
@@ -674,6 +675,9 @@ export function AccountsPage({
   >({});
   const [groupOrder, setGroupOrder] = useState<string[]>([]);
   const [playerPath, setPlayerPath] = useState("");
+  const [isBrowsingPlayerPath, setIsBrowsingPlayerPath] = useState(false);
+  const browsingPlayerPathRef = useRef(false);
+  const playerPathAccountRef = useRef<number | null>(null);
   const [pinningIds, setPinningIds] = useState<Set<number>>(new Set());
   const [groupContextMenu, setGroupContextMenu] =
     useState<GroupContextMenu | null>(null);
@@ -996,6 +1000,10 @@ export function AccountsPage({
 
   const selectedAccount =
     accounts.find((account) => account.userId === selectedId) ?? null;
+
+  useLayoutEffect(() => {
+    playerPathAccountRef.current = selectedAccount?.userId ?? null;
+  }, [selectedAccount?.userId]);
 
   useLayoutEffect(() => {
     accountDetailsRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
@@ -1452,12 +1460,34 @@ export function AccountsPage({
   }
 
   async function savePlayerPath() {
-    if (!selectedAccount) return;
+    if (!selectedAccount || browsingPlayerPathRef.current ||
+      (playerPath.trim() || null) === selectedAccount.playerPath) return;
     try {
-      await updatePlayerPath(selectedAccount.userId, playerPath.trim() || null);
+      const updated = await updatePlayerPath(selectedAccount.userId, playerPath.trim() || null);
+      setAccounts((current) => current.map((account) => account.userId === updated.userId ? updated : account));
       setNotice("The Roblox player path was saved for this account. Future launches use this setting; running clients are unchanged.");
     } catch {
       setNotice("The Roblox player path could not be saved for this account. Check the executable path and try again.");
+    }
+  }
+
+  async function browsePlayerPath() {
+    if (!selectedAccount || mutationLoading || browsingPlayerPathRef.current) return;
+    const { userId, label } = selectedAccount;
+    browsingPlayerPathRef.current = true;
+    setIsBrowsingPlayerPath(true);
+    try {
+      const path = await browseRobloxDirectory();
+      if (path === null) return;
+      const updated = await updatePlayerPath(userId, path);
+      setAccounts((current) => current.map((account) => account.userId === userId ? updated : account));
+      if (playerPathAccountRef.current === userId) setPlayerPath(path);
+      setNotice(`The Roblox player path was saved for ${label}. Future launches use this installation.`);
+    } catch (error) {
+      setNotice(`The Roblox player path could not be selected or saved for ${label}. ${operationError(error, "Choose the folder containing RobloxPlayerBeta.exe and try again.")}`, "error");
+    } finally {
+      browsingPlayerPathRef.current = false;
+      setIsBrowsingPlayerPath(false);
     }
   }
 
@@ -3027,14 +3057,30 @@ export function AccountsPage({
                 </div>
                 <div>
                   <label htmlFor="player-path">Player path</label>
-                  <input
-                    id="player-path"
-                    value={playerPath}
-                    onChange={(event) => setPlayerPath(event.target.value)}
-                    onBlur={() => void savePlayerPath()}
-                    placeholder="Default (Auto-detect)"
-                    disabled={mutationLoading}
-                  />
+                  <div
+                    className="account-player-path-controls"
+                    onBlur={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget)) void savePlayerPath();
+                    }}
+                  >
+                    <input
+                      id="player-path"
+                      value={playerPath}
+                      onChange={(event) => setPlayerPath(event.target.value)}
+                      placeholder="Default (Auto-detect)"
+                      disabled={mutationLoading || isBrowsingPlayerPath}
+                    />
+                    <button
+                      className="account-button"
+                      type="button"
+                      disabled={mutationLoading || isBrowsingPlayerPath}
+                      aria-busy={isBrowsingPlayerPath}
+                      onClick={() => void browsePlayerPath()}
+                    >
+                      <SharedIcon name="folder" />
+                      {isBrowsingPlayerPath ? "Browsing..." : "Browse"}
+                    </button>
+                  </div>
                 </div>
               </section>
 

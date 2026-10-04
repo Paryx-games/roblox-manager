@@ -5,6 +5,7 @@
 ### Added
 
 - Settings includes a Browse button for choosing the Roblox player installation folder, with validation that it contains RobloxPlayerBeta.exe.
+- Account details includes a Browse button beside Player path to choose and save a custom Roblox installation for an individual account.
 
 - Settings offers individual saved visibility toggles for each workspace. Inventories and Asset Manager default off; other workspaces default on. Settings stays accessible to restore hidden pages.
 
