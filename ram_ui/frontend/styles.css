@@ -5312,6 +5312,83 @@ button:focus-visible {
   gap: var(--space-4);
 }
 
+.account-selection-card {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.account-selection-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.account-selection-heading .account-profile-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-selection-heading > .account-button {
+  flex: 0 0 auto;
+}
+
+.account-selection-avatars {
+  position: relative;
+  display: flex;
+  padding-right: var(--space-2);
+}
+
+.account-selection-overflow {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  min-width: var(--space-8);
+  height: var(--space-8);
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-1);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: 50%;
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.account-selection-avatars .account-avatar + .account-avatar {
+  margin-left: calc(-1 * var(--space-6));
+}
+
+.account-selection-chips,
+.account-selection-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.account-selection-chips {
+  max-height: 144px;
+  overflow-y: auto;
+  padding: var(--space-1);
+}
+
+.account-selection-chips .account-button,
+.account-selection-tools .account-button {
+  flex: 0 0 auto;
+}
+
+.account-selection-chips .account-button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.account-selection-card .account-button:not(:disabled):active {
+  background: var(--action-muted);
+}
+
 .account-actions-menu,
 .account-group-menu,
 .private-server-menu {

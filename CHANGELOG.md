@@ -11,6 +11,9 @@
 
 ### Changed
 
+- Selecting multiple accounts shows a selection summary, batch launch and browser controls, shared connection actions and an inventory comparison in the main account panel. Individual account fields remain in the single-account view.
+- The selected-account avatar stack shows a +N badge for accounts beyond the first three.
+
 - Notifications and inline operation feedback across all workspaces now name the operation, include relevant account, item or batch context, and explain recovery steps or when a request still needs Roblox to complete it. Longer toasts stay visible for more reading time and still pause on hover or keyboard focus.
 
 - Accounts places Connections below the main launch controls, with a labelled search field, clear user identity cards and grouped actions in the existing theme.
