@@ -862,6 +862,8 @@ export function AccountsPage({
 
   const [commonInventory, setCommonInventory] = useState<InventoryItem[]>([]);
   const [commonInventoryLoading, setCommonInventoryLoading] = useState(false);
+  const [commonInventoryLoaded, setCommonInventoryLoaded] = useState(false);
+  const inventoryComparisonVersion = useRef(0);
 
   useEffect(() => {
     let mounted = true;
@@ -1000,6 +1002,28 @@ export function AccountsPage({
 
   const selectedAccount =
     accounts.find((account) => account.userId === selectedId) ?? null;
+  const selectedAccounts = accounts.filter((account) => selectedIds.has(account.userId));
+  const isMultiSelection = selectedAccounts.length > 1;
+  const selectionKey = selectedAccounts.map((account) => account.userId).sort((a, b) => a - b).join(",");
+  const restrictedSelection = selectedAccounts.filter((account) => !account.canLaunch);
+
+  useLayoutEffect(() => {
+    inventoryComparisonVersion.current += 1;
+    setCommonInventory([]);
+    setCommonInventoryLoaded(false);
+    setCommonInventoryLoading(false);
+  }, [selectionKey]);
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+    setSelectedId(null);
+  }
+
+  function deselectAccount(userId: number) {
+    const remaining = selectedAccounts.filter((account) => account.userId !== userId);
+    setSelectedIds(new Set(remaining.map((account) => account.userId)));
+    if (selectedId === userId) setSelectedId(remaining[0]?.userId ?? null);
+  }
 
   useLayoutEffect(() => {
     playerPathAccountRef.current = selectedAccount?.userId ?? null;
@@ -1021,7 +1045,6 @@ export function AccountsPage({
     setPlayerPath(selectedAccount?.playerPath ?? "");
     setAccountNotices([]);
     setInventory([]);
-    setCommonInventory([]);
     setConnectionResults([]);
   }, [selectedAccount?.userId]);
 
@@ -1036,13 +1059,11 @@ export function AccountsPage({
     event: AccountSelectionEvent,
   ) {
     if (event.ctrlKey || event.metaKey) {
-      setSelectedIds((current) => {
-        const next = new Set(current);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        return next;
-      });
-      setSelectedId(id);
+      const next = new Set(selectedIds);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setSelectedIds(next);
+      setSelectedId(next.has(id) ? id : next.values().next().value ?? null);
       return;
     }
     setSelectedIds(new Set([id]));
@@ -1184,6 +1205,7 @@ export function AccountsPage({
   }
 
   async function bulkLaunch() {
+    if (mutationLoading || restrictedSelection.length || !selectedAccounts.length) return;
     if (!placeIdValid) {
       setNotice("Enter a positive numeric Place ID before launching the selected accounts. No batch launch requests were sent.");
       return;
@@ -1623,12 +1645,12 @@ export function AccountsPage({
     }
   }
 
-  async function openSelectedBrowsers() {
+  async function openSelectedBrowsers(inventory = false) {
     const ids = [...selectedIds];
     if (!ids.length) return;
     setMutationLoading(true);
     try {
-      for (const userId of ids) await browseAsAccount(userId);
+      for (const userId of ids) await browseAsAccount(userId, inventory);
       setNotice(`Requested account browsers for ${ids.length} selected accounts. Each browser uses its own authenticated session; close the windows when finished.`);
     } catch {
       setNotice("At least one selected account browser could not be opened. Earlier browsers may already be open; check them before retrying.");
@@ -1673,6 +1695,7 @@ export function AccountsPage({
   async function loadCommonInventory() {
     const ids = [...selectedIds];
     if (!ids.length) return;
+    const version = ++inventoryComparisonVersion.current;
     setCommonInventoryLoading(true);
     try {
       const inventories = await Promise.all(
@@ -1688,12 +1711,15 @@ export function AccountsPage({
           else counts.delete(assetId);
         }
       }
+      if (inventoryComparisonVersion.current !== version) return;
       setCommonInventory([...counts.values()].map(({ item }) => item));
-      setNotice(`Found ${counts.size} inventory items shared by all ${selectedIds.size} selected accounts. Review the comparison results before opening or copying asset IDs.`);
+      setCommonInventoryLoaded(true);
+      setNotice(`Found ${counts.size} inventory items shared by all ${ids.length} selected accounts. Review the comparison results before opening or copying asset IDs.`);
     } catch {
+      if (inventoryComparisonVersion.current !== version) return;
       setNotice("Shared inventory items could not be compared across the selected accounts. Refresh their inventories and retry the comparison.");
     } finally {
-      setCommonInventoryLoading(false);
+      if (inventoryComparisonVersion.current === version) setCommonInventoryLoading(false);
     }
   }
 
@@ -1975,57 +2001,13 @@ export function AccountsPage({
                 ]}
               />
             </div>
-            {selectedIds.size > 1 && (
+            {isMultiSelection && (
               <div className="bulk-account-actions">
-                <span>{selectedIds.size} selected</span>
-                <button
-                  type="button"
-                  onClick={() => void refreshPresence()}
-                  disabled={presenceLoading}
-                >
-                  <Icon name="refresh" />
-                  Refresh status
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void bulkLaunch()}
-                  disabled={mutationLoading}
-                >
-                  <Icon name="launch" />
-                  Bulk launch
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void openSelectedBrowsers()}
-                  disabled={mutationLoading}
-                >
-                  <Icon name="browser" />
-                  Open browsers
-                </button>
-                <button type="button" onClick={() => void copySelectedIds()}>
-                  Copy IDs
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void changeSelectedPath()}
-                  disabled={mutationLoading}
-                >
-                  Change path
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void loadCommonInventory()}
-                  disabled={commonInventoryLoading}
-                >
-                  Common inventory
+                <span>{selectedAccounts.length} selected</span>
+                <button type="button" disabled={mutationLoading} onClick={clearSelection}>
+                  <Icon name="close" /> Clear selection
                 </button>
               </div>
-            )}
-            {commonInventoryLoading && <LoadingSkeleton layout="inventory" label="Loading common inventory" count={3} />}
-            {!commonInventoryLoading && commonInventory.length > 0 && (
-              <p className="common-inventory-summary">
-                {commonInventory.length} common inventory item(s)
-              </p>
             )}
           </div>
           <div className="accounts-groups">
@@ -2503,15 +2485,15 @@ export function AccountsPage({
         )}
 
         <section
-          key={selectedAccount?.userId ?? "empty"}
+          key={isMultiSelection ? "selection" : selectedAccount?.userId ?? "empty"}
           ref={accountDetailsRef}
           className={`accounts-detail-panel ${
-            selectedAccount &&
+            !isMultiSelection && selectedAccount &&
             (selectedAccount.moderationActive || selectedAccount.cookieExpired)
               ? "is-account-restricted"
               : ""
           }`}
-          aria-label="Account details"
+          aria-label={isMultiSelection ? "Selected accounts" : "Account details"}
           data-walkthrough="account-details"
           style={{ "--account-accent": selectedGroupColor } as CSSProperties}
         >
@@ -2526,6 +2508,36 @@ export function AccountsPage({
             </div>
           ) : (
             <>
+              {isMultiSelection ? (
+                <section className="account-card account-selection-card">
+                  <div className="account-selection-heading">
+                    <div className="account-selection-avatars" aria-hidden="true">
+                      {selectedAccounts.slice(0, 3).map((account) => <AccountAvatar key={account.userId} account={account} large />)}
+                    </div>
+                    <div className="account-profile-copy">
+                      <h2>{selectedAccounts.length} accounts selected</h2>
+                      <p>Launch options and connection actions apply to every selected account.</p>
+                    </div>
+                    <button className="account-button" type="button" disabled={mutationLoading} onClick={clearSelection}>
+                      <Icon name="close" /> Clear selection
+                    </button>
+                  </div>
+                  <div className="account-selection-chips" aria-label="Selected accounts">
+                    {selectedAccounts.map((account) => (
+                      <button className="account-button" type="button" key={account.userId} disabled={mutationLoading} aria-label={`Deselect ${account.label}`} onClick={() => deselectAccount(account.userId)}>
+                        {account.label}<Icon name="close" />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="account-selection-tools">
+                    <button className="account-button" type="button" disabled={mutationLoading || presenceLoading} onClick={() => void refreshPresence()}><Icon name="refresh" />{presenceLoading ? "Refreshing..." : "Refresh status"}</button>
+                    <button className="account-button" type="button" disabled={mutationLoading} onClick={() => void revalidate([...selectedIds])}><Icon name="refresh" />Revalidate accounts</button>
+                    <button className="account-button" type="button" onClick={() => void copySelectedIds()}><Icon name="copy" />Copy IDs</button>
+                    <button className="account-button" type="button" disabled={mutationLoading} onClick={() => void changeSelectedPath()}><Icon name="folder" />Change player paths</button>
+                  </div>
+                  {restrictedSelection.length > 0 && <p role="status">Launch unavailable: {restrictedSelection.map((account) => account.label).join(", ")}. Deselect these accounts or check their credentials individually.</p>}
+                </section>
+              ) : (
               <section className="account-card account-profile-card">
                 <AccountAvatar account={selectedAccount} large />
                 <div className="account-profile-copy">
@@ -2661,7 +2673,9 @@ export function AccountsPage({
                 </div>
               </section>
 
-              {(selectedAccount.moderationActive ||
+              )}
+
+              {!isMultiSelection && (selectedAccount.moderationActive ||
                 selectedAccount.cookieExpired) && (
                 <section className="account-warning" role="alert">
                   <div className="account-warning-heading">
@@ -2704,12 +2718,12 @@ export function AccountsPage({
               <section
                 data-walkthrough="launch"
                 className={`account-card launch-card ${
-                  selectedAccount.moderationActive || selectedAccount.cookieExpired
+                  !isMultiSelection && (selectedAccount.moderationActive || selectedAccount.cookieExpired)
                     ? "is-account-restricted"
                     : ""
                 }`}
                 aria-disabled={
-                  selectedAccount.moderationActive || selectedAccount.cookieExpired
+                  isMultiSelection ? restrictedSelection.length > 0 : selectedAccount.moderationActive || selectedAccount.cookieExpired
                 }
               >
                 <div className="account-field">
@@ -2753,19 +2767,20 @@ export function AccountsPage({
                   <button
                     className="account-button primary"
                     type="button"
-                    onClick={launchAccount}
-                    disabled={!selectedAccount.canLaunch}
+                    onClick={() => isMultiSelection ? void bulkLaunch() : launchAccount()}
+                    disabled={mutationLoading || (isMultiSelection ? restrictedSelection.length > 0 || !placeIdValid : !selectedAccount.canLaunch)}
                   >
                     <Icon name="launch" />
-                    Launch
+                    {mutationLoading && isMultiSelection ? "Working..." : isMultiSelection ? `Launch (${selectedAccounts.length} accounts)` : "Launch"}
                   </button>
                   <button
                     className="account-button"
                     type="button"
-                    onClick={() => void browseAs()}
+                    disabled={mutationLoading}
+                    onClick={() => isMultiSelection ? void openSelectedBrowsers() : void browseAs()}
                   >
                     <Icon name="browser" />
-                    Open browser
+                    {isMultiSelection ? `Open browsers (${selectedAccounts.length})` : "Open browser"}
                   </button>
                   <button
                     className="icon-button bordered"
@@ -2789,7 +2804,7 @@ export function AccountsPage({
               <section className="account-card connections-card">
                 <h3>Connections</h3>
                 <p>
-                  Search Roblox by username or user ID, then choose an action.
+                  {isMultiSelection ? `Search Roblox, then act from all ${selectedAccounts.length} selected accounts.` : "Search Roblox by username or user ID, then choose an action."}
                 </p>
                 <form className="connections-row" onSubmit={(event) => { event.preventDefault(); if (!isConnectionSearchLoading) void searchConnections(); }}>
                   <input
@@ -2831,7 +2846,7 @@ export function AccountsPage({
                             disabled={mutationLoading}
                             type="button"
                             onClick={() =>
-                              void applyConnectionAction(
+                              void (isMultiSelection ? applyBulkConnectionAction : applyConnectionAction)(
                                 result.userId,
                                 "follow",
                               )
@@ -2844,7 +2859,7 @@ export function AccountsPage({
                             disabled={mutationLoading}
                             type="button"
                             onClick={() =>
-                              void applyConnectionAction(
+                              void (isMultiSelection ? applyBulkConnectionAction : applyConnectionAction)(
                                 result.userId,
                                 "friend",
                               )
@@ -2857,7 +2872,7 @@ export function AccountsPage({
                             disabled={mutationLoading}
                             type="button"
                             onClick={() =>
-                              void applyConnectionAction(result.userId, "block")
+                              void (isMultiSelection ? applyBulkConnectionAction : applyConnectionAction)(result.userId, "block")
                             }
                           >
                             Block
@@ -2867,7 +2882,7 @@ export function AccountsPage({
                             disabled={mutationLoading}
                             type="button"
                             onClick={() =>
-                              void applyConnectionAction(
+                              void (isMultiSelection ? applyBulkConnectionAction : applyConnectionAction)(
                                 result.userId,
                                 "unfollow",
                               )
@@ -2879,74 +2894,11 @@ export function AccountsPage({
                             className="account-button"
                             disabled={mutationLoading}
                             type="button"
-                            onClick={() => void joinTargetGame(result.userId)}
+                            onClick={() => void (isMultiSelection ? joinSelectedTargetGame : joinTargetGame)(result.userId)}
                           >
                             Join game
                           </button>
-                          {selectedIds.size > 1 && (
-                            <>
-                              <button
-                                className="account-button"
-                                disabled={mutationLoading}
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "friend",
-                                  )
-                                }
-                              >
-                                Friend selected
-                              </button>
-                              <button
-                                className="account-button"
-                                disabled={mutationLoading}
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "follow",
-                                  )
-                                }
-                              >
-                                Follow selected
-                              </button>
-                              <button
-                                className="account-button"
-                                disabled={mutationLoading}
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "unfollow",
-                                  )
-                                }
-                              >
-                                Unfollow selected
-                              </button>
-                              <button
-                                className="account-button"
-                                disabled={mutationLoading}
-                                type="button"
-                                onClick={() =>
-                                  void applyBulkConnectionAction(
-                                    result.userId,
-                                    "block",
-                                  )
-                                }
-                              >
-                                Block selected
-                              </button>
-                              <button
-                                className="account-button"
-                                disabled={mutationLoading}
-                                type="button"
-                                onClick={() => void joinSelectedTargetGame(result.userId)}
-                              >
-                                Join selected
-                              </button>
-                            </>
-                          )}
+
                         </div>
                       </div>
                     ))}
@@ -2956,41 +2908,42 @@ export function AccountsPage({
 
               <section className="account-card">
                 <div className="account-card-header">
-                  <h3>Roblox inventory</h3>
+                  <h3>{isMultiSelection ? "Shared Roblox inventory" : "Roblox inventory"}</h3>
                   <div className="account-card-actions">
                     <button
                       className="icon-button bordered"
                       type="button"
-                      aria-label="Refresh inventory"
+                      aria-label={isMultiSelection ? "Compare selected inventories" : "Refresh inventory"}
+                      disabled={inventoryLoading || commonInventoryLoading}
                       data-tip="Refresh"
-                      onClick={() => void loadInventory()}
+                      onClick={() => isMultiSelection ? void loadCommonInventory() : void loadInventory()}
                     >
                       <Icon name="refresh" />
                     </button>
                     <button
                       className="account-button"
                       type="button"
-                      onClick={() => void browseAs(true)}
+                      disabled={mutationLoading}
+                      onClick={() => isMultiSelection ? void openSelectedBrowsers(true) : void browseAs(true)}
                     >
                       <Icon name="inventory" />
-                      Open inventory
+                      {isMultiSelection ? "Open inventories" : "Open inventory"}
                     </button>
                   </div>
                 </div>
-                {inventoryLoading ? (
+                {(isMultiSelection ? commonInventoryLoading : inventoryLoading) ? (
                   <LoadingSkeleton layout="inventory" label="Loading inventory" />
-                ) : inventory.length === 0 ? (
+                ) : (isMultiSelection ? commonInventory : inventory).length === 0 ? (
                   <div className="account-empty-inline">
                     <Icon name="inventory" />
-                    <strong>No user inventory loaded yet</strong>
+                    <strong>{isMultiSelection ? commonInventoryLoaded ? "No shared items found" : "Compare selected inventories" : "No user inventory loaded yet"}</strong>
                     <span>
-                      Refresh to fetch hats, accessories, clothing, gear, and
-                      emotes.
+                      {isMultiSelection ? "Refresh to find items owned by every selected account. Changing the selection clears the comparison." : "Refresh to fetch hats, accessories, clothing, gear, and emotes."}
                     </span>
                   </div>
                 ) : (
                   <div className="inventory-list">
-                    {inventory.map((item) => (
+                    {(isMultiSelection ? commonInventory : inventory).map((item) => (
                       <div className="inventory-row" key={item.assetId}>
                         <span className="inventory-item-icon">
                           {item.iconUrl ? <img src={item.iconUrl} alt="" /> : <Icon name="inventory" />}
@@ -3009,7 +2962,7 @@ export function AccountsPage({
                 )}
               </section>
 
-              <section className="account-card account-info-grid">
+              {!isMultiSelection && <section className="account-card account-info-grid">
                 <div>
                   <label htmlFor="account-alias">Alias</label>
                   <input
@@ -3082,7 +3035,7 @@ export function AccountsPage({
                     </button>
                   </div>
                 </div>
-              </section>
+              </section>}
 
 
             </>
