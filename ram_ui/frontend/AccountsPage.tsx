@@ -1030,6 +1030,10 @@ export function AccountsPage({
   }, [selectedAccount?.userId]);
 
   useLayoutEffect(() => {
+    playerPathAccountRef.current = selectedAccount?.userId ?? null;
+  }, [selectedAccount?.userId]);
+
+  useLayoutEffect(() => {
     accountDetailsRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [selectedAccount?.userId, selectedAccount?.cookieExpired, selectedAccount?.moderationActive]);
   const selectedGroupColor =
