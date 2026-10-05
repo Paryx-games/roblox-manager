@@ -15,7 +15,7 @@ concurrency:
 jobs:
   label:
     name: Detect changed code
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
 
     steps:
       - name: Sync labels
