@@ -73,17 +73,20 @@
   padding: var(--space-1) var(--space-2);
   border: var(--border-width) solid var(--border-default);
   border-radius: var(--radius);
-  color: var(--visibility-color);
+  color: var(--text-muted);
   background: var(--bg-surface);
   cursor: pointer;
   font: inherit;
   font-size: var(--text-xs);
   line-height: 1.4;
   white-space: nowrap;
-  transition: background var(--duration-fast) var(--ease-standard);
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background var(--duration-fast) var(--ease-standard);
 }
 
 .roblox-visibility-choice:not(:disabled):hover {
+  color: var(--visibility-color);
   background: color-mix(in srgb, var(--visibility-color) 18%, var(--bg-surface));
 }
 
