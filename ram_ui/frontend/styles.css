@@ -38,50 +38,64 @@
   background: color-mix(in srgb, var(--action-primary) 80%, var(--bg-canvas));
 }
 
+.roblox-visibility-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .roblox-visibility-row + .roblox-visibility-row {
-  margin-top: var(--space-3);
+  margin-top: var(--space-2);
 }
 
 .roblox-visibility-label {
-  display: block;
-  margin-bottom: var(--space-2);
-  font-size: var(--text-sm);
+  min-width: 52px;
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
 }
 
 .roblox-visibility-bar {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  overflow: hidden;
-  border: var(--border-width) solid var(--border-default);
-  border-radius: var(--radius);
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  overflow-x: auto;
 }
 
 .roblox-visibility-choice {
   min-width: 0;
-  min-height: 52px;
-  padding: var(--space-2);
-  border: 0;
-  border-right: var(--border-width) solid var(--border-default);
+  min-height: 28px;
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
   color: var(--visibility-color);
-  background: color-mix(in srgb, var(--visibility-color) 8%, var(--bg-surface));
+  background: var(--bg-surface);
   cursor: pointer;
   font: inherit;
   font-size: var(--text-xs);
   line-height: 1.4;
+  white-space: nowrap;
   transition: background var(--duration-fast) var(--ease-standard);
-}
-
-.roblox-visibility-choice:last-child {
-  border-right: 0;
 }
 
 .roblox-visibility-choice:not(:disabled):hover {
   background: color-mix(in srgb, var(--visibility-color) 18%, var(--bg-surface));
 }
 
-.roblox-visibility-choice[aria-pressed="true"],
 .roblox-visibility-choice:not(:disabled):active {
   background: color-mix(in srgb, var(--visibility-color) 26%, var(--bg-surface));
+  font-weight: 700;
+}
+
+.roblox-visibility-choice[aria-pressed="true"]:not(:disabled) {
+  color: var(--bg-canvas);
+  border-color: var(--visibility-color);
+  background: var(--visibility-color);
   font-weight: 700;
 }
 

@@ -13,6 +13,7 @@
 
 ### Changed
 
+- Online and in-game visibility controls fit on compact single-line rows, with neutral options, tinted hover states and solid audience colours for the selected choice.
 - Roblox Settings uses coloured audience bars for online and in-game visibility, with immediate saves and current-choice highlights. Display names use a compact name field and primary save button enabled only for 3–20-character names validated by Roblox.
 - Discord webhooks use Components V2 notification layouts for newly detected account moderation and completed or stopped batch launches, including presets and private servers. Integrations adds saved event toggles, secure URL replacement and testing of the stored webhook; messages disable mentions and respect account-name anonymisation.
 - Selecting multiple accounts shows a selection summary, batch launch and browser controls, shared connection actions and an inventory comparison in the main account panel. Individual account fields remain in the single-account view.

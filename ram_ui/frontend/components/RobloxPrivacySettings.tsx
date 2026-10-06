@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getRobloxPrivacy, changeRobloxPrivacy, operationError, type AccountSummary, type AccountPrivacy, type RobloxPrivacyField, type RobloxSettingResult } from "../lib/ipc";
 
-const fields: { field: RobloxPrivacyField; label: string }[] = [
-  { field: "whoCanSeeMyOnlineStatus", label: "Who can see me online?" },
-  { field: "whoCanJoinMeInExperiences", label: "Who can see me in-game and join me?" },
+const fields: { field: RobloxPrivacyField; label: string; description: string }[] = [
+  { field: "whoCanSeeMyOnlineStatus", label: "Online", description: "Who can see me online?" },
+  { field: "whoCanJoinMeInExperiences", label: "In-game", description: "Who can see me in-game and join me?" },
 ];
 const audiences = [
   { label: "Everyone", tone: "everyone", values: ["All", "Everyone"] },
@@ -52,12 +52,12 @@ export function RobloxPrivacySettings({ accounts }: { accounts: AccountSummary[]
   return (
     <div className="roblox-privacy-settings" aria-busy={busy !== null}>
       {data.map((account) => account.error && <p key={account.userId} role="alert">{accounts.find((item) => item.userId === account.userId)?.label}: {account.error}</p>)}
-      {fields.map(({ field, label }) => {
+      {fields.map(({ field, label, description }) => {
         const settings = data.map((account) => account.settings.find((setting) => setting.field === field));
         const mixed = ready && settings.some((setting) => setting?.currentValue !== settings[0]?.currentValue);
         return <div className="roblox-visibility-row" key={field}>
           <span id={`roblox-${field}-label`} className="roblox-visibility-label">{label}{mixed ? " (mixed)" : ""}</span>
-          <div className="roblox-visibility-bar" role="group" aria-labelledby={`roblox-${field}-label`}>
+          <div className="roblox-visibility-bar" role="group" aria-label={description}>
             {audiences.map((audience) => {
               const value = audience.values.find((value) => ready && settings.every((setting) => setting?.options.includes(value)));
               const selected = ready && settings.every((setting) => audience.values.includes(setting?.currentValue ?? ""));
