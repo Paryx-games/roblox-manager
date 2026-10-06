@@ -19,6 +19,7 @@ config.json
 
 # generated/reference data
 /references/
+/winget-manifests/
 
 # website
 /website/dist/

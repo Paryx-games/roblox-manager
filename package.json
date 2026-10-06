@@ -1,5 +1,6 @@
 {
   "private": true,
+  "packageManager": "pnpm@11.8.0",
   "scripts": {
     "version:sync": "node ram_ui/scripts/tauri.mjs version:sync",
     "version:set": "node ram_ui/scripts/tauri.mjs version:set",
