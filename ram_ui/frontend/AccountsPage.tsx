@@ -2806,7 +2806,10 @@ export function AccountsPage({
                 ))}
               </section>
 
-              <RobloxSettings key={selectionKey} accounts={selectedAccounts} />
+              <RobloxSettings
+                key={isMultiSelection ? selectionKey : selectedAccount.userId}
+                accounts={isMultiSelection ? selectedAccounts : [selectedAccount]}
+              />
 
               <section className="account-card connections-card">
                 <h3>Connections</h3>

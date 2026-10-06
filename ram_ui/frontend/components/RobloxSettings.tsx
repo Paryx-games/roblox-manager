@@ -9,11 +9,11 @@ export function RobloxSettings({ accounts }: { accounts: AccountSummary[] }) {
   const [error, setError] = useState("");
   const [validation, setValidation] = useState<{ name: string; error: string }>({ name: "", error: "" });
   const selectionKey = accounts.map((account) => account.userId).join(",");
-  const ids = useMemo(() => selectionKey.split(",").map(Number), [selectionKey]);
+  const ids = useMemo(() => selectionKey ? selectionKey.split(",").map(Number) : [], [selectionKey]);
   const lengthValid = [...name].length >= 3 && [...name].length <= 20 && !/[\p{Cc}]/u.test(name);
-  const supported = lengthValid && validation.name === name && !validation.error;
+  const supported = ids.length > 0 && lengthValid && validation.name === name && !validation.error;
   useEffect(() => {
-    if (!lengthValid || busy) return;
+    if (!ids.length || !lengthValid || busy) return;
     let active = true;
     const timer = window.setTimeout(() => {
       checkRobloxDisplayName(ids, name).then(() => {
@@ -38,6 +38,7 @@ export function RobloxSettings({ accounts }: { accounts: AccountSummary[] }) {
       setBusy(false);
     }
   }
+  if (!accounts.length) return null;
   return (
     <section className="account-card" aria-busy={busy}>
       <h3>Roblox Settings</h3>

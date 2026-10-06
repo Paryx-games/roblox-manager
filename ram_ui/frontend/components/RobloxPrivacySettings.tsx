@@ -21,13 +21,14 @@ export function RobloxPrivacySettings({ accounts }: { accounts: AccountSummary[]
   const [error, setError] = useState("");
   const [results, setResults] = useState<RobloxSettingResult[]>([]);
   const selectionKey = accounts.map((account) => account.userId).join(",");
-  const ids = useMemo(() => selectionKey.split(",").map(Number), [selectionKey]);
+  const ids = useMemo(() => selectionKey ? selectionKey.split(",").map(Number) : [], [selectionKey]);
   const requestVersion = useRef(0);
   const load = useCallback(async () => {
     const version = ++requestVersion.current;
     setBusy("load");
     setError("");
     setResults([]);
+    if (!ids.length) { setData([]); setBusy(null); return; }
     try {
       const loaded = await getRobloxPrivacy(ids);
       if (requestVersion.current === version) setData(loaded);
@@ -37,7 +38,7 @@ export function RobloxPrivacySettings({ accounts }: { accounts: AccountSummary[]
   }, [ids]);
   useEffect(() => { void load(); return () => { ++requestVersion.current; }; }, [load]);
   async function save(field: RobloxPrivacyField, value: string) {
-    if (busy || !value || data.every((account) => account.settings.find((setting) => setting.field === field)?.currentValue === value)) return;
+    if (!ready || busy || !value || data.every((account) => account.settings.find((setting) => setting.field === field)?.currentValue === value)) return;
     setBusy(field);
     setPendingValue(value);
     setError("");
@@ -48,7 +49,10 @@ export function RobloxPrivacySettings({ accounts }: { accounts: AccountSummary[]
     } catch (reason) { setData([]); setError(operationError(reason, "Visibility changes could not be confirmed. Reload settings before retrying.")); }
     finally { setBusy(null); setPendingValue(""); }
   }
-  const ready = data.length === accounts.length && data.every((account) => !account.error);
+  const ready = ids.length > 0 && data.length === ids.length && ids.every((id) => data.some((account) =>
+    account.userId === id && !account.error && fields.every(({ field }) => account.settings.some((setting) => setting.field === field))
+  ));
+  if (!accounts.length) return null;
   return (
     <div className="roblox-privacy-settings" aria-busy={busy !== null}>
       {data.map((account) => account.error && <p key={account.userId} role="alert">{accounts.find((item) => item.userId === account.userId)?.label}: {account.error}</p>)}

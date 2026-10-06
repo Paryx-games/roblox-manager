@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- Roblox Settings uses the focused account when no bulk selection exists. Empty selections no longer request account ID zero or incorrectly highlight every visibility choice.
 - Group membership results stay visible during refresh, including partial failures; switching groups still clears prior feedback.
 
 - Text fields retain the standard editing context menu for Copy/Paste while page backgrounds continue to suppress the browser menu.
