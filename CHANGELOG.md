@@ -13,6 +13,7 @@
 
 ### Changed
 
+- Logging uses the saved severity level across RM and ram_core, with explicit RUST_LOG overrides. Development console severity labels are coloured after credential redaction; rotating files remain plain text. Verbose visibility request and schema diagnostics now require Debug or Trace, while failures remain visible as warnings.
 - Online and in-game visibility controls fit on compact single-line rows, with gray unselected options, tinted audience colours on hover and solid audience colours for the selected choice.
 - Roblox Settings uses coloured audience bars for online and in-game visibility, with immediate saves and current-choice highlights. Display names use a compact name field and primary save button enabled only for 3–20-character names validated by Roblox.
 - Discord webhooks use Components V2 notification layouts for newly detected account moderation and completed or stopped batch launches, including presets and private servers. Integrations adds saved event toggles, secure URL replacement and testing of the stored webhook; messages disable mentions and respect account-name anonymisation.

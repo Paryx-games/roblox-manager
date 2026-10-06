@@ -58,6 +58,75 @@ fn log_appender(data_dir: &Path) -> Option<tracing_appender::rolling::RollingFil
 
 struct Scrubbed<M>(M);
 
+struct ColoredConsole<M> {
+    inner: M,
+    enabled: bool,
+}
+
+struct LevelColorWriter<W> {
+    inner: W,
+    level: tracing::Level,
+    enabled: bool,
+}
+
+impl<'a, M: MakeWriter<'a>> MakeWriter<'a> for ColoredConsole<M> {
+    type Writer = LevelColorWriter<M::Writer>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        LevelColorWriter {
+            inner: self.inner.make_writer(),
+            level: tracing::Level::INFO,
+            enabled: self.enabled,
+        }
+    }
+
+    fn make_writer_for(&'a self, metadata: &tracing::Metadata<'_>) -> Self::Writer {
+        LevelColorWriter {
+            inner: self.inner.make_writer_for(metadata),
+            level: *metadata.level(),
+            enabled: self.enabled,
+        }
+    }
+}
+
+impl<W: Write> Write for LevelColorWriter<W> {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        if !self.enabled {
+            return self.inner.write(data);
+        }
+        let text = String::from_utf8_lossy(data);
+        let level = self.level.as_str();
+        let Some(position) = text.find(level) else {
+            return self.inner.write(data);
+        };
+        let color = match self.level {
+            tracing::Level::ERROR => "\x1b[31m",
+            tracing::Level::WARN => "\x1b[33m",
+            tracing::Level::INFO => "\x1b[32m",
+            tracing::Level::DEBUG => "\x1b[36m",
+            tracing::Level::TRACE => "\x1b[35m",
+        };
+        // add color only after the shared scrubbing writer has removed secrets
+        self.inner.write_all(text[..position].as_bytes())?;
+        self.inner.write_all(color.as_bytes())?;
+        self.inner.write_all(level.as_bytes())?;
+        self.inner.write_all(b"\x1b[0m")?;
+        self.inner
+            .write_all(text[position + level.len()..].as_bytes())?;
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+fn logging_filter(level: LogLevel, override_filter: Option<&str>) -> EnvFilter {
+    override_filter
+        .and_then(|value| EnvFilter::try_new(value).ok())
+        .unwrap_or_else(|| EnvFilter::new(level.clamp_for_profile().filter_string()))
+}
+
 impl<'a, M: MakeWriter<'a>> MakeWriter<'a> for Scrubbed<M> {
     type Writer = ScrubbingWriter<M::Writer>;
 
@@ -108,8 +177,15 @@ impl<W: Write> Drop for ScrubbingWriter<W> {
     }
 }
 
-fn init_logging() {
-    let filter = || EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+fn init_logging(level: LogLevel) {
+    let override_filter = std::env::var("RUST_LOG").ok();
+    let filter = || logging_filter(level, override_filter.as_deref());
+    let color_enabled = std::env::var_os("NO_COLOR").is_none()
+        && std::env::var("FORCE_COLOR").map_or(cfg!(debug_assertions), |value| value != "0");
+    let console = || ColoredConsole {
+        inner: std::io::stderr,
+        enabled: color_enabled,
+    };
     let data_dir = std::env::var_os("APPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."))
@@ -119,11 +195,11 @@ fn init_logging() {
         if let Some(appender) = log_appender(&data_dir) {
             let subscriber = tracing_subscriber::fmt()
                 .with_env_filter(filter())
-                .with_target(false)
+                .with_target(true)
                 .with_ansi(false);
             if cfg!(debug_assertions) {
                 subscriber
-                    .with_writer(Scrubbed(appender.and(std::io::stderr)))
+                    .with_writer(Scrubbed(appender.and(console())))
                     .init();
             } else {
                 subscriber.with_writer(Scrubbed(appender)).init();
@@ -134,8 +210,9 @@ fn init_logging() {
 
     tracing_subscriber::fmt()
         .with_env_filter(filter())
-        .with_target(false)
-        .with_writer(Scrubbed(std::io::stderr))
+        .with_target(true)
+        .with_ansi(false)
+        .with_writer(Scrubbed(console()))
         .init();
 }
 
@@ -2865,8 +2942,10 @@ mod logging_tests {
         let file = Arc::new(Mutex::new(Vec::new()));
         let console_output = Arc::clone(&console);
         let file_output = Arc::clone(&file);
-        let writer = (move || SharedOutput(Arc::clone(&file_output)))
-            .and(move || SharedOutput(Arc::clone(&console_output)));
+        let writer = (move || SharedOutput(Arc::clone(&file_output))).and(ColoredConsole {
+            inner: move || SharedOutput(Arc::clone(&console_output)),
+            enabled: true,
+        });
         let subscriber = tracing_subscriber::fmt()
             .without_time()
             .with_ansi(false)
@@ -2882,13 +2961,105 @@ mod logging_tests {
         });
         let console = console.lock().expect("test output lock");
         let file = file.lock().expect("test output lock");
-        assert_eq!(*console, *file);
-        let text = String::from_utf8_lossy(&console);
+        let console = String::from_utf8_lossy(&console);
+        let text = String::from_utf8_lossy(&file);
+        assert_eq!(console.replace("\x1b[33m", "").replace("\x1b[0m", ""), text);
+        assert!(console.contains("\x1b[33mWARN\x1b[0m"));
+        assert!(!text.contains('\x1b'));
         assert!(text.contains("Synthetic diagnostic"));
         assert_eq!(text.matches("<redacted>").count(), 3);
         for secret in ["synthetic-cookie", "synthetic-ticket", "synthetic-csrf"] {
             assert!(!text.contains(secret));
+            assert!(!console.contains(secret));
         }
+    }
+
+    fn captured_levels(
+        level: LogLevel,
+        override_filter: Option<&str>,
+        colored: bool,
+    ) -> (String, String) {
+        let console = Arc::new(Mutex::new(Vec::new()));
+        let file = Arc::new(Mutex::new(Vec::new()));
+        let console_output = Arc::clone(&console);
+        let file_output = Arc::clone(&file);
+        let writer = (move || SharedOutput(Arc::clone(&file_output))).and(ColoredConsole {
+            inner: move || SharedOutput(Arc::clone(&console_output)),
+            enabled: colored,
+        });
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_env_filter(logging_filter(level, override_filter))
+            .with_writer(Scrubbed(writer))
+            .finish();
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::trace!(target: "ram_core::logging_test", "synthetic trace");
+            tracing::debug!(target: "ram_core::logging_test", "synthetic debug");
+            tracing::info!(target: "ram_core::logging_test", "synthetic info");
+            tracing::warn!(target: "rm_tauri::logging_test", "synthetic warn");
+            tracing::error!(target: "rm_tauri::logging_test", "synthetic error");
+        });
+        let console_text = String::from_utf8(console.lock().unwrap().clone()).unwrap();
+        let file_text = String::from_utf8(file.lock().unwrap().clone()).unwrap();
+        (console_text, file_text)
+    }
+
+    #[test]
+    fn all_severity_levels_have_console_colors_and_plain_files() {
+        let (console, file) = captured_levels(LogLevel::Info, Some("trace"), true);
+        for (color, level) in [
+            ("35", "TRACE"),
+            ("36", "DEBUG"),
+            ("32", "INFO"),
+            ("33", "WARN"),
+            ("31", "ERROR"),
+        ] {
+            assert!(console.contains(&format!("\x1b[{color}m{level}\x1b[0m")));
+            assert!(file.contains(level));
+        }
+        assert!(!file.contains('\x1b'));
+        let (plain_console, plain_file) = captured_levels(LogLevel::Info, Some("trace"), false);
+        assert_eq!(plain_console, plain_file);
+    }
+
+    #[test]
+    fn configured_levels_filter_core_and_host_events_with_explicit_overrides() {
+        for level in [
+            LogLevel::Error,
+            LogLevel::Warn,
+            LogLevel::Info,
+            LogLevel::Debug,
+            LogLevel::Trace,
+        ] {
+            let (_, output) = captured_levels(level, None, false);
+            let effective = level.clamp_for_profile();
+            assert!(output.contains("synthetic error"));
+            assert_eq!(
+                output.contains("synthetic warn"),
+                effective != LogLevel::Error
+            );
+            assert_eq!(
+                output.contains("synthetic info"),
+                matches!(
+                    effective,
+                    LogLevel::Info | LogLevel::Debug | LogLevel::Trace
+                )
+            );
+            assert_eq!(
+                output.contains("synthetic debug"),
+                matches!(effective, LogLevel::Debug | LogLevel::Trace)
+            );
+            assert_eq!(
+                output.contains("synthetic trace"),
+                effective == LogLevel::Trace
+            );
+        }
+        let (_, override_output) = captured_levels(LogLevel::Error, Some("trace"), false);
+        assert!(override_output.contains("synthetic trace"));
+        let (_, invalid_override) = captured_levels(LogLevel::Warn, Some("[invalid"), false);
+        assert!(invalid_override.contains("synthetic warn"));
+        assert!(!invalid_override.contains("synthetic info"));
     }
 }
 
@@ -2926,7 +3097,13 @@ fn main() {
         eprintln!("Demo mode is only available in debug builds");
         std::process::exit(1);
     }
-    init_logging();
+    let app_state = AppState::default();
+    let log_level = app_state
+        .runtime
+        .lock()
+        .map(|runtime| runtime.config.log_level)
+        .unwrap_or_default();
+    init_logging(log_level);
     tracing::info!(
         event = "startup",
         version = env!("CARGO_PKG_VERSION"),
@@ -2974,7 +3151,7 @@ fn main() {
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState::default())
+        .manage(app_state)
         .manage(asset_manager::AssetManager::default())
         .setup(|app| {
             app.manage(webview_recovery::RecoveryState::default());

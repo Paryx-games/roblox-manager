@@ -362,7 +362,7 @@ async fn fetch_privacy(
     phase: &'static str,
 ) -> Result<Vec<PrivacySetting>, String> {
     let started = std::time::Instant::now();
-    tracing::info!(
+    tracing::debug!(
         event = "roblox_visibility_request",
         request_id,
         user_id,
@@ -392,7 +392,7 @@ async fn fetch_privacy(
             "Roblox visibility settings could not be loaded. Try again"
         })?;
     let status = response.status().as_u16();
-    tracing::info!(
+    tracing::debug!(
         event = "roblox_visibility_response",
         request_id,
         user_id,
@@ -426,10 +426,17 @@ async fn fetch_privacy(
     })?;
     let result = parse_privacy(&value);
     if result.is_err() {
-        tracing::warn!(event = "roblox_visibility_schema", request_id, user_id, phase, schema = %privacy_schema(&value), "Roblox visibility response shape was not supported");
+        tracing::warn!(
+            event = "roblox_visibility_parse_failed",
+            request_id,
+            user_id,
+            phase,
+            "Roblox visibility response shape was not supported"
+        );
+        tracing::debug!(event = "roblox_visibility_schema", request_id, user_id, phase, schema = %privacy_schema(&value), "Roblox visibility response shape was not supported");
     } else {
-        tracing::info!(event = "roblox_visibility_schema", request_id, user_id, phase, schema = %privacy_schema(&value), "Roblox visibility response shape parsed");
-        tracing::info!(
+        tracing::debug!(event = "roblox_visibility_schema", request_id, user_id, phase, schema = %privacy_schema(&value), "Roblox visibility response shape parsed");
+        tracing::debug!(
             event = "roblox_visibility_loaded",
             request_id,
             user_id,
@@ -507,7 +514,7 @@ async fn change_privacy(
             "This choice is unavailable for this account. Reload visibility settings".into(),
         );
     }
-    tracing::info!(
+    tracing::debug!(
         event = "roblox_visibility_save",
         request_id,
         user_id,
@@ -533,7 +540,7 @@ async fn change_privacy(
             );
             "Visibility update could not be confirmed. Reload settings before retrying"
         })?;
-    tracing::info!(
+    tracing::debug!(
         event = "roblox_visibility_save_response",
         request_id,
         user_id,
@@ -542,6 +549,14 @@ async fn change_privacy(
         "Roblox visibility save response received"
     );
     if !response.status().is_success() {
+        tracing::warn!(
+            event = "roblox_visibility_save_failed",
+            request_id,
+            user_id,
+            field,
+            status = response.status().as_u16(),
+            "Roblox rejected the visibility change"
+        );
         return Err("Roblox rejected this visibility change. Check age, region or parental restrictions on Roblox".into());
     }
     let settings = fetch_privacy(client, &cookie, user_id, &request_id, "verify")
