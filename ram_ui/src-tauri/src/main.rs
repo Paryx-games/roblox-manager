@@ -3017,6 +3017,7 @@ fn main() {
             accounts::confirm_account_addition,
             accounts::cancel_account_addition,
             roblox_settings::change_display_names,
+            roblox_settings::check_roblox_display_name,
             roblox_settings::get_roblox_privacy,
             roblox_settings::change_roblox_privacy,
             discord::get_discord_notifications,

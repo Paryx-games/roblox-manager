@@ -28,6 +28,7 @@
   --text-primary: #f0f0f1;
   --text-muted: #8a8a90;
   --text-disabled: #5c5c62;
+  --text-on-action: #fff;
 
   /* action - buttons, links, focus rings, primary interactive elements */
   --action-primary: #3e63f6;
@@ -45,6 +46,14 @@
   /* static access state, not live account or process status */
   --access-allowed: #4fbf7a;
   --access-restricted: #e0a93e;
+
+  /* Roblox visibility audiences, from broadest to most restricted */
+  --visibility-everyone: #66cf8a;
+  --visibility-followers: #bad66a;
+  --visibility-following: #e2cb61;
+  --visibility-friends: #edaa60;
+  --visibility-trusted: #ee8967;
+  --visibility-no-one: #ef747b;
 
   /* status (RESERVED - see DESIGN.md rule 1. Never used on
      buttons/links/decoration - only to represent live account,

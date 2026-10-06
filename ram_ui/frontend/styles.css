@@ -17,9 +17,94 @@
   border-top: var(--border-width) solid var(--border-default);
 }
 
-.roblox-privacy-settings h4 {
-  margin: 0;
-  font-size: var(--text-base);
+.roblox-display-name-row.account-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.roblox-display-name-row .account-button.primary:not(:disabled) {
+  color: var(--text-on-action);
+  font-weight: 700;
+}
+
+.roblox-display-name-row .account-button.primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--action-primary) 90%, var(--bg-canvas));
+}
+
+.roblox-display-name-row .account-button.primary:not(:disabled):active {
+  background: color-mix(in srgb, var(--action-primary) 80%, var(--bg-canvas));
+}
+
+.roblox-visibility-row + .roblox-visibility-row {
+  margin-top: var(--space-3);
+}
+
+.roblox-visibility-label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.roblox-visibility-bar {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  overflow: hidden;
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+}
+
+.roblox-visibility-choice {
+  min-width: 0;
+  min-height: 52px;
+  padding: var(--space-2);
+  border: 0;
+  border-right: var(--border-width) solid var(--border-default);
+  color: var(--visibility-color);
+  background: color-mix(in srgb, var(--visibility-color) 8%, var(--bg-surface));
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.roblox-visibility-choice:last-child {
+  border-right: 0;
+}
+
+.roblox-visibility-choice:not(:disabled):hover {
+  background: color-mix(in srgb, var(--visibility-color) 18%, var(--bg-surface));
+}
+
+.roblox-visibility-choice[aria-pressed="true"],
+.roblox-visibility-choice:not(:disabled):active {
+  background: color-mix(in srgb, var(--visibility-color) 26%, var(--bg-surface));
+  font-weight: 700;
+}
+
+.roblox-visibility-choice:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: -2px;
+}
+
+.roblox-visibility-choice:disabled {
+  color: var(--text-disabled);
+  background: var(--bg-surface);
+  cursor: not-allowed;
+}
+
+.visibility-everyone { --visibility-color: var(--visibility-everyone); }
+.visibility-followers { --visibility-color: var(--visibility-followers); }
+.visibility-following { --visibility-color: var(--visibility-following); }
+.visibility-friends { --visibility-color: var(--visibility-friends); }
+.visibility-trusted { --visibility-color: var(--visibility-trusted); }
+.visibility-no-one { --visibility-color: var(--visibility-no-one); }
+
+@media (prefers-reduced-motion: reduce) {
+  .roblox-visibility-choice { transition: none; }
 }
 
 .discord-event-options {
