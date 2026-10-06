@@ -162,10 +162,8 @@ fn dispatch(app: &tauri::AppHandle, event: Event, message: serde_json::Value) {
         let result = match destination {
             Ok(Ok(Some(url))) => send(&url, &message).await,
             Ok(Ok(None)) => return,
-            _ => Err(
-                "Discord notification settings could not be read. Check Integrations in Settings"
-                    .into(),
-            ),
+            Ok(Err(error)) => Err(format!("{error}. Check Integrations in Settings")),
+            Err(_) => Err("Discord notification task failed. Try again".into()),
         };
         if let Err(error) = result {
             let _ = app.emit("background-notice", error);

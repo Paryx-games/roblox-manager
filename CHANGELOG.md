@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Discord notification failures distinguish unreadable webhook credentials from notification-preference errors and failed background tasks.
 - The selected Roblox visibility audience remains visibly marked while saving or when Roblox no longer allows that choice.
 
 ## v2.1.0
