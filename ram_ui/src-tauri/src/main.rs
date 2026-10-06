@@ -16,6 +16,7 @@ mod launcher;
 mod lifecycle;
 mod login;
 mod page_visibility;
+mod roblox_settings;
 mod state;
 mod webview_recovery;
 
@@ -3046,6 +3047,7 @@ fn main() {
             instances::kill_instance,
             accounts::confirm_account_addition,
             accounts::cancel_account_addition,
+            roblox_settings::change_display_names,
             lifecycle::startup_status,
             lifecycle::acknowledge_startup,
             lifecycle::migrate_legacy_data,

@@ -4,6 +4,7 @@
 
 ### Added
 
+- Accounts includes Roblox Settings for changing the display name of one or multiple selected accounts, with individual results and Roblox cooldown feedback.
 - Settings includes a Browse button for choosing the Roblox player installation folder, with validation that it contains RobloxPlayerBeta.exe.
 - Account details includes a Browse button beside Player path to choose and save a custom Roblox installation for an individual account.
 

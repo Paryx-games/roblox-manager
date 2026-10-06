@@ -66,6 +66,7 @@ import Select from "./components/Select";
 import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
 import { PromptModal } from "./components/PromptModal";
+import { RobloxSettings } from "./components/RobloxSettings";
 import {
   Toast,
   ToastStack,
@@ -2805,6 +2806,8 @@ export function AccountsPage({
                   />
                 ))}
               </section>
+
+              <RobloxSettings key={selectionKey} accounts={selectedAccounts} />
 
               <section className="account-card connections-card">
                 <h3>Connections</h3>

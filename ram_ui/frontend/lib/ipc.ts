@@ -1,5 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export interface RobloxSettingResult {
+  userId: number;
+  success: boolean;
+  message: string;
+}
+
+export function changeDisplayNames(userIds: number[], name: string): Promise<RobloxSettingResult[]> {
+  return invoke("change_display_names", { userIds, name });
+}
+
 declare global {
   interface Window { __RM_BENCHMARK__?: boolean; }
 }
