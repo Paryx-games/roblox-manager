@@ -47,6 +47,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Setup rust
+        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
+
       - name: Validate tag, application version, and changelog
         shell: bash
         run: |
