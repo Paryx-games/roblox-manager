@@ -6,9 +6,9 @@ const fields: { field: RobloxPrivacyField; label: string; description: string }[
   { field: "whoCanJoinMeInExperiences", label: "In-game", description: "Who can see me in-game and join me?" },
 ];
 const audiences = [
-  { label: "Everyone", tone: "everyone", values: ["All", "Everyone"] },
-  { label: "Friends, followers & people I follow", tone: "followers", values: ["FriendsFollowingAndFollowers", "FriendsAndFollowingAndFollowers", "FriendsAndFollowersAndFollowing"] },
-  { label: "Friends & people I follow", tone: "following", values: ["FriendsAndFollowing"] },
+  { label: "Everyone", tone: "everyone", values: ["All", "AllUsers", "Everyone"] },
+  { label: "Friends, followers & people I follow", tone: "followers", values: ["Followers", "FriendsFollowingAndFollowers", "FriendsAndFollowingAndFollowers", "FriendsAndFollowersAndFollowing"] },
+  { label: "Friends & people I follow", tone: "following", values: ["Following", "FriendsAndFollowing"] },
   { label: "Friends", tone: "friends", values: ["Friends"] },
   { label: "Trusted friends", tone: "trusted", values: ["TrustedFriends"] },
   { label: "No one", tone: "no-one", values: ["NoOne", "Noone"] },

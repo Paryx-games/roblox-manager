@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- Roblox visibility settings accept structured API choices as well as strings, preserve audience identifiers such as AllUsers, Followers and Following, and exclude disabled options without failing the entire list.
 - Roblox Settings uses the focused account when no bulk selection exists. Empty selections no longer request account ID zero or incorrectly highlight every visibility choice.
 - Group membership results stay visible during refresh, including partial failures; switching groups still clears prior feedback.
 

@@ -187,13 +187,38 @@ pub struct AccountPrivacy {
     error: Option<String>,
 }
 
+fn visibility_value(value: &serde_json::Value) -> Option<&str> {
+    value
+        .as_str()
+        .or_else(|| value.get("value")?.as_str())
+        .filter(|text| {
+            !text.is_empty()
+                && text.len() <= 100
+                && text.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || matches!(character, '_' | '-')
+                })
+        })
+}
+
 fn parse_privacy(value: &serde_json::Value) -> Result<Vec<PrivacySetting>, String> {
     PRIVACY_FIELDS.iter().map(|field| {
         let setting = &value[*field];
-        let current = setting["currentValue"].as_str().ok_or("Roblox did not return these visibility settings. Use Roblox settings for this account")?;
-        let options = setting["options"].as_array().ok_or("Roblox did not return visibility choices")?
-            .iter().map(|option| option.as_str().filter(|text| !text.is_empty() && text.len() <= 100).map(str::to_owned).ok_or("Roblox returned an unsupported visibility choice".to_string()))
-            .collect::<Result<Vec<_>, _>>()?;
+        let current = visibility_value(&setting["currentValue"]).ok_or("Roblox did not return these visibility settings. Use Roblox settings for this account")?;
+        let entries = setting["options"].as_array().ok_or("Roblox did not return visibility choices")?;
+        let mut options = Vec::new();
+        let mut recognised = entries.is_empty();
+        for entry in entries {
+            let Some(option) = visibility_value(entry) else { continue; };
+            recognised = true;
+            if entry.get("isEnabled").and_then(serde_json::Value::as_bool) == Some(false)
+                || entry.get("enabled").and_then(serde_json::Value::as_bool) == Some(false)
+                || entry.get("isDisabled").and_then(serde_json::Value::as_bool) == Some(true)
+                || entry.get("disabled").and_then(serde_json::Value::as_bool) == Some(true) {
+                continue;
+            }
+            if !options.iter().any(|value| value == option) { options.push(option.to_owned()); }
+        }
+        if !recognised { return Err("Roblox did not provide usable visibility choices. Refresh the account or use Roblox settings".into()); }
         Ok(PrivacySetting { field: (*field).into(), current_value: current.into(), options })
     }).collect()
 }
@@ -342,5 +367,39 @@ mod privacy_tests {
         assert!(validate_ids(&[0]).is_err());
         assert!(validate_ids(&vec![1; 501]).is_err());
         assert!(validate_ids(&[1, 2]).is_ok());
+    }
+    #[test]
+    fn structured_choices_preserve_values_and_exclude_disabled_options() {
+        let value = serde_json::json!({
+            "whoCanJoinMeInExperiences": { "currentValue": "Followers", "options": [
+                { "value": "All", "label": "Everyone", "isEnabled": false },
+                { "value": "Followers", "label": "Friends, followers and following" },
+                { "value": "Following" }, "Following", { "value": "Friends" },
+                { "value": "TrustedFriends", "disabled": true }, { "value": "NoOne" },
+                { "label": "Invalid option without a value" }, null, 7
+            ] },
+            "whoCanSeeMyOnlineStatus": { "currentValue": "AllUsers", "options": [
+                { "value": "AllUsers" }, { "value": "Friends" }, { "value": "NoOne" }
+            ] }
+        });
+        let settings = parse_privacy(&value).unwrap();
+        assert_eq!(settings[0].current_value, "Followers");
+        assert_eq!(
+            settings[0].options,
+            ["Followers", "Following", "Friends", "NoOne"]
+        );
+        assert_eq!(settings[1].options, ["AllUsers", "Friends", "NoOne"]);
+    }
+
+    #[test]
+    fn malformed_options_never_grant_permission_from_labels_or_current_values() {
+        let mut value = serde_json::json!({
+            "whoCanJoinMeInExperiences": { "currentValue": "All", "options": [{"label":"All"}, {"value":"../../All"}] },
+            "whoCanSeeMyOnlineStatus": { "currentValue": "NoOne", "options": [] }
+        });
+        assert!(parse_privacy(&value).is_err());
+        value["whoCanJoinMeInExperiences"]["options"] = serde_json::json!([]);
+        let settings = parse_privacy(&value).unwrap();
+        assert!(settings.iter().all(|setting| setting.options.is_empty()));
     }
 }
