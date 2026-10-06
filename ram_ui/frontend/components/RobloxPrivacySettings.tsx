@@ -37,7 +37,15 @@ export function RobloxPrivacySettings({ accounts }: { accounts: AccountSummary[]
       if (requestVersion.current === version) { setData([]); setError(operationError(reason, "Visibility settings could not be loaded. Retry loading.")); }
     } finally { if (requestVersion.current === version) setBusy(null); }
   }, [ids]);
-  useEffect(() => { void load(); return () => { ++requestVersion.current; }; }, [load]);
+  useEffect(() => {
+    ++requestVersion.current;
+    setData([]);
+    setError("");
+    setResults([]);
+    setBusy(ids.length ? "load" : null);
+    const timer = ids.length ? window.setTimeout(() => void load(), 450) : undefined;
+    return () => { window.clearTimeout(timer); ++requestVersion.current; };
+  }, [ids, load]);
   async function save(field: RobloxPrivacyField, value: string) {
     if (!ready || busy || !value || data.every((account) => account.settings.find((setting) => setting.field === field)?.currentValue === value)) return;
     setBusy(field);

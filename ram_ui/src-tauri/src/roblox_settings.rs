@@ -107,30 +107,27 @@ pub async fn check_roblox_display_name(
     validate_display_name(&name)?;
     validate_ids(&user_ids)?;
     let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
-    let mut seen = std::collections::HashSet::new();
-    for user_id in user_ids.into_iter().filter(|id| seen.insert(*id)) {
-        let (cookie, _) = credential(state.inner().clone(), user_id).await?;
-        let mut url = reqwest::Url::parse(&format!(
-            "https://users.roblox.com/v1/users/{user_id}/display-names/validate"
-        ))
-        .map_err(|_| "Display-name validation unavailable")?;
-        url.query_pairs_mut().append_pair("displayName", &name);
-        let response = client
-            .request(reqwest::Method::GET, url.as_str(), &cookie, None)
-            .await
-            .map_err(|_| "Name could not be checked. Edit the name to retry")?;
-        match response.status().as_u16() {
-            200 => {}
-            400 => return Err("Roblox does not support this name. Choose another name".into()),
-            429 => return Err("Roblox is limiting name checks or changes. Try again later".into()),
-            401 | 403 => return Err(
-                "Roblox could not check this name for every account. Refresh the selected accounts"
-                    .into(),
-            ),
-            _ => return Err("Name could not be checked. Edit the name to retry".into()),
+    // preview one account while typing; the explicit save reports each account's outcome.
+    let user_id = user_ids[0];
+    let (cookie, _) = credential(state.inner().clone(), user_id).await?;
+    let mut url = reqwest::Url::parse(&format!(
+        "https://users.roblox.com/v1/users/{user_id}/display-names/validate"
+    ))
+    .map_err(|_| "Display-name validation unavailable")?;
+    url.query_pairs_mut().append_pair("displayName", &name);
+    let response = client
+        .request(reqwest::Method::GET, url.as_str(), &cookie, None)
+        .await
+        .map_err(|_| "Name could not be checked. Edit the name to retry")?;
+    match response.status().as_u16() {
+        200 => Ok(()),
+        400 => Err("Roblox does not support this name. Choose another name".into()),
+        429 => Err("Roblox is limiting name checks or changes. Try again later".into()),
+        401 | 403 => {
+            Err("Roblox could not check this name. Refresh the first selected account".into())
         }
+        _ => Err("Name could not be checked. Edit the name to retry".into()),
     }
-    Ok(())
 }
 
 #[tauri::command]
