@@ -13,6 +13,7 @@
 
 ### Changed
 
+- Successful online and in-game visibility saves show the shared radial countdown notice; failed account results remain visible.
 - Successful display-name saves show the same timed radial countdown notice as Open browser; failed account results remain visible.
 - Logging uses the saved severity level across RM and ram_core, with explicit RUST_LOG overrides. Development console severity labels are coloured after credential redaction; rotating files remain plain text. Verbose visibility request and schema diagnostics now require Debug or Trace, while failures remain visible as warnings.
 - Online and in-game visibility controls fit on compact single-line rows, with gray unselected options, tinted audience colours on hover and solid audience colours for the selected choice.

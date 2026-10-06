@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getRobloxPrivacy, changeRobloxPrivacy, operationError, type AccountSummary, type AccountPrivacy, type RobloxPrivacyField, type RobloxSettingResult } from "../lib/ipc";
+import { TimedNotice } from "./TimedNotice";
 
 const fields: { field: RobloxPrivacyField; label: string; description: string }[] = [
   { field: "whoCanSeeMyOnlineStatus", label: "Online", description: "Who can see me online?" },
@@ -75,7 +76,12 @@ export function RobloxPrivacySettings({ accounts }: { accounts: AccountSummary[]
       {busy === "load" && <p role="status">Loading visibility settings...</p>}
       {(error || data.some((account) => account.error)) && <button className="account-button" type="button" disabled={busy !== null} onClick={() => void load()}>Retry loading settings</button>}
       {error && <p role="alert">{error}</p>}
-      {results.length > 0 && <ul className="roblox-settings-results" aria-live="polite">{results.map((result) => <li key={result.userId}>{accounts.find((account) => account.userId === result.userId)?.label ?? result.userId}: {result.message}</li>)}</ul>}
+      {results.filter((result) => result.success).map((result) => <TimedNotice
+        key={result.userId}
+        message={`${accounts.find((account) => account.userId === result.userId)?.label ?? result.userId}: ${result.message}`}
+        onDismiss={() => setResults((current) => current.filter((item) => item.userId !== result.userId))}
+      />)}
+      {results.some((result) => !result.success) && <ul className="roblox-settings-results" aria-live="polite">{results.filter((result) => !result.success).map((result) => <li key={result.userId}>{accounts.find((account) => account.userId === result.userId)?.label ?? result.userId}: {result.message}</li>)}</ul>}
     </div>
   );
 }
