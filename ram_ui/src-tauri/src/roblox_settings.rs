@@ -171,6 +171,130 @@ mod tests {
 const PRIVACY_URL: &str = "https://apis.roblox.com/user-settings-api/v1/user-settings";
 const PRIVACY_FIELDS: [&str; 2] = ["whoCanJoinMeInExperiences", "whoCanSeeMyOnlineStatus"];
 
+fn json_kind(value: &serde_json::Value) -> &'static str {
+    match value {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "boolean",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::Object(_) => "object",
+    }
+}
+
+fn option_shape(value: &serde_json::Value) -> String {
+    option_shape_at(value, 0)
+}
+
+fn option_shape_at(value: &serde_json::Value, depth: usize) -> String {
+    if depth >= 3 {
+        return json_kind(value).into();
+    }
+    let Some(object) = value.as_object() else {
+        return json_kind(value).into();
+    };
+    let known_keys = [
+        "value",
+        "option",
+        "optionValue",
+        "optionName",
+        "name",
+        "key",
+        "id",
+        "label",
+        "displayName",
+        "isEnabled",
+        "enabled",
+        "isDisabled",
+        "disabled",
+        "isAvailable",
+        "text",
+        "type",
+        "optionType",
+        "optionKey",
+        "optionId",
+        "displayValue",
+        "settingValue",
+        "valueToSet",
+        "isAllowed",
+        "isSelectable",
+        "isRestricted",
+        "canBeSelected",
+        "available",
+        "availability",
+        "requirements",
+        "restriction",
+        "restrictions",
+        "restrictionReason",
+        "restrictionReasons",
+        "disabledReason",
+        "disabledReasons",
+        "reason",
+        "description",
+        "translationKey",
+        "errorCode",
+        "error",
+        "errors",
+        "errorReason",
+        "validationError",
+        "validationErrors",
+        "invalidReason",
+        "invalidReasons",
+        "isValid",
+        "isOptionEnabled",
+        "isOptionDisabled",
+        "isOptionAvailable",
+        "isOptionSelectable",
+        "restrictionType",
+        "optionRestriction",
+        "optionRestrictions",
+        "unavailabilityReason",
+        "disabledReasonCode",
+        "restrictionReasonCode",
+        "dependencies",
+        "dependentSettings",
+        "requiredSettings",
+        "requiresParentalConsent",
+        "requiresAgeVerification",
+    ];
+    let mut members = Vec::new();
+    for key in known_keys {
+        if let Some(value) = object.get(key) {
+            members.push(format!(
+                "{key}:{}",
+                if value.is_object() {
+                    option_shape_at(value, depth + 1)
+                } else {
+                    json_kind(value).into()
+                }
+            ));
+        }
+    }
+    members.push(format!(
+        "otherKeys:{}",
+        object
+            .keys()
+            .filter(|key| !known_keys.contains(&key.as_str()))
+            .count()
+    ));
+    format!("object({})", members.join(","))
+}
+
+fn privacy_schema(value: &serde_json::Value) -> serde_json::Value {
+    let fields = PRIVACY_FIELDS.into_iter().map(|field| {
+        let setting = &value[field];
+        let options = &setting["options"];
+        (field.to_owned(), serde_json::json!({
+            "settingType": json_kind(setting),
+            "currentType": json_kind(&setting["currentValue"]),
+            "optionsType": json_kind(options),
+            "optionCount": options.as_array().map(Vec::len),
+            "optionShapes": options.as_array().map(|options| options.iter().take(8).map(option_shape).collect::<std::collections::BTreeSet<_>>())
+        }))
+    }).collect::<serde_json::Map<_, _>>();
+    serde_json::Value::Object(fields)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PrivacySetting {
@@ -190,7 +314,14 @@ pub struct AccountPrivacy {
 fn visibility_value(value: &serde_json::Value) -> Option<&str> {
     value
         .as_str()
-        .or_else(|| value.get("value")?.as_str())
+        .or_else(|| value.get("value").and_then(serde_json::Value::as_str))
+        .or_else(|| value.get("optionValue").and_then(serde_json::Value::as_str))
+        .or_else(|| {
+            value
+                .get("option")
+                .and_then(|option| option.get("optionValue"))
+                .and_then(serde_json::Value::as_str)
+        })
         .filter(|text| {
             !text.is_empty()
                 && text.len() <= 100
@@ -223,7 +354,21 @@ fn parse_privacy(value: &serde_json::Value) -> Result<Vec<PrivacySetting>, Strin
     }).collect()
 }
 
-async fn fetch_privacy(client: &RobloxClient, cookie: &str) -> Result<Vec<PrivacySetting>, String> {
+async fn fetch_privacy(
+    client: &RobloxClient,
+    cookie: &str,
+    user_id: u64,
+    request_id: &str,
+    phase: &'static str,
+) -> Result<Vec<PrivacySetting>, String> {
+    let started = std::time::Instant::now();
+    tracing::info!(
+        event = "roblox_visibility_request",
+        request_id,
+        user_id,
+        phase,
+        "Loading Roblox visibility settings"
+    );
     let response = client
         .request(
             reqwest::Method::GET,
@@ -235,15 +380,64 @@ async fn fetch_privacy(client: &RobloxClient, cookie: &str) -> Result<Vec<Privac
             None,
         )
         .await
-        .map_err(|_| "Roblox visibility settings could not be loaded. Try again")?;
+        .map_err(|_| {
+            tracing::warn!(
+                event = "roblox_visibility_failure",
+                request_id,
+                user_id,
+                phase,
+                failure = "transport",
+                "Roblox visibility request failed"
+            );
+            "Roblox visibility settings could not be loaded. Try again"
+        })?;
+    let status = response.status().as_u16();
+    tracing::info!(
+        event = "roblox_visibility_response",
+        request_id,
+        user_id,
+        phase,
+        status,
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "Roblox visibility response received"
+    );
     if !response.status().is_success() {
+        tracing::warn!(
+            event = "roblox_visibility_failure",
+            request_id,
+            user_id,
+            phase,
+            failure = "http",
+            status,
+            "Roblox denied the visibility request"
+        );
         return Err("Roblox denied access to visibility settings. Refresh the account or use Roblox settings".into());
     }
-    let value = response
-        .json()
-        .await
-        .map_err(|_| "Roblox returned unreadable visibility settings")?;
-    parse_privacy(&value)
+    let value = response.json().await.map_err(|_| {
+        tracing::warn!(
+            event = "roblox_visibility_failure",
+            request_id,
+            user_id,
+            phase,
+            failure = "json",
+            "Roblox visibility response was not valid JSON"
+        );
+        "Roblox returned unreadable visibility settings"
+    })?;
+    let result = parse_privacy(&value);
+    if result.is_err() {
+        tracing::warn!(event = "roblox_visibility_schema", request_id, user_id, phase, schema = %privacy_schema(&value), "Roblox visibility response shape was not supported");
+    } else {
+        tracing::info!(event = "roblox_visibility_schema", request_id, user_id, phase, schema = %privacy_schema(&value), "Roblox visibility response shape parsed");
+        tracing::info!(
+            event = "roblox_visibility_loaded",
+            request_id,
+            user_id,
+            phase,
+            "Roblox visibility settings parsed"
+        );
+    }
+    result.map_err(|error| format!("{error}. Diagnostic ID: {request_id}"))
 }
 
 fn validate_ids(ids: &[u64]) -> Result<(), String> {
@@ -264,7 +458,16 @@ pub async fn get_roblox_privacy(
     let mut seen = std::collections::HashSet::new();
     for user_id in user_ids.into_iter().filter(|id| seen.insert(*id)) {
         let result = match credential(state.inner().clone(), user_id).await {
-            Ok((cookie, _)) => fetch_privacy(&client, &cookie).await,
+            Ok((cookie, _)) => {
+                fetch_privacy(
+                    &client,
+                    &cookie,
+                    user_id,
+                    &uuid::Uuid::new_v4().to_string(),
+                    "load",
+                )
+                .await
+            }
             Err(error) => Err(error),
         };
         let (settings, error) = match result {
@@ -288,14 +491,29 @@ async fn change_privacy(
     value: &str,
 ) -> Result<String, String> {
     let (cookie, _) = credential(state, user_id).await?;
-    let settings = fetch_privacy(client, &cookie).await?;
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let settings = fetch_privacy(client, &cookie, user_id, &request_id, "preflight").await?;
     if !settings.iter().any(|setting| {
         setting.field == field && setting.options.iter().any(|option| option == value)
     }) {
+        tracing::warn!(
+            event = "roblox_visibility_save_refused",
+            request_id,
+            user_id,
+            field,
+            "Requested visibility choice was not allowed by Roblox"
+        );
         return Err(
             "This choice is unavailable for this account. Reload visibility settings".into(),
         );
     }
+    tracing::info!(
+        event = "roblox_visibility_save",
+        request_id,
+        user_id,
+        field,
+        "Saving Roblox visibility choice"
+    );
     let response = client
         .request(
             reqwest::Method::POST,
@@ -304,19 +522,53 @@ async fn change_privacy(
             Some(&serde_json::json!({field: value})),
         )
         .await
-        .map_err(|_| "Visibility update could not be confirmed. Reload settings before retrying")?;
+        .map_err(|_| {
+            tracing::warn!(
+                event = "roblox_visibility_failure",
+                request_id,
+                user_id,
+                field,
+                failure = "save_transport",
+                "Roblox visibility save failed"
+            );
+            "Visibility update could not be confirmed. Reload settings before retrying"
+        })?;
+    tracing::info!(
+        event = "roblox_visibility_save_response",
+        request_id,
+        user_id,
+        field,
+        status = response.status().as_u16(),
+        "Roblox visibility save response received"
+    );
     if !response.status().is_success() {
         return Err("Roblox rejected this visibility change. Check age, region or parental restrictions on Roblox".into());
     }
-    let settings = fetch_privacy(client, &cookie).await.map_err(|_| {
-        "Update sent, but verification failed. Reload visibility settings before retrying"
-    })?;
+    let settings = fetch_privacy(client, &cookie, user_id, &request_id, "verify")
+        .await
+        .map_err(|_| {
+            "Update sent, but verification failed. Reload visibility settings before retrying"
+        })?;
     if !settings
         .iter()
         .any(|setting| setting.field == field && setting.current_value == value)
     {
+        tracing::warn!(
+            event = "roblox_visibility_verification_failed",
+            request_id,
+            user_id,
+            field,
+            "Roblox did not retain the requested visibility choice"
+        );
         return Err("Roblox did not retain the requested choice. Reload settings to see the applied restrictions".into());
     }
+    tracing::info!(
+        event = "roblox_visibility_verified",
+        request_id,
+        user_id,
+        field,
+        "Roblox visibility change verified"
+    );
     Ok("Visibility setting changed and verified on Roblox".into())
 }
 
@@ -401,5 +653,58 @@ mod privacy_tests {
         value["whoCanJoinMeInExperiences"]["options"] = serde_json::json!([]);
         let settings = parse_privacy(&value).unwrap();
         assert!(settings.iter().all(|setting| setting.options.is_empty()));
+    }
+
+    #[test]
+    fn schema_diagnostics_never_include_remote_strings_or_unknown_keys() {
+        let value = serde_json::json!({
+            "whoCanJoinMeInExperiences": { "currentValue": "synthetic-cookie", "options": [{
+                "value": "synthetic-token", "label": "synthetic-password", "synthetic-private-key": "synthetic-secret"
+            }] },
+            "whoCanSeeMyOnlineStatus": { "currentValue": "synthetic-ticket", "options": ["synthetic-csrf"] },
+            "credentials": "synthetic-credential"
+        });
+        let diagnostic = privacy_schema(&value).to_string();
+        assert!(!diagnostic.contains("synthetic"));
+        assert!(diagnostic.contains("value:string"));
+        assert!(diagnostic.contains("otherKeys:1"));
+        assert!(diagnostic.contains("currentType"));
+    }
+
+    #[test]
+    fn live_nested_option_value_shape_is_decoded_without_using_display_metadata() {
+        let value = serde_json::json!({
+            "whoCanJoinMeInExperiences": { "currentValue": "Following", "options": [
+                {"option":{"optionValue":"All"}},
+                {"option":{"optionValue":"Followers"}},
+                {"option":{"optionValue":"Following"}},
+                {"option":{"optionValue":"Friends"}},
+                {"option":{"optionValue":"TrustedFriends"}},
+                {"option":{"optionValue":"NoOne"}}
+            ]},
+            "whoCanSeeMyOnlineStatus": { "currentValue": "AllUsers", "options": [
+                {"option":{"optionValue":"AllUsers"}},
+                {"option":{"optionValue":"FriendsFollowingAndFollowers"}},
+                {"option":{"optionValue":"FriendsAndFollowing"}},
+                {"option":{"optionValue":"Friends"}},
+                {"option":{"optionValue":"TrustedFriends"}},
+                {"option":{"optionValue":"NoOne"},"disabled":true}
+            ]}
+        });
+        let settings = parse_privacy(&value).unwrap();
+        assert_eq!(
+            settings[0].options,
+            [
+                "All",
+                "Followers",
+                "Following",
+                "Friends",
+                "TrustedFriends",
+                "NoOne"
+            ]
+        );
+        assert_eq!(settings[1].options.len(), 5);
+        assert!(!settings[1].options.contains(&"NoOne".into()));
+        assert_eq!(settings[1].current_value, "AllUsers");
     }
 }
