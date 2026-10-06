@@ -20,6 +20,13 @@ export function changeRobloxPrivacy(userIds: number[], field: RobloxPrivacyField
   return invoke("change_roblox_privacy", { userIds, field, value });
 }
 
+export interface DiscordNotificationSettings { moderationDetected: boolean; batchLaunchFinished: boolean; }
+export function getDiscordNotifications(): Promise<DiscordNotificationSettings> { return invoke("get_discord_notifications"); }
+export function saveDiscordNotifications(settings: DiscordNotificationSettings): Promise<void> { return invoke("save_discord_notifications", { settings }); }
+export function launchAccounts(userIds: number[], placeId: number, jobId: string, data: string): Promise<void> {
+  return invoke("launch_accounts", { userIds, placeId, jobId: jobId.trim() || null, data: data.trim() || null });
+}
+
 declare global {
   interface Window { __RM_BENCHMARK__?: boolean; }
 }

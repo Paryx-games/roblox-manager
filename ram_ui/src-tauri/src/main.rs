@@ -11,6 +11,7 @@ mod asset_manager;
 mod background;
 mod benchmark;
 mod client_settings;
+mod discord;
 mod instances;
 mod launcher;
 mod lifecycle;
@@ -1607,43 +1608,7 @@ async fn remove_discord_webhook() -> Result<(), String> {
 
 #[tauri::command]
 async fn test_discord_webhook(url: String) -> Result<(), String> {
-    if !valid_discord_webhook_url(&url) {
-        return Err("Enter a valid Discord webhook URL".to_string());
-    }
-    let avatar = base64::engine::general_purpose::STANDARD
-        .encode(include_bytes!("../../../assets/branding/Logo.png"));
-    let http = reqwest::Client::new();
-    let response = http
-        .patch(&url)
-        .json(&serde_json::json!({
-            "name": "Roblox Manager",
-            "avatar": format!("data:image/png;base64,{avatar}"),
-        }))
-        .send()
-        .await
-        .map_err(|_| "Discord webhook request failed".to_string())?;
-    if !response.status().is_success() {
-        return Err(format!(
-            "Discord webhook rejected branding (HTTP {})",
-            response.status().as_u16()
-        ));
-    }
-    let response = http
-        .post(&url)
-        .json(&serde_json::json!({
-            "username": "Roblox Manager",
-            "content": "Roblox Manager webhook connected successfully.",
-        }))
-        .send()
-        .await
-        .map_err(|_| "Discord webhook request failed".to_string())?;
-    if !response.status().is_success() {
-        return Err(format!(
-            "Discord webhook rejected test message (HTTP {})",
-            response.status().as_u16()
-        ));
-    }
-    Ok(())
+    discord::test(url.trim().to_owned()).await
 }
 
 async fn rekey_store(
@@ -2164,19 +2129,21 @@ async fn launch_private_server(
             (!server.access_code.is_empty()).then(|| server.access_code.clone()),
         )
     };
-    for user_id in user_ids {
-        launch_account(
-            app.clone(),
-            user_id,
-            place_id,
-            None,
-            None,
-            Some(link_code.clone()),
-            access_code.clone(),
-        )
-        .await?;
-    }
-    Ok(())
+    launcher::batch(
+        &app,
+        user_ids
+            .into_iter()
+            .map(|user_id| launcher::LaunchRequest {
+                user_id,
+                place_id,
+                job_id: None,
+                data: None,
+                link_code: Some(link_code.clone()),
+                access_code: access_code.clone(),
+            })
+            .collect(),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -2597,19 +2564,21 @@ async fn launch_launch_preset(
     let (_, preset) = presets
         .get(index)
         .ok_or_else(|| "Preset not found".to_string())?;
-    for user_id in user_ids {
-        launch_account(
-            app.clone(),
-            user_id,
-            preset.place_id,
-            preset.job_id.clone(),
-            preset.data.clone(),
-            None,
-            None,
-        )
-        .await?;
-    }
-    Ok(())
+    launcher::batch(
+        &app,
+        user_ids
+            .into_iter()
+            .map(|user_id| launcher::LaunchRequest {
+                user_id,
+                place_id: preset.place_id,
+                job_id: preset.job_id.clone(),
+                data: preset.data.clone(),
+                link_code: None,
+                access_code: None,
+            })
+            .collect(),
+    )
+    .await
 }
 
 fn presence_kind(presence: &Presence) -> &'static str {
@@ -3050,6 +3019,9 @@ fn main() {
             roblox_settings::change_display_names,
             roblox_settings::get_roblox_privacy,
             roblox_settings::change_roblox_privacy,
+            discord::get_discord_notifications,
+            discord::save_discord_notifications,
+            launcher::launch_accounts,
             lifecycle::startup_status,
             lifecycle::acknowledge_startup,
             lifecycle::migrate_legacy_data,

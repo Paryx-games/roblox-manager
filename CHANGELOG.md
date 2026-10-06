@@ -13,6 +13,7 @@
 
 ### Changed
 
+- Discord webhooks use Components V2 notification layouts for newly detected account moderation and completed or stopped batch launches, including presets and private servers. Integrations adds saved event toggles, secure URL replacement and testing of the stored webhook; messages disable mentions and respect account-name anonymisation.
 - Selecting multiple accounts shows a selection summary, batch launch and browser controls, shared connection actions and an inventory comparison in the main account panel. Individual account fields remain in the single-account view.
 - The selected-account avatar stack shows a +N badge for accounts beyond the first three.
 

@@ -85,6 +85,50 @@ pub async fn launch(app: &tauri::AppHandle, request: LaunchRequest) -> Result<()
     result
 }
 
+pub async fn batch(app: &tauri::AppHandle, requests: Vec<LaunchRequest>) -> Result<(), String> {
+    let total = requests.len();
+    let place_id = requests
+        .first()
+        .map(|request| request.place_id)
+        .unwrap_or(0);
+    for (completed, request) in requests.into_iter().enumerate() {
+        if let Err(error) = launch(app, request).await {
+            crate::discord::batch_finished(app, total, completed, place_id);
+            return Err(error);
+        }
+    }
+    crate::discord::batch_finished(app, total, total, place_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn launch_accounts(
+    app: tauri::AppHandle,
+    user_ids: Vec<u64>,
+    place_id: u64,
+    job_id: Option<String>,
+    data: Option<String>,
+) -> Result<(), String> {
+    if user_ids.is_empty() || user_ids.len() > 500 {
+        return Err("Select between 1 and 500 accounts".into());
+    }
+    batch(
+        &app,
+        user_ids
+            .into_iter()
+            .map(|user_id| LaunchRequest {
+                user_id,
+                place_id,
+                job_id: job_id.clone(),
+                data: data.clone(),
+                link_code: None,
+                access_code: None,
+            })
+            .collect(),
+    )
+    .await
+}
+
 async fn launch_queued(
     app: &tauri::AppHandle,
     request_id: &str,

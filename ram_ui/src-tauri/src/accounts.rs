@@ -297,20 +297,20 @@ pub async fn refresh(
             api::fetch_avatars(&client, &user_ids)
         );
         let state = state.clone();
-        let did_complete = tauri::async_runtime::spawn_blocking(move || {
+        let (did_complete, moderation_notice) = tauri::async_runtime::spawn_blocking(move || {
             let mut runtime = state
                 .runtime
                 .lock()
                 .map_err(|_| "Account state unavailable")?;
             if *runtime.credential_revisions.get(&user_id).unwrap_or(&0) != revision {
-                return Ok(false);
+                return Ok((false, None));
             }
             let previous = runtime.accounts.clone();
             let Some(account) = runtime.accounts.find_by_id_mut(user_id) else {
-                return Ok(false);
+                return Ok((false, None));
             };
             if !apply_validation(account, validation) {
-                return Ok(false);
+                return Ok((false, None));
             }
             if let Ok(Some(created)) = created {
                 account.created_at = Some(created);
@@ -323,17 +323,30 @@ pub async fn refresh(
                     account.avatar_url = url;
                 }
             }
+            let moderation_notice = crate::discord::moderation_changed(
+                previous
+                    .find_by_id(user_id)
+                    .and_then(|account| account.moderation.as_ref()),
+                account.moderation.as_ref(),
+            )
+            .then_some(account.user_id);
+            let moderation_notice = moderation_notice
+                .and_then(|id| runtime.accounts.find_by_id(id))
+                .map(|account| account_summary(account, None, &runtime.config).label);
             if save_runtime(&runtime).is_err() {
                 runtime.accounts = previous;
                 return Err("Account refresh could not be saved".to_string());
             }
-            Ok(true)
+            Ok((true, moderation_notice))
         })
         .await
         .map_err(|_| "Account refresh task failed")??;
         if did_complete {
             completed += 1;
             publish(app);
+            if let Some(label) = moderation_notice {
+                crate::discord::moderation(app, &label);
+            }
         }
     }
     if completed == 0 {

@@ -24,6 +24,7 @@ import {
   getStoreStatus,
   fetchAccountInventory,
   launchAccount as launchAccountIpc,
+  launchAccounts,
   removeAccount,
   runConnectionAction,
   saveLaunchPreset,
@@ -1217,9 +1218,7 @@ export function AccountsPage({
     }
     setMutationLoading(true);
     try {
-      for (const userId of selectedIds) {
-        await launchAccountIpc(userId, Number(placeId), jobId, launchData);
-      }
+      await launchAccounts([...selectedIds], Number(placeId), jobId, launchData);
       setNotice(`Launch requests were sent for ${selectedIds.size} selected accounts into Place ID ${placeId}. Check Instances to follow client startup and attribution.`);
     } catch (error) {
       setNotice(operationError(error, "Bulk launch stopped because one account could not launch."));
