@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { changeDisplayNames, checkRobloxDisplayName, operationError, type AccountSummary, type RobloxSettingResult } from "../lib/ipc";
 import { RobloxPrivacySettings } from "./RobloxPrivacySettings";
+import { TimedNotice } from "./TimedNotice";
 
 export function RobloxSettings({ accounts }: { accounts: AccountSummary[] }) {
   const [name, setName] = useState(accounts.length === 1 ? accounts[0].displayName : "");
@@ -50,7 +51,12 @@ export function RobloxSettings({ accounts }: { accounts: AccountSummary[] }) {
       </form>
       <p id="roblox-name-validation" role="status">{name && !lengthValid ? "Use 3–20 characters with no control characters." : validation.name === name ? validation.error : lengthValid && !busy ? "Checking name with Roblox..." : ""}</p>
       {error && <p role="alert">{error}</p>}
-      {results.length > 0 && <ul className="roblox-settings-results" aria-live="polite">{results.map((result) => <li key={result.userId}>{accounts.find((account) => account.userId === result.userId)?.label ?? result.userId}: {result.message}</li>)}</ul>}
+      {results.filter((result) => result.success).map((result) => <TimedNotice
+        key={result.userId}
+        message={`${accounts.find((account) => account.userId === result.userId)?.label ?? result.userId}: ${result.message}`}
+        onDismiss={() => setResults((current) => current.filter((item) => item.userId !== result.userId))}
+      />)}
+      {results.some((result) => !result.success) && <ul className="roblox-settings-results" aria-live="polite">{results.filter((result) => !result.success).map((result) => <li key={result.userId}>{accounts.find((account) => account.userId === result.userId)?.label ?? result.userId}: {result.message}</li>)}</ul>}
       <RobloxPrivacySettings accounts={accounts} />
     </section>
   );
