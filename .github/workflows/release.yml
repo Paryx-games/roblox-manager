@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+
   workflow_dispatch:
     inputs:
       tag:
@@ -13,68 +14,258 @@ on:
 permissions:
   contents: read
 
-# one run per tag so a dispatch can't race the tag push
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
-  # falls back to the pushed tag when this wasn't manually dispatched
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
   REPO: ${{ github.repository }}
 
-defaults:
-  run:
-    shell: pwsh
-
 jobs:
-  build:
-    name: Build
-    runs-on: windows-latest
-    timeout-minutes: 45
+  prepare:
+    name: Validate release
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
+
+    permissions:
+      contents: read
+      actions: read
+
     outputs:
-      arch: ${{ steps.arch.outputs.value }}
+      sha: ${{ steps.meta.outputs.sha }}
+      previous: ${{ steps.meta.outputs.previous }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+      make_latest: ${{ steps.meta.outputs.make_latest }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
           persist-credentials: false
 
-      # runs before the slow stuff so a bad tag or missing entry fails in seconds
-      - name: Validate tag and extract changelog
+      - name: Validate tag, application version, and changelog
+        shell: bash
         run: |
-          $tag = $env:RELEASE_TAG
-          if ($tag -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') {
-            throw "Tag '$tag' is not a valid release tag (expected vX.Y.Z or vX.Y.Z-pre.N)."
+          set -euo pipefail
+
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$RELEASE_TAG' is invalid. Expected vX.Y.Z or vX.Y.Z-pre.N."
+            exit 1
+          fi
+
+          node ram_ui/scripts/tauri.mjs version:check "$RELEASE_TAG"
+
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const tag = process.env.RELEASE_TAG;
+          const lines = fs
+            .readFileSync("CHANGELOG.md", "utf8")
+            .split(/\r?\n/);
+
+          const start = lines.findIndex(
+            (line) => line.trimEnd() === `## ${tag}`,
+          );
+
+          if (start < 0) {
+            throw new Error(
+              `No changelog entry found for ${tag}. ` +
+                `Expected a '## ${tag}' heading in CHANGELOG.md.`,
+            );
           }
 
-          $lines = Get-Content -Path CHANGELOG.md -ErrorAction Stop
+          let end = lines.length;
 
-          $start = -1
-          for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i].TrimEnd() -eq "## $tag") {
-              $start = $i
-              break
+          for (let i = start + 1; i < lines.length; i++) {
+            if (lines[i].startsWith("## ")) {
+              end = i;
+              break;
             }
           }
 
-          if ($start -eq -1) {
-            throw "No changelog entry found for $tag (expected a '## $tag' heading in CHANGELOG.md)."
+          const section = lines
+            .slice(start, end)
+            .join("\n")
+            .trim();
+
+          if (!section) {
+            throw new Error(
+              `Changelog section for ${tag} is empty.`,
+            );
           }
 
-          $end = $lines.Count
-          for ($i = $start + 1; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match '^## ') {
-              $end = $i
-              break
+          fs.writeFileSync(
+            "release-notes.md",
+            `${section}\n`,
+          );
+          NODE
+
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha="$(
+            git rev-parse \
+              "refs/tags/${RELEASE_TAG}^{commit}"
+          )"
+
+          if [[ -z "$sha" ]]; then
+            echo "::error::Could not resolve $RELEASE_TAG to a commit."
+            exit 1
+          fi
+
+          previous="$(
+            git describe \
+              --tags \
+              --abbrev=0 \
+              --match "v*" \
+              --exclude "$RELEASE_TAG" \
+              "refs/tags/${RELEASE_TAG}^{commit}" \
+              2>/dev/null || true
+          )"
+
+          prerelease=false
+          make_latest=true
+
+          # Preserve the existing RM behaviour:
+          # alpha/beta/etc. are prereleases, RCs count as normal releases.
+          if [[ "$RELEASE_TAG" == *-* && ! "$RELEASE_TAG" =~ -rc\.[0-9]+$ ]]; then
+            prerelease=true
+            make_latest=false
+          fi
+
+          {
+            echo "sha=$sha"
+            echo "previous=$previous"
+            echo "prerelease=$prerelease"
+            echo "make_latest=$make_latest"
+          } >> "$GITHUB_OUTPUT"
+
+      # getReleaseByTag returns published releases.
+      # Draft handling is deliberately deferred to the publish job,
+      # which has contents: write.
+      - name: Ensure release is not already published
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+
+            try {
+              const { data: release } =
+                await github.rest.repos.getReleaseByTag({
+                  owner,
+                  repo,
+                  tag: process.env.TAG,
+                });
+
+              core.setFailed(
+                `Release ${process.env.TAG} is already published ` +
+                  `as release ${release.id}. ` +
+                  "With immutable releases enabled it cannot be replaced.",
+              );
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
             }
-          }
 
-          $section = ($lines[$start..($end - 1)] -join "`n").Trim()
-          Set-Content -Path release-notes.md -Value $section
+      - name: Require green CI on tagged commit
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          SHA: ${{ steps.meta.outputs.sha }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = process.env.SHA;
+
+            const trustedEvents = new Set([
+              "push",
+              "workflow_dispatch",
+            ]);
+
+            // Wait for up to roughly 7.5 minutes.
+            // ubuntu-slim has a hard 15-minute job limit, so keep
+            // plenty of room for the rest of prepare.
+            for (let attempt = 1; attempt <= 30; attempt++) {
+              const { data } =
+                await github.rest.actions.listWorkflowRuns({
+                  owner,
+                  repo,
+                  workflow_id: "rust.yml",
+                  head_sha: sha,
+                  per_page: 100,
+                });
+
+              const runs = data.workflow_runs.filter(
+                (run) =>
+                  run.head_sha === sha &&
+                  trustedEvents.has(run.event),
+              );
+
+              const successful = runs.find(
+                (run) =>
+                  run.status === "completed" &&
+                  run.conclusion === "success",
+              );
+
+              if (successful) {
+                core.info(
+                  `CI passed for ${sha}: ${successful.html_url}`,
+                );
+
+                return;
+              }
+
+              const active = runs.filter(
+                (run) => run.status !== "completed",
+              );
+
+              const failed = runs.filter(
+                (run) =>
+                  run.status === "completed" &&
+                  run.conclusion !== "success",
+              );
+
+              if (failed.length > 0 && active.length === 0) {
+                const descriptions = failed
+                  .map(
+                    (run) =>
+                      `${run.conclusion ?? "unknown"}: ${run.html_url}`,
+                  )
+                  .join("\n");
+
+                core.setFailed(
+                  `The tagged commit ${sha} does not have green CI.\n` +
+                    descriptions,
+                );
+
+                return;
+              }
+
+              if (attempt < 30) {
+                core.info(
+                  `Waiting for rust.yml to pass on ${sha} ` +
+                    `(attempt ${attempt}/30)...`,
+                );
+
+                await new Promise(
+                  (resolve) => setTimeout(resolve, 15000),
+                );
+              }
+            }
+
+            core.setFailed(
+              `No successful rust.yml run was found for tagged commit ${sha}. ` +
+                "Run CI successfully on this exact commit before releasing it.",
+            );
 
       - name: Upload release notes
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -84,10 +275,29 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  build:
+    name: Build
+    needs: prepare
+
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    outputs:
+      arch: ${{ steps.arch.outputs.value }}
+
+    steps:
+      # Important: build the immutable commit SHA validated by prepare,
+      # not the mutable tag ref.
+      - name: Checkout validated commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+
       - name: Setup pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
-          version: 11
+          package_json_file: package.json
 
       - name: Setup node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -102,44 +312,73 @@ jobs:
       - name: Setup rust
         uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
 
-      # tag pushes only restore, saving from a tag ref would never get hit by the next tag
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2 # zizmor: ignore[cache-poisoning] only saves from main, tag runs restore only
+      # Restore the cache written by rust.yml's trusted main build.
+      # Release runs may consume this cache but never modify it.
+      - name: Restore cargo cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2 # zizmor: ignore[cache-poisoning]
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-
-      - name: Validate application version and release tag
-        working-directory: ram_ui
-        run: |
-          pnpm run version:check "$env:RELEASE_TAG"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Application version or release tag validation failed."
-          }
+          shared-key: windows-tauri
+          save-if: false
 
       - name: Build application
         working-directory: ram_ui
         run: pnpm tauri build --ci --bundles nsis -- --locked
 
       - name: Collect release files
+        shell: pwsh
         run: |
-          $executable = Get-Item -LiteralPath target/release/rm_tauri.exe -ErrorAction Stop
-          $installers = @(Get-ChildItem -Path target/release/bundle/nsis -Filter *.exe -ErrorAction Stop)
-          if ($installers.Count -ne 1) { throw "Expected exactly one Tauri NSIS installer, found $($installers.Count)." }
-          New-Item -ItemType Directory -Path release-artifacts | Out-Null
-          Copy-Item -LiteralPath $executable.FullName -Destination release-artifacts/rm_tauri.exe
-          Copy-Item -LiteralPath $installers[0].FullName -Destination release-artifacts/installer.exe
+          $executable = Get-Item `
+            -LiteralPath target/release/rm_tauri.exe `
+            -ErrorAction Stop
 
-      # the release job runs on linux, so the arch has to come from the machine that built it
+          $installers = @(
+            Get-ChildItem `
+              -Path target/release/bundle/nsis `
+              -Filter *.exe `
+              -ErrorAction Stop
+          )
+
+          if ($installers.Count -ne 1) {
+            throw (
+              "Expected exactly one Tauri NSIS installer, " +
+              "found $($installers.Count)."
+            )
+          }
+
+          New-Item `
+            -ItemType Directory `
+            -Path release-artifacts |
+            Out-Null
+
+          Copy-Item `
+            -LiteralPath $executable.FullName `
+            -Destination release-artifacts/rm_tauri.exe
+
+          Copy-Item `
+            -LiteralPath $installers[0].FullName `
+            -Destination release-artifacts/installer.exe
+
       - name: Detect architecture
         id: arch
+        shell: pwsh
         run: |
           $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
             "AMD64" { "x64" }
             "ARM64" { "arm64" }
             "x86"   { "x86" }
-            default { throw "Unsupported architecture: $env:PROCESSOR_ARCHITECTURE" }
+
+            default {
+              throw (
+                "Unsupported architecture: " +
+                "$env:PROCESSOR_ARCHITECTURE"
+              )
+            }
           }
-          "value=$arch" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+          "value=$arch" |
+            Out-File `
+              -FilePath $env:GITHUB_OUTPUT `
+              -Append
 
       - name: Upload executable
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -150,230 +389,716 @@ jobs:
           retention-days: 1
           compression-level: 0
 
-  release:
-    name: Release
-    needs: build
-    # nothing here needs windows, linux boots faster and costs half as much
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+  metadata:
+    name: Generate release notes
+    needs: prepare
+
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+
     permissions:
       contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      ARCH: ${{ needs.build.outputs.arch }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Generate GitHub release notes
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+          PREVIOUS_TAG: ${{ needs.prepare.outputs.previous }}
         with:
-          ref: ${{ env.RELEASE_TAG }}
-          fetch-depth: 0
-          persist-credentials: false
+          script: |
+            const fs = require("node:fs");
+            const { owner, repo } = context.repo;
 
+            const delays = [
+              0,
+              5000,
+              15000,
+              30000,
+            ];
+
+            let notes = "";
+
+            for (const delay of delays) {
+              if (delay) {
+                await new Promise(
+                  (resolve) => setTimeout(resolve, delay),
+                );
+              }
+
+              try {
+                const request = {
+                  owner,
+                  repo,
+                  tag_name: process.env.TAG,
+                };
+
+                if (process.env.PREVIOUS_TAG) {
+                  request.previous_tag_name =
+                    process.env.PREVIOUS_TAG;
+                }
+
+                const { data } =
+                  await github.rest.repos.generateReleaseNotes(
+                    request,
+                  );
+
+                notes = String(data.body ?? "").trim();
+                break;
+              } catch (error) {
+                core.warning(
+                  `GitHub release-note generation failed: ` +
+                    `${error.message}`,
+                );
+              }
+            }
+
+            if (notes) {
+              const fullChangelog =
+                notes.match(
+                  /^\*\*Full Changelog\*\*:.*$/m,
+                )?.[0] ?? "";
+
+              const cut =
+                notes.indexOf("## New Contributors");
+
+              if (cut >= 0) {
+                notes = notes.slice(0, cut).trim();
+
+                if (fullChangelog) {
+                  notes =
+                    `${notes}\n\n${fullChangelog}`;
+                }
+              }
+            } else {
+              core.warning(
+                "GitHub could not generate release notes; " +
+                  "the maintained changelog will still be used.",
+              );
+            }
+
+            fs.writeFileSync(
+              "github-release-notes.md",
+              notes ? `${notes}\n` : "",
+            );
+
+      - name: Upload GitHub release notes
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: github-release-notes
+          path: github-release-notes.md
+          if-no-files-found: error
+          retention-days: 1
+
+  package:
+    name: Package and attest
+    needs:
+      - prepare
+      - build
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    steps:
       - name: Download executable
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-executable
           path: release
 
-      - name: Download release notes
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: release-notes
-          path: notes
-
-      - name: Resolve release metadata
-        id: meta
-        run: |
-          $tag = $env:RELEASE_TAG
-
-          # peel to the commit, an annotated tag would otherwise return the tag object sha
-          $sha = git rev-parse "refs/tags/$tag^{commit}"
-          if ($LASTEXITCODE -ne 0 -or -not $sha) { throw "Could not resolve $tag to a commit." }
-
-          # nearest earlier tag in history, so re-releasing an old tag never picks a newer one
-          $previous = git describe --tags --abbrev=0 --match "v*" --exclude $tag "refs/tags/$tag^{commit}" 2>$null
-          if ($LASTEXITCODE -ne 0) { $previous = "" }
-
-          # rc builds count as normal releases, only alpha/beta are github prereleases
-          $isRc = $tag -match '-rc\.\d+$'
-          $isPrerelease = ($tag -match '-') -and -not $isRc
-
-          @(
-            "sha=$sha"
-            "previous=$previous"
-            "prerelease=$($isPrerelease.ToString().ToLower())"
-            "make_latest=$((-not $isPrerelease).ToString().ToLower())"
-          ) | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-          $global:LASTEXITCODE = 0
-
-      # generated notes are a nice-to-have, an api hiccup must never block the release
-      - name: Generate github release notes
+      - name: Rename files and generate SHA256 checksums
+        shell: pwsh
         env:
-          PREVIOUS_TAG: ${{ steps.meta.outputs.previous }}
+          ARCH: ${{ needs.build.outputs.arch }}
         run: |
-          $ghArgs = @(
-            "api", "--method", "POST", "repos/$env:REPO/releases/generate-notes",
-            "-f", "tag_name=$env:RELEASE_TAG",
-            "--jq", ".body"
-          )
-          if ($env:PREVIOUS_TAG) { $ghArgs += @("-f", "previous_tag_name=$env:PREVIOUS_TAG") }
+          $version =
+            $env:RELEASE_TAG -replace '^v', ''
 
-          $notes = ""
-          foreach ($delay in 0, 5, 15, 30) {
-            if ($delay) { Start-Sleep -Seconds $delay }
-            $out = gh @ghArgs
-            if ($LASTEXITCODE -eq 0 -and $out) {
-              $notes = ($out -join "`n").Trim()
-              break
-            }
-            Write-Host "generate-notes failed (exit $LASTEXITCODE), retrying"
+          $base =
+            "roblox-manager-v$version-windows-$env:ARCH"
+
+          if (-not (Test-Path release/rm_tauri.exe)) {
+            throw (
+              "rm_tauri.exe was not found in the " +
+              "release directory."
+            )
           }
 
-          if ($notes) {
-            # keep the compare link but drop the new contributors section
-            $fullChangelog = [regex]::Match($notes, '(?m)^\*\*Full Changelog\*\*:.*$').Value
-            $cut = $notes.IndexOf("## New Contributors")
-            if ($cut -ge 0) {
-              $notes = $notes.Substring(0, $cut).Trim()
-              if ($fullChangelog) { $notes = "$notes`n`n$fullChangelog" }
-            }
-          } else {
-            Write-Host "::warning::GitHub could not generate release notes, releasing with the changelog only."
+          if (-not (Test-Path release/installer.exe)) {
+            throw (
+              "installer.exe was not found in the " +
+              "release directory."
+            )
           }
 
-          Set-Content -Path github-release-notes.md -Value $notes
+          Move-Item `
+            -LiteralPath release/rm_tauri.exe `
+            -Destination "release/$base.exe"
 
-          # a failed native call leaves a non-zero code that would fail the step on exit
-          $global:LASTEXITCODE = 0
-
-      # names follow roblox-manager-vX.Y.Z-windows-<arch>[-setup].exe
-      - name: Rename files and generate sha256 checksums
-        id: checksum
-        run: |
-          $version = $env:RELEASE_TAG -replace '^v', ''
-          $base = "roblox-manager-v$version-windows-$env:ARCH"
-
-          if (-not (Test-Path release/rm_tauri.exe)) { throw "rm_tauri.exe was not found in the release directory." }
-          if (-not (Test-Path release/installer.exe)) { throw "installer.exe was not found in the release directory." }
-
-          Move-Item -LiteralPath release/rm_tauri.exe -Destination "release/$base.exe"
-          Move-Item -LiteralPath release/installer.exe -Destination "release/$base-setup.exe"
+          Move-Item `
+            -LiteralPath release/installer.exe `
+            -Destination "release/$base-setup.exe"
 
           $hashes = [ordered]@{}
-          foreach ($file in Get-ChildItem -Path release -Filter *.exe | Sort-Object Name) {
-            $hashes[$file.Name] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLower()
+
+          foreach (
+            $file in Get-ChildItem `
+              -Path release `
+              -Filter *.exe |
+              Sort-Object Name
+          ) {
+            $hashes[$file.Name] = (
+              Get-FileHash `
+                -LiteralPath $file.FullName `
+                -Algorithm SHA256
+            ).Hash.ToLower()
           }
 
-          $checksums = foreach ($name in $hashes.Keys) { "$($hashes[$name])  $name" }
-          Set-Content -Path release/SHA256SUMS.txt -Value $checksums
+          $checksums = foreach ($name in $hashes.Keys) {
+            "$($hashes[$name])  $name"
+          }
 
-          $lines = @(
-            "## SHA256"
-            ""
-            "Checksums for all executable files included in this release."
-            ""
-          ) + @($checksums | ForEach-Object { "- ``$_``" })
-          Set-Content -Path sha256.md -Value ($lines -join "`n")
+          Set-Content `
+            -Path release/SHA256SUMS.txt `
+            -Value $checksums
 
-          @(
-            "exe_path=release/$base.exe"
-            "exe_hash=$($hashes["$base.exe"])"
-          ) | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      # This is a hard release gate.
+      # Both Windows executables and the checksum manifest are attested.
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: |
+            release/*.exe
+            release/SHA256SUMS.txt
 
-      # a scan that errors or times out is reported as such, it never blocks the release
-      - name: Scan with virustotal
+      - name: Upload release assets
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets
+          path: release/*
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  virustotal:
+    name: VirusTotal
+    needs:
+      - prepare
+      - package
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # VIRUSTOTAL_API_KEY may be kept as a repository secret,
+    # but an environment secret with the same name is more tightly scoped.
+    environment: release
+
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets
+          path: release
+
+      - name: Verify and scan release executables
+        shell: pwsh
         env:
           VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
-          EXE_PATH: ${{ steps.checksum.outputs.exe_path }}
-          EXE_HASH: ${{ steps.checksum.outputs.exe_hash }}
-          TAG_SHA: ${{ steps.meta.outputs.sha }}
+          TAG_SHA: ${{ needs.prepare.outputs.sha }}
         run: |
-          if (-not $env:VT_API_KEY) {
-            throw "VIRUSTOTAL_API_KEY secret is not set."
+          $ErrorActionPreference = "Stop"
+
+          $checksumPath =
+            "release/SHA256SUMS.txt"
+
+          if (-not (Test-Path -LiteralPath $checksumPath)) {
+            throw "SHA256SUMS.txt is missing."
           }
 
-          $headers = @{ "x-apikey" = $env:VT_API_KEY }
-          $summary = "VirusTotal scan was unavailable for this release"
-          $reportUrl = $null
+          $expected = @{}
 
-          try {
-            $uploadUri = "https://www.virustotal.com/api/v3/files"
-
-            # the plain endpoint caps at 32 MB, bigger files need a one-off upload url
-            if ((Get-Item -LiteralPath $env:EXE_PATH).Length -gt 32MB) {
-              $uploadUri = (Invoke-RestMethod -Uri "$uploadUri/upload_url" -Headers $headers).data
+          foreach (
+            $line in Get-Content `
+              -LiteralPath $checksumPath
+          ) {
+            if (
+              $line -notmatch
+                '^([0-9a-fA-F]{64})\s{2}(.+)$'
+            ) {
+              throw (
+                "Invalid SHA256SUMS.txt line: " +
+                "'$line'"
+              )
             }
 
-            $upload = Invoke-RestMethod -Uri $uploadUri -Method Post -Headers $headers `
-              -Form @{ file = Get-Item -LiteralPath $env:EXE_PATH }
+            $expected[$Matches[2]] =
+              $Matches[1].ToLower()
+          }
 
-            $analysisId = $upload.data.id
-            $reportUrl = "https://www.virustotal.com/gui/file/$env:EXE_HASH"
-            $summary = "Scan submitted, results are still processing on VirusTotal"
+          $files = @(
+            Get-ChildItem `
+              -Path release `
+              -Filter *.exe |
+              Sort-Object Name
+          )
 
-            # free tier allows 4 requests a minute, so poll every 15s for up to 7.5 minutes
-            for ($i = 0; $i -lt 30; $i++) {
-              Start-Sleep -Seconds 15
+          if ($files.Count -ne 2) {
+            throw (
+              "Expected exactly two release executables, " +
+              "found $($files.Count)."
+            )
+          }
+
+          # Artifact integrity belongs to our own release pipeline.
+          # These checks remain hard failures.
+          foreach ($file in $files) {
+            if (-not $expected.ContainsKey($file.Name)) {
+              throw (
+                "No expected SHA256 exists for " +
+                "$($file.Name)."
+              )
+            }
+
+            $actual = (
+              Get-FileHash `
+                -LiteralPath $file.FullName `
+                -Algorithm SHA256
+            ).Hash.ToLower()
+
+            if (
+              $actual -ne
+              $expected[$file.Name]
+            ) {
+              throw (
+                "SHA256 mismatch for $($file.Name). " +
+                "The packaged artifact changed."
+              )
+            }
+          }
+
+          function New-VtResult {
+            param(
+              [string]$Name,
+              [string]$Hash,
+              [string]$Message,
+              [string]$ReportUrl = "",
+              [int]$Flagged = -1,
+              [int]$Total = -1
+            )
+
+            return [pscustomobject]@{
+              Name = $Name
+              Hash = $Hash
+              Message = $Message
+              ReportUrl = $ReportUrl
+              Flagged = $Flagged
+              Total = $Total
+            }
+          }
+
+          function Scan-VirusTotal {
+            param(
+              [System.IO.FileInfo]$File,
+              [string]$Hash
+            )
+
+            if (-not $env:VT_API_KEY) {
+              return New-VtResult `
+                -Name $File.Name `
+                -Hash $Hash `
+                -Message (
+                  "Scan unavailable: VIRUSTOTAL_API_KEY " +
+                  "is not configured."
+                )
+            }
+
+            $headers = @{
+              "x-apikey" = $env:VT_API_KEY
+            }
+
+            $uploadUri =
+              "https://www.virustotal.com/api/v3/files"
+
+            if ($File.Length -gt 32MB) {
               try {
-                $analysis = Invoke-RestMethod -Uri "https://www.virustotal.com/api/v3/analyses/$analysisId" -Headers $headers
+                $uploadUri = (
+                  Invoke-RestMethod `
+                    -Uri "$uploadUri/upload_url" `
+                    -Headers $headers `
+                    -TimeoutSec 20
+                ).data
               } catch {
+                return New-VtResult `
+                  -Name $File.Name `
+                  -Hash $Hash `
+                  -Message (
+                    "Scan unavailable: could not obtain " +
+                    "a VirusTotal upload URL. " +
+                    "$($_.Exception.Message)"
+                  )
+              }
+            }
+
+            $upload = $null
+            $lastUploadError = ""
+
+            # Best-effort upload. Do not allow VirusTotal to keep
+            # the release job blocked indefinitely.
+            foreach ($delay in @(0, 15)) {
+              if ($delay -gt 0) {
+                Start-Sleep -Seconds $delay
+              }
+
+              try {
+                $upload = Invoke-RestMethod `
+                  -Uri $uploadUri `
+                  -Method Post `
+                  -Headers $headers `
+                  -Form @{
+                    file = $File
+                  } `
+                  -TimeoutSec 45
+
+                if (
+                  $upload -and
+                  $upload.data -and
+                  $upload.data.id
+                ) {
+                  break
+                }
+              } catch {
+                $lastUploadError =
+                  $_.Exception.Message
+
+                Write-Host (
+                  "::warning::VirusTotal upload for " +
+                  "$($File.Name) failed: " +
+                  "$lastUploadError"
+                )
+              }
+            }
+
+            if (
+              -not $upload -or
+              -not $upload.data -or
+              -not $upload.data.id
+            ) {
+              return New-VtResult `
+                -Name $File.Name `
+                -Hash $Hash `
+                -Message (
+                  "Scan unavailable: upload failed " +
+                  "after multiple attempts. " +
+                  "$lastUploadError"
+                )
+            }
+
+            $analysisId =
+              $upload.data.id
+
+            $reportUrl =
+              "https://www.virustotal.com/gui/file/$Hash"
+
+            $analysis = $null
+
+            # Poll every 20 seconds for up to roughly two minutes.
+            # Request timeouts keep the whole job well below its
+            # 15-minute GitHub Actions timeout even for both files.
+            for ($i = 0; $i -lt 6; $i++) {
+              Start-Sleep -Seconds 20
+
+              try {
+                $candidate =
+                  Invoke-RestMethod `
+                    -Uri (
+                      "https://www.virustotal.com/" +
+                      "api/v3/analyses/$analysisId"
+                    ) `
+                    -Headers $headers `
+                    -TimeoutSec 15
+              } catch {
+                Write-Host (
+                  "::warning::VirusTotal polling for " +
+                  "$($File.Name) failed: " +
+                  "$($_.Exception.Message)"
+                )
+
                 continue
               }
 
-              if ($analysis.data.attributes.status -eq "completed") {
-                $stats = $analysis.data.attributes.stats
-                $flagged = $stats.malicious + $stats.suspicious
-                $total = $flagged + $stats.harmless + $stats.undetected
-                $summary = "$flagged / $total security vendors flagged this file"
+              if (
+                $candidate.data.attributes.status -eq
+                "completed"
+              ) {
+                $analysis = $candidate
                 break
               }
             }
-          } catch {
-            Write-Host "::warning::VirusTotal step failed: $($_.Exception.Message)"
+
+            if (-not $analysis) {
+              return New-VtResult `
+                -Name $File.Name `
+                -Hash $Hash `
+                -ReportUrl $reportUrl `
+                -Message (
+                  "Scan unavailable: VirusTotal did not " +
+                  "finish within the polling window."
+                )
+            }
+
+            $stats =
+              $analysis.data.attributes.stats
+
+            $flagged =
+              [int]$stats.malicious +
+              [int]$stats.suspicious
+
+            $total = 0
+
+            foreach (
+              $property in $stats.PSObject.Properties
+            ) {
+              $total +=
+                [int]$property.Value
+            }
+
+            return New-VtResult `
+              -Name $File.Name `
+              -Hash $Hash `
+              -ReportUrl $reportUrl `
+              -Flagged $flagged `
+              -Total $total `
+              -Message (
+                "$flagged / $total security vendors " +
+                "flagged this file"
+              )
           }
 
-          $workflowUrl = "https://github.com/$env:REPO/blob/$env:TAG_SHA/.github/workflows/release.yml"
+          $results = @()
 
-          $lines = @(
+          for ($i = 0; $i -lt $files.Count; $i++) {
+            $file = $files[$i]
+            $hash = $expected[$file.Name]
+
+            if ($i -gt 0) {
+              # Give the free-tier API a little breathing room
+              # between the two files.
+              Start-Sleep -Seconds 20
+            }
+
+            # Anything unexpected inside the external VT integration
+            # is converted into a warning rather than failing release.
+            try {
+              $result =
+                Scan-VirusTotal `
+                  -File $file `
+                  -Hash $hash
+            } catch {
+              $result =
+                New-VtResult `
+                  -Name $file.Name `
+                  -Hash $hash `
+                  -Message (
+                    "Scan unavailable: " +
+                    "$($_.Exception.Message)"
+                  )
+            }
+
+            $results += $result
+
+            if (
+              $result.Flagged -gt 0 -or
+              $result.Flagged -lt 0
+            ) {
+              Write-Host (
+                "::warning::$($result.Name): " +
+                "$($result.Message)"
+              )
+            }
+          }
+
+          $workflowUrl =
+            "https://github.com/$env:REPO/blob/" +
+            "$env:TAG_SHA/.github/workflows/release.yml"
+
+          $security = @(
             "## Security"
             ""
-            "The portable executable is automatically scanned with [VirusTotal](https://www.virustotal.com/) on every release."
+            "GitHub build provenance attestations are generated for both Windows executables and the checksum manifest."
             ""
-            "- **Scan result:** $summary"
+            "Verify a downloaded artifact with:"
+            ""
+            '```text'
+            "gh attestation verify <file> --repo $env:REPO"
+            '```'
+            ""
+            "### VirusTotal"
+            ""
+            "VirusTotal scanning is best-effort and does not block a release if the external service is unavailable."
+            ""
           )
-          if ($reportUrl) { $lines += "- **Report:** $reportUrl" }
-          $lines += "- **Build workflow:** [``release.yml``]($workflowUrl)"
 
-          Set-Content -Path security.md -Value ($lines -join "`n")
+          foreach ($result in $results) {
+            $security += @(
+              "- **``$($result.Name)``**"
+              "  - SHA256: ``$($result.Hash)``"
+              "  - Scan result: $($result.Message)"
+            )
+
+            if ($result.ReportUrl) {
+              $security +=
+                "  - Report: $($result.ReportUrl)"
+            }
+
+            $security += ""
+          }
+
+          $security +=
+            "- **Build workflow:** [``release.yml``]($workflowUrl)"
+
+          Set-Content `
+            -Path security.md `
+            -Value ($security -join "`n")
+
+          $summary = @(
+            "## VirusTotal"
+            ""
+          )
+
+          foreach ($result in $results) {
+            $summary += @(
+              "### $($result.Name)"
+              ""
+              "- SHA256: ``$($result.Hash)``"
+              "- $($result.Message)"
+            )
+
+            if ($result.ReportUrl) {
+              $summary +=
+                "- [Open VirusTotal report]($($result.ReportUrl))"
+            }
+
+            $summary += ""
+          }
+
+          Add-Content `
+            -Path $env:GITHUB_STEP_SUMMARY `
+            -Value ($summary -join "`n")
+
+      - name: Upload security notes
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: security-notes
+          path: security.md
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish
+    needs:
+      - prepare
+      - build
+      - package
+      - metadata
+      - virustotal
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: write
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-assets
+          path: release
+
+      - name: Download changelog notes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-notes
+          path: notes/changelog
+
+      - name: Download GitHub release notes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: github-release-notes
+          path: notes/github
+
+      - name: Download security notes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: security-notes
+          path: notes/security
 
       - name: Assemble release notes
+        shell: pwsh
         run: |
           $tag = $env:RELEASE_TAG
 
-          # null-safe read, empty files come back as null otherwise
-          function Read-Part($path) { "$(Get-Content -LiteralPath $path -Raw)".Trim() }
-
-          # table rows come from whatever exes are in release/, new arch jobs get rows for free
-          $archDescriptions = @{
-            "windows-x64"   = "For a normal Intel or AMD Windows PC"
-            "windows-arm64" = "For a Windows PC with an ARM processor"
-            "windows-x86"   = "For a 32-bit Windows PC"
+          function Read-Part($path) {
+            "$(
+              Get-Content `
+                -LiteralPath $path `
+                -Raw
+            )".Trim()
           }
 
-          $rows = foreach ($file in Get-ChildItem -Path release -Filter *.exe | Sort-Object Name) {
-            if ($file.Name -match '^roblox-manager-v.+?-(?<platform>windows-(?:x64|arm64|x86))(?<installer>-setup)?\.exe$') {
-              $description = $archDescriptions[$Matches.platform]
+          $archDescriptions = @{
+            "windows-x64" =
+              "For a normal Intel or AMD Windows PC"
+
+            "windows-arm64" =
+              "For a Windows PC with an ARM processor"
+
+            "windows-x86" =
+              "For a 32-bit Windows PC"
+          }
+
+          $rows = foreach (
+            $file in Get-ChildItem `
+              -Path release `
+              -Filter *.exe |
+              Sort-Object Name
+          ) {
+            if (
+              $file.Name -match (
+                '^roblox-manager-v.+?-' +
+                '(?<platform>windows-(?:x64|arm64|x86))' +
+                '(?<installer>-setup)?\.exe$'
+              )
+            ) {
+              $description =
+                $archDescriptions[$Matches.platform]
+
               if ($Matches.installer) {
-                $description += " - installer"
+                $description +=
+                  " - installer"
               } else {
-                $description += " - portable app (requires WebView2 Runtime)"
+                $description +=
+                  " - portable app (requires WebView2 Runtime)"
               }
-              $url = "https://github.com/$env:REPO/releases/download/$tag/$($file.Name)"
+
+              $url =
+                "https://github.com/$env:REPO/" +
+                "releases/download/$tag/$($file.Name)"
+
               "| [``$($file.Name)``]($url) | $description |"
             } else {
-              Write-Host "::warning::$($file.Name) did not match the download table pattern, skipping it."
+              Write-Host (
+                "::warning::$($file.Name) did not match " +
+                "the download table pattern."
+              )
             }
           }
 
@@ -388,17 +1113,47 @@ jobs:
             "</details>"
           )) -join "`n"
 
-          $changelog = Read-Part notes/release-notes.md
-          $github = Read-Part github-release-notes.md
-          $sha256 = Read-Part sha256.md
-          $security = Read-Part security.md
+          $checksums = @(
+            Get-Content `
+              -LiteralPath release/SHA256SUMS.txt
+          )
 
-          # github alerts render unreliably inside <details>, so the note sits above it
+          $sha256 = (@(
+            "## SHA256"
+            ""
+            "Checksums for all executable files included in this release."
+            ""
+          ) + @(
+            $checksums |
+              ForEach-Object {
+                "- ``$_``"
+              }
+          )) -join "`n"
+
+          $changelog =
+            Read-Part `
+              notes/changelog/release-notes.md
+
+          $github =
+            Read-Part `
+              notes/github/github-release-notes.md
+
+          $security =
+            Read-Part `
+              notes/security/security.md
+
           $githubBox = ""
+
           if ($github) {
             $githubBox = @(
               "> [!NOTE]"
-              "> The section below may be inaccurate, as it's auto-generated by GitHub Actions. See [CHANGELOG.md](https://github.com/$env:REPO/blob/main/CHANGELOG.md) for the maintained changelog."
+              (
+                "> The section below may be inaccurate, " +
+                "as it's auto-generated by GitHub Actions. " +
+                "See [CHANGELOG.md]" +
+                "(https://github.com/$env:REPO/blob/main/CHANGELOG.md) " +
+                "for the maintained changelog."
+              )
               ""
               "<details>"
               "<summary>GitHub-generated notes</summary>"
@@ -410,69 +1165,252 @@ jobs:
           }
 
           $prerelease = ""
+
           if ($tag -match '-rc\.(\d+)') {
             $prerelease = @(
               "> [!TIP]"
-              "> This is our release candidate version $($Matches[1]). It's mostly a stable build, so it should be safe for regular use, but please report any bugs you find at https://github.com/$env:REPO/issues."
+              (
+                "> This is our release candidate version " +
+                "$($Matches[1]). It's mostly a stable build, " +
+                "so it should be safe for regular use, but " +
+                "please report any bugs you find at " +
+                "https://github.com/$env:REPO/issues."
+              )
             ) -join "`n"
           } elseif ($tag -like "*-beta*") {
             $prerelease = @(
               "> [!WARNING]"
-              "> This is a beta release. It should be broadly stable, but you may run into occasional bugs. Please report anything unexpected."
+              (
+                "> This is a beta release. It should be " +
+                "broadly stable, but you may run into " +
+                "occasional bugs. Please report anything " +
+                "unexpected."
+              )
             ) -join "`n"
           } elseif ($tag -like "*-alpha*") {
             $prerelease = @(
               "> [!CAUTION]"
-              "> This is an alpha release. It is unstable and may contain significant bugs, incomplete features, or data-loss risks. Use at your own risk and avoid running it on production data."
+              (
+                "> This is an alpha release. It is unstable " +
+                "and may contain significant bugs, incomplete " +
+                "features, or data-loss risks. Use at your " +
+                "own risk and avoid production data."
+              )
             ) -join "`n"
           }
 
-          $parts = @($changelog, $table, $githubBox, $sha256, $security, $prerelease) | Where-Object { $_ }
-          Set-Content -Path final-release-notes.md -Value ($parts -join "`n`n")
+          $parts = @(
+            $changelog
+            $table
+            $githubBox
+            $sha256
+            $security
+            $prerelease
+          ) |
+            Where-Object {
+              $_
+            }
 
+          Set-Content `
+            -Path final-release-notes.md `
+            -Value ($parts -join "`n`n")
+
+      # This job has contents: write, so draft visibility/cleanup belongs
+      # here rather than in prepare.
+      - name: Clean up leftover draft
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+
+            const releases = await github.paginate(
+              github.rest.repos.listReleases,
+              {
+                owner,
+                repo,
+                per_page: 100,
+              },
+            );
+
+            const matching = releases.filter(
+              (release) => release.tag_name === process.env.TAG,
+            );
+
+            const published = matching.find(
+              (release) => !release.draft,
+            );
+
+            if (published) {
+              core.setFailed(
+                `Release ${process.env.TAG} was published while ` +
+                  "this workflow was running.",
+              );
+
+              return;
+            }
+
+            const drafts = matching.filter(
+              (release) => release.draft,
+            );
+
+            if (drafts.length > 1) {
+              core.setFailed(
+                `Found ${drafts.length} draft releases for ` +
+                  `${process.env.TAG}. Clean them up manually.`,
+              );
+
+              return;
+            }
+
+            if (drafts.length === 1) {
+              core.warning(
+                `Removing leftover draft release ${drafts[0].id}.`,
+              );
+
+              await github.rest.repos.deleteRelease({
+                owner,
+                repo,
+                release_id: drafts[0].id,
+              });
+            }
+
+      # Final TOCTOU check:
+      # the tag must still point at the exact commit prepare validated
+      # and build compiled.
+      - name: Confirm tag still points at validated commit
+        shell: bash
+        env:
+          SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          set -euo pipefail
+
+          url="https://github.com/$REPO"
+
+          current="$(
+            git ls-remote \
+              "$url" \
+              "refs/tags/${RELEASE_TAG}^{}" |
+              cut -f1
+          )"
+
+          if [[ -z "$current" ]]; then
+            current="$(
+              git ls-remote \
+                "$url" \
+                "refs/tags/${RELEASE_TAG}" |
+                cut -f1
+            )"
+          fi
+
+          if [[ -z "$current" ]]; then
+            echo "::error::Tag $RELEASE_TAG no longer exists."
+            exit 1
+          fi
+
+          if [[ "$current" != "$SHA" ]]; then
+            echo "::error::Tag $RELEASE_TAG moved during the release run."
+            echo "::error::Validated commit: $SHA"
+            echo "::error::Current tag commit: $current"
+            exit 1
+          fi
+
+          echo "Tag still points at validated commit $SHA."
+
+      # Nothing before this step creates a GitHub Release.
+      #
+      # At this point:
+      # - tag/version/changelog validation passed
+      # - exact commit CI passed
+      # - exact validated commit was built
+      # - package integrity was checked
+      # - build provenance was generated
+      # - both EXEs were offered to VirusTotal
+      # - release metadata was assembled
+      # - stale drafts were handled
+      # - the tag was re-checked against the validated SHA
       - name: Create draft release and upload assets
         id: create-release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2 # zizmor: ignore[superfluous-actions] keeping the action, works fine and already pinned
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2 # zizmor: ignore[superfluous-actions]
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          target_commitish: ${{ steps.meta.outputs.sha }}
+          target_commitish: ${{ needs.prepare.outputs.sha }}
+
           files: |
             release/*.exe
             release/SHA256SUMS.txt
+
           fail_on_unmatched_files: true
           body_path: final-release-notes.md
-          prerelease: ${{ steps.meta.outputs.prerelease }}
-          make_latest: ${{ steps.meta.outputs.make_latest }}
+
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          make_latest: ${{ needs.prepare.outputs.make_latest }}
+
           draft: true
 
-      # published last so the release event only fires once every asset is attached
+      # Publishing is the immutable boundary.
+      # Keep this as the final operation in the workflow.
       - name: Publish release
+        shell: pwsh
         env:
-          RELEASE_PRERELEASE: ${{ steps.meta.outputs.prerelease }}
-          RELEASE_MAKE_LATEST: ${{ steps.meta.outputs.make_latest }}
           RELEASE_ID: ${{ steps.create-release.outputs.id }}
+          RELEASE_PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          RELEASE_MAKE_LATEST: ${{ needs.prepare.outputs.make_latest }}
         run: |
           if (-not $env:RELEASE_ID) {
-            throw "Draft release ID was not returned by action-gh-release."
+            throw (
+              "Draft release ID was not returned " +
+              "by action-gh-release."
+            )
           }
 
           $published = $false
-          foreach ($delay in 0, 5, 15) {
-            if ($delay) { Start-Sleep -Seconds $delay }
-            gh api --method PATCH "repos/$env:REPO/releases/$env:RELEASE_ID" `
+
+          foreach ($delay in @(0, 5, 15)) {
+            if ($delay -gt 0) {
+              Start-Sleep -Seconds $delay
+            }
+
+            gh api `
+              --method PATCH `
+              "repos/$env:REPO/releases/$env:RELEASE_ID" `
               -F draft=false `
               -F "prerelease=$env:RELEASE_PRERELEASE" `
-              -f "make_latest=$env:RELEASE_MAKE_LATEST" | Out-Null
+              -f "make_latest=$env:RELEASE_MAKE_LATEST" |
+              Out-Null
+
             if ($LASTEXITCODE -eq 0) {
               $published = $true
               break
             }
-            Write-Host "publish failed (exit $LASTEXITCODE), retrying"
+
+            # The API may have accepted the publish request even if
+            # the client lost the response. Check before retrying an
+            # operation that crosses the immutable boundary.
+            $draftState = gh api `
+              "repos/$env:REPO/releases/$env:RELEASE_ID" `
+              --jq ".draft" `
+              2>$null
+
+            if (
+              $LASTEXITCODE -eq 0 -and
+              $draftState -eq "false"
+            ) {
+              $published = $true
+              break
+            }
+
+            Write-Host (
+              "Publish attempt failed; retrying."
+            )
           }
 
           if (-not $published) {
-            throw "Could not publish the draft release, it is still sitting as a draft."
+            throw (
+              "Could not publish the draft release. " +
+              "It remains a draft."
+            )
           }
 
           $global:LASTEXITCODE = 0
-

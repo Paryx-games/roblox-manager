@@ -5,18 +5,10 @@ on:
     branches:
       - main
       - v2
-    paths:
-      - "ram_core/**"
-      - "ram_ui/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "bump-version.bat"
-      - "clippy.toml"
-      - "assets/**"
-      - ".github/workflows/release.yml"
-      - ".github/workflows/rust.yml"
+
+  # Lets you deliberately validate an older/cancelled commit before tagging it.
+  workflow_dispatch:
+
   pull_request:
     branches:
       - main
@@ -45,6 +37,7 @@ jobs:
     name: frontend
     runs-on: windows-latest
     timeout-minutes: 15
+
     steps:
       - name: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -53,8 +46,6 @@ jobs:
 
       - name: setup pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 11
 
       - name: setup node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -66,9 +57,6 @@ jobs:
       - name: install frontend dependencies
         working-directory: ram_ui
         run: pnpm install --frozen-lockfile
-
-      - name: setup rust for version tooling
-        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
 
       - name: validate application version
         working-directory: ram_ui
@@ -88,7 +76,6 @@ jobs:
       - name: test frontend
         run: pnpm --dir ram_ui test
 
-      # shared with clippy and test jobs so they don't rebuild it
       - name: upload frontend dist
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -101,6 +88,7 @@ jobs:
     name: fmt
     runs-on: windows-latest
     timeout-minutes: 10
+
     steps:
       - name: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -120,6 +108,7 @@ jobs:
     needs: frontend
     runs-on: windows-latest
     timeout-minutes: 20
+
     steps:
       - name: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -139,6 +128,9 @@ jobs:
 
       - name: cache rust
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: windows-tauri
+          save-if: false
 
       - name: clippy
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
@@ -148,6 +140,7 @@ jobs:
     needs: frontend
     runs-on: windows-latest
     timeout-minutes: 20
+
     steps:
       - name: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -165,6 +158,9 @@ jobs:
 
       - name: cache rust
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: windows-tauri
+          save-if: false
 
       - name: test
         run: cargo test --workspace --all-features --locked
@@ -174,6 +170,7 @@ jobs:
     needs: frontend
     runs-on: windows-latest
     timeout-minutes: 20
+
     steps:
       - name: checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -183,13 +180,16 @@ jobs:
       - name: setup rust
         uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
 
+      # This is the trusted writer for the cache consumed by release.yml.
+      # PRs and other refs may restore it, but only main may save it.
       - name: cache rust
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: windows-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: setup pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: 11
 
       - name: setup node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
