@@ -87,13 +87,15 @@ async fn set_display_name(
         Ok(())
     })
     .await;
-    accounts::publish(app);
-    Ok(if matches!(saved, Ok(Ok(()))) {
-        "Display name changed"
-    } else {
-        "Display name changed on Roblox, but RM could not save it locally. Refresh this account"
+    if !matches!(saved, Ok(Ok(()))) {
+        tracing::warn!(
+            user_id,
+            "Roblox display name changed but local persistence failed"
+        );
+        return Err("Display name changed on Roblox, but RM could not save it locally. Refresh this account before making further changes; do not retry this name change".into());
     }
-    .into())
+    accounts::publish(app);
+    Ok("Display name changed".into())
 }
 
 #[tauri::command]
