@@ -132,3 +132,180 @@ mod tests {
         assert!(validate_display_name("Name\n").is_err());
     }
 }
+
+const PRIVACY_URL: &str = "https://apis.roblox.com/user-settings-api/v1/user-settings";
+const PRIVACY_FIELDS: [&str; 2] = ["whoCanJoinMeInExperiences", "whoCanSeeMyOnlineStatus"];
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrivacySetting {
+    field: String,
+    current_value: String,
+    options: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountPrivacy {
+    user_id: u64,
+    settings: Vec<PrivacySetting>,
+    error: Option<String>,
+}
+
+fn parse_privacy(value: &serde_json::Value) -> Result<Vec<PrivacySetting>, String> {
+    PRIVACY_FIELDS.iter().map(|field| {
+        let setting = &value[*field];
+        let current = setting["currentValue"].as_str().ok_or("Roblox did not return these visibility settings. Use Roblox settings for this account")?;
+        let options = setting["options"].as_array().ok_or("Roblox did not return visibility choices")?
+            .iter().map(|option| option.as_str().filter(|text| !text.is_empty() && text.len() <= 100).map(str::to_owned).ok_or("Roblox returned an unsupported visibility choice".to_string()))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(PrivacySetting { field: (*field).into(), current_value: current.into(), options })
+    }).collect()
+}
+
+async fn fetch_privacy(client: &RobloxClient, cookie: &str) -> Result<Vec<PrivacySetting>, String> {
+    let response = client
+        .request(
+            reqwest::Method::GET,
+            &format!(
+                "{PRIVACY_URL}/settings-and-options?requestedUserSettings={}",
+                PRIVACY_FIELDS.join(",")
+            ),
+            cookie,
+            None,
+        )
+        .await
+        .map_err(|_| "Roblox visibility settings could not be loaded. Try again")?;
+    if !response.status().is_success() {
+        return Err("Roblox denied access to visibility settings. Refresh the account or use Roblox settings".into());
+    }
+    let value = response
+        .json()
+        .await
+        .map_err(|_| "Roblox returned unreadable visibility settings")?;
+    parse_privacy(&value)
+}
+
+fn validate_ids(ids: &[u64]) -> Result<(), String> {
+    if ids.is_empty() || ids.len() > 500 || ids.contains(&0) {
+        return Err("Select between 1 and 500 accounts".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_roblox_privacy(
+    state: tauri::State<'_, AppState>,
+    user_ids: Vec<u64>,
+) -> Result<Vec<AccountPrivacy>, String> {
+    validate_ids(&user_ids)?;
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
+    let mut results = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for user_id in user_ids.into_iter().filter(|id| seen.insert(*id)) {
+        let result = match credential(state.inner().clone(), user_id).await {
+            Ok((cookie, _)) => fetch_privacy(&client, &cookie).await,
+            Err(error) => Err(error),
+        };
+        let (settings, error) = match result {
+            Ok(settings) => (settings, None),
+            Err(error) => (Vec::new(), Some(error)),
+        };
+        results.push(AccountPrivacy {
+            user_id,
+            settings,
+            error,
+        });
+    }
+    Ok(results)
+}
+
+async fn change_privacy(
+    state: AppState,
+    client: &RobloxClient,
+    user_id: u64,
+    field: &str,
+    value: &str,
+) -> Result<String, String> {
+    let (cookie, _) = credential(state, user_id).await?;
+    let settings = fetch_privacy(client, &cookie).await?;
+    if !settings.iter().any(|setting| {
+        setting.field == field && setting.options.iter().any(|option| option == value)
+    }) {
+        return Err(
+            "This choice is unavailable for this account. Reload visibility settings".into(),
+        );
+    }
+    let response = client
+        .request(
+            reqwest::Method::POST,
+            PRIVACY_URL,
+            &cookie,
+            Some(&serde_json::json!({field: value})),
+        )
+        .await
+        .map_err(|_| "Visibility update could not be confirmed. Reload settings before retrying")?;
+    if !response.status().is_success() {
+        return Err("Roblox rejected this visibility change. Check age, region or parental restrictions on Roblox".into());
+    }
+    let settings = fetch_privacy(client, &cookie).await.map_err(|_| {
+        "Update sent, but verification failed. Reload visibility settings before retrying"
+    })?;
+    if !settings
+        .iter()
+        .any(|setting| setting.field == field && setting.current_value == value)
+    {
+        return Err("Roblox did not retain the requested choice. Reload settings to see the applied restrictions".into());
+    }
+    Ok("Visibility setting changed and verified on Roblox".into())
+}
+
+#[tauri::command]
+pub async fn change_roblox_privacy(
+    state: tauri::State<'_, AppState>,
+    user_ids: Vec<u64>,
+    field: String,
+    value: String,
+) -> Result<Vec<SettingResult>, String> {
+    validate_ids(&user_ids)?;
+    if !PRIVACY_FIELDS.contains(&field.as_str()) || value.is_empty() || value.len() > 100 {
+        return Err("Choose a supported Roblox visibility setting".into());
+    }
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
+    let mut results = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for user_id in user_ids.into_iter().filter(|id| seen.insert(*id)) {
+        let result = change_privacy(state.inner().clone(), &client, user_id, &field, &value).await;
+        results.push(SettingResult {
+            user_id,
+            success: result.is_ok(),
+            message: result.unwrap_or_else(|error| error),
+        });
+    }
+    Ok(results)
+}
+
+#[cfg(test)]
+mod privacy_tests {
+    use super::*;
+    #[test]
+    fn missing_or_unrecognised_privacy_does_not_invent_choices() {
+        assert!(parse_privacy(&serde_json::json!({})).is_err());
+        let value = serde_json::json!({
+            "whoCanJoinMeInExperiences": { "currentValue": "Friends", "options": ["Friends", "NoOne"] },
+            "whoCanSeeMyOnlineStatus": { "currentValue": "NoOne", "options": ["Friends", "NoOne"] },
+            "unrelatedSecret": "synthetic"
+        });
+        let settings = parse_privacy(&value).unwrap();
+        assert_eq!(settings.len(), 2);
+        assert_eq!(settings[0].options, ["Friends", "NoOne"]);
+        assert_eq!(settings[1].current_value, "NoOne");
+    }
+    #[test]
+    fn invalid_account_selections_are_rejected() {
+        assert!(validate_ids(&[]).is_err());
+        assert!(validate_ids(&[0]).is_err());
+        assert!(validate_ids(&vec![1; 501]).is_err());
+        assert!(validate_ids(&[1, 2]).is_ok());
+    }
+}

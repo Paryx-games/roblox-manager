@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { changeDisplayNames, operationError, type AccountSummary, type RobloxSettingResult } from "../lib/ipc";
+import { RobloxPrivacySettings } from "./RobloxPrivacySettings";
 
 export function RobloxSettings({ accounts }: { accounts: AccountSummary[] }) {
   const [name, setName] = useState(accounts.length === 1 ? accounts[0].displayName : "");
@@ -35,6 +36,7 @@ export function RobloxSettings({ accounts }: { accounts: AccountSummary[] }) {
       </form>
       {error && <p role="alert">{error}</p>}
       {results.length > 0 && <ul className="roblox-settings-results" aria-live="polite">{results.map((result) => <li key={result.userId}>{accounts.find((account) => account.userId === result.userId)?.label ?? result.userId}: {result.message}</li>)}</ul>}
+      <RobloxPrivacySettings accounts={accounts} />
     </section>
   );
 }

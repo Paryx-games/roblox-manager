@@ -10,6 +10,16 @@ export function changeDisplayNames(userIds: number[], name: string): Promise<Rob
   return invoke("change_display_names", { userIds, name });
 }
 
+export type RobloxPrivacyField = "whoCanJoinMeInExperiences" | "whoCanSeeMyOnlineStatus";
+export interface RobloxPrivacySetting { field: RobloxPrivacyField; currentValue: string; options: string[]; }
+export interface AccountPrivacy { userId: number; settings: RobloxPrivacySetting[]; error: string | null; }
+export function getRobloxPrivacy(userIds: number[]): Promise<AccountPrivacy[]> {
+  return invoke("get_roblox_privacy", { userIds });
+}
+export function changeRobloxPrivacy(userIds: number[], field: RobloxPrivacyField, value: string): Promise<RobloxSettingResult[]> {
+  return invoke("change_roblox_privacy", { userIds, field, value });
+}
+
 declare global {
   interface Window { __RM_BENCHMARK__?: boolean; }
 }

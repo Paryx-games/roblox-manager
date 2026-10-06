@@ -11,6 +11,17 @@
   user-select: text;
 }
 
+.roblox-privacy-settings {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border-default);
+}
+
+.roblox-privacy-settings h4 {
+  margin: 0;
+  font-size: var(--text-base);
+}
+
 .instances-description {
   margin: 0;
   color: var(--text-muted);

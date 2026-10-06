@@ -3048,6 +3048,8 @@ fn main() {
             accounts::confirm_account_addition,
             accounts::cancel_account_addition,
             roblox_settings::change_display_names,
+            roblox_settings::get_roblox_privacy,
+            roblox_settings::change_roblox_privacy,
             lifecycle::startup_status,
             lifecycle::acknowledge_startup,
             lifecycle::migrate_legacy_data,
