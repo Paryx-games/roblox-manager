@@ -30,6 +30,7 @@
 
 ### Fixed
 
+- Roblox visibility saves acquire Roblox's required browser context before submitting, fixing HTTP 400 failures for online and in-game audiences. Context stays in the backend for that save only; success still requires a verified readback.
 - Visibility settings decode Roblox's live nested `options[].option.optionValue` response. Added safe request IDs, HTTP status, response-shape and save-verification diagnostics without logging credentials or raw response bodies.
 - Roblox visibility settings accept structured API choices as well as strings, preserve audience identifiers such as AllUsers, Followers and Following, and exclude disabled options without failing the entire list.
 - Roblox Settings uses the focused account when no bulk selection exists. Empty selections no longer request account ID zero or incorrectly highlight every visibility choice.
