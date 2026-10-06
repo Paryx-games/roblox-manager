@@ -1,5 +1,36 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export interface RobloxSettingResult {
+  userId: number;
+  success: boolean;
+  message: string;
+}
+
+export function changeDisplayNames(userIds: number[], name: string): Promise<RobloxSettingResult[]> {
+  return invoke("change_display_names", { userIds, name });
+}
+
+export function checkRobloxDisplayName(userIds: number[], name: string): Promise<void> {
+  return invoke("check_roblox_display_name", { userIds, name });
+}
+
+export type RobloxPrivacyField = "whoCanJoinMeInExperiences" | "whoCanSeeMyOnlineStatus";
+export interface RobloxPrivacySetting { field: RobloxPrivacyField; currentValue: string; options: string[]; }
+export interface AccountPrivacy { userId: number; settings: RobloxPrivacySetting[]; error: string | null; }
+export function getRobloxPrivacy(userIds: number[]): Promise<AccountPrivacy[]> {
+  return invoke("get_roblox_privacy", { userIds });
+}
+export function changeRobloxPrivacy(userIds: number[], field: RobloxPrivacyField, value: string): Promise<RobloxSettingResult[]> {
+  return invoke("change_roblox_privacy", { userIds, field, value });
+}
+
+export interface DiscordNotificationSettings { moderationDetected: boolean; batchLaunchFinished: boolean; }
+export function getDiscordNotifications(): Promise<DiscordNotificationSettings> { return invoke("get_discord_notifications"); }
+export function saveDiscordNotifications(settings: DiscordNotificationSettings): Promise<void> { return invoke("save_discord_notifications", { settings }); }
+export function launchAccounts(userIds: number[], placeId: number, jobId: string, data: string): Promise<void> {
+  return invoke("launch_accounts", { userIds, placeId, jobId: jobId.trim() || null, data: data.trim() || null });
+}
+
 declare global {
   interface Window { __RM_BENCHMARK__?: boolean; }
 }

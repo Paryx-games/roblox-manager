@@ -12,7 +12,7 @@ or a close equivalent. This acknowledgement is required before editing files, ru
 
 ## Currently important news (required read)
 
-- **v2 replaces the UI with Tauri + React/TypeScript**, tracked in [PR #30](https://github.com/Paryx-games/roblox-manager/pull/30) (closes [#29](https://github.com/Paryx-games/roblox-manager/issues/29)). The new interface implements the active workflows described in the user guides. Some unfinished settings are documented in `docs/guides/settings.md`. The retired egui application has been removed; its source remains available in Git history.
+- **UI architecture:** RM uses Tauri + React/TypeScript and implements the active workflows described in the user guides. Some unfinished settings are documented in `docs/guides/settings.md`. The retired egui application has been removed; its source remains available in Git history.
 - **`ram_core` is read-only by default.** The only standing exception is a behaviour-preserving extraction of existing reusable logic from `ram_ui/src-tauri` into `ram_core`, subject to every condition below. This policy does not authorise performing an extraction by itself; the current task must explicitly request that extraction. General UI work, cleanup, feature parity, or permission to edit this policy does not qualify.
 - **Active source ownership:** Desktop browser and Windows startup helpers live under `ram_ui/src-tauri/src/`. React components and shared styles, including `tokens.css`, live under `ram_ui/frontend/`. The retired `ram_ui` Rust crate is no longer a workspace member.
 
@@ -39,7 +39,7 @@ All conditions are mandatory. If any condition cannot be met, stop the affected 
 - **Rust Edition**: 2021 (Rust stable)
 - **Frontend**: React 18+ with TypeScript, built with Vite
 
-> **Migration note**: v2 replaces the retired egui/eframe app with a Tauri shell hosting a React/TypeScript frontend. Core behaviour remains frozen; only explicitly requested extractions meeting the Limited core extraction policy above are permitted.
+> **Core ownership:** Core behaviour remains frozen; only explicitly requested extractions meeting the Limited core extraction policy above are permitted.
 
 ---
 
@@ -319,7 +319,7 @@ Run the pre-commit verification sequence above before each commit, not just once
 
 If a commit changes something a user would notice - a new feature, a fixed bug, changed behavior, UI changes - add an entry to `CHANGELOG.md` under an `## Unreleased` heading (create it above the most recent `## vX.Y.Z` heading if it doesn't exist yet) in the same commit as the change itself. Don't wait until release time to backfill it.
 
-**v2 rewrite exception:** while completing the Tauri/React v2 page rewrite, do not add a changelog entry for each incremental page fix. Add one consolidated entry for a page when its new implementation is complete. Keep applying the normal per-change changelog rule to work outside this page-by-page rewrite.
+**v2 page-completion exception:** While completing the Tauri/React v2 page rewrite, add one consolidated changelog entry when a page is complete instead of an entry for each incremental page fix. Apply the normal per-change rule to work outside that page rewrite.
 
 Skip the changelog for things a user would never notice: internal refactors, test-only changes, comment/doc tweaks, CI config, dependency bumps with no behavior change.
 
@@ -355,7 +355,7 @@ RM has no project-wide `0.x`/beta phase - every version line ships stable as `MA
 - `-beta.N` - early test build; may lack features or contain bugs.
 - `-rc.N` - release candidate; if clean, publish the plain version next. An `-rc.N` requires an earlier `-alpha.N` or `-beta.N` for that version, otherwise just publish the plain version directly.
 
-Pre-releases sort before their plain release under SemVer (`v2.0.0-rc.1` < `v2.0.0`) - tooling should never treat a pre-release as latest stable.
+Pre-releases sort before their plain release under SemVer (`v1.2.3-rc.1` < `v1.2.3`) - tooling should never treat a pre-release as latest stable.
 
 **Version source of truth is the root `Cargo.toml`.** Both Rust crates inherit it, and Tauri derives it with no `version` override in `tauri.conf.json`. `ram_ui/package.json` is the only version mirror. Use `pnpm version:set <version>` or `bump-version.bat`; use `pnpm version:sync` after manual Cargo edits and `pnpm version:check` to validate consistency. Do not introduce other independent version constants.
 
@@ -465,7 +465,7 @@ Pre-releases sort before their plain release under SemVer (`v2.0.0-rc.1` < `v2.0
 
 <!-- Add personal notes, development reminders, feature ideas, and custom workflows below -->
 
-- **Changelog & versioning:** Add a `CHANGELOG.md` entry under `## Unreleased` in the same commit as any user-facing change, except for incremental fixes during the v2 page rewrite. For that rewrite, add one consolidated entry when each page is complete (see Update CHANGELOG.md under Contribution Workflow). Keep versioning organised; group related changes into appropriate releases rather than unnecessarily cramming unrelated changes into a single version.
+- **Changelog & versioning:** Add a `CHANGELOG.md` entry under `## Unreleased` in the same commit as any user-facing change, respecting the v2 page-completion exception above (see Update CHANGELOG.md under Contribution Workflow). Keep versioning organised; group related changes into appropriate releases rather than unnecessarily cramming unrelated changes into a single version.
 - **Git safety:** Commit completed changes as you go, in small logical chunks - not as one large commit at the end (see Commit as you go under Contribution Workflow). Never modify git configuration or remotes, change the origin repository, force-push, reset or discard unrelated work, or perform other destructive git operations.
 - **Review before committing:** Before creating a commit, review the diff and ensure that all staged changes are relevant to the requested task. Do not commit unrelated or accidental changes - this includes stray summary/report `.md` files (see Agent Guidelines § 8).
 - **Preserve existing behaviour:** Avoid changing existing functionality unless the task explicitly requires it. Prefer small, targeted changes over unnecessary refactors.

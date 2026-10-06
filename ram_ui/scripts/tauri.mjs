@@ -73,9 +73,6 @@ const result = spawnSync(
     env: {
       ...process.env,
       RM_DEMO: isDemo ? "1" : "0",
-      ...(isDevelopmentBuild && !process.env.RUST_LOG
-        ? { RUST_LOG: "info" }
-        : {}),
     },
   },
 );

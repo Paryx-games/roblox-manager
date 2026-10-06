@@ -24,6 +24,7 @@ import {
   getStoreStatus,
   fetchAccountInventory,
   launchAccount as launchAccountIpc,
+  launchAccounts,
   removeAccount,
   runConnectionAction,
   saveLaunchPreset,
@@ -66,10 +67,11 @@ import Select from "./components/Select";
 import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
 import { PromptModal } from "./components/PromptModal";
+import { RobloxSettings } from "./components/RobloxSettings";
+import { TimedNotice } from "./components/TimedNotice";
 import {
   Toast,
   ToastStack,
-  notificationReadingTime,
   type ToastDuration,
   type ToastItem,
   type ToastKind,
@@ -259,38 +261,6 @@ function noticeKind(message: string): ToastKind {
 
 function noticeTitle(kind: ToastKind) {
   return kind === "error" ? "Account action failed" : kind === "warning" ? "Account action needs attention" : kind === "success" ? "Account action successful" : "Account information";
-}
-
-function TimedNotice({
-  message,
-  onDismiss,
-}: {
-  message: string;
-  onDismiss: () => void;
-}) {
-  const [exiting, setExiting] = useState(false);
-  const dismissRef = useRef(onDismiss);
-  dismissRef.current = onDismiss;
-  const duration = notificationReadingTime(message, 5000);
-
-  useEffect(() => {
-    setExiting(false);
-    const exitTimeout = window.setTimeout(() => setExiting(true), duration);
-    const dismissTimeout = window.setTimeout(() => dismissRef.current(), duration + 300);
-    return () => {
-      window.clearTimeout(exitTimeout);
-      window.clearTimeout(dismissTimeout);
-    };
-  }, [message, duration]);
-
-  return (
-    <div className={`account-notice-shell ${exiting ? "is-exiting" : ""}`} style={{ "--notice-duration": `${duration}ms` } as CSSProperties}>
-      <p className="account-notice" role="status">
-        <span className="notice-timer" aria-hidden="true" />
-        {message}
-      </p>
-    </div>
-  );
 }
 
 function AccountRow({
@@ -1216,9 +1186,7 @@ export function AccountsPage({
     }
     setMutationLoading(true);
     try {
-      for (const userId of selectedIds) {
-        await launchAccountIpc(userId, Number(placeId), jobId, launchData);
-      }
+      await launchAccounts([...selectedIds], Number(placeId), jobId, launchData);
       setNotice(`Launch requests were sent for ${selectedIds.size} selected accounts into Place ID ${placeId}. Check Instances to follow client startup and attribution.`);
     } catch (error) {
       setNotice(operationError(error, "Bulk launch stopped because one account could not launch."));
@@ -2805,6 +2773,11 @@ export function AccountsPage({
                   />
                 ))}
               </section>
+
+              <RobloxSettings
+                key={isMultiSelection ? selectionKey : selectedAccount.userId}
+                accounts={isMultiSelection ? selectedAccounts : [selectedAccount]}
+              />
 
               <section className="account-card connections-card">
                 <h3>Connections</h3>

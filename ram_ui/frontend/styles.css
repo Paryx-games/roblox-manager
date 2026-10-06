@@ -3,6 +3,140 @@
 @import "./tokens.css";
 /* stylelint-enable import-notation */
 
+.roblox-settings-results {
+  margin: var(--space-3) 0 0;
+  padding-left: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  user-select: text;
+}
+
+.roblox-privacy-settings {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border-default);
+}
+
+.roblox-display-name-row.account-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.roblox-display-name-row .account-button.primary:not(:disabled) {
+  color: var(--text-on-action);
+  font-weight: 700;
+}
+
+.roblox-display-name-row .account-button.primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--action-primary) 90%, var(--bg-canvas));
+}
+
+.roblox-display-name-row .account-button.primary:not(:disabled):active {
+  background: color-mix(in srgb, var(--action-primary) 80%, var(--bg-canvas));
+}
+
+.roblox-visibility-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.roblox-visibility-row + .roblox-visibility-row {
+  margin-top: var(--space-2);
+}
+
+.roblox-visibility-label {
+  min-width: 52px;
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.roblox-visibility-bar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  overflow-x: auto;
+}
+
+.roblox-visibility-choice {
+  min-width: 0;
+  min-height: 28px;
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  white-space: nowrap;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    background var(--duration-fast) var(--ease-standard);
+}
+
+.roblox-visibility-choice:not(:disabled):hover {
+  color: var(--visibility-color);
+  background: color-mix(in srgb, var(--visibility-color) 18%, var(--bg-surface));
+}
+
+.roblox-visibility-choice:not(:disabled):active {
+  background: color-mix(in srgb, var(--visibility-color) 26%, var(--bg-surface));
+  font-weight: 700;
+}
+
+.roblox-visibility-choice[aria-pressed="true"]:not(:disabled) {
+  color: var(--bg-canvas);
+  border-color: var(--visibility-color);
+  background: var(--visibility-color);
+  font-weight: 700;
+}
+
+.roblox-visibility-choice:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: -2px;
+}
+
+.roblox-visibility-choice:disabled {
+  color: var(--text-disabled);
+  background: var(--bg-surface);
+  cursor: not-allowed;
+}
+
+.roblox-visibility-choice[aria-pressed="true"]:disabled {
+  color: var(--bg-canvas);
+  border-color: var(--visibility-color);
+  background: var(--visibility-color);
+  font-weight: 700;
+}
+
+.visibility-everyone { --visibility-color: var(--visibility-everyone); }
+.visibility-followers { --visibility-color: var(--visibility-followers); }
+.visibility-following { --visibility-color: var(--visibility-following); }
+.visibility-friends { --visibility-color: var(--visibility-friends); }
+.visibility-trusted { --visibility-color: var(--visibility-trusted); }
+.visibility-no-one { --visibility-color: var(--visibility-no-one); }
+
+@media (prefers-reduced-motion: reduce) {
+  .roblox-visibility-choice { transition: none; }
+}
+
+.discord-event-options {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
 .instances-description {
   margin: 0;
   color: var(--text-muted);

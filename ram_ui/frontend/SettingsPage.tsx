@@ -9,7 +9,7 @@ import {
 } from "react";
 import { ConfirmModal } from "./ConfirmModal";
 import { Icon } from "./components/Icon";
-import { Popup } from "./components/Popup";
+import { DiscordNotifications } from "./components/DiscordNotifications";
 import Select from "./components/Select";
 import { Toast, ToastStack, type ToastItem, type ToastKind } from "./Toast";
 import {
@@ -25,13 +25,10 @@ import {
   workspacePages,
   openDataFolder,
   operationError,
-  removeDiscordWebhook,
   restartApp,
   rotateMacAddress,
-  saveDiscordWebhook,
   saveSettings,
   setStartupWithWindows,
-  testDiscordWebhook,
   type LogLevel,
   type MonitorTarget,
   type SettingsConfig,
@@ -361,9 +358,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
   const [pendingLogLevel, setPendingLogLevel] = useState<LogLevel | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [webhookModalOpen, setWebhookModalOpen] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState("");
-  const [webhookBusy, setWebhookBusy] = useState<"save" | "test" | null>(null);
+  const [webhookBusy, setWebhookBusy] = useState(false);
   const [newFlagName, setNewFlagName] = useState("");
   const [newFlagValue, setNewFlagValue] = useState("");
   const [isAddingFlag, setIsAddingFlag] = useState(false);
@@ -575,7 +570,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
   useEffect(() => {
     onNavigationGuardChange({
       isDirty,
-      isBusy: isSaving || busyAction !== null || webhookBusy !== null,
+      isBusy: isSaving || busyAction !== null || webhookBusy,
       save: handleSave,
       discard: handleCancelChanges,
     });
@@ -706,50 +701,6 @@ export function SettingsPage({ onNavigationGuardChange }: {
       notify("success", "The account store now uses device encryption through Windows Credential Manager. RM can unlock it on this PC without a master-password prompt.");
     } catch (error) {
       showError(error, "Switching to device encryption");
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function handleWebhookSave() {
-    setWebhookBusy("save");
-    try {
-      await saveDiscordWebhook(webhookUrl.trim());
-      setWebhookModalOpen(false);
-      setWebhookUrl("");
-      setSnapshot((current) =>
-        current ? { ...current, hasDiscordWebhook: true } : current,
-      );
-      notify("success", "The Discord webhook was saved in secure credential storage. Use Test webhook to verify that the selected channel receives messages.");
-    } catch (error) {
-      showError(error, "Saving the Discord webhook");
-    } finally {
-      setWebhookBusy(null);
-    }
-  }
-
-  async function handleWebhookTest() {
-    setWebhookBusy("test");
-    try {
-      await testDiscordWebhook(webhookUrl.trim());
-      notify("success", "A test notification was sent to the configured Discord webhook. Check the destination channel to confirm that it arrived.");
-    } catch (error) {
-      showError(error, "Sending the Discord webhook test");
-    } finally {
-      setWebhookBusy(null);
-    }
-  }
-
-  async function handleWebhookRemove() {
-    setBusyAction("webhook");
-    try {
-      await removeDiscordWebhook();
-      setSnapshot((current) =>
-        current ? { ...current, hasDiscordWebhook: false } : current,
-      );
-      notify("success", "The saved Discord webhook was removed from secure credential storage. Configure a new webhook before requesting further notifications.");
-    } catch (error) {
-      showError(error, "Removing the saved Discord webhook");
     } finally {
       setBusyAction(null);
     }
@@ -1399,33 +1350,12 @@ export function SettingsPage({ onNavigationGuardChange }: {
         >
           <SubsectionHeading id="discord-notifications">Discord notifications</SubsectionHeading>
           <SettingRow referenceId="discord_webhook" infoCards={infoCards}>
-            <div className="settings-action-row">
-              <span className={snapshot.hasDiscordWebhook ? "settings-success" : "settings-muted"}>
-                {snapshot.hasDiscordWebhook ? "Webhook configured" : "No webhook configured"}
-              </span>
-              <button
-                className="account-button"
-                type="button"
-                onClick={() => {
-                  setWebhookUrl("");
-                  setWebhookModalOpen(true);
-                }}
-              >
-                {snapshot.hasDiscordWebhook ? "Change" : "Add Discord Webhook"}
-              </button>
-              {snapshot.hasDiscordWebhook && (
-                <button
-                  className="account-button"
-                  type="button"
-                  disabled={busyAction === "webhook"}
-                  onClick={() => void handleWebhookRemove()}
-                >
-                  Remove
-                </button>
-              )}
-            </div>
+            <DiscordNotifications
+              hasWebhook={snapshot.hasDiscordWebhook}
+              onConfiguredChange={(hasDiscordWebhook) => setSnapshot((current) => current ? { ...current, hasDiscordWebhook } : current)}
+              onBusyChange={setWebhookBusy}
+            />
           </SettingRow>
-          <p className="settings-muted">Get notifications for launches and account moderation events.</p>
         </Section>
 
         <Section
@@ -1556,57 +1486,6 @@ export function SettingsPage({ onNavigationGuardChange }: {
         />
       )}
 
-      {webhookModalOpen && (
-        <Popup
-          className="confirm-modal settings-webhook-modal"
-          backdropClassName="confirm-modal-backdrop"
-          onClose={() => setWebhookModalOpen(false)}
-          closeOnBackdrop
-          labelledBy="settings-webhook-title"
-          describedBy="settings-webhook-description"
-          busy={webhookBusy !== null}
-        >
-          <div className="confirm-modal-header">
-            <h2 id="settings-webhook-title">Discord Webhook</h2>
-            <button
-              className="icon-button"
-              type="button"
-              aria-label="Cancel"
-              onClick={() => setWebhookModalOpen(false)}
-            >
-              <Icon name="close" />
-            </button>
-          </div>
-          <p id="settings-webhook-description">
-            The URL is stored in Windows Credential Manager and is never shown in the settings page.
-          </p>
-          <input
-            autoFocus
-            type="password"
-            placeholder="https://discord.com/api/webhooks/..."
-            value={webhookUrl}
-            onChange={(event) => setWebhookUrl(event.target.value)}
-          />
-          <div className="confirm-modal-actions">
-            <button
-              className="account-button"
-              type="button"
-              disabled={!webhookUrl.trim() || webhookBusy !== null}
-              onClick={() => void handleWebhookTest()}
-            >
-              Test webhook
-            </button>
-            <button
-              className="account-button primary"
-              type="button"
-              disabled={!webhookUrl.trim() || webhookBusy !== null}
-              onClick={() => void handleWebhookSave()}
-            >
-              Save webhook
-            </button>
-          </div>
-        </Popup>
-      )}
     </>
   );
 }
