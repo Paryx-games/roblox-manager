@@ -1,66 +1,39 @@
 # Changelog
 
-## Unreleased
-
-### Added
-
-- Roblox Settings can load and change who sees an account online and who can see its current experience and join it. Bulk changes use choices allowed for every selected account and report individual verified results.
-- Accounts includes Roblox Settings for changing the display name of one or multiple selected accounts, with individual results and Roblox cooldown feedback.
-- Settings includes a Browse button for choosing the Roblox player installation folder, with validation that it contains RobloxPlayerBeta.exe.
-- Account details includes a Browse button beside Player path to choose and save a custom Roblox installation for an individual account.
-
-- Settings offers individual saved visibility toggles for each workspace. Inventories and Asset Manager default off; other workspaces default on. Settings stays accessible to restore hidden pages.
-
-### Changed
-
-- Successful online and in-game visibility saves show the shared radial countdown notice; failed account results remain visible.
-- Successful display-name saves show the same timed radial countdown notice as Open browser; failed account results remain visible.
-- Logging uses the saved severity level across RM and ram_core, with explicit RUST_LOG overrides. Development console severity labels are coloured after credential redaction; rotating files remain plain text. Verbose visibility request and schema diagnostics now require Debug or Trace, while failures remain visible as warnings.
-- Online and in-game visibility controls fit on compact single-line rows, with gray unselected options, tinted audience colours on hover and solid audience colours for the selected choice.
-- Roblox Settings uses coloured audience bars for online and in-game visibility, with immediate saves and current-choice highlights. Display names use a compact name field and primary save button enabled only for 3–20-character names validated by Roblox.
-- Discord webhooks use Components V2 notification layouts for newly detected account moderation and completed or stopped batch launches, including presets and private servers. Integrations adds saved event toggles, secure URL replacement and testing of the stored webhook; messages disable mentions and respect account-name anonymisation.
-- Selecting multiple accounts shows a selection summary, batch launch and browser controls, shared connection actions and an inventory comparison in the main account panel. Individual account fields remain in the single-account view.
-- The selected-account avatar stack shows a +N badge for accounts beyond the first three.
-
-- Notifications and inline operation feedback across all workspaces now name the operation, include relevant account, item or batch context, and explain recovery steps or when a request still needs Roblox to complete it. Longer toasts stay visible for more reading time and still pause on hover or keyboard focus.
-
-- Accounts places Connections below the main launch controls, with a labelled search field, clear user identity cards and grouped actions in the existing theme.
-
-- Accounts launch-data examples are clickable, append query arguments without replacing existing values, and become grey with a strikethrough when their argument is already present.
-- Right-click uses RM's custom menus where available and no longer opens the default browser menu elsewhere in the main interface.
-
-### Fixed
-
-- Roblox visibility saves acquire Roblox's required browser context before submitting, fixing HTTP 400 failures for online and in-game audiences. Context stays in the backend for that save only; success still requires a verified readback.
-- Visibility settings decode Roblox's live nested `options[].option.optionValue` response. Added safe request IDs, HTTP status, response-shape and save-verification diagnostics without logging credentials or raw response bodies.
-- Roblox visibility settings accept structured API choices as well as strings, preserve audience identifiers such as AllUsers, Followers and Following, and exclude disabled options without failing the entire list.
-- Roblox Settings uses the focused account when no bulk selection exists. Empty selections no longer request account ID zero or incorrectly highlight every visibility choice.
-- Group membership results stay visible during refresh, including partial failures; switching groups still clears prior feedback.
-
-- Text fields retain the standard editing context menu for Copy/Paste while page backgrounds continue to suppress the browser menu.
-
-- Live-update failure notifications distinguish reloading data with Refresh from retrying subscriptions by restarting RM.
-
-- Connections marks individual and batch actions as pending, preventing duplicate or conflicting requests until the active request finishes.
-
-- Instances centres its empty-state icon, heading and description inside a dashed outline, matching the shared Presets empty-state style.
-- Instances applies hover, pressed and selected backgrounds to the whole client row, preventing a split strip above its actions.
-- Inventories keeps tile and list-row backgrounds uniform while hovering, pressing or selecting, without a separate thumbnail or caption overlay.
-
 ## v2.1.0
 
 ### Added
 
-- **Client launch controls.** Save shared FPS limit, manual graphics quality, fullscreen and audio mute overrides from Instances. Enable Apply on launch to apply them before every RM launch; existing clients are unchanged. Disabling overrides stops RM reapplying them and leaves Roblox's last saved settings intact.
-- Roblox settings updates preserve unrelated XML properties and use atomic writes with a backup. Missing, invalid or unsupported settings stop an overridden launch with a visible error.
+- **Roblox Settings.** Change display names, online visibility and who can see and join an account in-game from Accounts, for one or multiple selected accounts. Display names require 3–20 characters and Roblox validation; visibility choices respect each account's available options and saves are verified on Roblox.
+- **Client launch controls.** Save shared FPS limit, graphics quality, fullscreen and audio mute overrides from Instances. Apply on launch affects future RM launches; running clients are unchanged. Disabling overrides leaves Roblox's last saved settings intact.
+- Browse for the Roblox player installation in Settings or set a custom player path for an individual account, with executable validation.
+- Choose which workspaces appear in navigation. Inventories and Asset Manager default off; Settings remains accessible to restore hidden pages.
 
 ### Changed
 
-- **Instances.** Adds selectable running-client rows beside a controls panel, preserves focus, join, arrange and kill actions, and stacks the panels on narrower layouts. The join-account picker and helper text are stacked, kill buttons use red action styling, and controls share workspace scrolling.
+- **Discord notifications.** Components V2 messages report new or changed active moderation and completed or stopped batch launches from Accounts, Presets and Private Servers. Integrations provides saved event toggles, secure webhook replacement and stored-webhook testing. Notifications suppress mentions and respect account-name anonymisation.
+- Online and in-game visibility use compact audience buttons: gray when idle, tinted on hover and fully coloured when selected. Successful visibility and display-name saves show the same radial countdown notice as Open browser; failures remain visible.
+- **Multiple accounts.** The main panel shows a selection summary, batch launch and browser controls, shared connection actions and inventory comparison. Individual fields remain in the single-account view; avatar stacks show a +N badge beyond three accounts.
+- **Instances.** Select running clients beside the launch-controls panel, with existing focus, join, arrange and kill actions. Panels stack on narrower layouts and share workspace scrolling; join controls are stacked and kill buttons use red action styling.
+- Connections appears below the main launch controls, with a labelled search field and clear account identities.
+- Clickable launch-data examples append arguments without replacing existing values and mark arguments already present.
+- Operation feedback across workspaces names the action and affected accounts or items, with clearer recovery steps. Longer toasts allow more reading time and pause on hover or keyboard focus.
+- Saved logging levels apply across RM and ram_core. Explicit RUST_LOG overrides are supported; development console severity labels are coloured after credential redaction and log files remain plain text. Detailed visibility diagnostics require Debug or Trace.
+- RM's custom context menus replace browser menus outside editable text fields.
+
+### Fixed
+
+- Online and in-game visibility saves no longer fail with HTTP 400 because of missing Roblox browser context. Visibility loading handles Roblox's structured choices and disabled options, uses the focused account when no bulk selection exists, and avoids invalid requests or highlights for empty selections.
+- Client launch overrides preserve unrelated Roblox settings and use atomic writes with a backup. Missing, invalid or unsupported settings stop the overridden launch with a visible error.
+- Group membership results remain visible during refresh, including partial failures; switching groups clears old feedback.
+- Connections prevents duplicate or conflicting requests while individual or batch actions are pending.
+- Instances empty states match the shared workspace style. Instance rows and inventory tiles or list rows keep uniform hover, pressed and selected backgrounds.
+- Editable text retains the standard Copy/Paste context menu. Live-update errors distinguish refreshing data from restarting subscriptions.
 
 ### Notes
 
-- Launch controls use the standard Windows Roblox GlobalBasicSettings_13.xml file. Start Roblox once before enabling overrides. These are shared launch defaults, not live per-instance settings.
+- Client launch controls use the standard Windows Roblox GlobalBasicSettings_13.xml file. Start Roblox once before enabling overrides; these are shared launch defaults rather than live per-instance settings.
+- Discord notifications require RM to be running. Batch completion reports finished launch requests; Roblox clients may still be starting or connecting.
 
 ## v2.0.0
 
