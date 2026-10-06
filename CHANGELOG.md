@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- The selected Roblox visibility audience remains visibly marked while saving or when Roblox no longer allows that choice.
+
 ## v2.1.0
 
 ### Added

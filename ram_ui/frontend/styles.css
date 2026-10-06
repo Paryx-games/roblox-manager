@@ -113,6 +113,13 @@
   cursor: not-allowed;
 }
 
+.roblox-visibility-choice[aria-pressed="true"]:disabled {
+  color: var(--bg-canvas);
+  border-color: var(--visibility-color);
+  background: var(--visibility-color);
+  font-weight: 700;
+}
+
 .visibility-everyone { --visibility-color: var(--visibility-everyone); }
 .visibility-followers { --visibility-color: var(--visibility-followers); }
 .visibility-following { --visibility-color: var(--visibility-following); }
