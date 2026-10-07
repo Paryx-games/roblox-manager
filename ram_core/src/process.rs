@@ -412,6 +412,32 @@ pub fn launch_game(
     launchtime: i64,
     player_path: Option<&std::path::Path>,
 ) -> Result<(), CoreError> {
+    launch_game_with_args(
+        ticket,
+        place_id,
+        job_id,
+        link_code,
+        access_code,
+        data,
+        launchtime,
+        player_path,
+        &[],
+    )
+}
+
+/// Launch with already parsed arguments, without a shell.
+#[allow(clippy::too_many_arguments)]
+pub fn launch_game_with_args(
+    ticket: &str,
+    place_id: u64,
+    job_id: Option<&str>,
+    link_code: Option<&str>,
+    access_code: Option<&str>,
+    data: Option<&str>,
+    launchtime: i64,
+    player_path: Option<&std::path::Path>,
+    args: &[String],
+) -> Result<(), CoreError> {
     let query = place_launcher_query(place_id, job_id, link_code, access_code, data);
     let uri = format!(
         "roblox-player:1+launchmode:play\
@@ -427,38 +453,51 @@ pub fn launch_game(
     // URI was assembled, which is the only reason to log it.
     debug!("URI: {}", crate::redact::scrub(&uri));
 
-    let player_path = player_path
-        .map(PathBuf::from)
-        .or_else(find_roblox_player)
-        .ok_or_else(|| {
-            CoreError::Process(
-                "RobloxPlayerBeta.exe was not found; refusing to launch via the protocol handler"
-                    .into(),
-            )
-        })?;
-    open_player(&uri, &player_path)?;
+    let executable = resolve_player_executable(player_path)?;
+    open_player(&uri, &executable, args)?;
     Ok(())
 }
 
-/// Spawn the requested Roblox player executable with the launch URI argument.
-fn open_player(uri: &str, player_path: &std::path::Path) -> Result<(), CoreError> {
-    let executable = if player_path.is_dir() {
-        player_path.join(ROBLOX_PLAYER_EXE)
+pub fn resolve_player_executable(
+    player_path: Option<&std::path::Path>,
+) -> Result<PathBuf, CoreError> {
+    let path = player_path
+        .map(PathBuf::from)
+        .or_else(find_roblox_player)
+        .ok_or_else(|| CoreError::Process("RobloxPlayerBeta.exe was not found".into()))?;
+    let executable = if path.is_dir() {
+        path.join(ROBLOX_PLAYER_EXE)
     } else {
-        player_path.to_path_buf()
+        path
     };
-    if !executable.is_file() {
-        return Err(CoreError::Process(format!(
-            "Roblox player executable does not exist: {}",
-            executable.display()
-        )));
+    if !executable.is_file()
+        || !executable.file_name().is_some_and(|name| {
+            name.to_string_lossy()
+                .eq_ignore_ascii_case(ROBLOX_PLAYER_EXE)
+        })
+    {
+        return Err(CoreError::Process(
+            "Choose an existing RobloxPlayerBeta.exe".into(),
+        ));
     }
-    info!(path = %executable.display(), "Launching Roblox player executable");
-    std::process::Command::new(&executable)
-        .arg(uri)
+    Ok(executable)
+}
+
+fn open_player(uri: &str, executable: &std::path::Path, args: &[String]) -> Result<(), CoreError> {
+    player_command(uri, executable, args)
         .spawn()
-        .map_err(|e| CoreError::Process(format!("failed to launch Roblox player: {e}")))?;
+        .map_err(|_| CoreError::Process("Roblox player could not be started".into()))?;
     Ok(())
+}
+
+fn player_command(
+    uri: &str,
+    executable: &std::path::Path,
+    args: &[String],
+) -> std::process::Command {
+    let mut command = std::process::Command::new(executable);
+    command.arg(uri).args(args);
+    command
 }
 
 // ---------------------------------------------------------------------------
@@ -1746,6 +1785,46 @@ pub fn arrange_roblox_windows(_options: &TilingOptions) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extra_arguments_are_separate_from_the_launch_uri() {
+        let args =
+            crate::launch_options::parse_arguments(r#"--test "two words" "literal;$(text)""#)
+                .unwrap();
+        let command = player_command(
+            "roblox-player:synthetic",
+            std::path::Path::new("RobloxPlayerBeta.exe"),
+            &args,
+        );
+        assert_eq!(
+            command
+                .get_args()
+                .map(|value| value.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            vec![
+                "roblox-player:synthetic",
+                "--test",
+                "two words",
+                "literal;$(text)"
+            ]
+        );
+    }
+
+    #[test]
+    fn player_resolution_accepts_install_directories_and_rejects_other_executables() {
+        let directory = std::env::temp_dir().join(format!("rm-player-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let executable = directory.join(ROBLOX_PLAYER_EXE);
+        crate::storage::atomic_write(&executable, b"synthetic").unwrap();
+        assert_eq!(
+            resolve_player_executable(Some(&directory)).unwrap(),
+            executable
+        );
+        let other = directory.join("other.exe");
+        crate::storage::atomic_write(&other, b"synthetic").unwrap();
+        assert!(resolve_player_executable(Some(&other)).is_err());
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     // -----------------------------------------------------------------------
     // Attribution token

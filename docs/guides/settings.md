@@ -38,6 +38,14 @@ Device mode unlocks through Windows Credential Manager. Password mode requires a
 
 Configure the webhook through the integration controls, then use the explicit test action to send a test notification. The webhook URL is a credential stored in Windows Credential Manager, not ordinary configuration text. Never include it in screenshots or bug reports.
 
+## Custom arguments and FastFlags
+
+Custom arguments are parsed using Windows double-quote and backslash rules and passed directly to Roblox, without a command shell. Quote arguments containing spaces. RM reserves its launch URI, authentication and attribution parameters; invalid arguments stop the launch. Roblox determines which extra arguments it recognizes.
+
+FastFlags are written before launches to `ClientSettings/ClientAppSettings.json` beside the selected `RobloxPlayerBeta.exe`, including account-specific installations. RM preserves unrelated keys and records original values in `ClientSettings/rm-original-fast-flags.json`. Removing a configured flag restores that original value at the next launch in that installation. RM owns the keys configured here; editing the same keys with another tool may be overwritten. Invalid existing JSON stops the launch instead of replacing that file. Writes are atomic and retain backups. Applied settings remain if a later authentication or launch step fails. Roblox updates may install a new directory; RM applies your flags there on the next launch.
+
+Roblox only honors flags on its [local configuration allowlist](https://devforum.roblox.com/t/allowlist-for-local-client-configuration-via-fast-flags/3966569). Writing a flag does not guarantee the client accepts it.
+
 ## Controls that are unfinished
 
-Auto-launching a game on startup, custom game arguments, FastFlags and automatic MAC rotation have saved configuration controls but are not wired into those automatic behaviours. Do not rely on them being applied to launches. **Start RM with Windows** and the explicit manual MAC rotation action are separate features.
+Auto-launching a game on startup and automatic MAC rotation have saved configuration controls but are not wired into those automatic behaviours. Do not rely on them being applied to launches. **Start RM with Windows** and the explicit manual MAC rotation action are separate features.

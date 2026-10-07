@@ -1311,7 +1311,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
               />
             </label>
           </SettingRow>
-          <p className="settings-muted">Not implemented yet. Custom arguments are saved but are not passed to Roblox.</p>
+          <p className="settings-muted">Passed as extra arguments to Roblox on future RM launches. Use double quotes around values with spaces. Launch URI parameters and credentials are reserved.</p>
           <SubsectionHeading id="fast-flags">Fast flags</SubsectionHeading>
           <SettingRow referenceId="roblox_fast_flags" infoCards={infoCards}>
             {Object.keys(draft.robloxFastFlags).length === 0 ? (
@@ -1329,7 +1329,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
               </div>
             )}
           </SettingRow>
-          <p className="settings-muted">Not implemented yet. Flags are saved but are not written to Roblox ClientSettings before launch.</p>
+          <p className="settings-muted">Written to the selected installation before each launch. Roblox only honors flags on its current allowlist. Removing a flag restores its original value on the next launch.</p>
           {isAddingFlag ? (
             <div className="settings-flag-editor">
               <input aria-label="Flag name" placeholder="Flag name" value={newFlagName} onChange={(event) => setNewFlagName(event.target.value)} />

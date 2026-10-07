@@ -455,9 +455,11 @@ impl SettingsConfig {
 
 impl SettingsUpdate {
     fn apply_to_config(self, config: &mut AppConfig) -> Result<(), String> {
-        if self.custom_game_args.chars().count() > 4096 || self.custom_game_args.contains('\0') {
-            return Err("Custom Roblox arguments must be 4096 characters or fewer".to_string());
-        }
+        ram_core::launch_options::parse_arguments(&self.custom_game_args).map_err(|_| {
+            "Custom arguments have invalid quoting or reserved launch parameters".to_string()
+        })?;
+        ram_core::launch_options::validate_fast_flags(&self.roblox_fast_flags)
+            .map_err(|_| "Fast flags must have valid names and values".to_string())?;
         if self
             .roblox_player_path
             .as_deref()
@@ -466,19 +468,6 @@ impl SettingsUpdate {
             return Err(
                 "Roblox player path is too long or contains an invalid character".to_string(),
             );
-        }
-        if self.roblox_fast_flags.len() > 100
-            || self.roblox_fast_flags.iter().any(|(key, value)| {
-                key.is_empty()
-                    || key.len() > 128
-                    || !key
-                        .bytes()
-                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-                    || value.len() > 4096
-                    || value.contains(['\0', '\n', '\r'])
-            })
-        {
-            return Err("Fast flags must have valid names and values".to_string());
         }
         if self.launch_delay_secs > 300 {
             return Err("Launch delay must be between 0 and 300 seconds".to_string());

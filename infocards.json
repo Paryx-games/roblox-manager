@@ -113,7 +113,7 @@
   },
   "roblox_fast_flags": {
     "type": "warning",
-    "text": "Roblox feature toggles written to ClientSettings before launch. These are experimental Roblox flags and may break games or trigger anti-cheat detection; use at your own risk."
+    "text": "Writes configured flags to the selected Roblox installation before launch. Roblox only honors its current allowlist. RM preserves unrelated keys; removing a flag restores its original value on the next launch."
   },
   "auto_launch_on_startup": {
     "type": "caution",

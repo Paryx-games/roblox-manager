@@ -149,6 +149,18 @@ async fn launch_queued(
         let player_path = runtime.config.custom_player_paths.get(&user_id).cloned().or_else(|| runtime.config.roblox_player_path.clone());
         Ok((cookie, runtime.config.clone(), player_path))
     }).await.map_err(|_| "Launch credential task failed")??;
+    let options_state = state.clone();
+    let options_config = config.clone();
+    let (executable, custom_args) = tauri::async_runtime::spawn_blocking(move || {
+        let executable = process::resolve_player_executable(player_path.as_deref())
+            .map_err(|_| "RobloxPlayerBeta.exe was not found. Check the player path in Settings.")?;
+        let args = ram_core::launch_options::parse_arguments(&options_config.custom_game_args)
+            .map_err(|_| "Custom Roblox arguments are invalid. Check quoting and reserved launch parameters in Settings.")?;
+        ram_core::launch_options::apply_fast_flags(&executable, &options_config.roblox_fast_flags)
+            .map_err(|_| "Fast flags could not be applied. Check the selected installation and its ClientSettings files.")?;
+        crate::client_settings::apply_before_launch(&options_state)?;
+        Ok::<_, String>((executable, args))
+    }).await.map_err(|_| "Launch options task failed")??;
     let multi_instance = config.multi_instance_enabled;
     let needs_tray_cleanup = config.kill_background_roblox || multi_instance;
     progress(app, request_id, request.user_id, "authenticating");
@@ -174,7 +186,6 @@ async fn launch_queued(
     let tracking_state = state.clone();
     let place_id = request.place_id;
     let token = tauri::async_runtime::spawn_blocking(move || {
-        crate::client_settings::apply_before_launch(&tracking_state)?;
         instances::note_launch(&tracking_state, user_id, place_id)
     })
     .await
@@ -185,7 +196,7 @@ async fn launch_queued(
     let access_code = request.access_code.clone();
     progress(app, request_id, request.user_id, "launching");
     let launch_result = tauri::async_runtime::spawn_blocking(move || {
-        process::launch_game(
+        process::launch_game_with_args(
             &ticket,
             place_id,
             job_id.as_deref(),
@@ -193,7 +204,8 @@ async fn launch_queued(
             access_code.as_deref(),
             data.as_deref(),
             token,
-            player_path.as_deref(),
+            Some(&executable),
+            &custom_args,
         )
         .map_err(|_| "Roblox could not be launched. Check the configured player path.")?;
         Ok::<_, &str>(cleanup.commit().is_ok())
