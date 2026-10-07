@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Saved-text suggestions and automatic form-data saving are disabled throughout RM, including embedded Roblox login and browser windows.
 - Display names are verified only when submitting an edited name. Rejections highlight the field and explain moderation, invalid characters, mixed character sets, length, cooldown, rate limits, authentication or service failures separately; successful changes show a radial "Display name verified" notice.
 - The title-bar update action shows the available version with added padding and opens a confirmation dialog before sending users to GitHub's latest release in their default browser.
 - Visibility loading waits for account selection to settle, reducing redundant Roblox requests during multi-selection.

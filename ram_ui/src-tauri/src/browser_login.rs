@@ -208,6 +208,7 @@ fn run_child_inner(profile_dir: PathBuf, outfile: PathBuf) -> Result<(), String>
     let mut web_context = WebContext::new(Some(profile_dir));
 
     let webview = WebViewBuilder::new_with_web_context(&mut web_context)
+        .with_general_autofill_enabled(false)
         .with_url(LOGIN_URL)
         .build(&window)
         .map_err(|e| format!("webview build: {e}"))?;
@@ -455,6 +456,7 @@ fn run_browse_as_inner(
     );
 
     let webview = WebViewBuilder::new_with_web_context(&mut web_context)
+        .with_general_autofill_enabled(false)
         .with_url(BROWSE_AS_BOOT_URL)
         .with_initialization_script(&init_script)
         .with_navigation_handler(|url: String| {

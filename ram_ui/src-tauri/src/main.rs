@@ -2126,6 +2126,7 @@ async fn open_inventory_assets(
             .parse()
             .map_err(|_| "The Roblox item URL is invalid".to_string())?;
         tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::External(url))
+            .general_autofill_enabled(false)
             .title(title)
             .inner_size(1000.0, 760.0)
             .incognito(true)
