@@ -17,6 +17,9 @@ pub struct RuntimeState {
 #[derive(Clone)]
 pub struct AppState {
     pub runtime: Arc<Mutex<RuntimeState>>,
+    pub inventory_cache: Arc<ram_core::cache::ResponseCache<(u64, u64), Vec<crate::InventoryItem>>>,
+    pub presence_cache:
+        Arc<ram_core::cache::ResponseCache<(u64, u64, u64), ram_core::models::Presence>>,
     pub account_refresh: Arc<tokio::sync::Mutex<()>>,
     pub pending_additions:
         Arc<Mutex<std::collections::HashMap<String, crate::accounts::PendingAddition>>>,
@@ -67,6 +70,14 @@ impl Default for AppState {
                 legacy_store: false,
                 credential_revisions: std::collections::HashMap::new(),
             })),
+            inventory_cache: Arc::new(ram_core::cache::ResponseCache::new(
+                std::time::Duration::from_secs(60),
+                32,
+            )),
+            presence_cache: Arc::new(ram_core::cache::ResponseCache::new(
+                std::time::Duration::from_secs(2),
+                2048,
+            )),
             account_refresh: Arc::new(tokio::sync::Mutex::new(())),
             pending_additions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             instances: Arc::new(Mutex::new(crate::instances::InstanceState::default())),

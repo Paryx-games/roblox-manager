@@ -26,7 +26,7 @@ Manual MAC rotation has its own action and may require appropriate permissions a
 
 ## App and data
 
-**Show Inventories and Asset Manager** controls those two workspaces in the navigation rail. **Show Clear Cache in navigation** adds the separate cache shortcut; it does not control either workspace. Logging controls the diagnostic level, and data-location controls show the active paths. Use the Roblox installation section to inspect the selected installation rather than assuming the default installation is always correct.
+**Show Inventories and Asset Manager** controls those two workspaces in the navigation rail. **Show Clear Cache in navigation** adds the separate cache shortcut; it does not control either workspace. Public avatar URLs are cached for five minutes, game and asset thumbnails for 30 minutes, group details for one minute and announcements for 30 seconds. Account inventories are cached in memory for one minute; **Refresh selected** bypasses that cache. Presence requests arriving together share a result for up to two seconds. **Clear application caches** removes these memory caches and rejects cache writes from requests already in flight; account stores and browser profiles are retained. Caches expire automatically and are discarded when RM exits. Logging controls the diagnostic level, and data-location controls show the active paths. Use the Roblox installation section to inspect the selected installation rather than assuming the default installation is always correct.
 
 The tray keeps the manager available in the background when its main window is closed. Use the tray's exit action to finish the process rather than assuming closing the window stops background work.
 

@@ -374,7 +374,7 @@ pub async fn list_asset_creations(
         .map(|row| row.asset_id)
         .take(100)
         .collect::<Vec<_>>();
-    let thumbnails = assets_api::fetch_asset_thumbnails(&client, &asset_ids)
+    let thumbnails = ram_core::cached_api::fetch_asset_thumbnails(&client, &asset_ids)
         .await
         .unwrap_or_default();
     Ok(CreationPage {

@@ -253,7 +253,7 @@ struct StoreStatus {
     account_count: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct InventoryItem {
     asset_id: u64,
@@ -782,7 +782,7 @@ async fn enrich_private_server(server: &mut PrivateServer) -> String {
     };
     if server.universe_id.is_none() {
         if let Ok(universe_id) =
-            assets_api::resolve_place_universe(&client, "", server.place_id).await
+            ram_core::cached_api::resolve_place_universe(&client, "", server.place_id).await
         {
             server.universe_id = Some(universe_id);
         }
@@ -791,11 +791,13 @@ async fn enrich_private_server(server: &mut PrivateServer) -> String {
         return String::new();
     };
     if server.place_name.is_empty() {
-        if let Ok(place_name) = api::resolve_universe_name(&client, universe_id).await {
+        if let Ok(place_name) =
+            ram_core::cached_api::resolve_universe_name(&client, universe_id).await
+        {
             server.place_name = place_name;
         }
     }
-    if let Ok(icons) = api::fetch_game_icons(&client, "", &[universe_id]).await {
+    if let Ok(icons) = ram_core::cached_api::fetch_game_icons(&client, "", &[universe_id]).await {
         if let Some((_, icon_url)) = icons.into_iter().next() {
             return icon_url;
         }
@@ -1636,9 +1638,12 @@ async fn clean_orphaned_data(state: tauri::State<'_, AppState>) -> Result<usize,
 }
 
 #[tauri::command]
-fn clear_application_caches() -> Result<usize, String> {
-    // the tauri frontend keeps reloadable data in memory; no account or browser data is cacheable
-    Ok(0)
+fn clear_application_caches(state: tauri::State<'_, AppState>) -> Result<usize, String> {
+    Ok(
+        ram_core::cached_api::clear()
+            + state.inventory_cache.clear()
+            + state.presence_cache.clear(),
+    )
 }
 
 #[tauri::command]
@@ -2228,21 +2233,37 @@ async fn launch_private_server(
 async fn fetch_account_inventory(
     state: tauri::State<'_, AppState>,
     user_id: u64,
+    force_refresh: Option<bool>,
 ) -> Result<Vec<InventoryItem>, String> {
-    let (cookie, client) = {
-        let runtime = state
+    let _gate = state.inventory_cache.gate.lock().await;
+    let credential_state = state.inner().clone();
+    let (cookie, revision) = tauri::async_runtime::spawn_blocking(move || {
+        let runtime = credential_state
             .runtime
             .lock()
-            .map_err(|_| "Account state unavailable".to_string())?;
-        (
+            .map_err(|_| "Account state unavailable")?;
+        Ok::<_, String>((
             account_cookie(&runtime, user_id)?,
-            RobloxClient::new().map_err(|error| error.to_string())?,
-        )
-    };
+            *runtime.credential_revisions.get(&user_id).unwrap_or(&0),
+        ))
+    })
+    .await
+    .map_err(|_| "Inventory credential task failed")??;
+    let key = (user_id, revision);
+    if !force_refresh.unwrap_or(false) {
+        if let Some(items) = state.inventory_cache.get(&key) {
+            return Ok(items);
+        }
+    }
+    let generation = state.inventory_cache.generation();
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
     let items = assets_api::fetch_account_inventory(&client, &cookie, user_id)
         .await
-        .map_err(|error| error.to_string())?;
-    Ok(items
+        .map_err(|_| {
+            "Inventory could not be loaded. Check your connection and refresh the account."
+        })?;
+    drop(cookie);
+    let items: Vec<_> = items
         .into_iter()
         .map(|item| InventoryItem {
             asset_id: item.asset_id,
@@ -2251,7 +2272,23 @@ async fn fetch_account_inventory(
             icon_url: item.icon_url,
             price_robux: item.price_robux,
         })
-        .collect())
+        .collect();
+    {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked
+            || runtime.accounts.find_by_id(user_id).is_none()
+            || *runtime.credential_revisions.get(&user_id).unwrap_or(&0) != revision
+        {
+            return Err(
+                "The selected account changed. Select it again to reload its inventory.".into(),
+            );
+        }
+        state.inventory_cache.insert(generation, key, items.clone());
+    }
+    Ok(items)
 }
 
 #[tauri::command]
@@ -2261,11 +2298,12 @@ async fn search_connection_users(keyword: String) -> Result<Vec<ConnectionSearch
         .await
         .map_err(|error| error.to_string())?;
     let user_ids: Vec<u64> = users.iter().map(|user| user.user_id).collect();
-    let avatars: std::collections::HashMap<u64, String> = api::fetch_avatars(&client, &user_ids)
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
+    let avatars: std::collections::HashMap<u64, String> =
+        ram_core::cached_api::fetch_avatars(&client, &user_ids)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
     Ok(users
         .into_iter()
         .map(|user| ConnectionSearchResult {
@@ -2521,11 +2559,12 @@ async fn fetch_preset_icon(place_id: u64) -> String {
         Ok(client) => client,
         Err(_) => return String::new(),
     };
-    let universe_id = match assets_api::resolve_place_universe(&client, "", place_id).await {
-        Ok(universe_id) => universe_id,
-        Err(_) => return String::new(),
-    };
-    match api::fetch_game_icons(&client, "", &[universe_id]).await {
+    let universe_id =
+        match ram_core::cached_api::resolve_place_universe(&client, "", place_id).await {
+            Ok(universe_id) => universe_id,
+            Err(_) => return String::new(),
+        };
+    match ram_core::cached_api::fetch_game_icons(&client, "", &[universe_id]).await {
         Ok(icons) => icons
             .into_iter()
             .next()
@@ -2761,10 +2800,10 @@ async fn load_group(
         return Err("Enter a valid Roblox group ID".to_string());
     }
     let client = RobloxClient::new().map_err(|_| "Roblox client unavailable".to_string())?;
-    let group = group_api::fetch_group(&client, group_id)
+    let group = ram_core::cached_api::fetch_group(&client, group_id)
         .await
         .map_err(|_| "Roblox group could not be loaded".to_string())?;
-    let icon_data_url = group_api::fetch_group_icon(&client, group_id)
+    let icon_data_url = ram_core::cached_api::fetch_group_icon(&client, group_id)
         .await
         .ok()
         .flatten()
@@ -2774,7 +2813,7 @@ async fn load_group(
                 base64::engine::general_purpose::STANDARD.encode(bytes)
             )
         });
-    let announcement = group_api::fetch_latest_group_announcement(&client, group_id)
+    let announcement = ram_core::cached_api::fetch_latest_group_announcement(&client, group_id)
         .await
         .map(group_announcement_dto);
     let forum_cookie = user_ids.first().and_then(|user_id| {
@@ -2863,6 +2902,9 @@ async fn change_group_membership(
             }
             Err(_) => (false, false),
         };
+        if ok {
+            ram_core::cached_api::invalidate_group(group_id);
+        }
         results.push(GroupMembershipResultDto {
             user_id,
             join,

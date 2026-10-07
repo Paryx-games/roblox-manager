@@ -576,8 +576,9 @@ export async function launchAccount(
 
 export async function fetchAccountInventory(
   userId: number,
+  forceRefresh = false,
 ): Promise<InventoryItem[]> {
-  return invoke<InventoryItem[]>("fetch_account_inventory", { userId });
+  return invoke<InventoryItem[]>("fetch_account_inventory", { userId, forceRefresh });
 }
 
 export type InventoryBrowserTarget = {

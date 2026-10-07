@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Public Roblox metadata and thumbnails reuse bounded memory caches across workspaces, inventories cache for one minute with an explicit refresh bypass, and overlapping presence refreshes share recent results. Clear application caches now removes these cached responses.
+
 - App messages, buttons and hints use simpler wording, with clearer browser and launch notices, account login guidance, client controls and recovery steps.
 
 ### Fixed

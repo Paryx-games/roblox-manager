@@ -81,6 +81,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const isFilterDataLoading = accountsLoading || itemsLoading;
   const [error, setError] = useState<string | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
+  const lastInventoryRefresh = useRef(0);
   const [selectedCategories, setSelectedCategories] = useState<Set<Exclude<Category, "All">>>(new Set());
   const [search, setSearch] = useState("");
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
@@ -200,7 +201,9 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     setLoadedAccountCount(0);
     setError(null);
     setSelectedItemIds(new Set());
-    void Promise.allSettled([...accountIds].map(async (userId) => ({ userId, items: await fetchAccountInventory(userId) })))
+    const forceRefresh = lastInventoryRefresh.current !== refreshCount;
+    lastInventoryRefresh.current = refreshCount;
+    void Promise.allSettled([...accountIds].map(async (userId) => ({ userId, items: await fetchAccountInventory(userId, forceRefresh) })))
       .then((results) => {
         if (!isCurrent) return;
         const loaded = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);

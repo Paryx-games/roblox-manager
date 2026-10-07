@@ -314,6 +314,8 @@ struct ThumbnailResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ThumbnailEntry {
+    #[serde(default)]
+    state: Option<String>,
     target_id: u64,
     image_url: Option<String>,
 }
@@ -362,7 +364,18 @@ pub async fn fetch_avatars(
 fn pair_thumbnails(requested_ids: &[u64], data: Vec<ThumbnailEntry>) -> Vec<(u64, String)> {
     data.into_iter()
         .filter(|entry| requested_ids.contains(&entry.target_id))
-        .filter_map(|entry| entry.image_url.map(|url| (entry.target_id, url)))
+        .filter(|entry| {
+            entry
+                .state
+                .as_deref()
+                .is_none_or(|state| state == "Completed")
+        })
+        .filter_map(|entry| {
+            entry
+                .image_url
+                .filter(|url| !url.is_empty())
+                .map(|url| (entry.target_id, url))
+        })
         .collect()
 }
 
@@ -1030,8 +1043,18 @@ mod tests {
         }
     }
 
+    #[test]
+    fn pending_thumbnails_are_not_cached_as_real_images() {
+        let response: ThumbnailResponse = serde_json::from_str(r#"{"data":[{"targetId":1,"state":"Pending","imageUrl":"https://example.invalid/placeholder"},{"targetId":2,"state":"Completed","imageUrl":"https://example.invalid/real"}]}"#).unwrap();
+        assert_eq!(
+            pair_thumbnails(&[1, 2], response.data),
+            vec![(2, "https://example.invalid/real".into())]
+        );
+    }
+
     fn entry(target_id: u64, image_url: Option<&str>) -> ThumbnailEntry {
         ThumbnailEntry {
+            state: Some("Completed".into()),
             target_id,
             image_url: image_url.map(|s| s.to_string()),
         }
