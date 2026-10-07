@@ -16,13 +16,13 @@ Use the section navigation to find preferences. Most edits form a draft: choose 
 - Auto-arrange, target monitor, grid layout, sizing and spacing control Roblox window placement.
 - Window naming identifies clients by account. Launch pacing spaces successive launches rather than starting every selected account together.
 
-Starting the manager with Windows is distinct from automatically launching a Roblox game. See the unfinished-feature note below.
+**Auto-launch on startup** launches the configured Account ID into the configured Place ID once after the store unlocks. Password mode waits for you to unlock. Startup launch verifies that account and uses the normal launch queue, privacy cleanup, custom arguments, FastFlags and window arrangement. Invalid or missing targets stop with a notice; failures are not retried automatically. Changes apply on the next RM restart. Existing configurations without a Place ID must be completed before startup launch can run. Turning off **Check accounts on startup** skips the initial roster check; the normal five-minute checks continue, and startup launch still checks its own account.
 
 ## Privacy and displayed identity
 
-Choose the cleanup scope before launch and whether to clean on exit. Exit cleanup runs only when no Roblox client remains open. Clipboard clearing is optional. Anonymisation changes managed account names and avatars in the interface; it does not change Roblox identities or what other players see.
+Choose the cleanup scope before launch and whether to clean on exit. Exit cleanup runs only when no Roblox client remains open. Clipboard clearing is optional and runs only after a successful RM launch while privacy cleanup is enabled. RM empties the clipboard without reading its contents; a busy clipboard produces a notice. Anonymisation changes managed account names and avatars in the interface; it does not change Roblox identities or what other players see.
 
-Manual MAC rotation has its own action and may require appropriate permissions and adapter support. It changes a local network setting; it is not an IP-address change or a guarantee against account association.
+**Rotate MAC address before the first launch** rotates once per RM session before authenticating the first game launch. A successful manual rotation counts for that session too. Close existing Roblox clients first; RM stops the launch if they are running. Windows may ask for administrator permission. Cancelling elevation or an unsupported adapter stops the launch; retry manually or disable rotation. RM re-enables the adapter if setting the address fails and waits up to 30 seconds for the adapter to confirm the new address. Manual rotation uses the same protections. It changes a local network setting; it is not an IP-address change or a guarantee against account association.
 
 ## App and data
 
@@ -45,7 +45,3 @@ Custom arguments are parsed using Windows double-quote and backslash rules and p
 FastFlags are written before launches to `ClientSettings/ClientAppSettings.json` beside the selected `RobloxPlayerBeta.exe`, including account-specific installations. RM preserves unrelated keys and records original values in `ClientSettings/rm-original-fast-flags.json`. Removing a configured flag restores that original value at the next launch in that installation. RM owns the keys configured here; editing the same keys with another tool may be overwritten. Invalid existing JSON stops the launch instead of replacing that file. Writes are atomic and retain backups. Applied settings remain if a later authentication or launch step fails. Roblox updates may install a new directory; RM applies your flags there on the next launch.
 
 Roblox only honors flags on its [local configuration allowlist](https://devforum.roblox.com/t/allowlist-for-local-client-configuration-via-fast-flags/3966569). Writing a flag does not guarantee the client accepts it.
-
-## Controls that are unfinished
-
-Auto-launching a game on startup and automatic MAC rotation have saved configuration controls but are not wired into those automatic behaviours. Do not rely on them being applied to launches. **Start RM with Windows** and the explicit manual MAC rotation action are separate features.

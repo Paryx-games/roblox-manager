@@ -18,6 +18,7 @@ mod lifecycle;
 mod login;
 mod page_visibility;
 mod roblox_settings;
+mod startup_actions;
 mod state;
 mod webview_recovery;
 
@@ -340,6 +341,8 @@ struct SettingsUpdate {
     refresh_on_startup: bool,
     auto_launch_on_startup: bool,
     auto_launch_account_id: Option<u64>,
+    #[serde(default)]
+    auto_launch_place_id: Option<u64>,
     multi_instance_enabled: bool,
     kill_background_roblox: bool,
     confirm_kill_all: bool,
@@ -379,6 +382,8 @@ struct SettingsConfig {
     refresh_on_startup: bool,
     auto_launch_on_startup: bool,
     auto_launch_account_id: Option<u64>,
+    #[serde(default)]
+    auto_launch_place_id: Option<u64>,
     multi_instance_enabled: bool,
     kill_background_roblox: bool,
     confirm_kill_all: bool,
@@ -418,6 +423,7 @@ impl SettingsConfig {
             refresh_on_startup: config.refresh_on_startup,
             auto_launch_on_startup: config.auto_launch_on_startup,
             auto_launch_account_id: config.auto_launch_account_id,
+            auto_launch_place_id: config.auto_launch_place_id,
             multi_instance_enabled: config.multi_instance_enabled,
             kill_background_roblox: config.kill_background_roblox,
             confirm_kill_all: config.confirm_kill_all,
@@ -488,10 +494,17 @@ impl SettingsUpdate {
             return Err("Alternate OUI must use the format 00:1B:21".to_string());
         }
 
+        if self.auto_launch_on_startup
+            && (self.auto_launch_account_id.is_none_or(|id| id == 0)
+                || self.auto_launch_place_id.is_none_or(|id| id == 0))
+        {
+            return Err("Choose a nonzero Account ID and Place ID for startup launch".into());
+        }
         config.use_credential_manager = self.use_credential_manager;
         config.refresh_on_startup = self.refresh_on_startup;
         config.auto_launch_on_startup = self.auto_launch_on_startup;
         config.auto_launch_account_id = self.auto_launch_account_id;
+        config.auto_launch_place_id = self.auto_launch_place_id;
         config.multi_instance_enabled = self.multi_instance_enabled;
         config.kill_background_roblox = self.kill_background_roblox;
         config.confirm_kill_all = self.confirm_kill_all;
@@ -1556,16 +1569,24 @@ struct MacAddressRotation {
 }
 
 #[tauri::command]
-async fn rotate_mac_address(rotation: MacAddressRotation) -> Result<(), String> {
+async fn rotate_mac_address(
+    state: tauri::State<'_, AppState>,
+    rotation: MacAddressRotation,
+) -> Result<(), String> {
     if !valid_mac_oui(&rotation.alternate_oui) {
         return Err("Alternate OUI must use the format 00:1B:21".to_string());
     }
-    tauri::async_runtime::spawn_blocking(move || {
+    let _queue = state.launch_queue.lock().await;
+    let rotated = tauri::async_runtime::spawn_blocking(move || {
+        if process::is_roblox_running() { return Err("Close Roblox before rotating the adapter MAC address".to_string()); }
         process::rotate_mac_address(rotation.preserve_oui, &rotation.alternate_oui)
-    })
-    .await
-    .map_err(|error| format!("MAC rotation task failed: {error}"))?
-    .map_err(|error| error.to_string())
+            .map_err(|_| "MAC rotation failed or was cancelled. Check administrator permission and adapter support.".to_string())
+    }).await.map_err(|_| "MAC rotation task failed")?;
+    rotated?;
+    state
+        .mac_rotated
+        .store(true, std::sync::atomic::Ordering::Release);
+    Ok(())
 }
 
 #[tauri::command]

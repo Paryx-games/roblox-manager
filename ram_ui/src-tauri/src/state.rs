@@ -24,6 +24,7 @@ pub struct AppState {
     pub pending_additions:
         Arc<Mutex<std::collections::HashMap<String, crate::accounts::PendingAddition>>>,
     pub instances: Arc<Mutex<crate::instances::InstanceState>>,
+    pub mac_rotated: Arc<std::sync::atomic::AtomicBool>,
     pub launch_queue: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
     pub is_shutting_down: Arc<std::sync::atomic::AtomicBool>,
 }
@@ -81,6 +82,7 @@ impl Default for AppState {
             account_refresh: Arc::new(tokio::sync::Mutex::new(())),
             pending_additions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             instances: Arc::new(Mutex::new(crate::instances::InstanceState::default())),
+            mac_rotated: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             launch_queue: Arc::new(tokio::sync::Mutex::new(None)),
             is_shutting_down: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }

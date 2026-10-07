@@ -183,7 +183,9 @@ pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
     let avatar_app = app.clone();
     let instance_app = app.clone();
     let process_app = app.clone();
+    let startup_app = app.clone();
     BackgroundTasks(vec![
+        tauri::async_runtime::spawn(crate::startup_actions::run(startup_app)),
         tauri::async_runtime::spawn(async move {
             loop {
                 let _ = crate::instances::list_instances(instance_app.clone()).await;
@@ -243,8 +245,11 @@ pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
             let mut last_refresh = None::<std::time::Instant>;
             loop {
                 let ids = unlocked_ids(&validation_app);
+                if !ids.is_empty() && last_refresh.is_none() {
+                    last_refresh = Some(std::time::Instant::now());
+                }
                 if !ids.is_empty()
-                    && last_refresh.is_none_or(|last| last.elapsed() >= Duration::from_secs(300))
+                    && last_refresh.is_some_and(|last| last.elapsed() >= Duration::from_secs(300))
                 {
                     last_refresh = Some(std::time::Instant::now());
                     if accounts::refresh(&validation_app, Vec::new())

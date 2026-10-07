@@ -49,7 +49,7 @@
   },
   "mac_rotation": {
     "type": "warning",
-    "text": "Changes the active Windows network adapter's MAC address using PowerShell. The adapter briefly disconnects, administrator permission may be required, and networks may identify or block a changed address."
+    "text": "Rotates the active Windows adapter once before the first launch in each RM session, or through the manual action. Close Roblox first. The adapter briefly disconnects, Windows may request administrator permission, and networks may block a changed address."
   },
   "mac_preserve_oui": {
     "type": "info",
@@ -117,7 +117,7 @@
   },
   "auto_launch_on_startup": {
     "type": "caution",
-    "text": "Automatically launch a selected account when RM starts. This is an attack surface; only enable if RM runs in a restricted or monitored environment."
+    "text": "Launches the configured account and Place ID once after RM starts and the store unlocks. Password mode waits for unlock; invalid targets stop with a notice. Applies on the next restart."
   },
   "discord_webhook": {
     "type": "info",

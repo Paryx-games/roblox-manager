@@ -798,23 +798,20 @@ export function SettingsPage({ onNavigationGuardChange }: {
                 label="Auto-launch on startup"
                 onChange={(autoLaunchOnStartup) => updateDraft({ autoLaunchOnStartup })}
               />
-              <p className="settings-muted">Not implemented yet. This preference is saved, but games are not launched automatically.</p>
+              <p className="settings-muted">Launches this account and place once after RM starts and the account store unlocks. Applies on the next restart.</p>
               {draft.autoLaunchOnStartup && (
-                <label className="settings-inline-field">
-                  <span>Account ID:</span>
-                  <input
-                    type="number"
-                    min="1"
-                    value={draft.autoLaunchAccountId ?? ""}
-                    onChange={(event) =>
-                      updateDraft({
-                        autoLaunchAccountId: event.target.value
-                          ? Number(event.target.value)
-                          : null,
-                      })
-                    }
-                  />
-                </label>
+                <div className="settings-stack">
+                  <label className="settings-inline-field">
+                    <span>Account ID:</span>
+                    <input type="number" min="1" step="1" value={draft.autoLaunchAccountId ?? ""}
+                      onChange={(event) => updateDraft({ autoLaunchAccountId: event.target.value ? Number(event.target.value) : null })} />
+                  </label>
+                  <label className="settings-inline-field">
+                    <span>Place ID:</span>
+                    <input type="number" min="1" step="1" value={draft.autoLaunchPlaceId ?? ""}
+                      onChange={(event) => updateDraft({ autoLaunchPlaceId: event.target.value ? Number(event.target.value) : null })} />
+                  </label>
+                </div>
               )}
             </div>
           </SettingRow>
@@ -1132,11 +1129,11 @@ export function SettingsPage({ onNavigationGuardChange }: {
           <SettingRow referenceId="mac_rotation" infoCards={infoCards}>
             <Toggle
               checked={draft.macRotationEnabled}
-              label="Enable MAC address rotation"
+              label="Rotate MAC address before the first launch"
               onChange={(macRotationEnabled) => updateDraft({ macRotationEnabled })}
             />
           </SettingRow>
-          <p className="settings-muted">Automatic rotation is not implemented yet. Use Rotate MAC address now for a manual change.</p>
+          <p className="settings-muted">Rotates once per RM session before launching Roblox. Close existing Roblox clients first. Windows may request administrator permission.</p>
           {draft.macRotationEnabled && (
             <div className="settings-indent">
               <SettingRow referenceId="mac_preserve_oui" infoCards={infoCards}>

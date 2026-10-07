@@ -266,6 +266,7 @@ export interface SettingsConfig {
   refreshOnStartup: boolean;
   autoLaunchOnStartup: boolean;
   autoLaunchAccountId: number | null;
+  autoLaunchPlaceId: number | null;
   multiInstanceEnabled: boolean;
   killBackgroundRoblox: boolean;
   confirmKillAll: boolean;
