@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { changeDisplayNames, checkRobloxDisplayName, operationError, type AccountSummary, type RobloxSettingResult } from "../lib/ipc";
+import { useState } from "react";
+import { changeDisplayNames, operationError, type AccountSummary, type RobloxSettingResult } from "../lib/ipc";
 import { RobloxPrivacySettings } from "./RobloxPrivacySettings";
 import { TimedNotice } from "./TimedNotice";
 
@@ -8,32 +8,20 @@ export function RobloxSettings({ accounts }: { accounts: AccountSummary[] }) {
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<RobloxSettingResult[]>([]);
   const [error, setError] = useState("");
-  const [validation, setValidation] = useState<{ name: string; error: string }>({ name: "", error: "" });
-  const selectionKey = accounts.map((account) => account.userId).join(",");
-  const ids = useMemo(() => selectionKey ? selectionKey.split(",").map(Number) : [], [selectionKey]);
-  const lengthValid = [...name].length >= 3 && [...name].length <= 20 && !/[\p{Cc}]/u.test(name);
-  const supported = ids.length > 0 && lengthValid && validation.name === name && !validation.error;
-  useEffect(() => {
-    if (!ids.length || !lengthValid || busy) return;
-    let active = true;
-    const timer = window.setTimeout(() => {
-      checkRobloxDisplayName(ids, name).then(() => {
-        if (active) setValidation({ name, error: "" });
-      }).catch((reason) => {
-        if (active) setValidation({ name, error: operationError(reason, "Roblox could not validate this name.") });
-      });
-    }, 450);
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [ids, name, lengthValid, busy]);
+  const [isEdited, setIsEdited] = useState(false);
+  const pendingAccounts = accounts.filter((account) => account.displayName !== name);
+  const changed = isEdited && pendingAccounts.length > 0;
+  const failed = results.filter((result) => !result.success);
+  const hasError = !!error || failed.length > 0;
   async function saveName() {
-    if (busy || !supported) return;
+    if (busy || !changed) return;
     setBusy(true);
-    setValidation({ name: "", error: "" });
-    setError("");
-    setResults([]);
+    setResults((current) => current.filter((result) => !result.success));
     try {
-      setResults(await changeDisplayNames(ids, name));
+      setResults(await changeDisplayNames(pendingAccounts.map((account) => account.userId), name));
+      setError("");
     } catch (reason) {
+      setResults([]);
       setError(operationError(reason, "Display names could not be changed. Try again."));
     } finally {
       setBusy(false);
@@ -46,17 +34,19 @@ export function RobloxSettings({ accounts }: { accounts: AccountSummary[] }) {
       <p>Changes apply on Roblox to {accounts.length === 1 ? "this account" : `all ${accounts.length} selected accounts`}.</p>
       <form className="roblox-display-name-row account-field" onSubmit={(event) => { event.preventDefault(); void saveName(); }}>
         <label htmlFor="roblox-display-name">Display name</label>
-        <input id="roblox-display-name" value={name} disabled={busy} onChange={(event) => { setName(event.target.value); setValidation({ name: "", error: "" }); }} aria-describedby="roblox-name-validation" aria-invalid={!!name && (!lengthValid || (validation.name === name && !!validation.error))} />
-        <button className="account-button primary" type="submit" disabled={busy || !supported}>{busy ? "Saving..." : "Set display name"}</button>
+        <input id="roblox-display-name" value={name} disabled={busy} onChange={(event) => { setName(event.target.value); setIsEdited(true); }} aria-describedby="roblox-name-validation" aria-invalid={hasError} />
+        <button className={`account-button${changed ? " primary" : ""}`} type="submit" disabled={busy || !changed}>{busy ? "Verifying and setting..." : "Verify and set display name"}</button>
       </form>
-      <p id="roblox-name-validation" role="status">{name && !lengthValid ? "Use 3–20 characters with no control characters." : validation.name === name ? validation.error : lengthValid && !busy ? "Checking name with Roblox..." : ""}</p>
-      {error && <p role="alert">{error}</p>}
+      <div id="roblox-name-validation" className={hasError ? "roblox-display-name-error" : undefined}>
+        {busy && <p role="status">Checking name with Roblox...</p>}
+        {error && <p role="alert">{error}</p>}
+        {failed.length > 0 && <ul className="roblox-settings-results" role="alert">{failed.map((result) => <li key={result.userId}>{accounts.length > 1 ? `${accounts.find((account) => account.userId === result.userId)?.label ?? result.userId}: ` : ""}{result.message}</li>)}</ul>}
+      </div>
       {results.filter((result) => result.success).map((result) => <TimedNotice
         key={result.userId}
-        message={`${accounts.find((account) => account.userId === result.userId)?.label ?? result.userId}: ${result.message}`}
+        message={accounts.length > 1 ? `${accounts.find((account) => account.userId === result.userId)?.label ?? result.userId}: ${result.message}` : result.message}
         onDismiss={() => setResults((current) => current.filter((item) => item.userId !== result.userId))}
       />)}
-      {results.some((result) => !result.success) && <ul className="roblox-settings-results" aria-live="polite">{results.filter((result) => !result.success).map((result) => <li key={result.userId}>{accounts.find((account) => account.userId === result.userId)?.label ?? result.userId}: {result.message}</li>)}</ul>}
       <RobloxPrivacySettings accounts={accounts} />
     </section>
   );

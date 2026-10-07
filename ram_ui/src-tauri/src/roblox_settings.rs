@@ -29,10 +29,112 @@ pub struct SettingResult {
 }
 
 fn validate_display_name(name: &str) -> Result<(), String> {
-    if !(3..=20).contains(&name.chars().count()) || name.chars().any(char::is_control) {
-        return Err("Enter a display name with 3–20 characters and no control characters".into());
+    if name.chars().count() < 3 {
+        return Err("Display name is too short. Use at least 3 characters.".into());
+    }
+    if name.chars().count() > 20 {
+        return Err("Display name is too long. Use no more than 20 characters.".into());
+    }
+    if name.chars().any(char::is_control) {
+        return Err("Display name contains invalid characters. Try a different name.".into());
     }
     Ok(())
+}
+
+fn display_name_error(status: u16, codes: &[i64]) -> &'static str {
+    match status {
+        401 | 403 if codes.contains(&7) => "Roblox could not find this account. Refresh or re-add it before trying again.",
+        401 | 403 => "Roblox could not authenticate this account. Unlock, refresh or re-add it before trying again.",
+        429 if codes.contains(&5) => "Roblox is enforcing this account's display-name cooldown. Names can be changed once every 7 days. Wait until the cooldown ends.",
+        429 => "Roblox rate limited this request. Wait a few minutes before trying again.",
+        400 => match codes.first() {
+            Some(1) => "Display name is too short. Use at least 3 characters.",
+            Some(2) => "Display name is too long. Use no more than 20 characters.",
+            Some(3) => "Roblox rejected invalid characters in this name. Try a different name.",
+            Some(4) => "Roblox moderated this name. Try a different one.",
+            Some(8) => "Roblox rejected this name because it combines too many character sets. Try a name using fewer character sets.",
+            _ => "Roblox rejected this display name for an unrecognised reason. Try a different name or check your account on Roblox.",
+        },
+        _ => "Roblox's display-name service is unavailable. Try again later.",
+    }
+}
+
+async fn check_display_name_response(response: reqwest::Response) -> Result<(), String> {
+    let status = response.status().as_u16();
+    if (200..=299).contains(&status) {
+        return Ok(());
+    }
+    let body = response.json::<serde_json::Value>().await.ok();
+    let codes: Vec<i64> = body
+        .as_ref()
+        .and_then(|body| body.get("errors"))
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|error| error.get("code").and_then(serde_json::Value::as_i64))
+        .collect();
+    Err(display_name_error(status, &codes).into())
+}
+
+async fn request_display_name(
+    cookie: &str,
+    user_id: u64,
+    name: &str,
+    verify: bool,
+) -> Result<(), String> {
+    // display-name 429 bodies distinguish the seven-day cooldown from request limits.
+    // keep them intact instead of passing through the core's generic 429 retry loop.
+    let client = reqwest::Client::builder()
+        .user_agent("RM-display-name")
+        .timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|_| "Roblox's display-name service is unavailable. Try again later.")?;
+    let mut cookie_header = reqwest::header::HeaderValue::from_str(&format!(
+        ".ROBLOSECURITY={cookie}"
+    ))
+    .map_err(|_| {
+        "Roblox could not authenticate this account. Refresh or re-add it before trying again."
+    })?;
+    cookie_header.set_sensitive(true);
+    let mut csrf = None;
+    for attempt in 0..=2 {
+        let suffix = if verify { "/validate" } else { "" };
+        let mut url = reqwest::Url::parse(&format!(
+            "https://users.roblox.com/v1/users/{user_id}/display-names{suffix}"
+        ))
+        .map_err(|_| "Roblox's display-name service is unavailable. Try again later.")?;
+        let mut request = if verify {
+            url.query_pairs_mut().append_pair("displayName", name);
+            client.get(url)
+        } else {
+            client
+                .patch(url)
+                .json(&serde_json::json!({"newDisplayName": name}))
+        }
+        .header(reqwest::header::COOKIE, cookie_header.clone())
+        .header(reqwest::header::REFERER, "https://www.roblox.com/")
+        .header("x-bound-auth-token", "");
+        if let Some(token) = &csrf {
+            request = request.header("x-csrf-token", token);
+        }
+        let response = request.send().await.map_err(|_| {
+            "Roblox could not be reached. Check your connection and account profile before retrying."
+        })?;
+        if response.status() == reqwest::StatusCode::FORBIDDEN && attempt < 2 {
+            if let Some(token) = response.headers().get("x-csrf-token") {
+                let mut token = token.clone();
+                token.set_sensitive(true);
+                csrf = Some(token);
+                continue;
+            }
+        }
+        return check_display_name_response(response).await;
+    }
+    Err(
+        "Roblox could not authenticate this account. Refresh or re-add it before trying again."
+            .into(),
+    )
 }
 
 async fn set_display_name(
@@ -42,30 +144,8 @@ async fn set_display_name(
 ) -> Result<String, String> {
     let state = app.state::<AppState>().inner().clone();
     let (cookie, revision) = credential(state.clone(), user_id).await?;
-    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
-    let response = client
-        .request(
-            reqwest::Method::PATCH,
-            &format!("https://users.roblox.com/v1/users/{user_id}/display-names"),
-            &cookie,
-            Some(&serde_json::json!({"newDisplayName": name})),
-        )
-        .await
-        .map_err(|_| "Roblox could not be reached. Check your profile before retrying")?;
-    match response.status().as_u16() {
-        200..=299 => {}
-        400 => return Err("Roblox rejected this display name. Choose another name".into()),
-        429 => {
-            return Err("Roblox limits display-name changes. Wait until your cooldown ends".into())
-        }
-        401 | 403 => {
-            return Err(
-                "Roblox denied this change. Refresh the account or change the name on Roblox"
-                    .into(),
-            )
-        }
-        _ => return Err("Roblox could not change this display name. Try again later".into()),
-    }
+    request_display_name(&cookie, user_id, name, true).await?;
+    request_display_name(&cookie, user_id, name, false).await?;
     let name = name.to_owned();
     let saved = tauri::async_runtime::spawn_blocking(move || {
         let mut runtime = state.runtime.lock().map_err(|_| ())?;
@@ -95,7 +175,7 @@ async fn set_display_name(
         return Err("Display name changed on Roblox, but RM could not save it locally. Refresh this account before making further changes; do not retry this name change".into());
     }
     accounts::publish(app);
-    Ok("Display name changed".into())
+    Ok("Display name verified".into())
 }
 
 #[tauri::command]
@@ -106,28 +186,9 @@ pub async fn check_roblox_display_name(
 ) -> Result<(), String> {
     validate_display_name(&name)?;
     validate_ids(&user_ids)?;
-    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
-    // preview one account while typing; the explicit save reports each account's outcome.
     let user_id = user_ids[0];
     let (cookie, _) = credential(state.inner().clone(), user_id).await?;
-    let mut url = reqwest::Url::parse(&format!(
-        "https://users.roblox.com/v1/users/{user_id}/display-names/validate"
-    ))
-    .map_err(|_| "Display-name validation unavailable")?;
-    url.query_pairs_mut().append_pair("displayName", &name);
-    let response = client
-        .request(reqwest::Method::GET, url.as_str(), &cookie, None)
-        .await
-        .map_err(|_| "Name could not be checked. Edit the name to retry")?;
-    match response.status().as_u16() {
-        200 => Ok(()),
-        400 => Err("Roblox does not support this name. Choose another name".into()),
-        429 => Err("Roblox is limiting name checks or changes. Try again later".into()),
-        401 | 403 => {
-            Err("Roblox could not check this name. Refresh the first selected account".into())
-        }
-        _ => Err("Name could not be checked. Edit the name to retry".into()),
-    }
+    request_display_name(&cookie, user_id, &name, true).await
 }
 
 #[tauri::command]
@@ -164,6 +225,38 @@ mod tests {
         assert!(validate_display_name("ab").is_err());
         assert!(validate_display_name(&"a".repeat(21)).is_err());
         assert!(validate_display_name("Name\n").is_err());
+    }
+
+    #[test]
+    fn display_name_failures_distinguish_api_codes_and_statuses() {
+        let cases: &[(u16, &[i64], &str)] = &[
+            (400, &[1], "too short"),
+            (400, &[2], "too long"),
+            (400, &[3], "invalid characters"),
+            (400, &[4], "Roblox moderated this name"),
+            (400, &[8], "too many character sets"),
+            (429, &[5], "cooldown"),
+            (429, &[], "rate limited"),
+            (401, &[0], "authenticate"),
+            (403, &[0], "authenticate"),
+            (403, &[7], "find this account"),
+            (500, &[4], "service is unavailable"),
+            (503, &[], "service is unavailable"),
+            (400, &[999], "unrecognised reason"),
+            (400, &[], "unrecognised reason"),
+        ];
+        for (status, codes, expected) in cases {
+            assert!(display_name_error(*status, codes).contains(expected));
+        }
+        assert!(validate_display_name("ab")
+            .unwrap_err()
+            .contains("too short"));
+        assert!(validate_display_name(&"a".repeat(21))
+            .unwrap_err()
+            .contains("too long"));
+        assert!(validate_display_name("Name\n")
+            .unwrap_err()
+            .contains("invalid characters"));
     }
 }
 

@@ -4,8 +4,9 @@
 
 ### Fixed
 
+- Display names are verified only when submitting an edited name. Rejections highlight the field and explain moderation, invalid characters, mixed character sets, length, cooldown, rate limits, authentication or service failures separately; successful changes show a radial "Display name verified" notice.
 - The title-bar update action shows the available version with added padding and opens a confirmation dialog before sending users to GitHub's latest release in their default browser.
-- Display-name previews check one account instead of every selected account, while explicit saves still report each account's outcome. Visibility loading waits for account selection to settle, reducing redundant Roblox requests during multi-selection.
+- Visibility loading waits for account selection to settle, reducing redundant Roblox requests during multi-selection.
 - Display-name changes accepted by Roblox but not saved locally now keep a persistent warning with refresh guidance instead of an expiring success notice.
 - Discord notification failures distinguish unreadable webhook credentials from notification-preference errors and failed background tasks.
 - The selected Roblox visibility audience remains visibly marked while saving or when Roblox no longer allows that choice.
