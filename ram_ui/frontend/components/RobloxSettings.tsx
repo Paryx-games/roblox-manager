@@ -22,7 +22,7 @@ export function RobloxSettings({ accounts }: { accounts: AccountSummary[] }) {
       setError("");
     } catch (reason) {
       setResults([]);
-      setError(operationError(reason, "Display names could not be changed. Try again."));
+      setError(operationError(reason, "Couldn’t change the display name. Try again."));
     } finally {
       setBusy(false);
     }

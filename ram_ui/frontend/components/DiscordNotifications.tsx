@@ -16,7 +16,7 @@ export function DiscordNotifications({ hasWebhook, onConfiguredChange, onBusyCha
   const [url, setUrl] = useState("");
   useEffect(() => {
     let active = true;
-    getDiscordNotifications().then((value) => { if (active) setSettings(value); }).catch((reason) => { if (active) setError(operationError(reason, "Notification preferences could not be loaded. Retry loading.")); }).finally(() => { if (active) setBusy(null); });
+    getDiscordNotifications().then((value) => { if (active) setSettings(value); }).catch((reason) => { if (active) setError(operationError(reason, "Couldn’t load notification settings. Try again.")); }).finally(() => { if (active) setBusy(null); });
     return () => { active = false; };
   }, []);
   useEffect(() => { onBusyChange(busy !== null); return () => onBusyChange(false); }, [busy, onBusyChange]);
@@ -27,7 +27,7 @@ export function DiscordNotifications({ hasWebhook, onConfiguredChange, onBusyCha
     setError("");
     setFeedback("");
     try { await operation(); }
-    catch (reason) { setError(operationError(reason, "The Discord operation failed. Retry or replace the webhook.")); }
+    catch (reason) { setError(operationError(reason, "Couldn’t update Discord. Try again or replace the webhook.")); }
     finally { setBusy(null); }
   }
   function close() { if (!busy) { setModalOpen(false); setUrl(""); } }
@@ -37,11 +37,11 @@ export function DiscordNotifications({ hasWebhook, onConfiguredChange, onBusyCha
       onConfiguredChange(true);
       setModalOpen(false);
       setUrl("");
-      setFeedback("Webhook saved in Windows Credential Manager. Send a test to confirm delivery.");
+      setFeedback("Webhook saved. Send a test to check it works.");
     });
   }
   function test(candidate = "") {
-    void run("test", async () => { await testDiscordWebhook(candidate); setFeedback("Test delivered to Discord. Check the channel for the Components V2 message."); });
+    void run("test", async () => { await testDiscordWebhook(candidate); setFeedback("Test sent. Check your Discord channel."); });
   }
   function preference(key: keyof DiscordNotificationSettings, enabled: boolean) {
     if (!settings) return;

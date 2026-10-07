@@ -34,7 +34,7 @@ export function RobloxPrivacySettings({ accounts }: { accounts: AccountSummary[]
       const loaded = await getRobloxPrivacy(ids);
       if (requestVersion.current === version) setData(loaded);
     } catch (reason) {
-      if (requestVersion.current === version) { setData([]); setError(operationError(reason, "Visibility settings could not be loaded. Retry loading.")); }
+      if (requestVersion.current === version) { setData([]); setError(operationError(reason, "Couldn’t load visibility settings. Try again.")); }
     } finally { if (requestVersion.current === version) setBusy(null); }
   }, [ids]);
   useEffect(() => {
@@ -55,7 +55,7 @@ export function RobloxPrivacySettings({ accounts }: { accounts: AccountSummary[]
     try {
       setResults(await changeRobloxPrivacy(ids, field, value));
       setData(await getRobloxPrivacy(ids));
-    } catch (reason) { setData([]); setError(operationError(reason, "Visibility changes could not be confirmed. Reload settings before retrying.")); }
+    } catch (reason) { setData([]); setError(operationError(reason, "Couldn’t confirm these changes. Reload visibility settings before trying again.")); }
     finally { setBusy(null); setPendingValue(""); }
   }
   const ready = ids.length > 0 && data.length === ids.length && ids.every((id) => data.some((account) =>

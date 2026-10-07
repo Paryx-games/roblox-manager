@@ -3,10 +3,10 @@ import "./Walkthrough.css";
 
 export const walkthroughSteps = [
   { page: "Accounts", target: "navigation", title: "Welcome to Roblox Manager", description: "Use this rail to move between your workspaces. We'll show you the main controls. You can finish this tour without adding an account or launching Roblox." },
-  { page: "Accounts", target: "add-account", title: "Add your accounts", description: "This plus button opens Add account. Sign in through the browser or explicitly paste a cookie. Adding an existing account replaces its credential and keeps its organisation." },
-  { page: "Accounts", target: "accounts", title: "Choose your accounts", description: "Click Builderman or Roblox to see example details and launch controls. These isolated demo accounts have no credentials and won't be saved. Your own accounts will appear here after the tour." },
+  { page: "Accounts", target: "add-account", title: "Add your accounts", description: "Use the plus button to log in or paste a cookie. Adding an existing account updates its login and keeps its saved settings." },
+  { page: "Accounts", target: "accounts", title: "Choose your accounts", description: "Choose Builderman or Roblox to explore the launch controls. These are example accounts. Your own accounts will appear here after the tour." },
   { page: "Accounts", target: "launch", title: "Launch a game", description: "After selecting an account, enter a numeric Place ID and choose Launch. Presets and Private Servers save destinations for later. This tour won't launch anything." },
-  { page: "Instances", target: "instances", title: "Track your clients", description: "Running clients and launch progress appear here. Exact matches support verified individual kills; inferred matches are guesses. You can focus, arrange or join a client's server. An empty workspace is normal before your first launch." },
+  { page: "Instances", target: "instances", title: "Track your clients", description: "Track running clients and launch progress here. Clients marked Verified can be closed individually; Estimated means the account is a guess. You can focus windows, arrange them or join a server." },
   { page: "Settings", target: "preferences", title: "Make RM work for you", description: "Settings covers account storage, privacy and window arrangement. Use its sidebar to explore each section. Keep your encrypted account store and backups safe. You're ready to add an account." },
 ] as const;
 
@@ -212,8 +212,8 @@ export function Walkthrough({ stepIndex, isPageReady, isPending, error, onBack, 
         {example?.stepIndex === stepIndex && <p className="walkthrough-example" role="status">{example.message}</p>}
         {example?.stepIndex === stepIndex && step.target === "add-account" && <div className="walkthrough-preview">
           <span>Add account preview</span>
-          <button className="account-button" type="button" onClick={() => setExample({ stepIndex, message: "Browser sign-in opens an isolated Roblox login window. No login window is opened during this showcase." })}>Sign in through browser</button>
-          <button className="account-button" type="button" onClick={() => setExample({ stepIndex, message: "Paste cookie lets you explicitly provide a session cookie. This showcase never asks for or captures a cookie." })}>Paste cookie</button>
+          <button className="account-button" type="button" onClick={() => setExample({ stepIndex, message: "Log in through a Roblox browser window to add an account. This tour won’t open a login window." })}>Log in through browser</button>
+          <button className="account-button" type="button" onClick={() => setExample({ stepIndex, message: "Use Paste cookie to add an account with a Roblox cookie. This tour won’t ask for a real cookie." })}>Paste cookie</button>
         </div>}
         {error && <p className="walkthrough-error" role="alert">{error} Choose Skip tour or Finish to retry.</p>}
       </section>

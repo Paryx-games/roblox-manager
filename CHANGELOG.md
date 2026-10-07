@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- App messages, buttons and hints use simpler wording, with clearer browser and launch notices, account login guidance, client controls and recovery steps.
+
 ### Fixed
 
 - Saved-text suggestions and automatic form-data saving are disabled throughout RM, including embedded Roblox login and browser windows.

@@ -217,7 +217,7 @@ export function PresetsPage({
       setError(
         reason instanceof Error
           ? reason.message
-          : "The preset launch request could not be completed for all chosen accounts. Check their sessions and the destination; earlier clients may already have launched.",
+          : "Some accounts couldn’t launch. Refresh them and check the game. Check Instances before retrying; some may already be running.",
       );
     } finally {
       setLaunchingIndex(null);

@@ -243,10 +243,10 @@ function parseCookies(value: string) {
 }
 
 function noticeKind(message: string): ToastKind {
-  if (/could not|failed|error|stopped|unable|not be/i.test(message)) {
+  if (/could not|couldn['’]t|failed|error|stopped|unable|not be/i.test(message)) {
     return "error";
   }
-  if (/enter |not ready|cannot|warning|expired|restricted/i.test(message)) {
+  if (/enter |not ready|cannot|can['’]t|warning|expired|restricted/i.test(message)) {
     return "warning";
   }
   if (
@@ -680,9 +680,9 @@ export function AccountsPage({
     return confirmAccountAddition(outcome.confirmationId);
   }
 
-  function notifyAccountAddition(account: AccountSummary, message = "Account added to RM's encrypted store. It is now available in the account list; refresh its status before launching if its session was not validated.") {
+  function notifyAccountAddition(account: AccountSummary, message = "Account added. Refresh it before launching if its login hasn’t been checked.") {
     if (accounts.some((existing) => existing.userId === account.userId)) {
-      setNotice("This Roblox account was already managed by RM. Its saved credential was replaced; existing account organisation was preserved. Refresh the account to verify the updated session.", "warning", "standard", "Account already exists");
+      setNotice("This account is already in RM. Its login was updated, and your saved account settings were kept.", "warning", "standard", "Account updated");
     } else {
       setNotice(message);
     }
@@ -1167,12 +1167,12 @@ export function AccountsPage({
       );
       const invalidAccounts = updated.filter((account) => account.cookieExpired);
       if (invalidAccounts.length) {
-        setNotice(updated.length === 1 ? `${invalidAccounts[0].label}: the saved credentials are invalid. Replace the credential and try again.` : `${updated.length} accounts checked: ${updated.length - invalidAccounts.length} with valid credentials, ${invalidAccounts.length} with invalid credentials.`, "warning", "standard", "Refresh completed");
+        setNotice(updated.length === 1 ? `${invalidAccounts[0].label}: log in again to use this account.` : `${updated.length} accounts checked. ${invalidAccounts.length} need you to log in again.`, "warning", "standard", "Accounts checked");
       } else {
-        setNotice(updated.length === 1 ? `${updated[0].label}: credentials are valid. Account details refreshed.` : `${updated.length} accounts checked. All credentials are valid; account details refreshed.`, "success", "standard", "Accounts refreshed");
+        setNotice(updated.length === 1 ? `${updated[0].label}: account details updated. You’re logged in.` : `${updated.length} accounts updated. All are logged in.`, "success", "standard", "Accounts refreshed");
       }
     } catch (error) {
-      setNotice(operationError(error, "Account validation could not be completed. Try again."), "error", "standard", "Could not verify account");
+      setNotice(operationError(error, "Couldn’t check this account. Try again."), "error", "standard", "Couldn’t check account");
     } finally {
       setMutationLoading(false);
     }
@@ -1181,13 +1181,13 @@ export function AccountsPage({
   async function bulkLaunch() {
     if (mutationLoading || restrictedSelection.length || !selectedAccounts.length) return;
     if (!placeIdValid) {
-      setNotice("Enter a positive numeric Place ID before launching the selected accounts. No batch launch requests were sent.");
+      setNotice("Enter a valid Place ID before launching.");
       return;
     }
     setMutationLoading(true);
     try {
       await launchAccounts([...selectedIds], Number(placeId), jobId, launchData);
-      setNotice(`Launch requests were sent for ${selectedIds.size} selected accounts into Place ID ${placeId}. Check Instances to follow client startup and attribution.`);
+      setNotice(`Starting Roblox for ${selectedIds.size} accounts. Check Instances for progress.`);
     } catch (error) {
       setNotice(operationError(error, "Bulk launch stopped because one account could not launch."));
     } finally {
@@ -1201,7 +1201,7 @@ export function AccountsPage({
       return;
     }
     if (!selectedAccount?.canLaunch) {
-      setAccountNotice("The selected account cannot launch with its current session or restrictions. Refresh its status or replace its credential before retrying.");
+      setAccountNotice("This account can’t launch right now. Refresh it, check any restrictions, or log in again.");
       return;
     }
     setMutationLoading(true);
@@ -1217,7 +1217,7 @@ export function AccountsPage({
         jobId,
         launchData,
       );
-      setAccountNotice(`Launch requested for ${selectedAccount.label} into Place ID ${placeId}. Roblox still needs to start and connect; check Instances for the running client.`);
+      setAccountNotice(`Starting Roblox for ${selectedAccount.label}. Check Instances for progress.`);
     } catch (error) {
       setAccountNotice(operationError(error, "Roblox could not be launched for this account."));
     } finally {
@@ -1490,7 +1490,7 @@ export function AccountsPage({
     try {
       await openAccountUrl(selectedAccount.userId, inventory);
     } catch {
-      setNotice("The requested Roblox page could not be opened in a browser. Check the selected account and browser availability, then retry.");
+      setNotice("Couldn’t open this Roblox page. Check the selected account and try again.");
     }
   }
 
@@ -1543,7 +1543,7 @@ export function AccountsPage({
       setIsConnectionSearchLoading(true);
       setConnectionResults(await searchConnectionUsers(connectionQuery));
     } catch {
-      setNotice("Roblox user search could not be completed. Check your connection and the entered username or user ID, then search again.");
+      setNotice("Couldn’t search Roblox. Check your connection and the username or user ID, then try again.");
     } finally {
       setIsConnectionSearchLoading(false);
     }
@@ -1557,7 +1557,7 @@ export function AccountsPage({
       await runConnectionAction(selectedAccount.userId, targetUserId, action);
       setNotice(`Roblox accepted the ${action === "friend" ? "friend request" : action + " request"} from ${selectedAccount.label} to user ${targetUserId}. ${action === "friend" ? "The recipient must accept before appearing in the friends list." : "Check the target profile to confirm the relationship state."}`);
     } catch {
-      setNotice(`The ${action} request from ${selectedAccount.label} to user ${targetUserId} could not be completed. Refresh the account session and check the target profile before retrying.`);
+      setNotice(`Couldn’t ${action} user ${targetUserId} as ${selectedAccount.label}. Refresh the account and check the user’s profile, then try again.`);
     } finally {
       connectionRequestPending.current = false;
       setMutationLoading(false);
@@ -1591,7 +1591,7 @@ export function AccountsPage({
     setMutationLoading(true);
     try {
       await joinUserGame(selectedAccount.userId, targetUserId);
-      setNotice(`A join request was sent from ${selectedAccount.label} to user ${targetUserId}'s game. Check Instances for the new client; Roblox still controls server access.`);
+      setNotice(`Joining user ${targetUserId}’s game as ${selectedAccount.label}. Check Instances for progress.`);
     } catch {
       setNotice("Roblox could not join the target user's game. The user may be offline, in a private server, or have join permissions that exclude this account.");
     } finally {
@@ -1607,9 +1607,9 @@ export function AccountsPage({
     try {
       const results = await Promise.allSettled([...selectedIds].map((userId) => joinUserGame(userId, targetUserId)));
       if (results.some((result) => result.status === "rejected")) {
-        setNotice("Not every selected account could request a join into the target user's game. Earlier requests may already have started clients; review Instances and server permissions before retrying.");
+        setNotice("Some accounts couldn’t join this game. Check Instances and server access before retrying; some may already be starting.");
       } else {
-        setNotice("Join requests were sent for the selected accounts. Check Instances for startup; Roblox still controls whether each account can access the target server.");
+        setNotice("Joining the game with your selected accounts. Check Instances for progress.");
       }
     } finally {
       connectionRequestPending.current = false;
@@ -1623,9 +1623,9 @@ export function AccountsPage({
     setMutationLoading(true);
     try {
       for (const userId of ids) await browseAsAccount(userId, inventory);
-      setNotice(`Requested account browsers for ${ids.length} selected accounts. Each browser uses its own authenticated session; close the windows when finished.`);
+      setNotice(`Opening ${inventory ? "inventories" : "Roblox browsers"} for ${ids.length} accounts.`, "success");
     } catch {
-      setNotice("At least one selected account browser could not be opened. Earlier browsers may already be open; check them before retrying.");
+      setNotice("Some browsers couldn’t open. Check which windows are already open before trying again.");
     } finally {
       setMutationLoading(false);
     }
@@ -1634,9 +1634,9 @@ export function AccountsPage({
   async function copySelectedIds() {
     try {
       await navigator.clipboard.writeText([...selectedIds].join("\n"));
-      setNotice("The selected managed account IDs were copied to the clipboard, one ID per line. No credentials were copied.");
+      setNotice("Account IDs copied, one per line.");
     } catch {
-      setNotice("The selected account IDs could not be copied. Check clipboard access and retry the copy action.");
+      setNotice("Couldn’t copy the account IDs. Check clipboard access and try again.");
     }
   }
 
@@ -1843,9 +1843,9 @@ export function AccountsPage({
     setMutationLoading(true);
     try {
       const count = await killAllAccounts();
-      setNotice(`Closed ${count} Roblox clients, including any clients outside RM. Refresh Instances to confirm which processes remain.`);
+      setNotice(`Closed ${count} Roblox clients, including those opened outside RM.`);
     } catch {
-      setNotice("The Roblox close request could not be completed. Refresh Instances to see which clients are still running before retrying.");
+      setNotice("Couldn’t close Roblox. Refresh Instances to check what’s still running, then try again.");
     } finally {
       setMutationLoading(false);
     }
@@ -1887,9 +1887,9 @@ export function AccountsPage({
     if (!selectedAccount) return;
     try {
       await browseAsAccount(selectedAccount.userId, inventory);
-      setAccountNotice(`An authenticated ${inventory ? "inventory" : "Roblox"} browser was requested for ${selectedAccount.label}. Each account browser uses an isolated session.`);
+      setAccountNotice(`Opening ${inventory ? "the inventory" : "Roblox"} for ${selectedAccount.label}.`);
     } catch {
-      setAccountNotice("The selected account's authenticated browser could not be opened. Refresh its session and retry Open browser; no new browser was confirmed.");
+      setAccountNotice("Couldn’t open this account’s browser. Refresh the account and try again.");
     }
   }
 
@@ -2104,7 +2104,7 @@ export function AccountsPage({
               <div className="add-account-modal-header">
                 <div>
                   <h2 id="add-account-title">Add account</h2>
-                  <p>Log in or paste a cookie. Re-adding an existing account replaces its credential and keeps its alias, group, pin and order.</p>
+                  <p>Log in or paste a cookie. Adding an existing account updates its login and keeps its alias, group, pin and order.</p>
                 </div>
                 <button
                   className="icon-button"
@@ -2393,8 +2393,8 @@ export function AccountsPage({
         {additionConfirmation && (
           <ConfirmModal
             title="Add restricted account?"
-            message={<><p>{additionConfirmation.account.moderationBanned ? "Roblox has terminated this account." : "Roblox has restricted this account."} It cannot launch while the restriction is active.</p><p className="selectable-text">{additionConfirmation.account.moderationReason ?? "No restriction reason was provided."}</p><p>{additionConfirmation.isReplacement ? "Confirm to replace the saved credential and keep your account organisation." : "You can still add it to manage the restriction in the browser."}</p></>}
-            confirmLabel={additionConfirmation.isReplacement ? "Replace credential" : "Add account"}
+            message={<><p>{additionConfirmation.account.moderationBanned ? "Roblox has terminated this account." : "Roblox has restricted this account."} It can’t launch while restricted.</p><p className="selectable-text">{additionConfirmation.account.moderationReason ?? "Roblox didn’t give a reason."}</p><p>{additionConfirmation.isReplacement ? "Update this account’s login and keep its saved settings?" : "You can still add it and check the restriction in its browser."}</p></>}
+            confirmLabel={additionConfirmation.isReplacement ? "Update login" : "Add account"}
             confirmIcon="add"
             onConfirm={() => additionResolver.current?.(true)}
             onCancel={() => additionResolver.current?.(false)}
@@ -2402,9 +2402,9 @@ export function AccountsPage({
         )}
         {killAllConfirmation && (
           <ConfirmModal
-            title="Kill all Roblox clients?"
+            title="Close all Roblox clients?"
             message="This closes every Roblox client currently running on this computer."
-            confirmLabel="Kill all Roblox"
+            confirmLabel="Close all Roblox"
             confirmIcon="kill"
             confirmDisabled={mutationLoading}
             onCancel={() => setKillAllConfirmation(false)}
@@ -2504,11 +2504,11 @@ export function AccountsPage({
                   </div>
                   <div className="account-selection-tools">
                     <button className="account-button" type="button" disabled={mutationLoading || presenceLoading} onClick={() => void refreshPresence()}><Icon name="refresh" />{presenceLoading ? "Refreshing..." : "Refresh status"}</button>
-                    <button className="account-button" type="button" disabled={mutationLoading} onClick={() => void revalidate([...selectedIds])}><Icon name="refresh" />Revalidate accounts</button>
+                    <button className="account-button" type="button" disabled={mutationLoading} onClick={() => void revalidate([...selectedIds])}><Icon name="refresh" />Check accounts</button>
                     <button className="account-button" type="button" onClick={() => void copySelectedIds()}><Icon name="copy" />Copy IDs</button>
                     <button className="account-button" type="button" disabled={mutationLoading} onClick={() => void changeSelectedPath()}><Icon name="folder" />Change player paths</button>
                   </div>
-                  {restrictedSelection.length > 0 && <p role="status">Launch unavailable: {restrictedSelection.map((account) => account.label).join(", ")}. Deselect these accounts or check their credentials individually.</p>}
+                  {restrictedSelection.length > 0 && <p role="status">Can’t launch: {restrictedSelection.map((account) => account.label).join(", ")}. Deselect these accounts or check them one at a time.</p>}
                 </section>
               ) : (
               <section className="account-card account-profile-card">
@@ -2600,7 +2600,7 @@ export function AccountsPage({
                         }}
                       >
                         <Icon name="refresh" />
-                        Revalidate account
+                        Check account
                       </button>
                       <button
                         type="button"
@@ -2639,7 +2639,7 @@ export function AccountsPage({
                         }}
                       >
                         <Icon name="kill-danger" />
-                        Kill all Roblox
+                        Close all Roblox
                       </button>
                     </PopupMenu>
                   )}
@@ -2657,7 +2657,7 @@ export function AccountsPage({
                       <h2>{selectedAccount.moderationBanned
                         ? "Account terminated"
                         : selectedAccount.cookieExpired
-                          ? "Account credentials expired"
+                          ? "Account login expired"
                           : "Account moderated"}</h2>
                       {selectedAccount.cookieExpired && <p>The saved login cookies for this account are no longer valid. This can happen when you change your password, log out on another device, or Roblox invalidates the session.</p>}
                       {selectedAccount.moderationReason && <p>{selectedAccount.moderationReason}</p>}
@@ -2673,11 +2673,11 @@ export function AccountsPage({
                       </button>
                       <button className="account-warning-action" type="button" disabled={mutationLoading} onClick={openAddForm}>
                         <span className="account-warning-action-icon"><SharedIcon name="log-in" tone="current-color" /></span>
-                        <span><strong>Replace account credential</strong><small>Log in again or paste a fresh cookie</small></span>
+                        <span><strong>Update account login</strong><small>Log in again or paste a new cookie</small></span>
                       </button>
                       <button className="account-warning-action" type="button" disabled={mutationLoading} onClick={() => void revalidate([selectedAccount.userId])}>
                         <span className="account-warning-action-icon"><SharedIcon name="refresh" tone="current-color" /></span>
-                        <span><strong>Revalidate account</strong><small>Check if the credentials are valid again</small></span>
+                        <span><strong>Check account</strong><small>Check whether this account is still logged in</small></span>
                       </button>
                     </div>
                     <div className="account-warning-help">

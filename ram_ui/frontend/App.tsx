@@ -158,7 +158,7 @@ export function App() {
     if (isStartupPending) return;
     setIsStartupPending(true);
     try { await action(); await refreshStartup(); }
-    catch (error) { setStartupError(operationError(error, "The startup action could not be completed. Retry.")); }
+    catch (error) { setStartupError(operationError(error, "Couldn’t finish setting up RM. Try again.")); }
     finally { setIsStartupPending(false); }
   }
 
@@ -173,7 +173,7 @@ export function App() {
       setSelectedDemoAccount(null);
       setStartupError(null);
     } catch (error) {
-      setStartupError(operationError(error, "The tour could not be completed. Retry."));
+      setStartupError(operationError(error, "Couldn’t finish the tour. Try again."));
     } finally { setIsStartupPending(false); }
   }
 
@@ -188,7 +188,7 @@ export function App() {
     const stops: Array<() => void> = [];
     void refreshStartup();
     void checkReleaseUpdate().then((result) => { if (isActive) setUpdate(result); }).catch(() => {
-      if (isActive) setRuntimeToast({ id: Date.now(), title: "Update check unavailable", message: "The startup update check could not be completed. Check releases on GitHub later.", kind: "warning", duration: "standard" });
+      if (isActive) setRuntimeToast({ id: Date.now(), title: "Couldn’t check for updates", message: "Check GitHub releases later.", kind: "warning", duration: "standard" });
     });
     void Promise.allSettled([
       listen<number>("browser-play-request", (event) => { if (isActive) setBrowserPlaceId(event.payload); }),
@@ -209,10 +209,10 @@ export function App() {
     try {
       const clearedCount = await clearApplicationCaches();
       setRuntimeToast(clearedCount > 0
-        ? { id: Date.now(), title: "Cache cleared", message: `${clearedCount} application cache entries were removed. RM can fetch this information again when the related workspace is opened.`, kind: "success", duration: "standard" }
-        : { id: Date.now(), title: "No cache to clear", message: "RM found no application cache entries to remove. Your accounts, presets and settings were not changed.", kind: "info", duration: "standard" });
+        ? { id: Date.now(), title: "Cache cleared", message: `${clearedCount} cached items removed.`, kind: "success", duration: "standard" }
+        : { id: Date.now(), title: "No cache to clear", message: "There’s no cached data to remove.", kind: "info", duration: "standard" });
     } catch (error) {
-      setRuntimeToast({ id: Date.now(), title: "Cache could not be cleared", message: operationError(error, "Application cache cleanup could not be completed. Open Settings and retry Clear Cache after checking access to the RM data folder."), kind: "error", duration: "long" });
+      setRuntimeToast({ id: Date.now(), title: "Couldn’t clear the cache", message: operationError(error, "Check access to RM’s data folder, then try Clear Cache in Settings again."), kind: "error", duration: "long" });
     } finally { setIsClearingCache(false); }
   }
 
@@ -267,7 +267,7 @@ export function App() {
           if (isActive) stops.push(result.value);
           else result.value();
         } else if (isActive) {
-          setRuntimeToast({ id: Date.now(), title: "Live updates unavailable", message: "RM could not connect to live account, client or launch updates. Use Refresh in Accounts or Instances to reload the latest state. Restart RM to retry the live-update connection.", kind: "error", duration: "long" });
+          setRuntimeToast({ id: Date.now(), title: "Live updates disconnected", message: "Refresh Accounts or Instances for the latest details. Restart RM to reconnect.", kind: "error", duration: "long" });
         }
       }
       if (!isActive) return;
@@ -542,7 +542,7 @@ export function App() {
         </div>
       </Popup>}
       {runtimeToast && <Toast item={runtimeToast} onDismiss={() => setRuntimeToast(null)} />}
-      {startup?.legacyMigrationAvailable && !isMigrationDismissed ? <ConfirmModal title="Migrate older RM data?" message="Copy your older configuration and encrypted account store into the standard RM data folder. Original files remain in place; existing modern data will never be overwritten." confirmLabel={isStartupPending ? "Migrating..." : "Copy to RM data folder"} confirmDisabled={isStartupPending} confirmIcon="import" onConfirm={() => void completeStartup(migrateLegacyData)} onCancel={() => setIsMigrationDismissed(true)} /> : isTourVisible ? <Walkthrough
+      {startup?.legacyMigrationAvailable && !isMigrationDismissed ? <ConfirmModal title="Import older RM data?" message="Copy accounts and settings from an older RM installation. The original files stay where they are, and your existing RM data won’t be overwritten." confirmLabel={isStartupPending ? "Importing..." : "Import data"} confirmDisabled={isStartupPending} confirmIcon="import" onConfirm={() => void completeStartup(migrateLegacyData)} onCancel={() => setIsMigrationDismissed(true)} /> : isTourVisible ? <Walkthrough
         stepIndex={tutorialStep}
         isPageReady={displayedNav === walkthroughSteps[tutorialStep].page}
         isPending={isStartupPending}
@@ -553,7 +553,7 @@ export function App() {
         onReturnToStep={() => navigateTo(walkthroughSteps[tutorialStep].page)}
       /> : startup?.changelog ? <Popup className="confirm-modal changelog-modal" backdropClassName="confirm-modal-backdrop" labelledBy="changelog-title">
         <h2 id="changelog-title">What's changed in RM</h2><ReleaseNotes markdown={startup.changelog} /><button className="account-button" type="button" disabled={isStartupPending} onClick={() => void completeStartup(() => acknowledgeStartup("version"))}>Continue</button>
-      </Popup> : startup?.passwordlessOffer ? <ConfirmModal title="Stop asking for a password on this PC?" message="Device encryption keeps your store encrypted and unlocks it through Windows Credential Manager. Keep a master password if you need to move the store between PCs." confirmLabel={isStartupPending ? "Changing encryption..." : "Use device encryption"} confirmDisabled={isStartupPending} confirmIcon="lock" onConfirm={() => void completeStartup(async () => { await clearPassword(); await acknowledgeStartup("passwordless"); })} onCancel={() => { if (!isStartupPending) void completeStartup(() => acknowledgeStartup("passwordless")); }} /> : browserPlaceId ? <ConfirmModal title="Launch this game through RM?" message={`The account browser blocked an external Roblox launch for Place ID ${browserPlaceId}. Prefill it in Accounts, then choose which account to launch.`} confirmLabel="Prefill Place ID" confirmIcon="game" onConfirm={() => { setPrefilledPlaceId(browserPlaceId); setBrowserPlaceId(null); navigateTo("Accounts"); }} onCancel={() => setBrowserPlaceId(null)} /> : null}
+      </Popup> : startup?.passwordlessOffer ? <ConfirmModal title="Stop asking for a password on this PC?" message="Keep your account data encrypted and unlock it automatically on this PC. Keep a master password if you move your data between PCs." confirmLabel={isStartupPending ? "Updating..." : "Unlock automatically"} confirmDisabled={isStartupPending} confirmIcon="lock" onConfirm={() => void completeStartup(async () => { await clearPassword(); await acknowledgeStartup("passwordless"); })} onCancel={() => { if (!isStartupPending) void completeStartup(() => acknowledgeStartup("passwordless")); }} /> : browserPlaceId ? <ConfirmModal title="Launch this game through RM?" message={`Choose which account to use for game ${browserPlaceId} in Accounts.`} confirmLabel="Choose account" confirmIcon="game" onConfirm={() => { setPrefilledPlaceId(browserPlaceId); setBrowserPlaceId(null); navigateTo("Accounts"); }} onCancel={() => setBrowserPlaceId(null)} /> : null}
       {startupError && <Toast item={{ id: 1, title: "Startup action needs attention", message: startupError, kind: "error", duration: "long" }} onDismiss={() => setStartupError(null)} />}
       {isTourCompletionVisible && displayedNav === "Accounts" && <div className="walkthrough-completion" role="status">You're ready. Use the highlighted + button to add an account.</div>}
     </div>
