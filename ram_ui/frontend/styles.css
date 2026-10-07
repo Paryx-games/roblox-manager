@@ -587,6 +587,8 @@
   flex: 0 0 auto;
   width: auto;
   margin-left: auto;
+  min-height: 28px;
+  padding: var(--space-1) var(--space-4);
 }
 
 .titlebar-update + .window-controls {

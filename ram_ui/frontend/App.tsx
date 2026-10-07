@@ -135,6 +135,7 @@ export function App() {
   const [selectedDemoAccount, setSelectedDemoAccount] = useState<DemoAccountName | null>(null);
   const [isMigrationDismissed, setIsMigrationDismissed] = useState(false);
   const [update, setUpdate] = useState<[string, string] | null>(null);
+  const [isReleaseDialogOpen, setIsReleaseDialogOpen] = useState(false);
   const [browserPlaceId, setBrowserPlaceId] = useState<number | null>(null);
   const [prefilledPlaceId, setPrefilledPlaceId] = useState<number>();
   const isTourVisible = !!startup?.needsTutorial && (!startup.legacyMigrationAvailable || isMigrationDismissed);
@@ -196,6 +197,7 @@ export function App() {
     return () => { isActive = false; stops.forEach((stop) => stop()); };
   }, []);
   const visibility = { ...defaultPageVisibility, ...settings?.pageVisibility };
+  const updateVersion = update?.[0].startsWith("v") ? update[0] : update ? `v${update[0]}` : null;
   const visibleNavItems = navItems.filter((item) => {
     const page = workspacePages.find((page) => page.label === item.page);
     return isTourVisible || !page || visibility[page.key];
@@ -460,7 +462,7 @@ export function App() {
         <span className="titlebar-version">
           {import.meta.env.VITE_RM_VERSION}
         </span>
-        {update && <button type="button" className="account-button titlebar-update" onClick={() => void openReleasePage(update[1]).catch(() => setStartupError("The release page could not be opened. Try again."))}>Update {update[0]}</button>}
+        {update && <button type="button" className="account-button titlebar-update" onClick={() => setIsReleaseDialogOpen(true)}>Update to {updateVersion}</button>}
         <div className="window-controls" aria-label="Window controls">
           <WindowButton
             label="Minimize"
@@ -529,6 +531,14 @@ export function App() {
             setPendingNavigation(null);
           }}>Discard</button>
           <button className="account-button primary" type="button" disabled={isNavigationSaving} onClick={() => void saveBeforeNavigating()}>{isNavigationSaving ? "Saving..." : "Save and leave"}</button>
+        </div>
+      </Popup>}
+      {isReleaseDialogOpen && update && updateVersion && <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="release-update-title" describedBy="release-update-message" onClose={() => setIsReleaseDialogOpen(false)} closeOnBackdrop>
+        <div className="confirm-modal-header"><h2 id="release-update-title">A new version is available</h2></div>
+        <p id="release-update-message" className="confirm-modal-message">RM {updateVersion} is ready. Open the latest GitHub release to download it.</p>
+        <div className="confirm-modal-actions">
+          <button className="account-button" type="button" onClick={() => setIsReleaseDialogOpen(false)}>Cancel</button>
+          <button className="account-button primary" type="button" onClick={() => void openReleasePage(update[1]).then(() => setIsReleaseDialogOpen(false)).catch(() => setStartupError("The release page could not be opened. Try again."))}>Go to latest release</button>
         </div>
       </Popup>}
       {runtimeToast && <Toast item={runtimeToast} onDismiss={() => setRuntimeToast(null)} />}

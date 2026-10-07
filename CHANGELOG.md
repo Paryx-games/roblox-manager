@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- The title-bar update action shows the available version with added padding and opens a confirmation dialog before sending users to GitHub's latest release in their default browser.
 - Display-name previews check one account instead of every selected account, while explicit saves still report each account's outcome. Visibility loading waits for account selection to settle, reducing redundant Roblox requests during multi-selection.
 - Display-name changes accepted by Roblox but not saved locally now keep a persistent warning with refresh guidance instead of an expiring success notice.
 - Discord notification failures distinguish unreadable webhook credentials from notification-preference errors and failed background tasks.
