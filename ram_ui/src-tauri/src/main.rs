@@ -959,6 +959,8 @@ async fn unlock_device(
     })
     .await
     .map_err(|_| "Device unlock task failed".to_string())??;
+    app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(status)
 }
@@ -996,6 +998,8 @@ async fn create_device_store(
     })
     .await
     .map_err(|_| "Device store task failed".to_string())??;
+    app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(status)
 }
@@ -1039,6 +1043,8 @@ async fn unlock_password(
     runtime.legacy_store = session.is_legacy();
     runtime.session = Some(session);
     runtime.unlocked = true;
+    app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(StoreStatus {
         exists: true,
@@ -1496,6 +1502,31 @@ async fn save_settings(
     accounts::publish(&app);
     let _ = app.emit("settings-updated", &settings);
     Ok(settings)
+}
+
+#[cfg(test)]
+mod settings_validation_tests {
+    use super::*;
+
+    #[test]
+    fn startup_launch_requires_both_targets_and_does_not_partially_apply_invalid_settings() {
+        let mut config = AppConfig::default();
+        let mut payload = serde_json::to_value(SettingsConfig::from_config(&config)).unwrap();
+        payload["autoLaunchOnStartup"] = serde_json::json!(true);
+        payload["autoLaunchAccountId"] = serde_json::json!(1);
+        for place in [serde_json::Value::Null, serde_json::json!(0)] {
+            payload["autoLaunchPlaceId"] = place;
+            let update: SettingsUpdate = serde_json::from_value(payload.clone()).unwrap();
+            assert!(update.apply_to_config(&mut config).is_err());
+            assert!(!config.auto_launch_on_startup);
+        }
+        payload["autoLaunchPlaceId"] = serde_json::json!(2);
+        let update: SettingsUpdate = serde_json::from_value(payload).unwrap();
+        update.apply_to_config(&mut config).unwrap();
+        assert_eq!(config.auto_launch_account_id, Some(1));
+        assert_eq!(config.auto_launch_place_id, Some(2));
+        assert!(config.auto_launch_on_startup);
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -2245,9 +2276,51 @@ async fn fetch_account_inventory(
     user_id: u64,
     force_refresh: Option<bool>,
 ) -> Result<Vec<InventoryItem>, String> {
-    let _gate = state.inventory_cache.gate.lock().await;
+    let revision = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked
+            || runtime
+                .accounts
+                .find_by_id(user_id)
+                .is_none_or(|account| account.cookie_expired)
+        {
+            return Err("Unlock the store and select a managed account".into());
+        }
+        *runtime.credential_revisions.get(&user_id).unwrap_or(&0)
+    };
+    let key = (user_id, revision);
+    let gate = state.inventory_cache.key_gate(&key);
+    let _gate = gate.lock().await;
+    {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked
+            || runtime
+                .accounts
+                .find_by_id(user_id)
+                .is_none_or(|account| account.cookie_expired)
+            || *runtime.credential_revisions.get(&user_id).unwrap_or(&0) != revision
+        {
+            return Err("The selected account changed. Reload its inventory.".into());
+        }
+        if !force_refresh.unwrap_or(false) {
+            if let Some(items) = state.inventory_cache.get(&key) {
+                return Ok(items);
+            }
+        }
+    }
+    let _permit = state
+        .inventory_fetches
+        .acquire()
+        .await
+        .map_err(|_| "Inventory requests unavailable")?;
     let credential_state = state.inner().clone();
-    let (cookie, revision) = tauri::async_runtime::spawn_blocking(move || {
+    let (cookie, current_revision) = tauri::async_runtime::spawn_blocking(move || {
         let runtime = credential_state
             .runtime
             .lock()
@@ -2259,11 +2332,8 @@ async fn fetch_account_inventory(
     })
     .await
     .map_err(|_| "Inventory credential task failed")??;
-    let key = (user_id, revision);
-    if !force_refresh.unwrap_or(false) {
-        if let Some(items) = state.inventory_cache.get(&key) {
-            return Ok(items);
-        }
+    if current_revision != revision {
+        return Err("The selected account changed. Reload its inventory.".into());
     }
     let generation = state.inventory_cache.generation();
     let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
@@ -2289,7 +2359,10 @@ async fn fetch_account_inventory(
             .lock()
             .map_err(|_| "Account state unavailable")?;
         if !runtime.unlocked
-            || runtime.accounts.find_by_id(user_id).is_none()
+            || runtime
+                .accounts
+                .find_by_id(user_id)
+                .is_none_or(|account| account.cookie_expired)
             || *runtime.credential_revisions.get(&user_id).unwrap_or(&0) != revision
         {
             return Err(

@@ -409,6 +409,7 @@ mod tests {
             mac_rotated: Arc::new(Default::default()),
             launch_queue: Arc::new(tokio::sync::Mutex::new(None)),
             is_shutting_down: Arc::new(Default::default()),
+            inventory_fetches: Arc::new(tokio::sync::Semaphore::new(4)),
             inventory_cache: Arc::new(ram_core::cache::ResponseCache::new(
                 std::time::Duration::from_secs(60),
                 32,

@@ -1,12 +1,13 @@
 //! Bounded, memory-only response caching. Clearing also rejects in-flight writes.
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
 pub struct ResponseCache<K, V> {
     entries: Mutex<Entries<K, V>>,
     pub gate: tokio::sync::Mutex<()>,
+    key_gates: Mutex<HashMap<K, Weak<tokio::sync::Mutex<()>>>>,
     ttl: Duration,
     capacity: usize,
 }
@@ -24,6 +25,7 @@ impl<K: Eq + Hash + Clone, V: Clone> ResponseCache<K, V> {
                 values: HashMap::new(),
             }),
             gate: tokio::sync::Mutex::new(()),
+            key_gates: Mutex::new(HashMap::new()),
             ttl,
             capacity,
         }
@@ -67,12 +69,31 @@ impl<K: Eq + Hash + Clone, V: Clone> ResponseCache<K, V> {
         entries.values.insert(key, (Instant::now(), value));
     }
 
+    /// Weak entries keep coordination alive only while requests are using it.
+    pub fn key_gate(&self, key: &K) -> Arc<tokio::sync::Mutex<()>> {
+        let mut gates = self
+            .key_gates
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        gates.retain(|_, gate| gate.strong_count() > 0);
+        if let Some(gate) = gates.get(key).and_then(Weak::upgrade) {
+            return gate;
+        }
+        let gate = Arc::new(tokio::sync::Mutex::new(()));
+        gates.insert(key.clone(), Arc::downgrade(&gate));
+        gate
+    }
+
     pub async fn get_or_fetch<E, F, Fut>(&self, key: K, fetch: F) -> Result<V, E>
     where
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = Result<V, E>>,
     {
-        let _gate = self.gate.lock().await;
+        if let Some(value) = self.get(&key) {
+            return Ok(value);
+        }
+        let gate = self.key_gate(&key);
+        let _gate = gate.lock().await;
         if let Some(value) = self.get(&key) {
             return Ok(value);
         }
@@ -103,6 +124,42 @@ impl<K: Eq + Hash + Clone, V: Clone> ResponseCache<K, V> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn unrelated_keys_do_not_wait_for_a_slow_fetch() {
+        let cache = ResponseCache::new(Duration::from_secs(60), 4);
+        let entered = tokio::sync::Notify::new();
+        let release = tokio::sync::Notify::new();
+        let slow = cache.get_or_fetch(1, || async {
+            entered.notify_one();
+            release.notified().await;
+            Ok::<_, ()>("one")
+        });
+        let fast = async {
+            entered.notified().await;
+            let result = tokio::time::timeout(
+                Duration::from_secs(2),
+                cache.get_or_fetch(2, || async { Ok::<_, ()>("two") }),
+            )
+            .await;
+            release.notify_one();
+            assert_eq!(result.unwrap().unwrap(), "two");
+        };
+        let (slow, _) = tokio::join!(slow, fast);
+        assert_eq!(slow.unwrap(), "one");
+    }
+
+    #[test]
+    fn authenticated_cache_keys_keep_accounts_and_revisions_separate() {
+        let cache = ResponseCache::new(Duration::from_secs(60), 4);
+        let generation = cache.generation();
+        cache.insert(generation, (1, 0), "first account");
+        assert_eq!(cache.get(&(2, 0)), None);
+        assert_eq!(cache.get(&(1, 1)), None);
+        cache.invalidate(&(1, 0));
+        cache.insert(generation, (1, 0), "stale in-flight result");
+        assert_eq!(cache.get(&(1, 0)), None);
+    }
 
     #[test]
     fn expiry_capacity_and_clear_reject_old_results() {

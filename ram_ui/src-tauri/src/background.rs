@@ -117,7 +117,10 @@ pub async fn refresh_presence(
             .lock()
             .map_err(|_| "Account state unavailable")?;
         if !runtime.unlocked
-            || runtime.accounts.find_by_id(viewer).is_none()
+            || runtime
+                .accounts
+                .find_by_id(viewer)
+                .is_none_or(|account| account.cookie_expired)
             || *runtime.credential_revisions.get(&viewer).unwrap_or(&0) != revision
         {
             return Err("Presence account changed. Refresh again.".into());

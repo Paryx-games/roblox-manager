@@ -17,6 +17,7 @@ pub struct RuntimeState {
 #[derive(Clone)]
 pub struct AppState {
     pub runtime: Arc<Mutex<RuntimeState>>,
+    pub inventory_fetches: Arc<tokio::sync::Semaphore>,
     pub inventory_cache: Arc<ram_core::cache::ResponseCache<(u64, u64), Vec<crate::InventoryItem>>>,
     pub presence_cache:
         Arc<ram_core::cache::ResponseCache<(u64, u64, u64), ram_core::models::Presence>>,
@@ -71,6 +72,7 @@ impl Default for AppState {
                 legacy_store: false,
                 credential_revisions: std::collections::HashMap::new(),
             })),
+            inventory_fetches: Arc::new(tokio::sync::Semaphore::new(4)),
             inventory_cache: Arc::new(ram_core::cache::ResponseCache::new(
                 std::time::Duration::from_secs(60),
                 32,
