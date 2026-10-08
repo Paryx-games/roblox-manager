@@ -48,6 +48,8 @@
 .session-history-controls > label,
 .session-history-account-filter { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
 .session-history-account-filter .account-picker-trigger { width: 100%; min-width: 0; max-width: none; }
+.session-history-account-filter .account-picker-multiple,
+.join-user-field .account-picker-multiple { margin-top: 0; }
 .session-history-controls p,
 .session-history-footer { color: var(--text-muted); font-size: var(--text-xs); }
 .session-history-controls p { margin: var(--space-2) 0; }
@@ -86,6 +88,7 @@
 .confirm-modal.join-user-dialog { width: min(100%, 620px); max-height: calc(100vh - var(--space-8)); gap: var(--space-3); padding: var(--space-4); overflow: auto; }
 .join-user-field { display: flex; min-width: 0; flex-direction: column; gap: var(--space-2); margin: 0; font-size: var(--text-sm); }
 .join-user-field .account-picker-trigger { width: 100%; max-width: none; }
+.join-user-field .rm-select { width: 100%; max-width: none; }
 .join-user-dialog .settings-muted { margin: 0; }
 .join-user-field input { width: 100%; padding: var(--space-2); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--bg-raised); font: inherit; }
 .join-user-field input:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; }
