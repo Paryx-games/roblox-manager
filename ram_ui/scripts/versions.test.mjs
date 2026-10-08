@@ -1,15 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, statSync, existsSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createVersionTools, readWorkspaceVersion, validateVersion, runCommand } from "./versions.mjs";
 
+function removeFixture(directory) {
+  // windows may briefly retain a command's working-directory handle after it exits
+  return rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+}
+
 function createFixture(context) {
   const directory = mkdtempSync(resolve(tmpdir(), "rm-version-test-"));
-  context.after(() => rmSync(directory, { recursive: true, force: true }));
+  context.after(() => removeFixture(directory));
   mkdirSync(resolve(directory, "ram_ui/src-tauri/src"), { recursive: true });
   writeFileSync(resolve(directory, "Cargo.toml"), '[workspace]\r\nmembers = ["ram_ui/src-tauri"]\r\nresolver = "2"\r\n\r\n[workspace.package]\r\nversion = "2.0.0-beta.2" # canonical\r\n\r\n[workspace.metadata]\r\nversion = "9.9.9"\r\n');
   writeFileSync(resolve(directory, "ram_ui/src-tauri/Cargo.toml"), '[package]\nname = "version_fixture"\nversion.workspace = true\nedition = "2021"\n');
@@ -162,6 +168,29 @@ function stopBatchProcess(child) {
   child.stdout.destroy();
   child.stderr.destroy();
 }
+
+test("Windows fixture cleanup retries while a command releases its working directory", { skip: process.platform !== "win32", timeout: 10000 }, async (context) => {
+  let child;
+  context.after(() => stopBatchProcess(child));
+  const directory = createFixture(context);
+  child = spawn(process.execPath, ["-e", "process.stdin.resume(); process.stdout.write('locked'); process.stdin.once('end', () => setTimeout(() => process.exit(0), 200));"], {
+    cwd: resolve(directory, "ram_ui"),
+    windowsHide: true,
+  });
+  const closed = new Promise((resolveClose, reject) => {
+    child.once("close", resolveClose);
+    child.once("error", reject);
+  });
+  await new Promise((resolveReady, reject) => {
+    child.stdout.once("data", resolveReady);
+    child.once("error", reject);
+  });
+  assert.throws(() => rmSync(directory, { recursive: true, force: true }), (error) => ["EBUSY", "EPERM", "ENOTEMPTY"].includes(error.code));
+  child.stdin.end();
+  await removeFixture(directory);
+  assert.equal(await closed, 0);
+  assert.equal(existsSync(directory), false);
+});
 
 test("Windows batch cleanup terminates a waiting Node descendant", { skip: process.platform !== "win32", timeout: 10000 }, async (context) => {
   let child;
