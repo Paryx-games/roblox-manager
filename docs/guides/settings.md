@@ -10,7 +10,7 @@ Use the section navigation to find preferences. Most edits form a draft: choose 
 ## Launching and window management
 
 - **Start RM with Windows** starts the manager when your Windows user signs in.
-- **Revalidate accounts on startup** checks saved credentials when RM starts.
+- **Check accounts on startup** checks saved credentials when RM starts.
 - **Enable multi-instance** allows several Roblox clients. Close existing Roblox clients and tray processes before enabling it.
 - Background-process cleanup and the kill-all confirmation preference control launch safeguards.
 - Auto-arrange, target monitor, grid layout, sizing and spacing control Roblox window placement.
