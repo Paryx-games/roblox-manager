@@ -9,6 +9,10 @@
   font-size: var(--text-sm);
 }
 
+.titlebar-history-actions { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
+.titlebar-history-actions + .window-controls { margin-left: var(--space-3); }
+.titlebar .titlebar-history-button { width: auto; min-height: 28px; flex: 0 0 auto; padding: var(--space-1) var(--space-3); font-size: var(--text-xs); }
+
 .session-history-heading {
   display: flex;
   min-height: 42px;
@@ -56,3 +60,16 @@
 .session-history-resizer { width: var(--space-2); flex: 0 0 var(--space-2); border-left: var(--border-width) solid var(--border-default); cursor: col-resize; touch-action: none; }
 .session-history-resizer:hover { border-color: var(--action-primary); }
 .session-history-resizer:focus-visible { outline: 2px solid var(--action-primary); outline-offset: -2px; }
+
+.join-user-dialog { max-height: calc(100vh - var(--space-8)); overflow: auto; }
+.join-user-field { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-4) 0; }
+.join-user-field input { width: 100%; padding: var(--space-2); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--bg-raised); font: inherit; }
+.join-user-field input:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; }
+.join-user-field input:disabled { color: var(--text-disabled); }
+.join-user-progress { margin: var(--space-4) 0; user-select: text; }
+.join-user-results { max-height: 240px; padding: 0; overflow: auto; list-style: none; user-select: text; }
+.join-user-results li { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) 0; border-bottom: var(--border-width) solid var(--border-default); }
+.join-user-results li span { color: var(--text-muted); }
+.join-user-cleanups { margin: var(--space-4) 0; padding-top: var(--space-3); border-top: var(--border-width) solid var(--border-default); }
+.join-user-cleanups h3 { font-size: var(--text-base); }
+.join-user-cleanup { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin: var(--space-2) 0; }

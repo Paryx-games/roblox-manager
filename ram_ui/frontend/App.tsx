@@ -18,6 +18,7 @@ import { SettingsPage, type SettingsNavigationGuard } from "./SettingsPage";
 import { InventoriesPage } from "./InventoriesPage";
 import { AssetsPage } from "./AssetsPage";
 import { SessionHistory } from "./SessionHistory";
+import { JoinUserDialog } from "./JoinUserDialog";
 import { isSelectAllShortcut, isTextSelectionTarget } from "./lib/selectAllShortcut";
 
 type NavItem = {
@@ -112,6 +113,8 @@ function WindowButton({
 export function App() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyToggle = useRef<HTMLButtonElement>(null);
+  const [joinTarget, setJoinTarget] = useState<number | null | undefined>(undefined);
+  const [joinSelection, setJoinSelection] = useState<Set<number> | null>(null);
   const [activeNav, setActiveNav] = useState<PageName>("Accounts");
   const displayedNav = activeNav;
   const settingsGuardRef = useRef<SettingsNavigationGuard | null>(null);
@@ -367,6 +370,7 @@ export function App() {
           selectedIds={selectedIds}
           setSelectedIds={setSelectedIds}
           prefilledPlaceId={prefilledPlaceId}
+          onJoinUser={(target, ids) => { setJoinSelection(new Set(ids)); setJoinTarget(target); }}
         />
       );
     }
@@ -465,8 +469,11 @@ export function App() {
         <span className="titlebar-version">
           {import.meta.env.VITE_RM_VERSION}
         </span>
-        {update && <button type="button" className="account-button titlebar-update" onClick={() => setIsReleaseDialogOpen(true)}>Update to {updateVersion}</button>}
-        <button ref={historyToggle} className="account-button titlebar-update" type="button" aria-expanded={historyOpen} aria-controls={historyOpen ? "session-history-panel" : undefined} onClick={() => setHistoryOpen(value => !value)}>Session history</button>
+        <div className="titlebar-history-actions">
+          {update && <button type="button" className="account-button titlebar-history-button" onClick={() => setIsReleaseDialogOpen(true)}>Update to {updateVersion}</button>}
+          <button ref={historyToggle} className="account-button titlebar-history-button" type="button" aria-expanded={historyOpen} aria-controls={historyOpen ? "session-history-panel" : undefined} onClick={() => setHistoryOpen(value => !value)}>Session history</button>
+          <button className="account-button titlebar-history-button" type="button" disabled={!accounts.length} onClick={() => { setJoinSelection(null); setJoinTarget(null); }}>Join user</button>
+        </div>
         <div className="window-controls" aria-label="Window controls">
           <WindowButton
             label="Minimize"
@@ -547,6 +554,7 @@ export function App() {
         </div>
       </Popup>}
       {runtimeToast && <Toast item={runtimeToast} onDismiss={() => setRuntimeToast(null)} />}
+      {joinTarget !== undefined && <JoinUserDialog accounts={accounts} selectedIds={joinSelection ?? selectedIds} initialTarget={joinTarget ?? undefined} onClose={() => setJoinTarget(undefined)} />}
       {startup?.legacyMigrationAvailable && !isMigrationDismissed ? <ConfirmModal title="Import older RM data?" message="Copy accounts and settings from an older RM installation. The original files stay where they are, and your existing RM data won’t be overwritten." confirmLabel={isStartupPending ? "Importing..." : "Import data"} confirmDisabled={isStartupPending} confirmIcon="import" onConfirm={() => void completeStartup(migrateLegacyData)} onCancel={() => setIsMigrationDismissed(true)} /> : isTourVisible ? <Walkthrough
         stepIndex={tutorialStep}
         isPageReady={displayedNav === walkthroughSteps[tutorialStep].page}

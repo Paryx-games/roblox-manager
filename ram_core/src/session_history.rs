@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::Path};
 
 pub const MAX_EVENTS: usize = 10_000;
+type ModerationFingerprint = (bool, Option<String>, Option<DateTime<Utc>>);
 const MAX_FILE_BYTES: u64 = 32 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -49,7 +50,7 @@ pub struct History {
     pub loaded: bool,
     pub error: Option<String>,
     presence: HashMap<u64, Presence>,
-    moderation: HashMap<u64, (bool, Option<String>, Option<DateTime<Utc>>)>,
+    moderation: HashMap<u64, ModerationFingerprint>,
     next_id: u64,
 }
 

@@ -46,7 +46,6 @@ import {
   refreshAccountPresence,
   revalidateAccounts,
   killAllAccounts,
-  joinUserGame,
   arrangeAccountWindows,
   createAccountGroup,
   deleteAccountGroup,
@@ -565,10 +564,12 @@ export function AccountsPage({
   selectedIds,
   setSelectedIds,
   prefilledPlaceId,
+  onJoinUser,
 }: {
   selectedIds: Set<number>;
   setSelectedIds: Dispatch<SetStateAction<Set<number>>>;
   prefilledPlaceId?: number;
+  onJoinUser: (targetUserId: number, accountIds: number[]) => void;
 }) {
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryConfirmation, setRecoveryConfirmation] = useState("");
@@ -1587,34 +1588,12 @@ export function AccountsPage({
 
   async function joinTargetGame(targetUserId: number) {
     if (!selectedAccount || mutationLoading || connectionRequestPending.current) return;
-    connectionRequestPending.current = true;
-    setMutationLoading(true);
-    try {
-      await joinUserGame(selectedAccount.userId, targetUserId);
-      setNotice(`Joining user ${targetUserId}’s game as ${selectedAccount.label}. Check Instances for progress.`);
-    } catch {
-      setNotice("Roblox could not join the target user's game. The user may be offline, in a private server, or have join permissions that exclude this account.");
-    } finally {
-      connectionRequestPending.current = false;
-      setMutationLoading(false);
-    }
+    onJoinUser(targetUserId, [selectedAccount.userId]);
   }
 
   async function joinSelectedTargetGame(targetUserId: number) {
     if (!selectedIds.size || mutationLoading || connectionRequestPending.current) return;
-    connectionRequestPending.current = true;
-    setMutationLoading(true);
-    try {
-      const results = await Promise.allSettled([...selectedIds].map((userId) => joinUserGame(userId, targetUserId)));
-      if (results.some((result) => result.status === "rejected")) {
-        setNotice("Some accounts couldn’t join this game. Check Instances and server access before retrying; some may already be starting.");
-      } else {
-        setNotice("Joining the game with your selected accounts. Check Instances for progress.");
-      }
-    } finally {
-      connectionRequestPending.current = false;
-      setMutationLoading(false);
-    }
+    onJoinUser(targetUserId, [...selectedIds]);
   }
 
   async function openSelectedBrowsers(inventory = false) {

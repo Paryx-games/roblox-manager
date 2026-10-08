@@ -411,6 +411,7 @@ mod tests {
             launch_queue: Arc::new(tokio::sync::Mutex::new(None)),
             history: Arc::new(Mutex::new(Default::default())),
             history_io: Arc::new(tokio::sync::Mutex::new(())),
+            joins: Arc::new(Default::default()),
             is_shutting_down: Arc::new(Default::default()),
             inventory_fetches: Arc::new(tokio::sync::Semaphore::new(4)),
             inventory_cache: Arc::new(ram_core::cache::ResponseCache::new(
