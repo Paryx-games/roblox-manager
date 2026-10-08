@@ -428,6 +428,7 @@ export function GroupsPage({
               accounts={accounts}
               isLoading={isAccountsLoading}
               mode="multiple"
+              showAllAccounts
               open={pickerOpen}
               onOpenChange={setPickerOpen}
               selectedIds={selectedIds}

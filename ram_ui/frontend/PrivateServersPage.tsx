@@ -480,6 +480,7 @@ export function PrivateServersPage({
                       accounts={accounts}
                       isLoading={isAccountsLoading}
                       mode="multiple"
+                      showAllAccounts
                       open={openPicker === server.index}
                       onOpenChange={(open) =>
                         setOpenPicker(open ? server.index : null)

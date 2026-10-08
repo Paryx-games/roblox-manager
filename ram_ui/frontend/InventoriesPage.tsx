@@ -1,6 +1,7 @@
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { AccountAvatar } from "./components/AccountAvatar";
+import { allAccountsSelected, toggleAllAccounts } from "./lib/accountSelection";
 import { Icon } from "./components/Icon";
 import Select from "./components/Select";
 import { buildInventoryAccountGroups, buildInventoryBrowserTargets, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems, type OwnedInventoryItem, type InventoryComparison, type InventorySort, type InventorySortDirection } from "./lib/inventoryBrowsing";
@@ -467,6 +468,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
         <aside className="inventories-accounts" aria-label="Inventory accounts">
           <h2>Accounts</h2>
           <p>Ctrl-click to select multiple accounts</p>
+          <button className="account-button account-select-all" type="button" disabled={accountsLoading || !accounts.length} aria-pressed={allAccountsSelected(accountIds, accounts.map(account => account.userId))} onClick={() => setAccountIds(toggleAllAccounts(accountIds, accounts.map(account => account.userId)))}><Icon name="accounts" />All accounts</button>
           {isGroupOrderUnavailable && <p role="alert">Saved group order could not be loaded. Reopen this page to retry.</p>}
           {accountsLoading ? <LoadingSkeleton layout="accounts" label="Loading accounts" count={6} /> : accounts.length === 0 ? <p>{error ? "Couldn’t load accounts." : "Add an account in Accounts to browse its inventory."}</p> : accountGroups.map(([group, members], index) => {
             const isCollapsed = collapsedGroups.has(group);

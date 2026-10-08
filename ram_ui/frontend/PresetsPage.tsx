@@ -432,6 +432,7 @@ export function PresetsPage({
                       accounts={accounts}
                       isLoading={isAccountsLoading}
                       mode="multiple"
+                      showAllAccounts
                       open={openPicker === preset.index}
                       onOpenChange={(open) =>
                         setOpenPicker(open ? preset.index : null)

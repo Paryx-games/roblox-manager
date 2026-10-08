@@ -1,6 +1,8 @@
 import type { AccountSummary } from "../lib/ipc";
 
-function initials(account: AccountSummary) {
+export type AccountIdentity = Pick<AccountSummary, "userId" | "username" | "displayName" | "label" | "avatarUrl">;
+
+function initials(account: AccountIdentity) {
   const source = account.displayName || account.username || account.label;
   return source
     .split(/\s+/)
@@ -14,7 +16,7 @@ export function AccountAvatar({
   account,
   className = "shared-account-avatar",
 }: {
-  account: AccountSummary;
+  account: AccountIdentity;
   className?: string;
 }) {
   return (

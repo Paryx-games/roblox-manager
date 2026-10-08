@@ -60,6 +60,7 @@ import {
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
+import { allAccountsSelected, toggleAllAccounts } from "./lib/accountSelection";
 import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
 import { isTextSelectionTarget } from "./lib/selectAllShortcut";
 import Select from "./components/Select";
@@ -1960,6 +1961,7 @@ export function AccountsPage({
                 </button>
               </div>
             )}
+            <button className="account-button account-select-all" type="button" disabled={loading || mutationLoading || !accounts.length} aria-pressed={allAccountsSelected(selectedIds, accounts.map(account => account.userId))} onClick={() => setSelectedIds(toggleAllAccounts(selectedIds, accounts.map(account => account.userId)))}><Icon name="accounts" />All accounts</button>
           </div>
           <div className="accounts-groups">
             {loading && (

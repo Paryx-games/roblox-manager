@@ -59,6 +59,11 @@ Removing the account first is different: re-adding it creates a new entry and do
 
 ### Session history
 
+Multi-account pickers include **All accounts** at the top. Select it to choose
+every available account; select it again to clear those accounts. Accounts and
+Inventories also expose this action above their account lists. Individual
+selection remains available for a smaller set.
+
 Use **Session history** in the title bar from any workspace. The right panel
 reduces the page width and stays open when you change pages. Drag its left edge,
 or focus the separator and use arrow keys, Home or End to resize it.
