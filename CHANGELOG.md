@@ -1,47 +1,36 @@
 # Changelog
 
-## Unreleased
+## v2.2.0
 
 ### Added
 
-- Multi-account selectors offer an All accounts action, with the same select/clear action in Accounts and Inventories.
-
-- Added session history on every workspace, with a resizable right panel, event color bars, account filtering, memory-only or JSON file storage, and CSV/JSON exports.
-- Added queued game joins by exact username or user ID, using a server visible to any selected account or temporary follow/unfollow with cleanup recovery and cancellation of remaining accounts.
+- **Multi-account selection:** Added an **All accounts** action, with consistent select/clear controls across Accounts and Inventories.
+- **Session history:** Added session history across every workspace, featuring a **resizable right panel**, colour-coded events, account filtering, memory-only or JSON file storage, and **CSV/JSON exports**.
+- **Queued game joins:** Added the ability to join games by **exact username or user ID** across multiple accounts, using a server visible to any selected account or temporary follow/unfollow with cleanup recovery and cancellation support.
 
 ### Changed
 
-- App copy and notifications use hyphens or layout instead of middle-dot separators.
-
-- Session history slides open and closed, exports show a notification, and account filters use the shared multi-account picker. App actions live in the title bar menu, and Join user uses a wider, compact dialog with account selection.
-
-- Startup launch now runs once after unlock using a saved account and Place ID. Startup account checks honor their toggle, and the clipboard privacy toggle clears the clipboard after a successful launch. Automatic MAC rotation runs before the first launch in each RM session, coordinates with manual rotation, requests elevation, and attempts to restore adapter availability on failure.
-
-- Custom Roblox arguments now reach the player with Windows quoting and reserved-parameter validation. FastFlags apply to the selected installation before launches; removed flags restore their original values and unrelated ClientSettings keys are preserved.
-
-- Public Roblox metadata and thumbnails reuse bounded memory caches across workspaces, inventories cache for one minute with an explicit refresh bypass, and overlapping presence refreshes share recent results. Clear application caches now removes these cached responses.
-
-- App messages, buttons and hints use simpler wording, with clearer browser and launch notices, account login guidance, client controls and recovery steps.
+- **Consistent formatting:** App copy and notifications now use hyphens or layout spacing instead of middle-dot separators.
+- **Session history and navigation:** Session history now slides open and closed, exports trigger notifications, and account filters use the shared multi-account picker. App actions have moved to the **title bar menu**, while Join user now uses a wider, more compact dialog with account selection.
+- **Startup and privacy controls:** Startup launch now runs once after unlock using a saved account and Place ID. Startup account checks respect their toggle, and clipboard privacy clears the clipboard after a successful launch. **Automatic MAC rotation** runs before the first launch in each RM session, coordinates with manual rotation, requests elevation, and attempts to restore adapter availability if rotation fails.
+- **Roblox launch configuration:** Custom Roblox arguments now reach the player with proper **Windows argument quoting** and reserved-parameter validation. **FastFlags** apply to the selected installation before launching, removed flags restore their original values, and unrelated ClientSettings keys remain untouched.
+- **Caching and performance:** Public Roblox metadata and thumbnails now use **bounded shared memory caches**. Inventories cache for one minute with an explicit refresh bypass, while overlapping presence refreshes reuse recent results. **Clear application caches** now removes these cached responses.
+- **Interface clarity:** Simplified app messages, buttons, and hints, with clearer browser and launch notifications, account login guidance, client controls, and recovery instructions.
 
 ### Fixed
 
-- Changing account selection during an inventory refresh keeps the refresh pending until the current selection finishes loading, so newly selected inventories bypass their cache.
-
-- Editing a display name clears errors from the previous submission and resets the input's invalid state while preserving successful account notices.
-
-- Group icons, announcements and account creation dates coordinate requests per ID, so an unrelated request can complete while another ID is loading. Missing values and oversized images remain uncached.
-
-- Requests for unrelated avatar, game-icon and asset-thumbnail IDs no longer wait for another cache batch to finish; overlapping batches share results without duplicate per-ID fetches.
-
-- Inventory cache requests coordinate per account and credential revision, with up to four independent network fetches at a time. Accepted asset uploads invalidate cached inventories, and store unlock clears account caches.
-
-- Saved-text suggestions and automatic form-data saving are disabled throughout RM, including embedded Roblox login and browser windows.
-- Display names are verified only when submitting an edited name. Rejections highlight the field and explain moderation, invalid characters, mixed character sets, length, cooldown, rate limits, authentication or service failures separately; successful changes show a radial "Display name verified" notice.
-- The title-bar update action shows the available version with added padding and opens a confirmation dialog before sending users to GitHub's latest release in their default browser.
-- Visibility loading waits for account selection to settle, reducing redundant Roblox requests during multi-selection.
-- Display-name changes accepted by Roblox but not saved locally now keep a persistent warning with refresh guidance instead of an expiring success notice.
-- Discord notification failures distinguish unreadable webhook credentials from notification-preference errors and failed background tasks.
-- The selected Roblox visibility audience remains visibly marked while saving or when Roblox no longer allows that choice.
+- **Inventory selection:** Changing account selection during an inventory refresh now keeps the refresh pending until the current selection finishes loading, ensuring newly selected inventories bypass their cache.
+- **Display-name editing:** Editing a display name now clears errors from previous submissions and resets the input's invalid state without removing successful account notices.
+- **Group metadata requests:** Group icons, announcements, and account creation dates now coordinate requests **per ID**, allowing unrelated requests to complete independently. Missing values and oversized images remain uncached.
+- **Thumbnail request concurrency:** Requests for unrelated avatar, game-icon, and asset-thumbnail IDs no longer wait for other cache batches. Overlapping batches share results without duplicate per-ID fetches.
+- **Inventory caching:** Requests now coordinate per account and credential revision, supporting **up to four concurrent network fetches**. Accepted asset uploads invalidate cached inventories, and unlocking the store clears account caches.
+- **Form privacy:** Disabled saved-text suggestions and automatic form-data saving throughout RM, including embedded Roblox login and browser windows.
+- **Display-name validation:** Names are now verified only when submitting an edited value. Rejected names highlight the field and provide **specific error explanations** for moderation, invalid characters, mixed character sets, length restrictions, cooldowns, rate limits, authentication issues, and service failures. Successful changes display a radial **"Display name verified"** notice.
+- **Update notifications:** The title-bar update action now displays the available version with improved padding and opens a **confirmation dialog** before directing users to the latest GitHub release in their default browser.
+- **Visibility request handling:** Visibility loading now waits for account selection to settle, reducing redundant Roblox requests during multi-selection.
+- **Display-name synchronisation:** Changes accepted by Roblox but not saved locally now display a **persistent warning with refresh guidance**, rather than a temporary success notice.
+- **Discord notifications:** Failures now distinguish unreadable webhook credentials from notification-preference errors and failed background tasks.
+- **Visibility selection:** The selected Roblox visibility audience remains visibly marked while saving or when Roblox no longer permits that choice.
 
 ## v2.1.0
 
