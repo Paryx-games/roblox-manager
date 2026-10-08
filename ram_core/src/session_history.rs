@@ -158,6 +158,8 @@ impl History {
 
     pub fn clear(&mut self) {
         self.events.clear();
+        self.presence.clear();
+        self.moderation.clear();
         self.generation += 1;
     }
 }
@@ -270,11 +272,36 @@ mod tests {
         history.observe_moderation(1, None, now);
         assert_eq!(history.events.len(), 1);
     }
+
+    #[test]
+    fn clearing_reestablishes_presence_and_active_moderation_baselines() {
+        let mut history = History::default();
+        let now = Utc::now();
+        let current = presence(2, Some(1));
+        let moderation = ModerationInfo {
+            is_banned: true,
+            ..Default::default()
+        };
+        history.observe_presence(1, &current, now);
+        history.observe_moderation(1, Some(&moderation), now);
+        history.clear();
+        assert!(history.events.is_empty());
+        history.observe_presence(1, &current, now);
+        history.observe_moderation(1, Some(&moderation), now);
+        assert_eq!(
+            history
+                .events
+                .iter()
+                .map(|event| &event.kind)
+                .collect::<Vec<_>>(),
+            vec![&EventKind::Observed, &EventKind::Moderated]
+        );
+    }
     #[test]
     fn encrypted_roundtrip_and_backup_recovery() {
         let dir = std::env::temp_dir().join(format!("rm-history-{}", uuid::Uuid::new_v4()));
         let path = dir.join("history.dat");
-        let session = crypto::create_password_session("synthetic-history-password").unwrap();
+        let session = crypto::create_password_session(&uuid::Uuid::new_v4().to_string()).unwrap();
         let mut history = History::default();
         history.observe_presence(7, &presence(2, Some(10)), Utc::now());
         save(&path, &history.events, &session).unwrap();
@@ -284,7 +311,7 @@ mod tests {
             .contains("observedAt"));
         storage::atomic_swap(&path, b"corrupt").unwrap();
         assert_eq!(load(&path, &session).unwrap().len(), 1);
-        let wrong = crypto::create_password_session("other-synthetic-password").unwrap();
+        let wrong = crypto::create_password_session(&uuid::Uuid::new_v4().to_string()).unwrap();
         assert!(load(&path, &wrong).is_err());
         std::fs::remove_dir_all(dir).unwrap();
     }
