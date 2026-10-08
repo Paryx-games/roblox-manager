@@ -1,370 +1,353 @@
 # Developer & AI Agent Guide for RM (Roblox Manager)
 
-## Pre-task acknowledgement (required)
+RM is a native Windows desktop app for multi-account Roblox management. It has a Rust core (`ram_core`) and a Tauri + React/TypeScript UI (`ram_ui`). It stores live Roblox credentials, so the Security rules below are mandatory.
 
-Before beginning repository work, briefly acknowledge that this file has been read and that its instructions will be followed.
+- Upstream: `https://github.com/Paryx-games/roblox-manager` (MIT)
+- User docs: `https://roblox-manager.gitbook.io/docs` (index at `/docs/llms.txt`, every page has a `.md` version and supports `?ask=<question>`). Check there before re-explaining a documented feature.
+- Target: Windows 10/11 only. Do not add cross-platform code paths unless asked.
+- Stack: Rust stable (edition 2021), Tauri 2.x, React 18+ with TypeScript, Vite. Exact crate and package versions live in `Cargo.toml` and `ram_ui/package.json`.
+- Package managers: always `cargo` and `pnpm`. Never hand-edit `Cargo.lock` or `pnpm-lock.yaml`.
 
-Use:
+## Before you start a task
 
-> Understood pre-task rules
+State in one or two lines which rules apply to this task and your plan, for example: "touches `crypto.rs`, so security rules and a PR callout apply; plan: ...". Do this before editing files or running commands. Then read what the lookup table says you need.
 
-or a close equivalent. This acknowledgement is required before editing files, running commands, or making other repository changes. **The security rules under Agent Guidelines § 5 are non-negotiable - RM stores live Roblox credentials, so treat that section as load-bearing, not advisory.** **If your task touches any UI code (`ram_ui/frontend/`), you must also read `DESIGN.md` and `ram_ui/frontend/tokens.css` before writing a component - see Agent Guidelines § 10.** **If your task involves opening a pull request, you must also read [PR_CONVENTIONS.md](PR_CONVENTIONS.md) before writing the PR description.**
+| If the task touches...                              | Read first                                           |
+| --------------------------------------------------- | ---------------------------------------------------- |
+| anything in `ram_ui/frontend/`                      | `DESIGN.md`, `tokens.css`, `styles.css`              |
+| opening a PR                                        | `PR_CONVENTIONS.md`                                  |
+| commit messages                                     | `CONVENTIONAL_COMMITS.md`                            |
+| version numbers or releases                         | `VERSIONING.md`, `docs/developers/releasing.md`      |
+| cookies, auth, crypto, storage, redaction, process  | Security rules below                                 |
+| a vulnerability                                     | `SECURITY.md` (never a public issue)                 |
 
-## Currently important news (required read)
+## Current state
 
-- **UI architecture:** RM uses Tauri + React/TypeScript and implements the active workflows described in the user guides. Some unfinished settings are documented in `docs/guides/settings.md`. The retired egui application has been removed; its source remains available in Git history.
-- **`ram_core` is read-only by default.** The only standing exception is a behaviour-preserving extraction of existing reusable logic from `ram_ui/src-tauri` into `ram_core`, subject to every condition below. This policy does not authorise performing an extraction by itself; the current task must explicitly request that extraction. General UI work, cleanup, feature parity, or permission to edit this policy does not qualify.
-- **Active source ownership:** Desktop browser and Windows startup helpers live under `ram_ui/src-tauri/src/`. React components and shared styles, including `tokens.css`, live under `ram_ui/frontend/`. The retired `ram_ui` Rust crate is no longer a workspace member.
+- The UI is Tauri + React/TypeScript. The old egui app is removed (available in Git history).
+- Unfinished settings are documented in `docs/guides/settings.md`.
+- Desktop browser and Windows startup helpers live under `ram_ui/src-tauri/src/`. React components and shared styles (including `tokens.css`) live under `ram_ui/frontend/`.
+- The retired egui `ram_ui` Rust crate is no longer a workspace member. If you find references to it, they are stale.
+- `ram_core` is open for normal development. Follow the core rules below.
 
-### Limited core extraction policy
+## Repository layout
 
-All conditions are mandatory. If any condition cannot be met, stop the affected extraction and request explicit approval for the specific additional scope. Do not infer an exception from a deadline, migration work, failing checks, or convenience.
+Top-level only; see the repo for the rest.
 
-1. **Existing logic only:** Identify the existing Tauri functions being extracted, their destination, callers, and observable behaviour before editing. Extract one cohesive operation per change. No new features, unrelated fixes, speculative abstractions, broad cleanup, or wholesale core rewrites.
-2. **Minimum diff:** Only add the extracted operation, the minimum supporting types/exports, focused tests, and the Tauri delegation needed to use it. Reuse existing core operations where possible. Remove the replaced Tauri implementation rather than maintaining a second copy. Do not reorganise existing core modules or rename unrelated APIs.
-3. **Preserve behaviour:** Keep existing public core APIs and callers compatible. Preserve results, errors, validation, ordering, timing, retry rules, cancellation, concurrency guarantees, rollback, and persistence behaviour. Do not change on-disk formats, paths, schema versions, defaults, endpoints, authentication methods, process semantics, or dependency manifests/lockfiles under this exception.
-4. **Protect security implementations:** Do not modify existing implementations in `crypto.rs`, `storage.rs`, `redact.rs`, `auth.rs`, or `process.rs` under this exception. Extracted operations may call their existing public APIs. Any change to those implementations requires separate, explicit task authorisation identifying the affected behaviour. Agent Guidelines § 5 remains mandatory; this exception never permits weakening security protections or extending secret exposure.
-5. **Keep the boundary:** Core code must remain independent of Tauri, React, WebView2, windows/events belonging to the UI host, frontend DTOs, and `AppState`. Keep IPC validation, commands, event emission, frontend error shaping, window lifecycle, and browser cookie capture in `src-tauri`. Do not move `login.rs` wholesale into core or pass secrets to the frontend to simplify an extraction.
-6. **Evidence before completion:** Add focused tests for preserved success/failure behaviour and relevant rollback or stale-state cases, using synthetic data only. Run the full pre-commit verification sequence. For account, credential, storage, launch, or process workflows, also complete the applicable Windows manual verification before marking the extraction complete. If verification is unavailable or fails, report the limitation and leave the extraction incomplete; do not claim equivalence from compilation alone.
-7. **Reviewable scope:** In the PR description, name the extracted operations and changed core files, explain why each belongs in core, state that existing public APIs and security implementations are preserved, and record automated/manual verification and any outstanding checks. Any behaviour change or broader core work requires separate explicit authorisation and must not be disguised as extraction.
-
-## Project Overview
-
-**RM (Roblox Manager)** is a fast, lightweight, native Windows desktop application built with a **Rust core** and a **Tauri + React/TypeScript** UI. It provides comprehensive Roblox multi-account management, secure credential storage, multi-instance game launching, automated window tiling, live presence tracking, group management, asset uploading, and anti-association privacy features.
-
-- **Upstream Repository**: `https://github.com/Paryx-games/roblox-manager`
-- **Docs Site**: `https://roblox-manager.gitbook.io/docs` (llms.txt index at `/docs/llms.txt` - every page has a `.md` version and supports `?ask=<question>` for live querying)
-- **License**: MIT
-- **Primary Target OS**: Windows 10 / 11 (uses Win32 APIs, Windows Credential Manager, and Tauri's WebView2-based webview)
-- **Rust Edition**: 2021 (Rust stable)
-- **Frontend**: React 18+ with TypeScript, built with Vite
-
-> **Core ownership:** Core behaviour remains frozen; only explicitly requested extractions meeting the Limited core extraction policy above are permitted.
-
----
-
-## Tech Stack & Key Crates
-
-| Category                       | Technology / Crates                                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| **Desktop Shell**              | `tauri` (2.x), `tauri-plugin-*` as needed (dialog, fs, shell)                                           |
-| **Frontend**                   | React 18+, TypeScript, Vite, `stylelint` (design-token enforcement - see Design System below)           |
-| **Async Runtime & Networking** | `tokio` (1.x, full), `reqwest` (0.13 with json & cookies)                                               |
-| **Serialization & Errors**     | `serde` (1.x derive), `serde_json` (1.x), `thiserror` (2.x)                                             |
-| **Cryptography & Security**    | `aes-gcm` (0.10, AES-256-GCM), `argon2` (0.5, Argon2id), `sha2`, `rand`, `keyring` (3.x windows-native) |
-| **Windows System & APIs**      | `windows-sys` (0.59: Process, Threading, Diagnostics, Security, UI, DWM), `sysinfo` (0.32)              |
-| **Logging & Diagnostics**      | `tracing` (0.1), `tracing-subscriber` (0.3), `tracing-appender` (0.2 daily rolling)                     |
-| **Native Dialogs**             | Tauri's `dialog` plugin (replaces `rfd`)                                                                |
-
-Always use `cargo` for anything crate/build-related - never hand-edit `Cargo.lock`. Always use `pnpm` for anything frontend-package-related - never hand-edit `pnpm-lock.yaml`.
-
----
-
-## Workspace & Project Architecture
-
-The project is structured as a Cargo workspace with two main pieces: a headless core crate, and a Tauri app containing both the Rust command layer and the React frontend.
-
-```
-robloxmanager/
-├── Cargo.toml                 # Workspace manifest & dependencies - SOURCE OF TRUTH FOR VERSION
-├── CHANGELOG.md                # User-facing changes, grouped by ## vX.Y.Z release
-├── SECURITY.md                 # Vulnerability reporting - use this, not public issues
-├── CONVENTIONAL_COMMITS.md     # Commit message format reference
-├── VERSIONING.md               # SemVer policy reference
-├── PR_CONVENTIONS.md           # PR title/description/checklist spec - REQUIRED READ before opening a PR
-├── DESIGN.md                  # UI design system spec - REQUIRED READ before any UI change
-├── .github/workflows/release.yml # Tag-triggered release pipeline (v* tags only)
-├── assets/                    # Static assets (e.g. Logo.png, assets/icons for all icon use - see DESIGN.md § Icons)
-├── ram_core/                  # Headless core library - read-only except for authorised limited extractions
-│   ├── Cargo.toml
-│   ├── src/
-│   │   ├── lib.rs             # Core crate root & exports
-│   │   ├── models.rs          # Data models: Account, AccountStore, AppConfig, LaunchPreset, etc.
-│   │   ├── crypto.rs          # Envelope encryption (Device & Password modes), Argon2id, AES-256-GCM
-│   │   ├── storage.rs         # Crash-safe atomic persistence (atomic_write, atomic_swap, .bak)
-│   │   ├── auth.rs            # RobloxClient with per-cookie CSRF token caching & exponential backoff
-│   │   ├── api.rs             # Roblox REST APIs (avatars, presence, place info, user profiles)
-│   │   ├── group_api.rs       # Roblox group announcements and forums
-│   │   ├── accounts.rs        # Reusable account validation and merge rules
-│   │   ├── assets.rs          # Asset Manager data structures, state machines, validation
-│   │   ├── assets_api.rs      # Roblox Open Cloud & Asset upload APIs
-│   │   ├── multipart.rs       # Custom multipart body encoder for uploads
-│   │   ├── instances.rs       # InstanceRegistry & exact launchtime token attribution
-│   │   ├── presets.rs         # Per-file preset persistence (presets/<slug>.json)
-│   │   ├── process.rs         # Win32 process discovery, singleton mutex holding, game launching, window tiling
-│   │   ├── redact.rs          # Log redaction rules (cookies, auth tickets, CSRF tokens, user paths)
-│   │   └── error.rs           # CoreError definitions
-│   └── tests/
-│       └── device_store.rs    # Integration tests for Windows Credential Manager / Device store
-└── ram_ui/                    # Tauri application
-    ├── src-tauri/              # Rust side: Tauri commands, window/tray setup, calls into ram_core
-    │   ├── Cargo.toml
-    │   ├── tauri.conf.json
-    │   └── src/
-    │       ├── main.rs         # Entry point, CLI dispatcher, logger setup
-    │       ├── accounts.rs     # Account commands and credential validation
-    │       ├── instances.rs    # Running client attribution and process actions
-    │       ├── launcher.rs     # Shared launch coordination and pacing
-    │       ├── asset_manager.rs # Developer creation and upload commands
-    │       ├── lifecycle.rs    # Startup, migrations and recovery
-    │       ├── login.rs        # Isolated Tauri login window
-    │       ├── browser_login.rs # Isolated browse-as subprocess and compatibility login mode
-    │       ├── startup.rs      # Windows startup registration
-    │       └── state.rs        # Managed app state (account store handle, instance registry, etc.)
-    └── frontend/               # Active React/TypeScript frontend
-        ├── main.tsx            # Entry point
-        ├── App.tsx             # Root shell, 40px title bar, 56px navigation rail and routed pages
-        ├── tokens.css           # Shared color, typography, spacing and motion tokens
-        ├── styles.css           # Tailwind import, theme mapping and page/component styling
-        ├── components/          # Account picker, custom select, popups, tooltips, icons and loading skeletons
-        ├── *Page.tsx            # Accounts, Instances, Groups, Private Servers, Presets, Inventories, Assets, Settings
-        ├── lib/
-        │   └── ipc.ts            # Typed wrappers around Tauri commands
-        └── hooks/                # Shared React hooks (e.g. live presence subscription)
+```text
+roblox-manager/
+├── Cargo.toml        # workspace manifest, source of truth for the version
+├── CHANGELOG.md
+├── DESIGN.md         # UI design system
+├── PR_CONVENTIONS.md
+├── assets/           # static assets, assets/icons for all icons
+├── docs/             # guides and developer docs
+├── ram_core/         # headless core library, no UI dependencies
+│   ├── src/          # models, crypto, storage, auth, api, process, redact, error, ...
+│   └── tests/        # integration tests (e.g. device_store.rs)
+└── ram_ui/
+    ├── src-tauri/    # tauri commands, window/tray setup, calls into ram_core
+    └── frontend/     # React/TypeScript UI, tokens.css, styles.css, components/, lib/ipc.ts
 ```
 
----
+### Module map
 
-## Core Concepts & Architectural Patterns
+`ram_core/src/`:
 
-### 1. Separation of Core, Command Layer, and UI
+- `lib.rs` crate root and exports, `error.rs` `CoreError`
+- `models.rs` Account, AccountStore, AppConfig, LaunchPreset, etc.
+- `crypto.rs` envelope encryption (Device and Password modes), Argon2id, AES-256-GCM
+- `storage.rs` crash-safe persistence (`atomic_write`, `atomic_swap`, `.bak`)
+- `auth.rs` `RobloxClient` with per-cookie CSRF token caching and exponential backoff
+- `api.rs` Roblox REST APIs (avatars, presence, place info, user profiles)
+- `group_api.rs` group announcements and forums
+- `accounts.rs` reusable account validation and merge rules
+- `assets.rs` Asset Manager data structures, state machines, validation
+- `assets_api.rs` Open Cloud and asset upload APIs, `multipart.rs` custom multipart encoder
+- `instances.rs` `InstanceRegistry` and exact launchtime token attribution
+- `presets.rs` per-file preset persistence (`presets/<slug>.json`)
+- `process.rs` Win32 process discovery, singleton mutex holding, launching, window tiling
+- `redact.rs` log redaction rules (cookies, auth tickets, CSRF tokens, user paths)
 
-- `ram_core` contains zero UI dependencies. Pure logic, cryptographic operations, Roblox HTTP communication, and Win32 process manipulation belong in `ram_core`. **Existing core behaviour and module boundaries remain protected by the Limited core extraction policy above.** Correcting misplaced Tauri logic requires an explicitly requested, narrowly scoped extraction, not a domain-layer rewrite.
-- `ram_ui/src-tauri` hosts `#[tauri::command]` handlers in feature modules and `main.rs` that call into `ram_core` and return serializable results (or emit events) to the frontend. Commands should stay thin - business logic belongs in `ram_core`, not in a command handler.
-- `ram_ui/frontend` (React/TypeScript) is the presentation layer. It calls into the Rust side exclusively through typed wrappers in `lib/ipc.ts`, never with ad hoc inline `invoke()` calls scattered through components.
-- Long-running or streaming operations (presence polling, launch progress, asset upload progress) use Tauri's event system (`emit`/`listen`) from a command or background task, rather than the frontend polling a command in a loop.
+`ram_ui/src-tauri/src/`:
 
-### 2. Envelope Encryption & Storage Modes
+- `main.rs` entry point, CLI dispatcher, logger setup
+- `accounts.rs` account commands and credential validation
+- `instances.rs` running client attribution and process actions
+- `launcher.rs` shared launch coordination and pacing
+- `asset_manager.rs` developer creation and upload commands
+- `lifecycle.rs` startup, migrations, recovery
+- `login.rs` isolated Tauri login window
+- `browser_login.rs` isolated browse-as subprocess and compatibility login mode
+- `startup.rs` Windows startup registration
+- `state.rs` managed app state (account store handle, instance registry, etc.)
 
-- Accounts and cookies are never stored in plaintext on disk.
-- **Envelope Encryption**: The account store (`accounts.dat`) is encrypted with a random 256-bit AES-256-GCM data key. The data key is wrapped in the store header.
-- **Store Modes**:
-  - `StoreMode::Device` (default): Wrapping key is held in the OS Credential Store (`Windows Credential Manager` via `keyring`). Protects cookies against theft of the encrypted store file while unlocking seamlessly on startup without user interaction.
-  - `StoreMode::Password`: Wrapping key is derived via `Argon2id` from a user-supplied master password.
-- **Crash-Safe Persistence**: All file writes (`accounts.dat`, `config.json`, presets) must go through `ram_core::storage::atomic_write`, which writes to a sibling `.tmp-*` file, fsyncs (`sync_all`), creates a `.bak` backup, and atomically renames the file into place.
+`ram_ui/frontend/`:
 
-### 3. Instance Tracking & Launch Attribution
+- `main.tsx` entry, `App.tsx` root shell (currently 36px rendered title bar, 56px navigation rail, routed pages)
+- `tokens.css` shared color, typography, spacing, motion tokens
+- `styles.css` Tailwind import, theme mapping, page and component styling
+- `components/` account picker, custom select, popups, tooltips, icons, loading skeletons
+- `*Page.tsx` Accounts, Instances, Groups, Private Servers, Presets, Inventories, Assets, Settings
+- `lib/ipc.ts` typed wrappers around Tauri commands, `hooks/` shared hooks (e.g. live presence subscription)
 
-- Roblox starts via custom protocol handler (`roblox-player:` URI).
-- RM stamps a unique millisecond token (`+launchtime:<millis>+`) into the launch URI.
-- The spawned `RobloxPlayerBeta.exe` preserves this string in its command line.
-- RM reads the process command line via `OpenProcess` + `ReadProcessMemory` to achieve exact (`Attribution::Exact`) attribution between running PIDs and managed accounts, with fallback to FIFO appearance-order (`Attribution::Inferred`).
+This list can drift. If it disagrees with the repo, trust the repo and fix this file.
 
-### 4. Multi-Instance & Window Management
+## Architecture
 
-- **Multi-Instance**: Creates and holds both `ROBLOX_singletonMutex` and the legacy `ROBLOX_singletonEvent` in RM's process, preventing Roblox from acquiring its singleton lock exclusively. RM does not close mutex handles in Roblox processes.
-- **Window Tiling**: Automatically queries monitor geometry and positions/sizes running Roblox windows into a clean grid layout upon launch.
-- **Privacy Mode**: Clears `%LOCALAPPDATA%\Roblox\LocalStorage\RobloxCookies.dat` before launching to prevent Roblox from linking browser cookies to the launcher account.
+### Where code goes
 
-### 5. Tauri Webview Architecture
+- `ram_core`: pure logic, cryptography, Roblox HTTP, Win32 process work, persistence. No dependency on Tauri, React, WebView2, frontend DTOs, or `AppState`.
+- `ram_ui/src-tauri`: thin `#[tauri::command]` handlers, event emission, IPC validation, window lifecycle, browser cookie capture, and safe error shaping for the frontend. Business logic belongs in `ram_core`, not in a handler.
+- `ram_ui/frontend`: presentation only. It talks to Rust through the typed wrappers in `lib/ipc.ts`, never ad hoc `invoke()` calls in components.
+- Long-running or streaming work (presence polling, launch progress, upload progress) uses Tauri events (`emit`/`listen`), not frontend polling.
+- Never block the command thread on network, heavy disk I/O, Win32 work, or credential-store work. Use async handlers for async I/O and `tauri::async_runtime::spawn_blocking` for blocking work. Use spawned background tasks only when the work genuinely outlives one command. On the frontend every IPC call is async and components handle pending and error states explicitly.
+- Surface frontend errors through the page's visible error, retry, or toast behavior, never a console-only failure.
 
-- Tauri hosts the React frontend in a single managed WebView2 instance per window - there is no separate subprocess re-exec dance for the main UI.
-- For flows that previously required a dedicated WebView2 child process (embedded Roblox login, "browse as" account), evaluate whether a Tauri secondary window (a second `WebviewWindow`) meets the need before reaching for a separate re-exec'd process. A secondary window is simpler and stays inside Tauri's lifecycle management; only fall back to a re-exec'd child process if there's a concrete isolation requirement a secondary window can't satisfy, and document why.
-- Regardless of which approach is used, this remains a **security boundary** - see Agent Guidelines § 5.
+### Concurrency and task ownership
 
-### 6. Secret Redaction & Logging
+- `AppState.runtime`, `pending_additions`, and `instances` use `std::sync::Mutex`. Keep those guards short and **never carry a synchronous mutex guard across an `.await`**. Copy or clone the data needed for async work, release the guard, then await.
+- Blocking filesystem, Win32, dialog, and credential-store work belongs in `tauri::async_runtime::spawn_blocking`; network work stays async.
+- `account_refresh` and `launch_queue` use `tokio::sync::Mutex` for async coordination. Holding an async mutex across an `.await` is allowed only when serialising the whole operation is the point. `launch_queue` intentionally does this for launch pacing. Do not mechanically replace synchronous state locks with async locks.
+- Every spawned long-lived task needs an owner and a shutdown story. App-wide loops are owned by `BackgroundTasks` and are aborted on `stop`/`Drop`. Feature tasks must be cancellable or cleaned up when their owning window/state goes away.
+- After an `.await`, assume state may have changed. Before committing results, re-check relevant invariants such as the account still existing, the credential revision still matching, the selected asset/account still owning the operation, and shutdown not having started.
+- For operations with multiple side effects, decide the partial-failure and rollback behaviour before coding. Prefer candidate-state/commit patterns so a failed save does not leave memory and disk disagreeing.
 
-- RM writes daily rotating logs (`%APPDATA%\RM\rm.<YYYY-MM-DD>.log`).
-- `ram_core::redact::scrub` and `ScrubbingWriter` intercept all log output at write-time, automatically replacing `.ROBLOSECURITY` cookies, `gameinfo:` tickets, CSRF tokens, and Windows username paths with `<redacted>`.
-- This applies equally to anything logged from `src-tauri` command handlers - a command that logs its own error context is bound by the same redaction discipline as `ram_core`.
+### Core rules
 
----
+- Keep existing public core APIs compatible unless the task calls for a change. If you break one, update every caller in the same change.
+- Do not change on-disk formats, paths, schema versions, or defaults without a migration and an explicit mention in the PR.
+- Prefer small, targeted changes. No drive-by refactors.
+- Changes to `crypto.rs`, `storage.rs`, `redact.rs`, `auth.rs`, or `process.rs` need focused tests with synthetic data and a callout in the PR description. Never weaken the protections they provide.
+- Core errors use `ram_core::error::CoreError` (`thiserror`). `src-tauri` maps them to safe serializable errors for the frontend (currently usually `Result<_, String>`), without leaking secrets or unnecessary internal detail.
 
-## Design System (required read for any UI work)
+### Encryption and storage
 
-RM's frontend uses a shared CSS design system. Before writing or modifying
-anything in `ram_ui/frontend`:
+- Accounts and cookies are never stored in plaintext. `accounts.dat` is encrypted with a random AES-256-GCM data key wrapped in the store header.
+- `StoreMode::Device` (default): wrapping key lives in Windows Credential Manager via `keyring`. `StoreMode::Password`: wrapping key is derived with Argon2id from a master password.
+- All writes of persisted state (`accounts.dat`, `config.json`, presets) go through `ram_core::storage::atomic_write` or `atomic_swap`, including from `src-tauri`. No bare `std::fs::write` on state files.
 
-1. Read **`DESIGN.md`** in full.
-2. Read **`ram_ui/frontend/tokens.css`** - the source of shared visual tokens for
-   color, spacing, radius, border-width, and motion value in the app.
+### Persistence and migration rules
 
-The short version, expanded fully in that doc:
+There is **no single repository-wide schema version**. Use the compatibility mechanism of the format you are changing.
 
-- **Desktop shell**: the main window opens at 1200 x 760 and has the same
-  minimum size, with a 40px title bar and a 56px navigation rail. See DESIGN.md.
-- **Status color is reserved** for live account/instance/process state
-  only - never decoration, never a button.
-- **No shadows, one radius, one border weight**, everywhere.
-- **Typography**: use the Roboto sans-serif token for interface text.
-- **Use shared tokens and existing components** where they fit. `styles.css`
-  contains the active frontend styling and maps a small set of tokens into
-  Tailwind utilities; most page styling uses named CSS classes.
-- Every interactive component needs its full interaction-state set
-  (hover/focus/active/disabled/loading, as applicable) - see
-  DESIGN.md § Interaction states.
-- Use the local icon component and icon assets; do not use emoji as interface icons.
+- `config.json` is `AppConfig` JSON. New compatible fields normally use `#[serde(default)]` or a default function and are added to `Default`. Add a test that loads an older/minimal config. Renames, removals, enum-shape changes, path changes, or default changes that alter existing installs need an explicit migration before the new state is saved.
+- `accounts.dat` has its own envelope format in `crypto.rs` (`RAMSTORE`, currently format v2). Legacy v1 is upgraded only after a successful unlock, and the upgrade is all-or-nothing. Any incompatible account-store format change needs a format-version decision, loader/migration logic, old-format tests, and explicit downgrade behaviour.
+- `AssetIndex` has its own `CURRENT_SCHEMA`; presets and `AppConfig` do not inherit it. Bump a schema only when that format's compatibility semantics require it, not just because a Rust struct gained a field.
+- `atomic_write` preserves the outgoing primary as `<path>.bak`. A migration must define what happens to that backup. When key material changes, use the existing rekey path (`save_rekeyed`) so the backup is also rewritten under the new key instead of remaining readable with retired credentials.
+- Downgrade readability is format-specific and is **not guaranteed**. If an older RM version will be unable to read state written by the new version, make that deliberate, test it where practical, and call it out in the PR/release notes.
+- Migrations must be crash-safe and retry-safe: never destroy the only good copy before the replacement is durable, and avoid a second run duplicating or corrupting migrated data.
+- Migration tests use synthetic old-format data and cover the failure path as well as the happy path. Where backup recovery matters, test the primary and `.bak` behaviour together.
 
-Stylelint blocks raw hex colors and `!important` in frontend CSS. Other
-design-system guidance is checked through code review and manual UI review.
+### Instance tracking and launching
 
-If a task requires a design decision this doc doesn't cover, flag it and
-ask rather than inventing a one-off pattern - a new pattern introduced
-without discussion is exactly what breaks consistency for the next
-contributor.
+- Roblox starts through the `roblox-player:` protocol. RM stamps a `+launchtime:<millis>+` token into the launch URI, and the spawned `RobloxPlayerBeta.exe` keeps it in its command line.
+- RM reads the command line via `OpenProcess` + `ReadProcessMemory` for exact attribution (`Attribution::Exact`), falling back to FIFO appearance order (`Attribution::Inferred`).
+- Multi-instance: RM holds `ROBLOX_singletonMutex` and the legacy `ROBLOX_singletonEvent` in its own process. It never closes mutex handles inside Roblox processes.
+- Window tiling places running Roblox windows into a grid using monitor geometry.
+- Privacy mode clears `%LOCALAPPDATA%\Roblox\LocalStorage\RobloxCookies.dat` before launch.
 
----
+### Webview architecture
 
-## Development & Build Commands
+- Tauri hosts the React UI in one managed WebView2 per window; there is no re-exec subprocess for the main UI.
+- For flows that need isolation (embedded Roblox login, browse-as), try a secondary `WebviewWindow` first. Only use a re-exec'd child process if there is a concrete isolation need a secondary window cannot meet, and document why.
+- Either way this is a security boundary: anything coming out of a login or browse-as window goes through the same redaction and storage rules as everything else.
 
-All commands are run from the workspace root on a Windows host:
+### Logging
+
+- Daily rotating logs at `%APPDATA%\RM\rm.<YYYY-MM-DD>.log`.
+- `ram_core::redact::scrub` and `ScrubbingWriter` redact `.ROBLOSECURITY` cookies, `gameinfo:` tickets, CSRF tokens, and Windows username paths at write time. Command handlers in `src-tauri` are bound by the same rules.
+
+## Security rules
+
+**RM's value is not leaking credentials. Treat this section as mandatory.**
+
+- Never log `.ROBLOSECURITY` cookies, session tickets, master passwords, CSRF tokens, or other credentials.
+- Never put secrets in user-facing errors, debug output, panic messages, `tracing` fields, URLs, query parameters, telemetry, or IPC error payloads. Error variants carry an identifier (account alias, request ID), never the secret. An `Err(CoreError::Auth(format!("request failed: {cookie}")))` is a credential leak, not a convenience. A secret serialized into an IPC error is a leak even if it never hit a log.
+- Keep secrets' lifetimes small. Pass references, scope them to the function that needs them, and do not clone or thread them through unrelated layers. Do not send raw secrets across the IPC boundary when the frontend only needs to know an account is authenticated.
+- Do not weaken, bypass, or remove encryption, credential-store, redaction, or privacy protections unless the task explicitly requires it, and call it out clearly if it does.
+- Treat all of these as untrusted and validate them before use in filesystem paths, process arguments, network requests, or security decisions: Roblox REST/Open Cloud responses, user input, imported presets and config, anything the frontend sends to a command, and anything read via `ReadProcessMemory` (including launch tokens).
+- Launch-attribution tokens (`+launchtime:<millis>+`) and other process data are untrusted: validate their shape before use and never let them reach logs unredacted.
+- Do not replace `aes-gcm`, `argon2`, `sha2`, `rand`, or `keyring`, and do not hand-roll crypto, without explicit approval.
+- When adding a new secret pattern or URI parameter, update `ram_core::redact` in the same change.
+- Never commit credentials, cookies, tokens, account data, logs, or memory dumps. Test fixtures use synthetic values, never real captured ones, even redacted.
+- Secrets reach the clipboard only through an explicit user action, never as a side effect. Prefer copying the least sensitive identifier that does the job (an alias over a cookie).
+
+## Roblox API reliability
+
+Roblox HTTP is a core dependency of RM, but it is still an external contract. Some endpoints are undocumented or change independently of this app. Code as if fields, status bodies, enum values, and rate limits can surprise you.
+
+- Reuse `ram_core::auth::RobloxClient` for cookie-authenticated requests. Do not add a second CSRF cache, retry loop, or ad hoc rate-limit sleep around it.
+- Preserve the existing status distinctions: a `403` with `x-csrf-token` is a CSRF rotation and is retried; a `403` without that challenge becomes `CookieRejected`/`CookieRejectedWithReason`; `429` uses `Retry-After` when present or the existing jittered exponential backoff and eventually becomes `RateLimited`. Do not collapse these into one generic "auth failed" path.
+- Treat `401` and other authentication failures separately from CSRF and rate limiting. Only mark a credential expired when the endpoint/result actually supports that conclusion; do not turn every non-2xx into "cookie expired".
+- Check status before parsing a success payload. Empty bodies, HTML/proxy error pages, malformed JSON, missing optional fields, and newly-added enum values must return a safe error or degrade to an `Unknown`/`Other`-style value where that makes sense; they must never panic.
+- Prefer optional/defaulted fields for data Roblox may omit. For externally controlled enums that can grow, use a catch-all instead of making one unknown value fail the entire response when the feature can continue safely.
+- Do not implement an endpoint from memory. Check the current official documentation where it exists, or a current real response with all secrets and personal data removed before using it as a shape reference.
+- API tests use synthetic responses shaped like the real contract. Include the edge case the code claims to tolerate: missing optional fields, unknown values, empty/non-JSON error bodies, pagination cursors, or partial results as applicable. Never commit captured cookies, auth tickets, CSRF tokens, webhook URLs, or account data.
+- Respect endpoint batch/page limits and existing batching patterns. Do not "fix" rate limits by firing more concurrent requests.
+- A retry inside `RobloxClient` already consumes time. Do not wrap it in another blind retry loop unless the feature has a separate, bounded reason to retry and the combined worst-case delay is understood.
+
+## UI work
+
+**Read `DESIGN.md`, `tokens.css`, and `styles.css` before touching `ram_ui/frontend/`.** Summary:
+
+- Main window is 1200 x 760 (also the minimum), with the current 36px rendered title bar and a 56px navigation rail. `DESIGN.md` records that `--titlebar-height` still says 40px; treat the rendered stylesheet and `DESIGN.md` as authoritative until that stale token is reconciled.
+- Status color is reserved for live account, instance, and process state. Never decoration, never a button.
+- No shadows, one radius, one border weight, Roboto for interface text.
+- Use shared tokens and existing components from `components/`. Do not create a component for a single-use wrapper. `styles.css` maps a small set of tokens into Tailwind utilities, but most page styling uses named CSS classes.
+- Every interactive component needs its full state set (hover, focus, active, disabled, loading as applicable). A button with no focus ring is incomplete.
+- Icons come from `assets/icons` through the local icon component. No emoji as icons.
+- Stylelint blocks raw hex colors and `!important`. The rest is checked in review, so check it yourself.
+- If you need a pattern DESIGN.md does not cover (new card style, new table variant), stop and ask before inventing it.
+- Accessibility is part of UI correctness: follow `DESIGN.md` for keyboard navigation, focus order/visibility, accessible names, reduced motion, contrast/readability, and loading/error semantics. Reuse the behavior already built into shared components instead of reimplementing it per page.
+
+## Commands
+
+Run from the workspace root on Windows (PowerShell).
 
 ```powershell
-# Rust: type check the workspace
-cargo check
-
-# Rust: run lints (strict warnings matching CI)
-cargo clippy --workspace --all-targets -- -D warnings
-
-# Rust: format check (matches CI - run before every commit)
-cargo fmt --all -- --check
-
-# Rust: run all unit and integration tests
-cargo test --workspace
-
-# Frontend: install dependencies
-pnpm --dir ram_ui install
-
-# Frontend: lint (includes design-token enforcement via stylelint)
-pnpm --dir ram_ui lint
-
-# Frontend: type check
-pnpm --dir ram_ui typecheck
-
-# Run the full app in dev mode (Tauri + Vite dev server, hot reload)
-pnpm --dir ram_ui tauri dev
-
-# Build optimized release bundle (outputs an installer + exe under target/release/)
-pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked
+pnpm --dir ram_ui install          # install frontend deps
+pnpm --dir ram_ui tauri dev        # run the app in dev mode
+pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked   # release bundle
+# single tests
+cargo test -p ram_core <test_name>
+cargo test --manifest-path ram_ui/src-tauri/Cargo.toml <test_name>
 ```
 
-### Pre-commit verification sequence
+### Tests
 
-Run these in order before every commit - this is exactly what CI checks, so a clean local pass means a clean PR:
+- Unit tests live in a `#[cfg(test)]` module next to the code, in both `ram_core` and `src-tauri`.
+- Integration tests go in `ram_core/tests/`.
+- New behavior gets a test. Use synthetic data only.
+
+### Verification
+
+Per commit (fast):
 
 ```powershell
 cargo fmt --all -- --check
 cargo check
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-pnpm --dir ram_ui lint
 pnpm --dir ram_ui typecheck
 ```
 
-For UI or launch changes, also manually test on Windows with Roblox installed. Any change touching cookies, encryption, storage, or process control needs explicit mention in the PR description. Any change touching `ram_ui/frontend` needs explicit confirmation it was checked against `DESIGN.md` (see PR template checklist).
+Before pushing or opening a PR (full local verification; covers CI's source checks, packaged Tauri build excluded):
 
----
+```powershell
+pnpm --dir ram_ui version:check
+pnpm --dir ram_ui lint
+pnpm --dir ram_ui typecheck
+pnpm --dir ram_ui test
+pnpm --dir ram_ui build
+cargo fmt --all -- --check
+cargo check --workspace --locked
+cargo test --workspace --all-features --locked
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+```
 
-## Contribution Workflow (fork-based)
+UI, launch, account, credential, storage, and process changes also need manual testing on Windows with Roblox installed. If you cannot do that (cloud agent, no Windows, no Roblox), say so, leave the manual item unchecked in the PR Testing section with an explanation, and do not claim it was verified. That is a reportable limitation, not a blocker for opening the PR.
 
-RM is a Windows-only project. Contributions happen through a GitHub fork and pull request - never push directly to `main` on upstream.
+## Common change recipes
 
-### Set up a fork
+### Add a Tauri command
+
+1. Put the command in the existing feature module when one owns the behaviour; keep business logic in `ram_core`.
+2. Validate every IPC argument before using it in paths, process arguments, URLs, or security decisions.
+3. Keep the handler thin. Await network work normally; move blocking filesystem/Win32/keyring/dialog work into `tauri::async_runtime::spawn_blocking`.
+4. Register the command in `tauri::generate_handler![...]` in `ram_ui/src-tauri/src/main.rs`.
+5. Add or update the typed wrapper in `ram_ui/frontend/lib/ipc.ts`; components do not call `invoke()` directly.
+6. Give the UI explicit pending/success/error behaviour. Use events for long-running progress rather than polling a command.
+7. Add focused Rust tests for validation/business logic and frontend tests where wrapper or UI behaviour changed. Re-check redaction if the command touches credentials, URLs, or external error text.
+
+### Add a persisted field
+
+1. Identify the actual format first: `AppConfig`, encrypted `AccountStore`, `AssetIndex`, or a standalone preset. Do not invent a global schema bump.
+2. Make old data load safely. For compatible JSON additions, add the appropriate serde default and update `Default`; for incompatible changes, write a migration.
+3. Route writes through the format's existing save path (`AppConfig::save`, `crypto::save_store`/`save_rekeyed`, `AssetIndex::save`, preset helpers), which ultimately uses atomic storage.
+4. Decide downgrade behaviour and `.bak` behaviour explicitly if the representation or key material changes.
+5. Add a test that loads synthetic data in the previous shape and proves the new code preserves existing values/defaults correctly.
+
+### Add a frontend page/workspace
+
+1. Read `DESIGN.md`, `tokens.css`, and `styles.css`.
+2. Add the page component and wire it into `App.tsx` using the existing routed-workspace pattern.
+3. Add the navigation-rail entry. If visibility is configurable, update the existing page-visibility model/defaults and the Settings control rather than inventing a second toggle path.
+4. Reuse existing components/tokens and implement loading, empty, error, retry, disabled, and keyboard/focus states that apply.
+5. Add/update IPC wrappers and backend commands only when the page needs new data or actions.
+6. Update the relevant user guide and `CHANGELOG.md` if the workspace or behaviour is user-visible.
+7. Test at the supported minimum window size and record the manual Windows check.
+
+### Add a Roblox endpoint
+
+1. Put general REST work in `api.rs`, group-specific work in `group_api.rs`, and asset/Open Cloud work in `assets_api.rs`.
+2. Verify the current endpoint, method, authentication, request fields, response shape, pagination/batch limits, and documented rate-limit behaviour.
+3. Reuse `RobloxClient` when cookie auth/CSRF applies; do not duplicate its retry logic.
+4. Model the response defensively with optional/defaulted fields and unknown-value handling where safe.
+5. Convert non-success responses into existing `CoreError` categories without leaking response secrets.
+6. Add synthetic parser/behaviour tests, including at least one malformed/partial/unexpected-shape case relevant to the endpoint.
+7. Check redaction before logging any new URL parameter, header, identifier, or error text.
+
+### Add a setting
+
+1. Add the field to `AppConfig` with the correct serde/default behaviour.
+2. Add it to the Tauri settings DTO/update path (`SettingsConfig`/`SettingsUpdate` and conversion/apply code) instead of reading config directly from React.
+3. Add the control to `SettingsPage.tsx` using the existing save/discard/navigation-guard behaviour and design components.
+4. Add/update an info card in `infocards.json` when the setting needs explanation or warning text.
+5. Update `docs/guides/settings.md`.
+6. Add tests for validation/default/back-compat behaviour and update `CHANGELOG.md` when users will notice the capability or behaviour.
+
+## Git and PR workflow
+
+RM uses a fork-based flow. Never push to upstream `main` and never work directly on `main` for a change you plan to submit.
 
 ```powershell
 git clone https://github.com/GITHUB_USERNAME/roblox-manager.git
 cd roblox-manager
 git config core.hooksPath .githooks
 git remote add upstream https://github.com/Paryx-games/roblox-manager.git
-git checkout -b your-feature-name
-```
-
-After cloning any RM repository, configure `core.hooksPath` as shown above before making changes so the checked-in `.githooks` hooks apply to both human and AI contributors.
-
-Keep `origin` pointed at your fork and `upstream` pointed at RM. Never work directly on `main` for a change you plan to submit.
-
-### Sync before starting new work
-
-```powershell
-git fetch upstream
-git switch main
-git pull --ff-only upstream main
-git push origin main
 git switch -c your-feature-name
 ```
 
-If a feature branch already exists, rebase it onto the freshly-synced `main` instead of merging:
+- Setting `core.hooksPath` and adding the `upstream` remote right after cloning is the one allowed git config change. Beyond that, never modify git config or remotes, change origin, force-push, reset, or discard unrelated work.
+- To sync: `git fetch upstream`, `git switch main`, `git pull --ff-only upstream main`, `git push origin main`. Rebase existing feature branches onto the synced `main` instead of merging.
+- Commits follow `CONVENTIONAL_COMMITS.md`, for example `fix(auth): preserve csrf token per cookie` or `feat(groups): show membership status`. Commit each logical change as soon as it is done, not one giant commit at the end. Do not batch unrelated changes. Run the fast verification before each commit.
+- Review the diff before committing: only task-relevant changes, no cookies, tokens, logs, build output, `node_modules/`, local account data, or stray files.
+- One focused change per PR. Follow `PR_CONVENTIONS.md` for title, Changes, Testing, and the Checklist. Include design-system confirmation for UI changes, and call out security-sensitive changes and Roblox-version assumptions.
 
-```powershell
-git switch your-feature-name
-git rebase main
-```
+### Changelog
 
-Resolve conflicts carefully, then re-run the full verification sequence above. Never force-push a shared branch without coordinating with whoever else is on it.
+If a commit changes something a user would notice (feature, fix, behavior, UI), add an entry under `## Unreleased` in `CHANGELOG.md` in the same commit. Create the heading above the latest `## vX.Y.Z` if it does not exist. Skip internal refactors, tests, comments, docs, CI, and dependency bumps with no behavior change.
 
-### Commit conventions
+Exception: while the v2 Tauri/React page rewrite is in progress, add one consolidated entry when a page is complete instead of one per incremental fix.
 
-Use [Conventional Commits](CONVENTIONAL_COMMITS.md), for example:
+### Docs sync
 
-```
-docs: explain private-server bookmarks
-fix(auth): preserve csrf token per cookie
-feat(groups): show membership status
-feat(accounts): improve account list navigation
-```
+- A user-visible workflow or behaviour change must update the matching page under `docs/` in the same change when documentation for that area exists. `CHANGELOG.md` records that something changed; it does not replace the guide that explains how the feature works.
+- Settings changes update `docs/guides/settings.md`. Installer/runtime changes update the getting-started/installer docs. Security, storage, login, or privacy behaviour updates the corresponding security/guide page.
+- Pure refactors, tests, CI changes, dependency bumps with no behaviour change, and trivial visual polish do not need user-doc churn.
 
-One focused change per PR. Documentation-only edits can be grouped together if they cover one feature area. Never commit cookies, tokens, logs, build output, `node_modules/`, or local account data - double check the diff before staging.
+### Versioning
 
-### Commit as you go - never one giant commit
+SemVer `MAJOR.MINOR.PATCH`, with `VERSIONING.md` as the full policy.
 
-Commit each logical change as soon as it's done, not once at the end of the task. If a task touches multiple files or concepts, split it into multiple commits along those lines rather than staging everything into a single commit at the finish line. Rough rule of thumb:
+- **MAJOR**: breaking changes requiring migration, or a substantial new generation of RM through significant architectural work or material scope changes. Effort alone is not enough; follow the milestone criteria in `VERSIONING.md`.
+- **MINOR**: backward-compatible features, settings, tabs, capabilities, or feature removals.
+- **PATCH**: bug fixes, wording changes, UI polish. Never adds capability.
 
-- Finished a self-contained piece (one function, one bugfix, one component) → commit it before moving to the next piece.
-- About to switch what you're working on within the same task (e.g. done with the backend Tauri command, starting the React component that calls it) → commit first.
-- Never batch unrelated changes into one commit just because they happened in the same session.
+There is no project-wide `0.x` or beta phase; every line ships stable. Pre-release identifiers stage a version before its plain tag:
 
-Run the pre-commit verification sequence above before each commit, not just once at the end - catching a broken intermediate state early is the whole point of committing incrementally.
+- `-alpha.N`: early, unfinished build; expect breakage.
+- `-beta.N`: early test build; may lack features or contain bugs.
+- `-rc.N`: release candidate; if clean, publish the plain version next. An `-rc.N` requires an earlier `-alpha.N` or `-beta.N` for that version, otherwise publish the plain version directly.
 
-### Update CHANGELOG.md for user-facing changes
+Pre-releases sort before their plain release (`v1.2.3-rc.1` < `v1.2.3`), so tooling must never treat a pre-release as latest stable. Group related changes into appropriate releases instead of cramming unrelated changes into one version.
 
-If a commit changes something a user would notice - a new feature, a fixed bug, changed behavior, UI changes - add an entry to `CHANGELOG.md` under an `## Unreleased` heading (create it above the most recent `## vX.Y.Z` heading if it doesn't exist yet) in the same commit as the change itself. Don't wait until release time to backfill it.
-
-**v2 page-completion exception:** While completing the Tauri/React v2 page rewrite, add one consolidated changelog entry when a page is complete instead of an entry for each incremental page fix. Apply the normal per-change rule to work outside that page rewrite.
-
-Skip the changelog for things a user would never notice: internal refactors, test-only changes, comment/doc tweaks, CI config, dependency bumps with no behavior change.
-
-At release time (see Versioning & Releasing below), the `## Unreleased` heading gets renamed to `## vX.Y.Z` - the entries are already written by then.
-
-### Opening a PR
-
-```powershell
-git push -u origin your-feature-name
-```
-
-PR descriptions use Changes, Testing, and the short Checklist in PR_CONVENTIONS.md. Include the reason when useful and user-visible behavior when relevant. Notes and Screenshots are optional. For UI changes, record explicit design-system confirmation and applicable manual checks in Testing (see DESIGN.md's UI review checklist). Call out relevant Roblox-version assumptions and security-sensitive changes. Report vulnerabilities through [SECURITY.md](SECURITY.md), never as a public issue.
-
-**Every PR must follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md)** - title format, required description sections and order, and the required checklist. Treat that file as the authoritative spec for PR title/description/checklist; the summary above is not a substitute for it.
-
----
-
-## Versioning & Releasing
-
-Full policy lives in [VERSIONING.md](VERSIONING.md); this is the working summary.
-
-### SemVer policy
-
-RM follows Semantic Versioning: `MAJOR.MINOR.PATCH`.
-
-- **MAJOR** - breaking changes requiring migration, or a substantial new generation of RM through significant architectural work or material scope changes. Follow `VERSIONING.md` for the complete milestone criteria; effort alone is not enough.
-- **MINOR** - backward-compatible features, settings, tabs, capabilities, or feature removals.
-- **PATCH** - bug fixes, wording changes, UI polish. Never adds capability.
-
-RM has no project-wide `0.x`/beta phase - every version line ships stable as `MAJOR.MINOR.PATCH`. Pre-release identifiers stage a version before its plain tag:
-
-- `-alpha.N` - early, unfinished build; expect breakage.
-- `-beta.N` - early test build; may lack features or contain bugs.
-- `-rc.N` - release candidate; if clean, publish the plain version next. An `-rc.N` requires an earlier `-alpha.N` or `-beta.N` for that version, otherwise just publish the plain version directly.
-
-Pre-releases sort before their plain release under SemVer (`v1.2.3-rc.1` < `v1.2.3`) - tooling should never treat a pre-release as latest stable.
-
-**Version source of truth is the root `Cargo.toml`.** Both Rust crates inherit it, and Tauri derives it with no `version` override in `tauri.conf.json`. `ram_ui/package.json` is the only version mirror. Use `pnpm version:set <version>` or `bump-version.bat`; use `pnpm version:sync` after manual Cargo edits and `pnpm version:check` to validate consistency. Do not introduce other independent version constants.
+The root `Cargo.toml` is the version source of truth. Both Rust crates inherit it, Tauri derives it (no `version` override in `tauri.conf.json`), and `ram_ui/package.json` is the only mirror. Use `pnpm version:set <version>` or `bump-version.bat`, `pnpm version:sync` after manual Cargo edits, and `pnpm version:check` to validate. Do not add other version constants.
 
 ### Publishing a release
 
-`.github/workflows/release.yml` runs on pushed `v*` tags and manual `workflow_dispatch` for an existing tag. Normal pushes to `main` never publish. Both release jobs check out the selected tag.
+`.github/workflows/release.yml` runs on pushed `v*` tags and on manual `workflow_dispatch` for an existing tag. Normal pushes to `main` never publish. Both release jobs check out the selected tag. See also `docs/developers/releasing.md`.
 
-1. Run `bump-version.bat` or `pnpm version:set <version>` from the repository root to bump Cargo and synchronise the frontend mirror and lockfiles. If Cargo was edited manually, run `pnpm version:sync`.
-2. Rename the `## Unreleased` heading in `CHANGELOG.md` to `## vX.Y.Z` (entries should already be there from per-commit updates - see Commit as you go above). If for some reason there's no `## Unreleased` section, add `## vX.Y.Z` above the previous release instead. **The workflow fails if it can't find a heading matching the tag exactly.**
+1. Run `bump-version.bat` or `pnpm version:set <version>` from the repo root to bump Cargo and sync the frontend mirror and lockfiles. If Cargo was edited manually, run `pnpm version:sync`.
+2. Rename `## Unreleased` in `CHANGELOG.md` to `## vX.Y.Z`. If there is no Unreleased section, add `## vX.Y.Z` above the previous release. The workflow fails if no heading matches the tag exactly.
 3. If dependencies changed, sync the lockfiles and check the diffs are expected:
 
    ```powershell
@@ -374,7 +357,7 @@ Pre-releases sort before their plain release under SemVer (`v1.2.3-rc.1` < `v1.2
    git diff ram_ui/pnpm-lock.yaml
    ```
 
-   Both `Cargo.lock` and `pnpm-lock.yaml` must be included in the release commit - the workflow runs with `--locked`/`pnpm install --frozen-lockfile` and fails on a stale lockfile.
+   Both lockfiles must be in the release commit. The workflow uses `--locked` and `--frozen-lockfile` and fails on a stale one.
 
 4. Commit the release files:
 
@@ -390,87 +373,103 @@ Pre-releases sort before their plain release under SemVer (`v1.2.3-rc.1` < `v1.2
    git push origin vX.Y.Z
    ```
 
-6. The workflow builds and publishes automatically - renames the installer/exe to match `roblox-manager-vX.Y.Z-windows-x64`, and adds changelog content, GitHub-generated notes, a downloads table, and a SHA256 checksum.
+6. The workflow builds and publishes automatically. It renames the installer and exe to `roblox-manager-vX.Y.Z-windows-x64` and adds changelog content, GitHub-generated notes, a downloads table, and a SHA256 checksum.
 
-**Retrying a release:** if the tagged commit is correct and the failure is transient, use **Actions > Release > Re-run all jobs** or manually dispatch the existing tag. A fix pushed only to `main` is not included because the jobs check out the tag. For source fixes, publish a new verified version/tag. Move an unpublished, unused tag only after coordination; never move one users or automation already rely on.
+Retrying a release: if the tagged commit is correct and the failure is transient, use Actions > Release > Re-run all jobs, or manually dispatch the existing tag. A fix pushed only to `main` is not included, because the jobs check out the tag. For source fixes, publish a new verified version and tag. Move an unpublished, unused tag only after coordination, and never move one that users or automation already rely on.
 
-**Installer maintenance:** the NSIS template under `ram_ui/src-tauri/installer/` is based on Tauri Bundler 2.9.4. Compare it with upstream when upgrading Tauri. Build with `pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked`, then verify fresh install, upgrade, shortcut choices, optional cleanup and missing-WebView2 cases on a separate Windows test setup. See [the release guide](docs/developers/releasing.md).
+### Installer maintenance
 
----
+The NSIS template under `ram_ui/src-tauri/installer/` is based on Tauri Bundler 2.9.4. Compare it with upstream when upgrading Tauri. Build with `pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked`, then verify on a separate Windows test setup: fresh install, upgrade, shortcut choices, optional cleanup, and missing-WebView2 cases.
 
-## Agent Guidelines & Coding Standards
+## Coding standards
 
-1. **Windows Platform Assumptions**:
-   - The application is Windows-specific (`windows-sys`, Win32 API calls, Windows Credential Manager, `%APPDATA%\RM`, `%LOCALAPPDATA%\Roblox`).
-   - Use `PathBuf` and handle path resolution cleanly without hardcoding Unix-only assumptions. Do not add cross-platform code paths unless explicitly asked.
+- Preserve existing behavior unless the task explicitly requires changing it. Prefer small, targeted changes over refactors.
+- Comments explain intent, not syntax. Lowercase, concise, only where the why is not obvious.
+- Use `PathBuf` and clean path handling. No hardcoded Unix assumptions.
+- Do not create unrequested files, especially summary or report `.md` files. Summaries go in the chat, PR description, and changelog. Remove any scratch files you created before finishing.
 
-2. **UI & Thread Safety**:
-   - Never perform blocking network requests or heavy disk I/O directly inside a `#[tauri::command]` handler on the main thread - use `tokio::spawn` / async command handlers, and emit events for progress on long-running operations rather than blocking the caller.
-   - On the frontend, never block React's render path on a synchronous IPC call - all `invoke()` calls in `lib/ipc.ts` are async and components should handle their pending/error states explicitly (see DESIGN.md § Interaction states for what "loading" must look like).
+### Dependency policy
 
-3. **Editing large or unfamiliar files**:
-   - Prefer targeted, context-anchored edits (matching on surrounding unique text) over line-number-based deletion or full-file rewrites. Line numbers shift, get miscounted, or go stale between reading a file and editing it - a slice-by-line-range script is exactly how code gets silently dropped or orphaned without either the editor or the compiler noticing.
-   - After any large deletion, insertion, or rewrite, re-read the affected region of the file before moving on. Don't assume an edit landed as intended just because the tool call returned success - confirm the content is actually there, especially anything that isn't guaranteed to trip a compile/type error if missing (UI sections, string literals, whole blocks that are merely absent rather than syntactically broken).
-   - A clean `cargo check`/`pnpm typecheck` after an edit means the code is _syntactically valid_, not that the intended change is _present_. Missing UI, a dropped feature, or a silently-vanished section will not show up as a type error - verify the actual diff, not just the exit code.
-   - If a file is large enough that in-place editing feels risky or a rewrite is genuinely warranted, say so and confirm the approach before doing a full-file replacement, rather than declaring intent to do one ("the file is quite large, let me create a complete replacement") and then continuing with the same risky line-surgery anyway.
-   - Don't re-run a command you've already gotten a clean or informative result from on a hunch - e.g. running `cargo fmt --all` after `cargo fmt --all -- --check` already passed clean is redundant work chasing a discrepancy that should be investigated, not brute-forced.
-   - If a shell command fails because it's the wrong tool for the shell (e.g. `head`/`tail` on PowerShell), fix it once and adjust for the rest of the session - don't repeat the same category of shell mistake across multiple commands.
+- Prefer the standard library and dependencies already in the workspace. Do not add a crate or npm package for a tiny helper that is clearer to implement locally.
+- A new dependency needs a concrete reason in the PR: what existing code cannot reasonably provide, and any meaningful binary-size, native-runtime, network, security, or maintenance impact.
+- Follow the existing workspace/package layout. Let `cargo`/`pnpm` update lockfiles; never hand-edit `Cargo.lock`, root `pnpm-lock.yaml`, or `ram_ui/pnpm-lock.yaml`.
+- Keep dependency additions targeted. Do not combine a feature with broad unrelated upgrades, and do not accept a transitive dependency change blindly without reviewing the lockfile diff.
+- Removing a dependency is also a behaviour/build change: verify every platform/build path that used it before declaring the cleanup done.
 
-4. **Data Integrity & Persistence**:
-   - Always use `ram_core::storage::atomic_write` or `atomic_swap` when persisting config, presets, or account stores.
-   - Do not use bare `std::fs::write` on persisted application state files - this risks corruption on crash or power loss.
-   - This applies from `src-tauri` command handlers too - a command that persists state must go through `ram_core::storage`, not write directly.
+## Editing safely
 
-5. **🔐 Security & Secrets** (read this one carefully - RM's entire value proposition is not leaking credentials):
-   - Never log `.ROBLOSECURITY` cookies, session tickets, master passwords, CSRF tokens, or other credentials in plaintext.
-   - Never include cookies, tokens, passwords, authentication headers, or other secrets in user-facing errors, debug output, panic messages, or `tracing` fields - an `Err(CoreError::Auth(format!("request failed: {cookie}")))`-shaped bug is a credential leak, not a convenience. Error variants that carry request context must carry an identifier (account alias, request ID), never the secret itself. This applies equally to errors surfaced from `src-tauri` commands to the frontend via `Result`/events - a secret that never touched a log file but did get serialized into a Tauri IPC error payload is still a leak.
-   - Never include authentication cookies, tokens, passwords, or other secrets in URLs, query parameters, logs, telemetry, or crash/analytics data.
-   - Avoid cloning, storing, or passing secret values beyond the scope required to perform the operation - the smaller the blast radius of a value's lifetime, the fewer places it can leak from. Prefer passing references or scoping a secret to the function that needs it over threading it through unrelated layers. This includes not passing raw secrets across the Tauri IPC boundary into the frontend at all where the frontend only needs to know _that_ an account is authenticated, not the cookie itself.
-   - Do not weaken, bypass, or remove existing encryption, credential-store, redaction, or privacy protections unless the task explicitly requires it - and if it does, call that out clearly rather than doing it quietly as a side effect of something else.
-   - Treat all external API responses (Roblox REST/Open Cloud), user input, imported presets/config, and other process data as untrusted. Validate before using it in security-sensitive operations, filesystem paths, process arguments, or network requests - this includes preset files, group/asset API responses, and anything read from `ReadProcessMemory`. This also includes anything the frontend sends to a Tauri command - the frontend is not a trusted boundary just because it's "our own UI."
-   - Never commit credentials, cookies, tokens, account data, logs, memory dumps, or other sensitive local data - this applies to test fixtures too; use synthetic values, never a real captured cookie or ticket, even redacted.
-   - Do not replace security-sensitive crates or cryptographic primitives (`aes-gcm`, `argon2`, `sha2`, `rand`, `keyring`) with alternatives, and do not hand-roll crypto, without explicit approval. "This crate is annoying to work with" is not a reason to swap the encryption or credential-storage backend.
-   - When introducing new secret patterns or URI parameters, update `ram_core::redact` rules in the same change - a new secret type with no matching redaction rule is a silent leak waiting to happen.
-   - The Tauri webview boundary (§ Architecture 5) is a security boundary, not just a technical detail - anything that flows from a login/browse-as window (auth tickets, cookies) must go through the same redaction/storage discipline as everything else, not be treated as "already handled" because it came from a separate window or process.
-   - Launch-attribution tokens (`+launchtime:<millis>+`) and other data read via `OpenProcess`/`ReadProcessMemory` are untrusted process data - validate shape before using it, and never let it flow into logs unredacted.
-   - If a feature ever copies a credential, cookie, token, or access code to the system clipboard (e.g. a "copy access code" button), that's a deliberate, explicit action the user triggered - never place secrets on the clipboard as a side effect of some other operation, and prefer copying the least-sensitive identifier that still does the job (e.g. an account alias over a raw cookie) where the feature allows it.
+The principle: verify the diff, not the exit code. A clean `cargo check` or `pnpm typecheck` means the code is valid, not that your intended change is present. Missing UI, a dropped section, or an orphaned block will not fail a type check.
 
-6. **Error Handling**:
-   - Use `ram_core::error::CoreError` with `thiserror` in `ram_core`.
-   - `src-tauri` commands convert `CoreError` into a serializable error type at the IPC boundary rather than leaking internal error variants directly - see § 5 on not letting secrets ride along in that conversion.
-   - On the frontend, surface errors through the page's visible error, retry, or toast behavior rather than a console-only failure.
+- Prefer targeted edits anchored on unique surrounding text over line-number surgery.
+- After any large deletion, insertion, or rewrite, re-read the affected region.
+- If a full-file replacement seems warranted, say so and confirm before doing it, instead of announcing it and then continuing with risky line edits.
 
-7. **Code comments**:
-   - Comments explain intent, not syntax. Lowercase, concise, and only where the "why" isn't obvious from the code itself. No redundant or obvious comments.
+Known pitfalls:
 
-8. **Don't create unrequested files** (especially `.md` summary/report files):
-   - Don't create summary, report, or "complete"-style `.md` files (e.g. `SETTINGS_REFACTOR_COMPLETE.md`) to document what was done in a task. A task summary belongs in the chat/PR response and, if the change is user-facing, in the `CHANGELOG.md` entry - not as a new standalone file sitting in the repo.
-   - The commit message and PR description are the record of what changed and why. A separate markdown write-up duplicates that with no reader - nobody re-opens `FOO_REFACTOR_COMPLETE.md` later; they read `git log` or the changelog.
-   - Only create a new file when the task explicitly calls for one (a real doc page, a new source file, a test file for new functionality) or when the user asks for a written summary as a deliverable. When in doubt, don't create it - say the summary in the response instead.
-   - Before finishing a task, check for any stray files you created along the way (scratch notes, temp scripts, "plan" files) that were only useful during the task itself, and remove them rather than leaving them in the repo.
+- Do not re-run a command that already gave a clean result on a hunch (for example `cargo fmt --all` right after a passing `--check`). Investigate the discrepancy instead.
+- You are on PowerShell. `head`, `tail`, and other Unix tools may not exist. Fix a wrong-shell command once and adapt for the rest of the session.
 
-9. **GUI consistency**: reuse components from `ram_ui/frontend/components/` and shared tokens from `ram_ui/frontend/tokens.css` wherever they fit. Read `DESIGN.md` before changing the active interface.
+### Failure-path pass before "done"
 
-10. **Design system compliance is mandatory for any UI change**:
-    - Read `DESIGN.md`, `ram_ui/frontend/tokens.css`, and `ram_ui/frontend/styles.css` before editing the active frontend.
-    - Use shared token colors, avoid shadows and preserve the shared radius and Roboto type. Stylelint blocks raw hex colors and `!important`; review the rest against DESIGN.md because lint does not enforce those rules.
-    - Every new interactive component must implement its full required interaction-state set (DESIGN.md § Interaction states) - a button with no visible focus ring is an incomplete component, not a follow-up task.
-    - Don't invent a new component for a single-use wrapper (DESIGN.md § 4) - and don't invent a new _pattern_ (a new card style, a new table variant) without flagging it and confirming the approach first, the same way a major architectural change gets flagged under § "Ask before major changes" below.
+Before marking a change complete, trace the failure paths that are realistic for that feature, not just the happy path. At minimum consider:
 
-11. **Pull requests**: every PR must follow [PR_CONVENTIONS.md](PR_CONVENTIONS.md) - title format, Changes, Testing, and the short Checklist. Notes and Screenshots are optional. Check completed items, mark inapplicable items N/A, and leave incomplete verification unchecked with an explanation in Testing. Preserve applicable design, security, and core extraction evidence without adding separate boilerplate checklists.
+- stale state after an `.await` (account removed/re-added, credential revision changed, selected row/page changed)
+- duplicate invocation or double-clicks, plus concurrent background refreshes
+- cancellation, window closure, or app shutdown while work is in flight
+- partial success where an external side effect succeeds but persistence/UI update fails, or vice versa
+- save failure and rollback: whether memory, primary state, and `.bak` still agree
+- retries and terminal failures from Roblox, including auth rejection, CSRF rotation, rate limiting, timeout, and malformed/non-JSON responses
+- cleanup after spawned tasks, event listeners, timers, temporary files, process handles, and privacy backups
 
----
+State in the final response which relevant failure paths you checked. If one could not be exercised, say so instead of implying it was covered.
 
-## Notes
+## When to stop and ask
 
-<!-- Add personal notes, development reminders, feature ideas, and custom workflows below -->
+Explain the impact and get confirmation before:
 
-- **Changelog & versioning:** Add a `CHANGELOG.md` entry under `## Unreleased` in the same commit as any user-facing change, respecting the v2 page-completion exception above (see Update CHANGELOG.md under Contribution Workflow). Keep versioning organised; group related changes into appropriate releases rather than unnecessarily cramming unrelated changes into a single version.
-- **Git safety:** Commit completed changes as you go, in small logical chunks - not as one large commit at the end (see Commit as you go under Contribution Workflow). Never modify git configuration or remotes, change the origin repository, force-push, reset or discard unrelated work, or perform other destructive git operations.
-- **Review before committing:** Before creating a commit, review the diff and ensure that all staged changes are relevant to the requested task. Do not commit unrelated or accidental changes - this includes stray summary/report `.md` files (see Agent Guidelines § 8).
-- **Preserve existing behaviour:** Avoid changing existing functionality unless the task explicitly requires it. Prefer small, targeted changes over unnecessary refactors.
-- **Ask before major changes:** If a requested change would require a significant architectural change, removal of existing functionality, a new design-system pattern not already covered by `DESIGN.md`, or a potentially destructive migration, explain the impact before proceeding.
-- Follow the repository's [Conventional Commits guide](CONVENTIONAL_COMMITS.md) for commit messages, and [VERSIONING.md](VERSIONING.md) for how version numbers are chosen.
-- **Pull requests:** every PR follows [PR_CONVENTIONS.md](PR_CONVENTIONS.md) - required title format, Changes, Testing, and the short Checklist, with optional Notes and Screenshots.
-- Full user-facing docs (guides, FAQ, security guidance) live at `https://roblox-manager.gitbook.io/docs` - check there before re-explaining a feature that's already documented for users.
-- All icons use the existing set under `assets/icons` (.pngs OR .svgs ONLY) - see DESIGN.md § Icons for the full rule, including the no-emoji rule.
+- changing an on-disk format, schema, or doing a destructive migration
+- a significant architectural change or removing existing functionality
+- a new design-system pattern not covered by `DESIGN.md`
+- swapping a crypto or credential-storage crate
+- any change that would weaken a security protection
+- needing a secret to cross the IPC boundary to make something work
+
+## Troubleshooting known environment failures
+
+- **WebView2 missing/broken:** the Tauri UI and login windows require Microsoft Edge WebView2 Runtime. The installer can bootstrap it when missing if internet access is available; the portable executable expects the runtime to already exist. A WebView2 failure is not evidence that account data was reset.
+- **Device-store tests:** `ram_core/tests/device_store.rs` intentionally talks to the real OS credential store. It may create the normal device key, never deletes that machine-wide key, and skips when the credential store is unavailable. Do not rewrite those tests to destructively "clean up" the real key.
+- **Windows executable locked:** if a build/link step cannot replace `target\debug\rm_tauri.exe` or `target\release\rm_tauri.exe`, first check whether the dev/release app is still running. Close the process instead of deleting build directories or resetting unrelated state.
+- **Wrong shell:** repository commands assume PowerShell on Windows. If a Unix-only command fails, translate it once and continue with the PowerShell equivalent rather than repeatedly retrying it.
+
+## Glossary
+
+- **attribution:** mapping a running `RobloxPlayerBeta.exe` to the account/launch that created it. `Exact` comes from the `+launchtime:<millis>+` token; `Inferred` is the fallback ordering.
+- **store mode:** how the encrypted account store's data key is wrapped: `Device` via Windows Credential Manager or `Password` via Argon2id.
+- **privacy mode:** the configured pre-launch/exit cleanup of Roblox local state. It is not anonymisation and does not change the Roblox account's public identity.
+- **preset:** a saved launch definition stored as its own JSON file under the presets directory.
+- **singleton mutex:** the Roblox singleton objects RM holds (`ROBLOX_singletonMutex` plus the legacy `ROBLOX_singletonEvent`) so multiple Roblox clients can coexist. RM does not close mutex handles inside Roblox processes.
+
+## Definition of done
+
+- The change does what was asked, and the actual diff matches your intent (not just a green build).
+- Relevant failure paths were traced before completion, and the final response says which ones were checked.
+- Tests added or updated for new behavior, using synthetic data.
+- Full verification passes, or any gap is stated plainly.
+- Manual Windows checks done where required, or reported as not done.
+- `CHANGELOG.md` updated if user-facing.
+- Matching user documentation updated when the workflow/behaviour changed and a guide exists.
+- Security rules re-checked for anything touching secrets, storage, or process data.
+- UI changes checked against `DESIGN.md`.
+- No stray files, no unrelated changes, commits are small and conventional.
+- PR follows `PR_CONVENTIONS.md`.
+
+## Final response format for agents
+
+End the task with a compact report containing:
+
+- **Changed:** what actually changed, grouped by behaviour rather than file list.
+- **Verified:** exact automated checks and manual checks that passed.
+- **Not verified:** anything required/relevant that could not be run, with the reason.
+- **Noticed but not fixed:** relevant follow-up problems discovered outside the requested scope. Do not silently fix them and do not omit them if they materially affect the result.
+
+Do not claim a path was tested because the code looks correct, because another check passed, or because CI is expected to cover it later.

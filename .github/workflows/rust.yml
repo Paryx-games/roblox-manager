@@ -33,8 +33,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  frontend:
-    name: frontend
+  frontend-build:
+    name: frontend build
     runs-on: windows-latest
     timeout-minutes: 15
 
@@ -67,6 +67,40 @@ jobs:
         working-directory: ram_ui
         run: pnpm build
 
+      - name: upload frontend dist
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ram_ui-dist
+          path: ram_ui/dist
+          retention-days: 1
+          if-no-files-found: error
+
+  frontend:
+    name: frontend
+    needs: frontend-build
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: setup node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ram_ui/pnpm-lock.yaml
+
+      - name: install frontend dependencies
+        working-directory: ram_ui
+        run: pnpm install --frozen-lockfile
+
       - name: lint frontend
         run: pnpm --dir ram_ui lint
 
@@ -75,14 +109,6 @@ jobs:
 
       - name: test frontend
         run: pnpm --dir ram_ui test
-
-      - name: upload frontend dist
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ram_ui-dist
-          path: ram_ui/dist
-          retention-days: 1
-          if-no-files-found: error
 
   fmt:
     name: fmt
@@ -105,7 +131,7 @@ jobs:
 
   clippy:
     name: clippy
-    needs: frontend
+    needs: frontend-build
     runs-on: windows-latest
     timeout-minutes: 20
 
@@ -137,7 +163,7 @@ jobs:
 
   test:
     name: test
-    needs: frontend
+    needs: frontend-build
     runs-on: windows-latest
     timeout-minutes: 20
 

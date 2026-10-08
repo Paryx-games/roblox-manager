@@ -90,6 +90,7 @@ pub async fn capture_cookie(app: &tauri::AppHandle) -> Result<Option<String>, St
     )
     .title("Log in to Roblox")
     .inner_size(500.0, 720.0)
+    .general_autofill_enabled(false)
     .data_directory(crate::lifecycle::data_directory().join("tauri_login_profile"))
     .incognito(true)
     .on_navigation(|url| url.scheme() == "https")

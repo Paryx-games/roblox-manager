@@ -53,14 +53,14 @@ export function WalkthroughAccounts({ selectedName, onSelect }: {
       <section className="accounts-detail-panel" aria-label="Demo account details" data-walkthrough="account-details">
         {!selectedAccount ? <div className="accounts-detail-empty">
           <Icon name="id-card" /><h2>Select a demo account</h2>
-          <p>Choose Builderman or Roblox to explore the launch controls. These accounts are examples with no saved credentials.</p>
+          <p>Choose Builderman or Roblox to explore the launch controls. These are example accounts.</p>
         </div> : <>
           <section className="account-card account-profile-card">
             <DemoAvatar name={selectedAccount.name} large />
             <div className="account-profile-copy">
               <div className="account-identity-name"><h2>{selectedAccount.displayName}</h2><span className="walkthrough-demo-badge">Demo account</span></div>
               <div className="account-identity-username"><p>@{selectedAccount.name}</p></div>
-              <p className="walkthrough-demo-label">Example only. No credentials are saved, and this account can't be edited, removed or launched.</p>
+              <p className="walkthrough-demo-label">Example account. You can’t edit, remove or launch it.</p>
             </div>
             <div className="account-actions-menu-anchor">
               <button className="icon-button" type="button" aria-label="More account actions unavailable for demo account" disabled><Icon name="more" /></button>

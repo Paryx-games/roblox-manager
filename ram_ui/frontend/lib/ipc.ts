@@ -266,6 +266,7 @@ export interface SettingsConfig {
   refreshOnStartup: boolean;
   autoLaunchOnStartup: boolean;
   autoLaunchAccountId: number | null;
+  autoLaunchPlaceId: number | null;
   multiInstanceEnabled: boolean;
   killBackgroundRoblox: boolean;
   confirmKillAll: boolean;
@@ -576,8 +577,9 @@ export async function launchAccount(
 
 export async function fetchAccountInventory(
   userId: number,
+  forceRefresh = false,
 ): Promise<InventoryItem[]> {
-  return invoke<InventoryItem[]>("fetch_account_inventory", { userId });
+  return invoke<InventoryItem[]>("fetch_account_inventory", { userId, forceRefresh });
 }
 
 export type InventoryBrowserTarget = {

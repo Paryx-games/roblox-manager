@@ -2,9 +2,32 @@
 
 ## Unreleased
 
+### Changed
+
+- Startup launch now runs once after unlock using a saved account and Place ID. Startup account checks honor their toggle, and the clipboard privacy toggle clears the clipboard after a successful launch. Automatic MAC rotation runs before the first launch in each RM session, coordinates with manual rotation, requests elevation, and attempts to restore adapter availability on failure.
+
+- Custom Roblox arguments now reach the player with Windows quoting and reserved-parameter validation. FastFlags apply to the selected installation before launches; removed flags restore their original values and unrelated ClientSettings keys are preserved.
+
+- Public Roblox metadata and thumbnails reuse bounded memory caches across workspaces, inventories cache for one minute with an explicit refresh bypass, and overlapping presence refreshes share recent results. Clear application caches now removes these cached responses.
+
+- App messages, buttons and hints use simpler wording, with clearer browser and launch notices, account login guidance, client controls and recovery steps.
+
 ### Fixed
 
-- Display-name previews check one account instead of every selected account, while explicit saves still report each account's outcome. Visibility loading waits for account selection to settle, reducing redundant Roblox requests during multi-selection.
+- Changing account selection during an inventory refresh keeps the refresh pending until the current selection finishes loading, so newly selected inventories bypass their cache.
+
+- Editing a display name clears errors from the previous submission and resets the input's invalid state while preserving successful account notices.
+
+- Group icons, announcements and account creation dates coordinate requests per ID, so an unrelated request can complete while another ID is loading. Missing values and oversized images remain uncached.
+
+- Requests for unrelated avatar, game-icon and asset-thumbnail IDs no longer wait for another cache batch to finish; overlapping batches share results without duplicate per-ID fetches.
+
+- Inventory cache requests coordinate per account and credential revision, with up to four independent network fetches at a time. Accepted asset uploads invalidate cached inventories, and store unlock clears account caches.
+
+- Saved-text suggestions and automatic form-data saving are disabled throughout RM, including embedded Roblox login and browser windows.
+- Display names are verified only when submitting an edited name. Rejections highlight the field and explain moderation, invalid characters, mixed character sets, length, cooldown, rate limits, authentication or service failures separately; successful changes show a radial "Display name verified" notice.
+- The title-bar update action shows the available version with added padding and opens a confirmation dialog before sending users to GitHub's latest release in their default browser.
+- Visibility loading waits for account selection to settle, reducing redundant Roblox requests during multi-selection.
 - Display-name changes accepted by Roblox but not saved locally now keep a persistent warning with refresh guidance instead of an expiring success notice.
 - Discord notification failures distinguish unreadable webhook credentials from notification-preference errors and failed background tasks.
 - The selected Roblox visibility audience remains visibly marked while saving or when Roblox no longer allows that choice.

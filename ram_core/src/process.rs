@@ -183,91 +183,147 @@ fn remove_privacy_path(path: &std::path::Path) -> std::io::Result<()> {
     }
 }
 
-/// Rotate the MAC address of the first active hardware network adapter.
-///
-/// Windows applies this through the NetAdapter PowerShell module and requires
-/// an elevated process. The adapter is briefly disabled while the address is
-/// changed, so callers should only invoke this as an explicit user action.
+/// Empty the clipboard without reading or retaining its contents.
+#[cfg(windows)]
+pub fn clear_clipboard() -> Result<(), CoreError> {
+    use windows_sys::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard};
+    let cleared = clear_clipboard_with(
+        || unsafe { OpenClipboard(std::ptr::null_mut()) != 0 },
+        || unsafe { EmptyClipboard() != 0 },
+        || unsafe {
+            CloseClipboard();
+        },
+    );
+    if cleared {
+        Ok(())
+    } else {
+        Err(CoreError::Process("Clipboard could not be cleared".into()))
+    }
+}
+
+#[cfg(any(windows, test))]
+fn clear_clipboard_with(
+    open: impl FnOnce() -> bool,
+    empty: impl FnOnce() -> bool,
+    close: impl FnOnce(),
+) -> bool {
+    if !open() {
+        return false;
+    }
+    let result = empty();
+    close();
+    result
+}
+
+/// Rotate the active hardware adapter, with elevation and adapter recovery on failure.
+/// Only call after explicit manual action or the saved automatic-rotation opt-in.
 pub fn rotate_mac_address(preserve_oui: bool, alternate_oui: &str) -> Result<(), CoreError> {
     #[cfg(not(windows))]
     {
         let _ = (preserve_oui, alternate_oui);
-        return Err(CoreError::Process(
+        Err(CoreError::Process(
             "MAC address rotation is only supported on Windows".into(),
-        ));
+        ))
     }
-
     #[cfg(windows)]
     {
-        let normalized_oui: String = alternate_oui
-            .chars()
-            .filter(|character| *character != ':' && *character != '-')
-            .collect();
-        if normalized_oui.len() != 6
-            || !normalized_oui
-                .chars()
-                .all(|character| character.is_ascii_hexdigit())
-        {
-            return Err(CoreError::Process(format!(
-                "invalid alternate MAC OUI: {alternate_oui}"
-            )));
-        }
-
-        let random_suffix = rand::random::<[u8; 3]>();
-        let suffix = format!(
-            "{:02X}-{:02X}-{:02X}",
-            random_suffix[0], random_suffix[1], random_suffix[2]
-        );
-        let oui = normalized_oui
-            .as_bytes()
-            .chunks(2)
-            .map(|pair| std::str::from_utf8(pair).unwrap_or_default())
-            .collect::<Vec<_>>()
-            .join("-");
-
-        let oui_expression = if preserve_oui {
-            "$current.Replace('-', '').Substring(0, 6) -replace '(..)(..)(..)', '$1-$2-$3'"
-                .to_string()
-        } else {
-            format!("'{oui}'")
-        };
-        let script = format!(
-            "$ErrorActionPreference = 'Stop'; \
-             $adapter = Get-NetAdapter | Where-Object {{ $_.Status -eq 'Up' -and $_.HardwareInterface }} | \
-               Sort-Object ifIndex | Select-Object -First 1; \
-             if ($null -eq $adapter) {{ throw 'No active hardware network adapter was found' }}; \
-             $current = if ($adapter.PermanentAddress) {{ $adapter.PermanentAddress }} else {{ $adapter.MacAddress }}; \
-             $oui = {oui_expression}; \
-             $newAddress = \"$oui-{suffix}\"; \
-             Disable-NetAdapter -Name $adapter.Name -Confirm:$false; \
-             Set-NetAdapter -Name $adapter.Name -MacAddress $newAddress -Confirm:$false; \
-             Enable-NetAdapter -Name $adapter.Name -Confirm:$false; \
-             Write-Output $newAddress"
-        );
-
-        let output = std::process::Command::new("powershell.exe")
+        use std::os::windows::process::CommandExt;
+        let suffix = rand::random::<[u8; 3]>();
+        let script = mac_rotation_script(preserve_oui, alternate_oui, suffix)?;
+        let wrapper = elevated_mac_script(&script);
+        let executable = std::env::var_os("SystemRoot")
+            .map(PathBuf::from)
+            .ok_or_else(|| CoreError::Process("Windows PowerShell unavailable".into()))?
+            .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+        let status = std::process::Command::new(executable)
             .args([
                 "-NoProfile",
                 "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                &script,
+                "-EncodedCommand",
+                &encode_powershell(&wrapper),
             ])
-            .output()
-            .map_err(|error| CoreError::Process(format!("could not start PowerShell: {error}")))?;
-        if !output.status.success() {
-            let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(CoreError::Process(if message.is_empty() {
-                "MAC address rotation failed; run RM as administrator and try again".into()
-            } else {
-                format!("MAC address rotation failed: {message}")
-            }));
+            .creation_flags(0x08000000)
+            .status()
+            .map_err(|_| CoreError::Process("MAC rotation could not be started".into()))?;
+        if !status.success() {
+            return Err(CoreError::Process(
+                "MAC rotation failed or elevation was cancelled; check adapter support".into(),
+            ));
         }
-        let new_address = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        info!("Rotated active network adapter MAC address to {new_address}");
         Ok(())
     }
+}
+
+#[cfg(any(windows, test))]
+fn encode_powershell(text: &str) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(
+        text.encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>(),
+    )
+}
+
+#[cfg(any(windows, test))]
+fn elevated_mac_script(script: &str) -> String {
+    let elevated_command = encode_powershell(script);
+    format!(
+            "$ErrorActionPreference = 'Stop'; \
+             try {{ \
+               $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent()); \
+               if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {{ & {{ {script} }} }} \
+               else {{ \
+                 $rotationProcess = Start-Process -FilePath \"$env:SystemRoot\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" \
+                   -Verb RunAs -WindowStyle Hidden -Wait -PassThru \
+                   -ArgumentList @('-NoProfile', '-NonInteractive', '-EncodedCommand', '{elevated_command}'); \
+                 exit $rotationProcess.ExitCode; \
+               }} \
+             }} catch {{ exit 1 }}"
+    )
+}
+
+#[cfg(any(windows, test))]
+fn mac_rotation_script(
+    preserve_oui: bool,
+    alternate_oui: &str,
+    suffix: [u8; 3],
+) -> Result<String, CoreError> {
+    let normalized: String = alternate_oui
+        .chars()
+        .filter(|ch| *ch != ':' && *ch != '-')
+        .collect();
+    if normalized.len() != 6 || !normalized.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(CoreError::Process("Invalid alternate MAC OUI".into()));
+    }
+    let oui = if preserve_oui {
+        "$current.Replace('-', '').Replace(':', '').Substring(0, 6) -replace '(..)(..)(..)', '$1-$2-$3'".to_string()
+    } else {
+        format!(
+            "'{}-{}-{}'",
+            &normalized[0..2],
+            &normalized[2..4],
+            &normalized[4..6]
+        )
+    };
+    Ok(format!(
+        "$ErrorActionPreference = 'Stop'; \
+         $adapter = Get-NetAdapter | Where-Object {{ $_.Status -eq 'Up' -and $_.HardwareInterface }} | Sort-Object ifIndex | Select-Object -First 1; \
+         if ($null -eq $adapter) {{ throw 'No active hardware adapter' }}; \
+         if (Get-Process -Name RobloxPlayerBeta -ErrorAction SilentlyContinue) {{ throw 'Close Roblox first' }}; \
+         $current = if ($adapter.PermanentAddress) {{ $adapter.PermanentAddress }} else {{ $adapter.MacAddress }}; \
+         $oui = {oui}; \
+         $newAddress = \"$oui-{:02X}-{:02X}-{:02X}\"; \
+         try {{ \
+           Disable-NetAdapter -Name $adapter.Name -Confirm:$false; \
+           Set-NetAdapter -Name $adapter.Name -MacAddress $newAddress -NoRestart -Confirm:$false; \
+         }} finally {{ Enable-NetAdapter -Name $adapter.Name -Confirm:$false }}; \
+         for ($attempt = 0; $attempt -lt 100; $attempt++) {{ \
+           $updated = Get-NetAdapter -Name $adapter.Name; \
+           if ($updated.Status -eq 'Up' -and $updated.MacAddress.Replace('-', '').Replace(':', '') -eq $newAddress.Replace('-', '')) {{ return }}; \
+           Start-Sleep -Milliseconds 300; \
+         }}; throw 'Adapter did not confirm the new address'",
+        suffix[0], suffix[1], suffix[2]
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -412,6 +468,32 @@ pub fn launch_game(
     launchtime: i64,
     player_path: Option<&std::path::Path>,
 ) -> Result<(), CoreError> {
+    launch_game_with_args(
+        ticket,
+        place_id,
+        job_id,
+        link_code,
+        access_code,
+        data,
+        launchtime,
+        player_path,
+        &[],
+    )
+}
+
+/// Launch with already parsed arguments, without a shell.
+#[allow(clippy::too_many_arguments)]
+pub fn launch_game_with_args(
+    ticket: &str,
+    place_id: u64,
+    job_id: Option<&str>,
+    link_code: Option<&str>,
+    access_code: Option<&str>,
+    data: Option<&str>,
+    launchtime: i64,
+    player_path: Option<&std::path::Path>,
+    args: &[String],
+) -> Result<(), CoreError> {
     let query = place_launcher_query(place_id, job_id, link_code, access_code, data);
     let uri = format!(
         "roblox-player:1+launchmode:play\
@@ -427,38 +509,51 @@ pub fn launch_game(
     // URI was assembled, which is the only reason to log it.
     debug!("URI: {}", crate::redact::scrub(&uri));
 
-    let player_path = player_path
-        .map(PathBuf::from)
-        .or_else(find_roblox_player)
-        .ok_or_else(|| {
-            CoreError::Process(
-                "RobloxPlayerBeta.exe was not found; refusing to launch via the protocol handler"
-                    .into(),
-            )
-        })?;
-    open_player(&uri, &player_path)?;
+    let executable = resolve_player_executable(player_path)?;
+    open_player(&uri, &executable, args)?;
     Ok(())
 }
 
-/// Spawn the requested Roblox player executable with the launch URI argument.
-fn open_player(uri: &str, player_path: &std::path::Path) -> Result<(), CoreError> {
-    let executable = if player_path.is_dir() {
-        player_path.join(ROBLOX_PLAYER_EXE)
+pub fn resolve_player_executable(
+    player_path: Option<&std::path::Path>,
+) -> Result<PathBuf, CoreError> {
+    let path = player_path
+        .map(PathBuf::from)
+        .or_else(find_roblox_player)
+        .ok_or_else(|| CoreError::Process("RobloxPlayerBeta.exe was not found".into()))?;
+    let executable = if path.is_dir() {
+        path.join(ROBLOX_PLAYER_EXE)
     } else {
-        player_path.to_path_buf()
+        path
     };
-    if !executable.is_file() {
-        return Err(CoreError::Process(format!(
-            "Roblox player executable does not exist: {}",
-            executable.display()
-        )));
+    if !executable.is_file()
+        || !executable.file_name().is_some_and(|name| {
+            name.to_string_lossy()
+                .eq_ignore_ascii_case(ROBLOX_PLAYER_EXE)
+        })
+    {
+        return Err(CoreError::Process(
+            "Choose an existing RobloxPlayerBeta.exe".into(),
+        ));
     }
-    info!(path = %executable.display(), "Launching Roblox player executable");
-    std::process::Command::new(&executable)
-        .arg(uri)
+    Ok(executable)
+}
+
+fn open_player(uri: &str, executable: &std::path::Path, args: &[String]) -> Result<(), CoreError> {
+    player_command(uri, executable, args)
         .spawn()
-        .map_err(|e| CoreError::Process(format!("failed to launch Roblox player: {e}")))?;
+        .map_err(|_| CoreError::Process("Roblox player could not be started".into()))?;
     Ok(())
+}
+
+fn player_command(
+    uri: &str,
+    executable: &std::path::Path,
+    args: &[String],
+) -> std::process::Command {
+    let mut command = std::process::Command::new(executable);
+    command.arg(uri).args(args);
+    command
 }
 
 // ---------------------------------------------------------------------------
@@ -1746,6 +1841,107 @@ pub fn arrange_roblox_windows(_options: &TilingOptions) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clipboard_failure_releases_the_handle_without_reading_contents() {
+        let closed = std::cell::Cell::new(false);
+        assert!(!clear_clipboard_with(
+            || true,
+            || false,
+            || closed.set(true)
+        ));
+        assert!(closed.get());
+        assert!(!clear_clipboard_with(
+            || false,
+            || panic!("clipboard was not opened"),
+            || panic!("clipboard was not opened")
+        ));
+        assert!(clear_clipboard_with(|| true, || true, || {}));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn mac_scripts_parse_in_windows_powershell_without_running_them() {
+        use base64::Engine;
+        use std::os::windows::process::CommandExt;
+        let script = mac_rotation_script(false, "00:1B:21", [1, 2, 3]).unwrap();
+        for candidate in [&script, &elevated_mac_script(&script)] {
+            let encoded = base64::engine::general_purpose::STANDARD.encode(candidate.as_bytes());
+            let parse = format!("$errors = $null; $source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{encoded}')); $null = [Management.Automation.Language.Parser]::ParseInput($source, [ref]$null, [ref]$errors); if ($errors.Count -gt 0) {{ exit 1 }}");
+            let output = std::process::Command::new("powershell.exe")
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-EncodedCommand",
+                    &encode_powershell(&parse),
+                ])
+                .creation_flags(0x08000000)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "PowerShell rejected the generated script syntax"
+            );
+        }
+    }
+
+    #[test]
+    fn mac_rotation_validates_script_inputs_and_recovers_the_adapter() {
+        let script = mac_rotation_script(false, "00:1B:21", [1, 2, 3]).unwrap();
+        assert!(script.contains("'00-1B-21'"));
+        assert!(script.contains("$oui-01-02-03"));
+        assert!(script.contains("finally { Enable-NetAdapter"));
+        assert!(script.contains("$updated.MacAddress"));
+        assert!(mac_rotation_script(true, "00:1B:21", [1, 2, 3])
+            .unwrap()
+            .contains("$current.Replace"));
+        for oui in ["';secret", "00:11:GG", "0011", "00:11:22; exit"] {
+            let error = mac_rotation_script(false, oui, [0; 3])
+                .unwrap_err()
+                .to_string();
+            assert!(!error.contains(oui));
+        }
+    }
+
+    #[test]
+    fn extra_arguments_are_separate_from_the_launch_uri() {
+        let args =
+            crate::launch_options::parse_arguments(r#"--test "two words" "literal;$(text)""#)
+                .unwrap();
+        let command = player_command(
+            "roblox-player:synthetic",
+            std::path::Path::new("RobloxPlayerBeta.exe"),
+            &args,
+        );
+        assert_eq!(
+            command
+                .get_args()
+                .map(|value| value.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            vec![
+                "roblox-player:synthetic",
+                "--test",
+                "two words",
+                "literal;$(text)"
+            ]
+        );
+    }
+
+    #[test]
+    fn player_resolution_accepts_install_directories_and_rejects_other_executables() {
+        let directory = std::env::temp_dir().join(format!("rm-player-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let executable = directory.join(ROBLOX_PLAYER_EXE);
+        crate::storage::atomic_write(&executable, b"synthetic").unwrap();
+        assert_eq!(
+            resolve_player_executable(Some(&directory)).unwrap(),
+            executable
+        );
+        let other = directory.join("other.exe");
+        crate::storage::atomic_write(&other, b"synthetic").unwrap();
+        assert!(resolve_player_executable(Some(&other)).is_err());
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     // -----------------------------------------------------------------------
     // Attribution token

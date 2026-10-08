@@ -374,7 +374,7 @@ pub async fn list_asset_creations(
         .map(|row| row.asset_id)
         .take(100)
         .collect::<Vec<_>>();
-    let thumbnails = assets_api::fetch_asset_thumbnails(&client, &asset_ids)
+    let thumbnails = ram_core::cached_api::fetch_asset_thumbnails(&client, &asset_ids)
         .await
         .unwrap_or_default();
     Ok(CreationPage {
@@ -919,6 +919,11 @@ async fn send_upload(
         let _ = app.emit("assets-updated", runtime.snapshot());
     }
     let result = prepare_upload(app, &row).await;
+    if result.is_ok() {
+        app.state::<crate::state::AppState>()
+            .inventory_cache
+            .clear();
+    }
     let row_id = row.row_id.clone();
     update_index(app, manager, move |runtime| {
         if let Some(row) = runtime.index.get_mut(&row_id) {

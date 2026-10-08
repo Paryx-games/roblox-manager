@@ -59,9 +59,9 @@ pub async fn stage_addition(
     let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
     let user_ids = [account.user_id];
     let (created, moderation, avatars) = tokio::join!(
-        api::fetch_public_created_at(&client, account.user_id),
+        ram_core::cached_api::fetch_public_created_at(&client, account.user_id),
         api::fetch_moderation_status(&client, account.user_id, cookie),
-        api::fetch_avatars(&client, &user_ids),
+        ram_core::cached_api::fetch_avatars(&client, &user_ids),
     );
     account.created_at = created.ok().flatten();
     account.moderation = moderation.ok().flatten();
@@ -292,9 +292,9 @@ pub async fn refresh(
         let validation = client.validate_cookie(&cookie).await;
         let user_ids = [user_id];
         let (created, moderation, avatars) = tokio::join!(
-            api::fetch_public_created_at(&client, user_id),
+            ram_core::cached_api::fetch_public_created_at(&client, user_id),
             api::fetch_moderation_status(&client, user_id, &cookie),
-            api::fetch_avatars(&client, &user_ids)
+            ram_core::cached_api::fetch_avatars(&client, &user_ids)
         );
         let state = state.clone();
         let (did_complete, moderation_notice) = tauri::async_runtime::spawn_blocking(move || {
@@ -406,8 +406,18 @@ mod tests {
             account_refresh: Arc::new(tokio::sync::Mutex::new(())),
             pending_additions: Arc::new(Mutex::new(Default::default())),
             instances: Arc::new(Mutex::new(Default::default())),
+            mac_rotated: Arc::new(Default::default()),
             launch_queue: Arc::new(tokio::sync::Mutex::new(None)),
             is_shutting_down: Arc::new(Default::default()),
+            inventory_fetches: Arc::new(tokio::sync::Semaphore::new(4)),
+            inventory_cache: Arc::new(ram_core::cache::ResponseCache::new(
+                std::time::Duration::from_secs(60),
+                32,
+            )),
+            presence_cache: Arc::new(ram_core::cache::ResponseCache::new(
+                std::time::Duration::from_secs(2),
+                2048,
+            )),
         };
         for identifier in ["first", "retry"] {
             state.pending_additions.lock().unwrap().insert(

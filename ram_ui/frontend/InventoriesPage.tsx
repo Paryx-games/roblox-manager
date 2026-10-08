@@ -81,6 +81,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const isFilterDataLoading = accountsLoading || itemsLoading;
   const [error, setError] = useState<string | null>(null);
   const [refreshCount, setRefreshCount] = useState(0);
+  const lastInventoryRefresh = useRef(0);
   const [selectedCategories, setSelectedCategories] = useState<Set<Exclude<Category, "All">>>(new Set());
   const [search, setSearch] = useState("");
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
@@ -200,7 +201,8 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     setLoadedAccountCount(0);
     setError(null);
     setSelectedItemIds(new Set());
-    void Promise.allSettled([...accountIds].map(async (userId) => ({ userId, items: await fetchAccountInventory(userId) })))
+    const forceRefresh = lastInventoryRefresh.current !== refreshCount;
+    void Promise.allSettled([...accountIds].map(async (userId) => ({ userId, items: await fetchAccountInventory(userId, forceRefresh) })))
       .then((results) => {
         if (!isCurrent) return;
         const loaded = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
@@ -212,7 +214,10 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
         }
       })
       .finally(() => {
-        if (isCurrent) setItemsLoading(false);
+        if (isCurrent) {
+          lastInventoryRefresh.current = refreshCount;
+          setItemsLoading(false);
+        }
       });
     return () => { isCurrent = false; };
   }, [accountIds, accountsLoading, refreshCount]);
@@ -346,7 +351,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
       if (copyTimeoutRef.current !== null) window.clearTimeout(copyTimeoutRef.current);
       copyTimeoutRef.current = window.setTimeout(() => setCopiedId(null), 1600);
     } catch {
-      setError("The selected inventory asset IDs could not be copied. Check clipboard access and retry Copy IDs; no credentials are included in this action.");
+      setError("Couldn’t copy the item IDs. Check clipboard access and try Copy IDs again.");
     }
   }
 
@@ -463,7 +468,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
           <h2>Accounts</h2>
           <p>Ctrl-click to select multiple accounts</p>
           {isGroupOrderUnavailable && <p role="alert">Saved group order could not be loaded. Reopen this page to retry.</p>}
-          {accountsLoading ? <LoadingSkeleton layout="accounts" label="Loading accounts" count={6} /> : accounts.length === 0 ? <p>{error ? "Accounts are unavailable." : "No accounts yet. Add one in the Accounts workspace to browse its inventory."}</p> : accountGroups.map(([group, members], index) => {
+          {accountsLoading ? <LoadingSkeleton layout="accounts" label="Loading accounts" count={6} /> : accounts.length === 0 ? <p>{error ? "Couldn’t load accounts." : "Add an account in Accounts to browse its inventory."}</p> : accountGroups.map(([group, members], index) => {
             const isCollapsed = collapsedGroups.has(group);
             const groupId = `${groupIdPrefix}-${index}`;
             return (

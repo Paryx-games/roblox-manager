@@ -22,13 +22,13 @@ export function InstanceRow({ instance, account, selected, onSelect, actions }: 
   actions: ReactNode;
 }) {
   const detailsId = useId();
-  const matchDescription = instance.attribution === "exact" ? "Verified from this client's launch token. Individual close is available." : instance.attribution === "inferred" ? "Estimated from launch order. Individual close is disabled." : "RM could not identify this client's account. Individual close and server join are disabled.";
+  const matchDescription = instance.attribution === "exact" ? "RM confirmed this account. You can close this client." : instance.attribution === "inferred" ? "RM estimated the account from launch order. Close this client in Roblox." : "RM couldn’t identify the account. Close this client in Roblox; joining its server is unavailable.";
   return <li className="instance-row" data-selected={selected}>
     <button type="button" className="instance-row-select" aria-pressed={selected} aria-label={`Select ${instance.label}, PID ${instance.pid}`} aria-describedby={detailsId} aria-description={matchDescription} onClick={onSelect}>
       <InstanceIdentity instance={instance} account={account} />
       <span className="instance-details" id={detailsId}>
         <span><span>Place ID</span><span className="selectable-text">{instance.placeId ?? "Unknown"}</span></span>
-        <span><span>Match</span><span className="instances-attribution" data-attribution={instance.attribution} data-tip={matchDescription}>{instance.attribution === "exact" ? "Exact" : instance.attribution === "inferred" ? "Inferred" : "Unmatched"}</span></span>
+        <span><span>Match</span><span className="instances-attribution" data-attribution={instance.attribution} data-tip={matchDescription}>{instance.attribution === "exact" ? "Verified" : instance.attribution === "inferred" ? "Estimated" : "Unknown"}</span></span>
         <span><span>Launched</span><span>{instance.launchedAt ? new Date(instance.launchedAt).toLocaleString() : "Unknown"}</span></span>
       </span>
     </button>

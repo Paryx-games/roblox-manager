@@ -515,7 +515,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
   }, [savedDraft]);
 
   function showError(error: unknown, context = "The settings operation") {
-    notify("error", `${context} could not be completed. ${operationError(error, "Check the affected setting and try again.")}`);
+    notify("error", `${context} failed. ${operationError(error, "Check this setting and try again.")}`);
   }
 
   async function handleBrowseRobloxDirectory() {
@@ -660,13 +660,13 @@ export function SettingsPage({ onNavigationGuardChange }: {
     try {
       const result = await callback();
       const messages: Record<string, string> = {
-        "orphaned-data": `${String(result)} unused account-browser profiles were removed. Browser profiles belonging to saved accounts were kept.`,
-        caches: Number(result) > 0 ? `${String(result)} application cache entries were removed. RM can fetch this cached information again when needed.` : "No application cache entries needed removal. Your accounts, presets and settings were not changed.",
-        tile: "Roblox window arrangement was requested using the current monitor and grid settings. Check the running windows to verify their placement.",
-        mac: "A MAC address change was requested for the network adapter. The adapter may reconnect; use Windows network settings to check the resulting address.",
-        "data-folder": "File Explorer was asked to open RM's data folder. This folder contains application settings, encrypted account storage and logs.",
+        "orphaned-data": `${String(result)} unused browser profiles removed. Saved accounts were kept.`,
+        caches: Number(result) > 0 ? `${String(result)} cached items removed.` : "There’s no cache to clear.",
+        tile: "Arranging Roblox windows using your current layout. Check the windows to see the result.",
+        mac: "Updating your network adapter’s MAC address. It may reconnect. Check the result in Windows network settings.",
+        "data-folder": "Opening RM’s data folder in File Explorer.",
       };
-      const message = messages[action] ?? `The ${action} settings request finished. Review the corresponding setting to confirm its effect.`;
+      const message = messages[action] ?? "Done. Check the setting to see the result.";
       notify("success", message);
     } catch (error) {
       showError(error, ({ "data-folder": "Opening the data folder", "orphaned-data": "Removing unused browser profiles", caches: "Clearing application caches", tile: "Arranging Roblox windows", mac: "Changing the network adapter MAC address" } as Record<string, string>)[action] ?? "The settings request");
@@ -787,7 +787,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
           <SettingRow referenceId="refresh_on_startup" infoCards={infoCards}>
             <Toggle
               checked={draft.refreshOnStartup}
-              label="Revalidate accounts on startup"
+              label="Check accounts on startup"
               onChange={(refreshOnStartup) => updateDraft({ refreshOnStartup })}
             />
           </SettingRow>
@@ -798,23 +798,20 @@ export function SettingsPage({ onNavigationGuardChange }: {
                 label="Auto-launch on startup"
                 onChange={(autoLaunchOnStartup) => updateDraft({ autoLaunchOnStartup })}
               />
-              <p className="settings-muted">Not implemented yet. This preference is saved, but games are not launched automatically.</p>
+              <p className="settings-muted">Launches this account and place once after RM starts and the account store unlocks. Applies on the next restart.</p>
               {draft.autoLaunchOnStartup && (
-                <label className="settings-inline-field">
-                  <span>Account ID:</span>
-                  <input
-                    type="number"
-                    min="1"
-                    value={draft.autoLaunchAccountId ?? ""}
-                    onChange={(event) =>
-                      updateDraft({
-                        autoLaunchAccountId: event.target.value
-                          ? Number(event.target.value)
-                          : null,
-                      })
-                    }
-                  />
-                </label>
+                <div className="settings-stack">
+                  <label className="settings-inline-field">
+                    <span>Account ID:</span>
+                    <input type="number" min="1" step="1" value={draft.autoLaunchAccountId ?? ""}
+                      onChange={(event) => updateDraft({ autoLaunchAccountId: event.target.value ? Number(event.target.value) : null })} />
+                  </label>
+                  <label className="settings-inline-field">
+                    <span>Place ID:</span>
+                    <input type="number" min="1" step="1" value={draft.autoLaunchPlaceId ?? ""}
+                      onChange={(event) => updateDraft({ autoLaunchPlaceId: event.target.value ? Number(event.target.value) : null })} />
+                  </label>
+                </div>
               )}
             </div>
           </SettingRow>
@@ -840,7 +837,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
           <SettingRow referenceId="kill_background_roblox" infoCards={infoCards}>
             <Toggle
               checked={draft.killBackgroundRoblox}
-              label="Kill Roblox tray/background processes automatically"
+              label="Close Roblox tray and background processes automatically"
               onChange={(killBackgroundRoblox) => updateDraft({ killBackgroundRoblox })}
             />
           </SettingRow>
@@ -1132,11 +1129,11 @@ export function SettingsPage({ onNavigationGuardChange }: {
           <SettingRow referenceId="mac_rotation" infoCards={infoCards}>
             <Toggle
               checked={draft.macRotationEnabled}
-              label="Enable MAC address rotation"
+              label="Rotate MAC address before the first launch"
               onChange={(macRotationEnabled) => updateDraft({ macRotationEnabled })}
             />
           </SettingRow>
-          <p className="settings-muted">Automatic rotation is not implemented yet. Use Rotate MAC address now for a manual change.</p>
+          <p className="settings-muted">Rotates once per RM session before launching Roblox. Close existing Roblox clients first. Windows may request administrator permission.</p>
           {draft.macRotationEnabled && (
             <div className="settings-indent">
               <SettingRow referenceId="mac_preserve_oui" infoCards={infoCards}>
@@ -1311,7 +1308,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
               />
             </label>
           </SettingRow>
-          <p className="settings-muted">Not implemented yet. Custom arguments are saved but are not passed to Roblox.</p>
+          <p className="settings-muted">Passed as extra arguments to Roblox on future RM launches. Use double quotes around values with spaces. Launch URI parameters and credentials are reserved.</p>
           <SubsectionHeading id="fast-flags">Fast flags</SubsectionHeading>
           <SettingRow referenceId="roblox_fast_flags" infoCards={infoCards}>
             {Object.keys(draft.robloxFastFlags).length === 0 ? (
@@ -1329,7 +1326,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
               </div>
             )}
           </SettingRow>
-          <p className="settings-muted">Not implemented yet. Flags are saved but are not written to Roblox ClientSettings before launch.</p>
+          <p className="settings-muted">Written to the selected installation before each launch. Roblox only honors flags on its current allowlist. Removing a flag restores its original value on the next launch.</p>
           {isAddingFlag ? (
             <div className="settings-flag-editor">
               <input aria-label="Flag name" placeholder="Flag name" value={newFlagName} onChange={(event) => setNewFlagName(event.target.value)} />

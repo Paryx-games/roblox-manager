@@ -50,30 +50,58 @@ pub async fn refresh_presence(
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    let cookie = tauri::async_runtime::spawn_blocking(move || {
-        let runtime = state
+    let _gate = state.presence_cache.gate.lock().await;
+    let credential_state = state.clone();
+    let (cookie, viewer, revision) = tauri::async_runtime::spawn_blocking(move || {
+        let runtime = credential_state
             .runtime
             .lock()
             .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked {
+            return Err("Account store is locked".to_string());
+        }
         runtime
             .accounts
             .accounts
             .iter()
             .filter(|account| !account.cookie_expired)
-            .find_map(|account| crate::account_cookie(&runtime, account.user_id).ok())
+            .find_map(|account| {
+                crate::account_cookie(&runtime, account.user_id)
+                    .ok()
+                    .map(|cookie| {
+                        (
+                            cookie,
+                            account.user_id,
+                            *runtime
+                                .credential_revisions
+                                .get(&account.user_id)
+                                .unwrap_or(&0),
+                        )
+                    })
+            })
             .ok_or_else(|| "No authenticated account is available to refresh presence".to_string())
     })
     .await
     .map_err(|_| "Presence credential task failed")??;
     let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
+    let generation = state.presence_cache.generation();
     let mut presences = Vec::new();
-    for batch in ids.chunks(50) {
+    let mut missing = Vec::new();
+    for id in ids {
+        if let Some(presence) = state.presence_cache.get(&(viewer, revision, id)) {
+            presences.push((id, presence));
+        } else if !missing.contains(&id) {
+            missing.push(id);
+        }
+    }
+    for batch in missing.chunks(50) {
         presences.extend(
             api::fetch_presences(&client, &cookie, batch)
                 .await
                 .map_err(|_| "Presence could not be refreshed. Check your connection.")?,
         );
     }
+    drop(cookie);
     let updates = presences
         .iter()
         .map(|(user_id, presence)| PresenceUpdate {
@@ -83,13 +111,28 @@ pub async fn refresh_presence(
             location: presence.last_location.clone(),
         })
         .collect();
-    let state = app.state::<AppState>();
     {
         let mut runtime = state
             .runtime
             .lock()
             .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked
+            || runtime
+                .accounts
+                .find_by_id(viewer)
+                .is_none_or(|account| account.cookie_expired)
+            || *runtime.credential_revisions.get(&viewer).unwrap_or(&0) != revision
+        {
+            return Err("Presence account changed. Refresh again.".into());
+        }
         for (user_id, presence) in presences {
+            if missing.contains(&user_id) {
+                state.presence_cache.insert(
+                    generation,
+                    (viewer, revision, user_id),
+                    presence.clone(),
+                );
+            }
             if let Some(account) = runtime.accounts.find_by_id_mut(user_id) {
                 account.last_presence = presence;
             }
@@ -104,7 +147,7 @@ async fn refresh_avatars(app: &tauri::AppHandle, ids: &[u64]) -> Result<(), Stri
     let mut avatars = Vec::new();
     for batch in ids.chunks(100) {
         avatars.extend(
-            api::fetch_avatars(&client, batch)
+            ram_core::cached_api::fetch_avatars(&client, batch)
                 .await
                 .map_err(|_| "Account avatars could not be refreshed")?,
         );
@@ -143,7 +186,9 @@ pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
     let avatar_app = app.clone();
     let instance_app = app.clone();
     let process_app = app.clone();
+    let startup_app = app.clone();
     BackgroundTasks(vec![
+        tauri::async_runtime::spawn(crate::startup_actions::run(startup_app)),
         tauri::async_runtime::spawn(async move {
             loop {
                 let _ = crate::instances::list_instances(instance_app.clone()).await;
@@ -203,8 +248,11 @@ pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
             let mut last_refresh = None::<std::time::Instant>;
             loop {
                 let ids = unlocked_ids(&validation_app);
+                if !ids.is_empty() && last_refresh.is_none() {
+                    last_refresh = Some(std::time::Instant::now());
+                }
                 if !ids.is_empty()
-                    && last_refresh.is_none_or(|last| last.elapsed() >= Duration::from_secs(300))
+                    && last_refresh.is_some_and(|last| last.elapsed() >= Duration::from_secs(300))
                 {
                     last_refresh = Some(std::time::Instant::now());
                     if accounts::refresh(&validation_app, Vec::new())

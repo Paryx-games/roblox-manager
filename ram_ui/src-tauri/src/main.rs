@@ -18,6 +18,7 @@ mod lifecycle;
 mod login;
 mod page_visibility;
 mod roblox_settings;
+mod startup_actions;
 mod state;
 mod webview_recovery;
 
@@ -253,7 +254,7 @@ struct StoreStatus {
     account_count: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct InventoryItem {
     asset_id: u64,
@@ -340,6 +341,8 @@ struct SettingsUpdate {
     refresh_on_startup: bool,
     auto_launch_on_startup: bool,
     auto_launch_account_id: Option<u64>,
+    #[serde(default)]
+    auto_launch_place_id: Option<u64>,
     multi_instance_enabled: bool,
     kill_background_roblox: bool,
     confirm_kill_all: bool,
@@ -379,6 +382,8 @@ struct SettingsConfig {
     refresh_on_startup: bool,
     auto_launch_on_startup: bool,
     auto_launch_account_id: Option<u64>,
+    #[serde(default)]
+    auto_launch_place_id: Option<u64>,
     multi_instance_enabled: bool,
     kill_background_roblox: bool,
     confirm_kill_all: bool,
@@ -418,6 +423,7 @@ impl SettingsConfig {
             refresh_on_startup: config.refresh_on_startup,
             auto_launch_on_startup: config.auto_launch_on_startup,
             auto_launch_account_id: config.auto_launch_account_id,
+            auto_launch_place_id: config.auto_launch_place_id,
             multi_instance_enabled: config.multi_instance_enabled,
             kill_background_roblox: config.kill_background_roblox,
             confirm_kill_all: config.confirm_kill_all,
@@ -455,9 +461,11 @@ impl SettingsConfig {
 
 impl SettingsUpdate {
     fn apply_to_config(self, config: &mut AppConfig) -> Result<(), String> {
-        if self.custom_game_args.chars().count() > 4096 || self.custom_game_args.contains('\0') {
-            return Err("Custom Roblox arguments must be 4096 characters or fewer".to_string());
-        }
+        ram_core::launch_options::parse_arguments(&self.custom_game_args).map_err(|_| {
+            "Custom arguments have invalid quoting or reserved launch parameters".to_string()
+        })?;
+        ram_core::launch_options::validate_fast_flags(&self.roblox_fast_flags)
+            .map_err(|_| "Fast flags must have valid names and values".to_string())?;
         if self
             .roblox_player_path
             .as_deref()
@@ -466,19 +474,6 @@ impl SettingsUpdate {
             return Err(
                 "Roblox player path is too long or contains an invalid character".to_string(),
             );
-        }
-        if self.roblox_fast_flags.len() > 100
-            || self.roblox_fast_flags.iter().any(|(key, value)| {
-                key.is_empty()
-                    || key.len() > 128
-                    || !key
-                        .bytes()
-                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-                    || value.len() > 4096
-                    || value.contains(['\0', '\n', '\r'])
-            })
-        {
-            return Err("Fast flags must have valid names and values".to_string());
         }
         if self.launch_delay_secs > 300 {
             return Err("Launch delay must be between 0 and 300 seconds".to_string());
@@ -499,10 +494,17 @@ impl SettingsUpdate {
             return Err("Alternate OUI must use the format 00:1B:21".to_string());
         }
 
+        if self.auto_launch_on_startup
+            && (self.auto_launch_account_id.is_none_or(|id| id == 0)
+                || self.auto_launch_place_id.is_none_or(|id| id == 0))
+        {
+            return Err("Choose a nonzero Account ID and Place ID for startup launch".into());
+        }
         config.use_credential_manager = self.use_credential_manager;
         config.refresh_on_startup = self.refresh_on_startup;
         config.auto_launch_on_startup = self.auto_launch_on_startup;
         config.auto_launch_account_id = self.auto_launch_account_id;
+        config.auto_launch_place_id = self.auto_launch_place_id;
         config.multi_instance_enabled = self.multi_instance_enabled;
         config.kill_background_roblox = self.kill_background_roblox;
         config.confirm_kill_all = self.confirm_kill_all;
@@ -782,7 +784,7 @@ async fn enrich_private_server(server: &mut PrivateServer) -> String {
     };
     if server.universe_id.is_none() {
         if let Ok(universe_id) =
-            assets_api::resolve_place_universe(&client, "", server.place_id).await
+            ram_core::cached_api::resolve_place_universe(&client, "", server.place_id).await
         {
             server.universe_id = Some(universe_id);
         }
@@ -791,11 +793,13 @@ async fn enrich_private_server(server: &mut PrivateServer) -> String {
         return String::new();
     };
     if server.place_name.is_empty() {
-        if let Ok(place_name) = api::resolve_universe_name(&client, universe_id).await {
+        if let Ok(place_name) =
+            ram_core::cached_api::resolve_universe_name(&client, universe_id).await
+        {
             server.place_name = place_name;
         }
     }
-    if let Ok(icons) = api::fetch_game_icons(&client, "", &[universe_id]).await {
+    if let Ok(icons) = ram_core::cached_api::fetch_game_icons(&client, "", &[universe_id]).await {
         if let Some((_, icon_url)) = icons.into_iter().next() {
             return icon_url;
         }
@@ -955,6 +959,8 @@ async fn unlock_device(
     })
     .await
     .map_err(|_| "Device unlock task failed".to_string())??;
+    app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(status)
 }
@@ -992,6 +998,8 @@ async fn create_device_store(
     })
     .await
     .map_err(|_| "Device store task failed".to_string())??;
+    app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(status)
 }
@@ -1035,6 +1043,8 @@ async fn unlock_password(
     runtime.legacy_store = session.is_legacy();
     runtime.session = Some(session);
     runtime.unlocked = true;
+    app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(StoreStatus {
         exists: true,
@@ -1494,6 +1504,31 @@ async fn save_settings(
     Ok(settings)
 }
 
+#[cfg(test)]
+mod settings_validation_tests {
+    use super::*;
+
+    #[test]
+    fn startup_launch_requires_both_targets_and_does_not_partially_apply_invalid_settings() {
+        let mut config = AppConfig::default();
+        let mut payload = serde_json::to_value(SettingsConfig::from_config(&config)).unwrap();
+        payload["autoLaunchOnStartup"] = serde_json::json!(true);
+        payload["autoLaunchAccountId"] = serde_json::json!(1);
+        for place in [serde_json::Value::Null, serde_json::json!(0)] {
+            payload["autoLaunchPlaceId"] = place;
+            let update: SettingsUpdate = serde_json::from_value(payload.clone()).unwrap();
+            assert!(update.apply_to_config(&mut config).is_err());
+            assert!(!config.auto_launch_on_startup);
+        }
+        payload["autoLaunchPlaceId"] = serde_json::json!(2);
+        let update: SettingsUpdate = serde_json::from_value(payload).unwrap();
+        update.apply_to_config(&mut config).unwrap();
+        assert_eq!(config.auto_launch_account_id, Some(1));
+        assert_eq!(config.auto_launch_place_id, Some(2));
+        assert!(config.auto_launch_on_startup);
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StartupChange {
@@ -1565,16 +1600,24 @@ struct MacAddressRotation {
 }
 
 #[tauri::command]
-async fn rotate_mac_address(rotation: MacAddressRotation) -> Result<(), String> {
+async fn rotate_mac_address(
+    state: tauri::State<'_, AppState>,
+    rotation: MacAddressRotation,
+) -> Result<(), String> {
     if !valid_mac_oui(&rotation.alternate_oui) {
         return Err("Alternate OUI must use the format 00:1B:21".to_string());
     }
-    tauri::async_runtime::spawn_blocking(move || {
+    let _queue = state.launch_queue.lock().await;
+    let rotated = tauri::async_runtime::spawn_blocking(move || {
+        if process::is_roblox_running() { return Err("Close Roblox before rotating the adapter MAC address".to_string()); }
         process::rotate_mac_address(rotation.preserve_oui, &rotation.alternate_oui)
-    })
-    .await
-    .map_err(|error| format!("MAC rotation task failed: {error}"))?
-    .map_err(|error| error.to_string())
+            .map_err(|_| "MAC rotation failed or was cancelled. Check administrator permission and adapter support.".to_string())
+    }).await.map_err(|_| "MAC rotation task failed")?;
+    rotated?;
+    state
+        .mac_rotated
+        .store(true, std::sync::atomic::Ordering::Release);
+    Ok(())
 }
 
 #[tauri::command]
@@ -1636,9 +1679,12 @@ async fn clean_orphaned_data(state: tauri::State<'_, AppState>) -> Result<usize,
 }
 
 #[tauri::command]
-fn clear_application_caches() -> Result<usize, String> {
-    // the tauri frontend keeps reloadable data in memory; no account or browser data is cacheable
-    Ok(0)
+fn clear_application_caches(state: tauri::State<'_, AppState>) -> Result<usize, String> {
+    Ok(
+        ram_core::cached_api::clear()
+            + state.inventory_cache.clear()
+            + state.presence_cache.clear(),
+    )
 }
 
 #[tauri::command]
@@ -2126,6 +2172,7 @@ async fn open_inventory_assets(
             .parse()
             .map_err(|_| "The Roblox item URL is invalid".to_string())?;
         tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::External(url))
+            .general_autofill_enabled(false)
             .title(title)
             .inner_size(1000.0, 760.0)
             .incognito(true)
@@ -2227,21 +2274,76 @@ async fn launch_private_server(
 async fn fetch_account_inventory(
     state: tauri::State<'_, AppState>,
     user_id: u64,
+    force_refresh: Option<bool>,
 ) -> Result<Vec<InventoryItem>, String> {
-    let (cookie, client) = {
+    let revision = {
         let runtime = state
             .runtime
             .lock()
-            .map_err(|_| "Account state unavailable".to_string())?;
-        (
-            account_cookie(&runtime, user_id)?,
-            RobloxClient::new().map_err(|error| error.to_string())?,
-        )
+            .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked
+            || runtime
+                .accounts
+                .find_by_id(user_id)
+                .is_none_or(|account| account.cookie_expired)
+        {
+            return Err("Unlock the store and select a managed account".into());
+        }
+        *runtime.credential_revisions.get(&user_id).unwrap_or(&0)
     };
+    let key = (user_id, revision);
+    let gate = state.inventory_cache.key_gate(&key);
+    let _gate = gate.lock().await;
+    {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked
+            || runtime
+                .accounts
+                .find_by_id(user_id)
+                .is_none_or(|account| account.cookie_expired)
+            || *runtime.credential_revisions.get(&user_id).unwrap_or(&0) != revision
+        {
+            return Err("The selected account changed. Reload its inventory.".into());
+        }
+        if !force_refresh.unwrap_or(false) {
+            if let Some(items) = state.inventory_cache.get(&key) {
+                return Ok(items);
+            }
+        }
+    }
+    let _permit = state
+        .inventory_fetches
+        .acquire()
+        .await
+        .map_err(|_| "Inventory requests unavailable")?;
+    let credential_state = state.inner().clone();
+    let (cookie, current_revision) = tauri::async_runtime::spawn_blocking(move || {
+        let runtime = credential_state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        Ok::<_, String>((
+            account_cookie(&runtime, user_id)?,
+            *runtime.credential_revisions.get(&user_id).unwrap_or(&0),
+        ))
+    })
+    .await
+    .map_err(|_| "Inventory credential task failed")??;
+    if current_revision != revision {
+        return Err("The selected account changed. Reload its inventory.".into());
+    }
+    let generation = state.inventory_cache.generation();
+    let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
     let items = assets_api::fetch_account_inventory(&client, &cookie, user_id)
         .await
-        .map_err(|error| error.to_string())?;
-    Ok(items
+        .map_err(|_| {
+            "Inventory could not be loaded. Check your connection and refresh the account."
+        })?;
+    drop(cookie);
+    let items: Vec<_> = items
         .into_iter()
         .map(|item| InventoryItem {
             asset_id: item.asset_id,
@@ -2250,7 +2352,26 @@ async fn fetch_account_inventory(
             icon_url: item.icon_url,
             price_robux: item.price_robux,
         })
-        .collect())
+        .collect();
+    {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked
+            || runtime
+                .accounts
+                .find_by_id(user_id)
+                .is_none_or(|account| account.cookie_expired)
+            || *runtime.credential_revisions.get(&user_id).unwrap_or(&0) != revision
+        {
+            return Err(
+                "The selected account changed. Select it again to reload its inventory.".into(),
+            );
+        }
+        state.inventory_cache.insert(generation, key, items.clone());
+    }
+    Ok(items)
 }
 
 #[tauri::command]
@@ -2260,11 +2381,12 @@ async fn search_connection_users(keyword: String) -> Result<Vec<ConnectionSearch
         .await
         .map_err(|error| error.to_string())?;
     let user_ids: Vec<u64> = users.iter().map(|user| user.user_id).collect();
-    let avatars: std::collections::HashMap<u64, String> = api::fetch_avatars(&client, &user_ids)
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
+    let avatars: std::collections::HashMap<u64, String> =
+        ram_core::cached_api::fetch_avatars(&client, &user_ids)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
     Ok(users
         .into_iter()
         .map(|user| ConnectionSearchResult {
@@ -2520,11 +2642,12 @@ async fn fetch_preset_icon(place_id: u64) -> String {
         Ok(client) => client,
         Err(_) => return String::new(),
     };
-    let universe_id = match assets_api::resolve_place_universe(&client, "", place_id).await {
-        Ok(universe_id) => universe_id,
-        Err(_) => return String::new(),
-    };
-    match api::fetch_game_icons(&client, "", &[universe_id]).await {
+    let universe_id =
+        match ram_core::cached_api::resolve_place_universe(&client, "", place_id).await {
+            Ok(universe_id) => universe_id,
+            Err(_) => return String::new(),
+        };
+    match ram_core::cached_api::fetch_game_icons(&client, "", &[universe_id]).await {
         Ok(icons) => icons
             .into_iter()
             .next()
@@ -2760,10 +2883,10 @@ async fn load_group(
         return Err("Enter a valid Roblox group ID".to_string());
     }
     let client = RobloxClient::new().map_err(|_| "Roblox client unavailable".to_string())?;
-    let group = group_api::fetch_group(&client, group_id)
+    let group = ram_core::cached_api::fetch_group(&client, group_id)
         .await
         .map_err(|_| "Roblox group could not be loaded".to_string())?;
-    let icon_data_url = group_api::fetch_group_icon(&client, group_id)
+    let icon_data_url = ram_core::cached_api::fetch_group_icon(&client, group_id)
         .await
         .ok()
         .flatten()
@@ -2773,7 +2896,7 @@ async fn load_group(
                 base64::engine::general_purpose::STANDARD.encode(bytes)
             )
         });
-    let announcement = group_api::fetch_latest_group_announcement(&client, group_id)
+    let announcement = ram_core::cached_api::fetch_latest_group_announcement(&client, group_id)
         .await
         .map(group_announcement_dto);
     let forum_cookie = user_ids.first().and_then(|user_id| {
@@ -2862,6 +2985,9 @@ async fn change_group_membership(
             }
             Err(_) => (false, false),
         };
+        if ok {
+            ram_core::cached_api::invalidate_group(group_id);
+        }
         results.push(GroupMembershipResultDto {
             user_id,
             join,

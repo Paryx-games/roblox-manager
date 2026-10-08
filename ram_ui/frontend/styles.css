@@ -38,6 +38,21 @@
   background: color-mix(in srgb, var(--action-primary) 80%, var(--bg-canvas));
 }
 
+.roblox-display-name-row input[aria-invalid="true"] {
+  border-color: var(--notification-error);
+  color: var(--notification-error);
+}
+
+.roblox-display-name-row input[aria-invalid="true"]:focus-visible {
+  outline-color: var(--notification-error);
+}
+
+.roblox-display-name-error,
+.account-card .roblox-display-name-error p,
+.roblox-display-name-error .roblox-settings-results {
+  color: var(--notification-error);
+}
+
 .roblox-visibility-row {
   display: flex;
   min-width: 0;
@@ -587,6 +602,8 @@
   flex: 0 0 auto;
   width: auto;
   margin-left: auto;
+  min-height: 28px;
+  padding: var(--space-1) var(--space-4);
 }
 
 .titlebar-update + .window-controls {

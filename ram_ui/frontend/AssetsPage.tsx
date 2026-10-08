@@ -193,7 +193,7 @@ export function AssetsPage({
     if (mutationPending.current) return;
     mutationPending.current = true; setIsMutating(true);
     try { await operation(); }
-    catch (error) { notify(`${context} failed`, `${context} could not be completed. ${operationError(error, "Refresh Asset Manager to check the queue and account state before retrying.")}`); }
+    catch (error) { notify(`${context} failed`, operationError(error, "Refresh Asset Manager to check the queue and accounts, then try again.")); }
     finally { mutationPending.current = false; if (isMounted.current) setIsMutating(false); }
   }
 
@@ -402,7 +402,7 @@ export function AssetsPage({
     } catch {
       notify(
         "Upload could not be started",
-        "Roblox could not start the requested asset upload. Refresh the uploading account and review queued file types and creator permissions before retrying.",
+        "Couldn’t start the upload. Refresh the account and check the file types and upload permissions, then try again.",
       );
     } finally {
       mutationPending.current = false;

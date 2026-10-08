@@ -16,7 +16,7 @@ Enable **Show Inventories and Asset Manager** in **Settings > App and data**, sa
 - Search by name and filter item categories such as accessories, clothing, animations and gear.
 - Choose **All items**, **Shared by all** or **Unique to one** to compare the loaded accounts.
 - Switch between grid and list views and adjust the item size and sort order.
-- Use **Refresh** when ownership has changed or a request needs retrying.
+- Use **Refresh** when ownership has changed or a request needs retrying. Refresh bypasses cached inventories; if you change account selection while it is loading, the new selection also loads fresh inventories.
 
 Comparison results depend on the inventories that loaded successfully. An unavailable or restricted inventory is not proof that an account owns no items.
 

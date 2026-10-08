@@ -68,10 +68,22 @@ fn validate_request(request: &LaunchRequest) -> Result<(), String> {
 }
 
 pub async fn launch(app: &tauri::AppHandle, request: LaunchRequest) -> Result<(), String> {
+    launch_impl(app, request, false).await
+}
+
+pub async fn launch_startup(app: &tauri::AppHandle, request: LaunchRequest) -> Result<(), String> {
+    launch_impl(app, request, true).await
+}
+
+async fn launch_impl(
+    app: &tauri::AppHandle,
+    request: LaunchRequest,
+    startup: bool,
+) -> Result<(), String> {
     validate_request(&request)?;
     let request_id = uuid::Uuid::new_v4().to_string();
     progress(app, &request_id, request.user_id, "waiting");
-    let result = launch_queued(app, &request_id, &request).await;
+    let result = launch_queued(app, &request_id, &request, startup).await;
     progress(
         app,
         &request_id,
@@ -133,6 +145,7 @@ async fn launch_queued(
     app: &tauri::AppHandle,
     request_id: &str,
     request: &LaunchRequest,
+    startup: bool,
 ) -> Result<(), String> {
     let state = app.state::<AppState>().inner().clone();
     let mut next_launch = state.launch_queue.lock().await;
@@ -141,14 +154,43 @@ async fn launch_queued(
     }
     let credential_state = state.clone();
     let user_id = request.user_id;
-    let (cookie, config, player_path) = tauri::async_runtime::spawn_blocking(move || {
+    let startup_place = request.place_id;
+    let (cookie, config, player_path, revision) = tauri::async_runtime::spawn_blocking(move || {
         let runtime = credential_state.runtime.lock().map_err(|_| "Account state unavailable")?;
+        if startup && (!runtime.config.auto_launch_on_startup || runtime.config.auto_launch_account_id != Some(user_id)
+            || runtime.config.auto_launch_place_id != Some(startup_place)) { return Err("Startup launch was disabled or changed while waiting.".to_string()); }
         let account = runtime.accounts.find_by_id(user_id).ok_or("Account not found")?;
         if account.cookie_expired || !account.can_launch() { return Err("This account is restricted or its credential has expired. Refresh or re-add it before launching.".to_string()); }
         let cookie = crate::account_cookie(&runtime, user_id).map_err(|_| "Account credential unavailable. Unlock or re-add the account.")?;
         let player_path = runtime.config.custom_player_paths.get(&user_id).cloned().or_else(|| runtime.config.roblox_player_path.clone());
-        Ok((cookie, runtime.config.clone(), player_path))
+        Ok((cookie, runtime.config.clone(), player_path, *runtime.credential_revisions.get(&user_id).unwrap_or(&0)))
     }).await.map_err(|_| "Launch credential task failed")??;
+    let options_state = state.clone();
+    let options_config = config.clone();
+    let (executable, custom_args) = tauri::async_runtime::spawn_blocking(move || {
+        let executable = process::resolve_player_executable(player_path.as_deref())
+            .map_err(|_| "RobloxPlayerBeta.exe was not found. Check the player path in Settings.")?;
+        let args = ram_core::launch_options::parse_arguments(&options_config.custom_game_args)
+            .map_err(|_| "Custom Roblox arguments are invalid. Check quoting and reserved launch parameters in Settings.")?;
+        ram_core::launch_options::apply_fast_flags(&executable, &options_config.roblox_fast_flags)
+            .map_err(|_| "Fast flags could not be applied. Check the selected installation and its ClientSettings files.")?;
+        crate::client_settings::apply_before_launch(&options_state)?;
+        Ok::<_, String>((executable, args))
+    }).await.map_err(|_| "Launch options task failed")??;
+    if config.mac_rotation_enabled && !state.mac_rotated.load(std::sync::atomic::Ordering::Acquire)
+    {
+        progress(app, request_id, user_id, "preparing");
+        let mac_config = config.clone();
+        let mac_state = state.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            if mac_state.is_shutting_down.load(std::sync::atomic::Ordering::Acquire) { return Err("RM is closing. Launch cancelled."); }
+            if process::is_roblox_running() { return Err("Close Roblox before the first launch with automatic MAC rotation enabled."); }
+            process::rotate_mac_address(mac_config.mac_preserve_oui, &mac_config.mac_alternate_oui)
+                .map_err(|_| "Automatic MAC rotation failed or was cancelled. Check adapter support and administrator permission, or turn it off in Settings.")?;
+            mac_state.mac_rotated.store(true, std::sync::atomic::Ordering::Release);
+            Ok(())
+        }).await.map_err(|_| "Automatic MAC rotation task failed")??;
+    }
     let multi_instance = config.multi_instance_enabled;
     let needs_tray_cleanup = config.kill_background_roblox || multi_instance;
     progress(app, request_id, request.user_id, "authenticating");
@@ -174,7 +216,6 @@ async fn launch_queued(
     let tracking_state = state.clone();
     let place_id = request.place_id;
     let token = tauri::async_runtime::spawn_blocking(move || {
-        crate::client_settings::apply_before_launch(&tracking_state)?;
         instances::note_launch(&tracking_state, user_id, place_id)
     })
     .await
@@ -184,8 +225,28 @@ async fn launch_queued(
     let link_code = request.link_code.clone();
     let access_code = request.access_code.clone();
     progress(app, request_id, request.user_id, "launching");
+    let clear_clipboard = config.privacy_mode && config.privacy_clear_clipboard;
+    let launch_state = state.clone();
     let launch_result = tauri::async_runtime::spawn_blocking(move || {
-        process::launch_game(
+        {
+            let runtime = launch_state
+                .runtime
+                .lock()
+                .map_err(|_| "Account state unavailable")?;
+            if launch_state
+                .is_shutting_down
+                .load(std::sync::atomic::Ordering::Acquire)
+                || !runtime.unlocked
+                || runtime
+                    .accounts
+                    .find_by_id(user_id)
+                    .is_none_or(|account| account.cookie_expired || !account.can_launch())
+                || *runtime.credential_revisions.get(&user_id).unwrap_or(&0) != revision
+            {
+                return Err("The account changed or RM is closing. Launch cancelled.");
+            }
+        }
+        process::launch_game_with_args(
             &ticket,
             place_id,
             job_id.as_deref(),
@@ -193,10 +254,17 @@ async fn launch_queued(
             access_code.as_deref(),
             data.as_deref(),
             token,
-            player_path.as_deref(),
+            Some(&executable),
+            &custom_args,
         )
         .map_err(|_| "Roblox could not be launched. Check the configured player path.")?;
-        Ok::<_, &str>(cleanup.commit().is_ok())
+        let privacy_backup_cleaned = cleanup.commit().is_ok();
+        let mut clipboard_cleared = true;
+        #[cfg(windows)]
+        if clear_clipboard {
+            clipboard_cleared = process::clear_clipboard().is_ok();
+        }
+        Ok::<_, &str>((privacy_backup_cleaned, clipboard_cleared))
     })
     .await
     .map_err(|_| "Roblox launch task failed")?;
@@ -207,10 +275,17 @@ async fn launch_queued(
                 needs_tray_cleanup,
             }),
     );
-    if !launch_result? {
+    let (privacy_backup_cleaned, clipboard_cleared) = launch_result?;
+    if !privacy_backup_cleaned {
         let _ = app.emit(
             "background-notice",
             "Roblox launched, but privacy backup cleanup did not complete.",
+        );
+    }
+    if !clipboard_cleared {
+        let _ = app.emit(
+            "background-notice",
+            "Roblox launched, but the clipboard could not be cleared. Another app may be using it.",
         );
     }
     if config.auto_arrange_windows {

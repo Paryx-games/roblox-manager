@@ -179,7 +179,7 @@ export function PrivateServersPage({
       setError(
         reason instanceof Error
           ? reason.message
-          : "The private-server bookmark could not be saved. Check its name and Roblox private-server URL, then try again.",
+          : "Couldn’t save this server. Check its name and Roblox link, then try again.",
       );
     } finally {
       setSaving(false);
@@ -196,7 +196,7 @@ export function PrivateServersPage({
       setError(
         reason instanceof Error
           ? reason.message
-          : "The private-server launch request could not be completed for all selected accounts. Check their sessions and server access; earlier clients may already have launched.",
+          : "Some accounts couldn’t launch. Refresh them and check server access. Check Instances before retrying; some may already be running.",
       );
     } finally {
       launchingIndexRef.current = null;
@@ -212,7 +212,7 @@ export function PrivateServersPage({
       setDeleteTarget(null);
       await reload();
     } catch {
-      setError("The private-server bookmark could not be removed from RM. Refresh the list before retrying; deleting a bookmark does not delete the Roblox server.");
+      setError("Couldn’t remove this bookmark. Refresh the list and try again. Removing a bookmark won’t delete the Roblox server.");
     } finally {
       setDeleting(false);
     }
@@ -222,7 +222,7 @@ export function PrivateServersPage({
       const clipboardText = await navigator.clipboard.readText();
       if (clipboardText) setUrl(clipboardText);
     } catch {
-      setError("The private-server link could not be copied or pasted. Check clipboard access, then retry the requested clipboard action.");
+      setError("Couldn’t paste the server link. Check clipboard access and try again.");
     }
   }
   async function copyLink(index: number, url: string) {
@@ -234,7 +234,7 @@ export function PrivateServersPage({
         setCopiedIndex((current) => (current === index ? null : current));
       }, 3000);
     } catch {
-      setError("The private-server link could not be copied or pasted. Check clipboard access, then retry the requested clipboard action.");
+      setError("Couldn’t copy the server link. Check clipboard access and try again.");
     }
   }
   function openEdit(server: PrivateServerSummary) {

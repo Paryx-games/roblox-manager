@@ -267,6 +267,9 @@ pub struct AppConfig {
     /// Account ID to auto-launch when RM starts, if auto_launch_on_startup is enabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_launch_account_id: Option<u64>,
+    /// Place to launch once after the account store unlocks at startup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_launch_place_id: Option<u64>,
     /// Custom command-line arguments passed to RobloxPlayerBeta.exe during launch.
     #[serde(default)]
     pub custom_game_args: String,
@@ -305,7 +308,7 @@ pub struct AppConfig {
     /// Clear the Windows clipboard after a successful launch to prevent join history from lingering.
     #[serde(default)]
     pub privacy_clear_clipboard: bool,
-    /// Enable the built-in MAC address rotation action.
+    /// Rotate the active adapter before the first launch in each RM session.
     #[serde(default)]
     pub mac_rotation_enabled: bool,
     /// Preserve the machine's current adapter OUI when rotating its MAC.
@@ -574,6 +577,7 @@ impl Default for AppConfig {
             launch_delay_secs: 0,
             auto_launch_on_startup: false,
             auto_launch_account_id: None,
+            auto_launch_place_id: None,
             custom_game_args: String::new(),
             roblox_player_path: None,
             custom_player_paths: HashMap::new(),

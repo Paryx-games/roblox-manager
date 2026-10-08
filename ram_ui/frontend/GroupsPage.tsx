@@ -228,7 +228,7 @@ export function GroupsPage({
       setSearchResults([]);
       const groupId = Number(value);
       if (!Number.isSafeInteger(groupId) || groupId <= 0) {
-        setError("Enter a positive numeric Roblox group ID to load the group directly. A username or group name cannot be used in ID mode.");
+        setError("Enter the group’s numeric ID. To search by name, switch to name search.");
         return;
       }
       await openGroup(groupId, {
@@ -241,7 +241,7 @@ export function GroupsPage({
     try {
       setSearchResults(await searchGroups(value));
     } catch {
-      setError("Roblox group search could not be completed. Check your connection and try the group name again, or search by numeric group ID.");
+      setError("Couldn’t search groups. Check your connection and try again, or search by group ID.");
     } finally {
       setSearching(false);
     }
@@ -285,8 +285,8 @@ export function GroupsPage({
     if (!userIds.length) {
       setActionNotice(
         join
-          ? "Every selected account is already a member of this Roblox group. No join requests were sent."
-          : "None of the selected accounts belong to this Roblox group. No leave requests were sent.",
+          ? "All selected accounts are already in this group."
+          : "None of the selected accounts are in this group.",
       );
       return;
     }
@@ -302,7 +302,7 @@ export function GroupsPage({
       const failed = results.filter((result) => !result.ok);
       if (failed.length) {
         setError(
-          `${results.length - failed.length} of ${results.length} ${join ? "join" : "leave"} requests succeeded for ${workspace.group.name}. ${failed.length} account${failed.length === 1 ? "" : "s"} could not be updated. Refresh memberships and complete any Roblox verification before retrying.`,
+          `${results.length - failed.length} of ${results.length} accounts ${join ? "joined" : "left"} ${workspace.group.name}. ${failed.length} couldn’t be updated. Refresh memberships and complete any Roblox verification before trying again.`,
         );
         if (failed[0]?.challenge) {
           const account = selectedAccounts.find(
@@ -314,8 +314,8 @@ export function GroupsPage({
       } else {
         setActionNotice(
           join
-            ? `${userIds.length} selected accounts joined ${workspace.group.name} (group ${workspace.group.id}). Memberships are being refreshed.`
-            : `${userIds.length} selected accounts left ${workspace.group.name} (group ${workspace.group.id}). Memberships are being refreshed.`,
+            ? `${userIds.length} accounts joined ${workspace.group.name}.`
+            : `${userIds.length} accounts left ${workspace.group.name}.`,
         );
       }
       await openGroup(workspace.group.id, undefined, true);
@@ -323,7 +323,7 @@ export function GroupsPage({
       setError(
         reason instanceof Error
           ? reason.message
-          : "The group membership request could not be completed for every selected account. Refresh memberships before retrying; some requests may already have succeeded.",
+          : "Some accounts couldn’t join or leave the group. Refresh memberships before trying again; some changes may have worked.",
       );
     } finally {
       setAction(null);
