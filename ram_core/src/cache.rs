@@ -283,6 +283,9 @@ mod tests {
         let generation = cache.generation();
         cache.insert(generation, 1, "one");
         cache.insert(generation, 2, "two");
+        // make eviction order explicit even if the clock gives both inserts the same timestamp
+        cache.entries.lock().unwrap().values.get_mut(&1).unwrap().0 =
+            Instant::now() - Duration::from_secs(1);
         cache.insert(generation, 3, "three");
         assert_eq!(cache.get(&1), None);
         assert_eq!(cache.get(&3), Some("three"));
