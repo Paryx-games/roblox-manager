@@ -10,7 +10,7 @@ export function instanceKey(instance: InstanceSummary) {
 export function InstanceIdentity({ instance, account }: { instance: InstanceSummary; account?: AccountSummary }) {
   return <span className="instance-identity">
     {account ? <AccountAvatar account={account} className="instance-avatar" /> : <span className="instance-avatar"><Icon name="app-window" /></span>}
-    <span className="instance-identity-copy"><strong>{instance.label}</strong><span className="selectable-text">PID {instance.pid}{instance.userId !== null && <> · User {instance.userId}</>}</span></span>
+    <span className="instance-identity-copy"><strong>{instance.label}</strong><span className="selectable-text">PID {instance.pid}{instance.userId !== null && <> - User {instance.userId}</>}</span></span>
   </span>;
 }
 
