@@ -6,7 +6,7 @@
 
 - Multi-account selectors offer an All accounts action, with the same select/clear action in Accounts and Inventories.
 
-- Added session history on every workspace, with a resizable right panel, event color bars, account filtering, memory-only or encrypted file storage, and CSV/JSON exports.
+- Added session history on every workspace, with a resizable right panel, event color bars, account filtering, memory-only or JSON file storage, and CSV/JSON exports.
 - Added queued game joins by exact username or user ID, using a server visible to any selected account or temporary follow/unfollow with cleanup recovery and cancellation of remaining accounts.
 
 ### Changed

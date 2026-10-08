@@ -76,12 +76,18 @@ between checks may be missed. Moderation is recorded when account validation
 detects it. Network failures do not count as going offline.
 
 **Until app closes** keeps history in memory and starts empty after a restart.
-**Save to encrypted file** retains the latest 10,000 events in
-`session-history.dat` beside `config.json`, encrypted with the account store's
-data key. A new/recovered account store cannot decrypt history from the old
-store. An unreadable history is preserved until you explicitly clear it.
+**Save to file** retains the latest 10,000 events in readable
+`session-history.json` beside `config.json`. History contains activity metadata
+and no credentials. Existing encrypted `session-history.dat` files are migrated
+after unlock without changing account storage or the encrypted follow-cleanup
+journal. The old encrypted primary and backup are retained for recovery until
+you clear history. Failed migrations preserve the source and can be retried.
+Earlier PR builds do not read the new JSON file; downgrading to those builds
+uses their last encrypted history, which may be older. An unreadable history
+is preserved until you explicitly clear it.
 Switching back to memory stops writing, but leaves previously saved history
-on disk. **Clear** clears memory and both the saved file and its backup.
+on disk. **Clear** clears memory, the saved JSON file and backup, and any legacy
+encrypted history files.
 
 Filter by account and choose **Export** for CSV or JSON. Exports contain user
 IDs, observed times, events, game locations and available Place/Job IDs; no

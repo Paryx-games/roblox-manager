@@ -6,7 +6,7 @@ icon: gear
 # Settings
 
 Session history storage is controlled from **App actions > Session history** in the title
-bar. It defaults to memory only. Choose **Save to encrypted file** to retain
+bar. It defaults to memory only. Choose **Save to file** to retain
 activity across restarts, or **Until app closes** to start empty on the next
 restart. Earlier saved history remains on disk until explicitly cleared.
 See [Session history](manage-accounts.md#session-history) for recording and export details.

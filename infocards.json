@@ -1,7 +1,7 @@
 {
   "session_history": {
     "type": "info",
-    "text": "Session history records observed activity while RM is running and unlocked. Memory mode starts empty after restarting. File mode encrypts history with the account-store key. CSV/JSON exports are unencrypted activity metadata without credentials."
+    "text": "Session history records observed activity while RM is running and unlocked. Memory mode starts empty after restarting. File mode saves readable activity metadata, without credentials, as JSON. Review saved or exported history before sharing."
   },
   "credential_manager": {
     "type": "info",

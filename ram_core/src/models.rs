@@ -217,7 +217,7 @@ impl AccountStore {
 /// Global application configuration persisted to `config.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppConfig {
-    /// Retain encrypted activity history across application restarts.
+    /// Retain observed activity history across application restarts.
     #[serde(default)]
     pub session_history_persist: bool,
     /// Logging verbosity for the trace subscriber. Debug builds are limited to

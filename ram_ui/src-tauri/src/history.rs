@@ -1,8 +1,5 @@
 use crate::state::AppState;
-use ram_core::{
-    session_history::{self, HistoryEvent},
-    storage,
-};
+use ram_core::session_history::{self, HistoryEvent};
 use serde::Serialize;
 use tauri::{Emitter, Manager};
 
@@ -19,7 +16,7 @@ fn path(state: &AppState) -> Result<std::path::PathBuf, String> {
         .runtime
         .lock()
         .map_err(|_| "Account state unavailable")?;
-    Ok(runtime.config_path.with_file_name("session-history.dat"))
+    Ok(runtime.config_path.with_file_name("session-history.json"))
 }
 
 fn snapshot(state: &AppState) -> Result<HistorySnapshot, String> {
@@ -72,11 +69,8 @@ pub async fn initialize(state: &AppState) -> Result<(), String> {
             )
         };
         let events = if persistent {
-            session_history::load(
-                &path(&state)?,
-                session.as_ref().ok_or("Unlock the account store")?,
-            )
-            .map_err(|_| "Saved history could not be read. Clear history to start again.")
+            session_history::load_or_migrate(&path(&state)?, session.as_ref())
+                .map_err(|_| "Saved history could not be read. Clear history to start again.")
         } else {
             Ok(Vec::new())
         };
@@ -129,15 +123,12 @@ pub async fn flush(state: &AppState) -> Result<(), String> {
     let state = state.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let _gate = gate;
-        let (persistent, session) = {
+        let persistent = {
             let runtime = state
                 .runtime
                 .lock()
                 .map_err(|_| "Account state unavailable")?;
-            (
-                runtime.config.session_history_persist && runtime.unlocked,
-                runtime.session.clone(),
-            )
+            runtime.config.session_history_persist && runtime.unlocked
         };
         if !persistent {
             return Ok(());
@@ -155,12 +146,8 @@ pub async fn flush(state: &AppState) -> Result<(), String> {
             }
             (history.events.clone(), history.generation)
         };
-        let result = session_history::save(
-            &path(&state)?,
-            &events,
-            session.as_ref().ok_or("Unlock the account store")?,
-        )
-        .map_err(|_| "History could not be saved. Activity is still available in memory.");
+        let result = session_history::save(&path(&state)?, &events)
+            .map_err(|_| "History could not be saved. Activity is still available in memory.");
         let mut history = state.history.lock().map_err(|_| "History unavailable")?;
         match result {
             Ok(()) => {
@@ -197,7 +184,7 @@ pub async fn set_history_persistence(
     let worker = state.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let _gate = gate;
-        let (events, session, config_path) = {
+        let (events, config_path) = {
             let runtime = worker
                 .runtime
                 .lock()
@@ -214,19 +201,11 @@ pub async fn set_history_persistence(
             {
                 return Err("Clear unreadable history before enabling file storage".into());
             }
-            (
-                history.events.clone(),
-                runtime.session.clone(),
-                runtime.config_path.clone(),
-            )
+            (history.events.clone(), runtime.config_path.clone())
         };
         if persistent {
-            session_history::save(
-                &path(&worker)?,
-                &events,
-                session.as_ref().ok_or("Unlock the account store")?,
-            )
-            .map_err(|_| "History could not be saved. Storage mode was not changed.")?;
+            session_history::save(&path(&worker)?, &events)
+                .map_err(|_| "History could not be saved. Storage mode was not changed.")?;
         }
         // config writes are serialized with other settings; preserve unrelated newer settings.
         let mut runtime = worker
@@ -258,26 +237,19 @@ pub async fn clear_session_history(app: tauri::AppHandle) -> Result<HistorySnaps
     let worker = state.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let _gate = gate;
-        let (session, unlocked) = {
+        let unlocked = {
             let runtime = worker
                 .runtime
                 .lock()
                 .map_err(|_| "Account state unavailable")?;
-            (runtime.session.clone(), runtime.unlocked)
+            runtime.unlocked
         };
         if !unlocked {
             return Err("Unlock the account store to clear history".into());
         }
         let file = path(&worker)?;
-        // replace both primary and backup with an encrypted empty history before clearing memory.
-        if file.exists() || storage::backup_path(&file).exists() {
-            let session = session.as_ref().ok_or("Unlock the account store")?;
-            session_history::save(&file, &[], session)
-                .map_err(|_| "History could not be cleared")?;
-            let bytes = std::fs::read(&file).map_err(|_| "Cleared history could not be read")?;
-            storage::atomic_swap(&storage::backup_path(&file), &bytes)
-                .map_err(|_| "History backup could not be cleared. Try again.")?;
-        }
+        session_history::clear_saved(&file)
+            .map_err(|_| "History files or backups could not be cleared. Try again.")?;
         let mut history = worker.history.lock().map_err(|_| "History unavailable")?;
         history.clear();
         history.error = None;

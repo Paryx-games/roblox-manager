@@ -171,23 +171,27 @@ struct FileHistory {
     events: Vec<HistoryEvent>,
 }
 
-pub fn save(path: &Path, events: &[HistoryEvent], session: &StoreSession) -> Result<(), CoreError> {
-    let payload = serde_json::to_string(&FileHistory {
+pub fn save(path: &Path, events: &[HistoryEvent]) -> Result<(), CoreError> {
+    let payload = serde_json::to_vec_pretty(&FileHistory {
         schema: 1,
         events: events.to_vec(),
     })?;
-    // reuse the existing authenticated envelope primitive; no new keys or crypto.
-    let sealed = crypto::encrypt_cookie(&payload, session)?;
-    storage::atomic_write(path, sealed.as_bytes())
+    storage::atomic_write(path, &payload)
 }
 
-fn read(path: &Path, session: &StoreSession) -> Result<Vec<HistoryEvent>, CoreError> {
+fn read_payload(path: &Path) -> Result<String, CoreError> {
     if std::fs::metadata(path)?.len() > MAX_FILE_BYTES {
-        return Err(CoreError::Crypto("History file is too large".into()));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "History file is too large",
+        )
+        .into());
     }
-    let sealed = std::fs::read_to_string(path)?;
-    let payload = crypto::decrypt_cookie(&sealed, session)?;
-    let file: FileHistory = serde_json::from_str(&payload)?;
+    Ok(std::fs::read_to_string(path)?)
+}
+
+fn parse(payload: &str) -> Result<Vec<HistoryEvent>, CoreError> {
+    let file: FileHistory = serde_json::from_str(payload)?;
     if file.schema != 1
         || file.events.len() > MAX_EVENTS
         || file.events.iter().any(|e| {
@@ -199,16 +203,63 @@ fn read(path: &Path, session: &StoreSession) -> Result<Vec<HistoryEvent>, CoreEr
                     .is_some_and(|job| uuid::Uuid::parse_str(job).is_err())
         })
     {
-        return Err(CoreError::Crypto("History format is unsupported".into()));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "History format is unsupported",
+        )
+        .into());
     }
     Ok(file.events)
 }
 
-pub fn load(path: &Path, session: &StoreSession) -> Result<Vec<HistoryEvent>, CoreError> {
+pub fn load(path: &Path) -> Result<Vec<HistoryEvent>, CoreError> {
     if !path.exists() && !storage::backup_path(path).exists() {
         return Ok(Vec::new());
     }
-    read(path, session).or_else(|_| read(&storage::backup_path(path), session))
+    read_payload(path)
+        .and_then(|payload| parse(&payload))
+        .or_else(|_| read_payload(&storage::backup_path(path)).and_then(|payload| parse(&payload)))
+}
+
+pub fn load_or_migrate(
+    path: &Path,
+    session: Option<&StoreSession>,
+) -> Result<Vec<HistoryEvent>, CoreError> {
+    if path.exists() || storage::backup_path(path).exists() {
+        return load(path);
+    }
+    let legacy = path.with_extension("dat");
+    if !legacy.exists() && !storage::backup_path(&legacy).exists() {
+        return Ok(Vec::new());
+    }
+    let session = session.ok_or_else(|| {
+        CoreError::Crypto("Unlock the account store to migrate legacy history".into())
+    })?;
+    let read = |file: &Path| parse(&crypto::decrypt_cookie(&read_payload(file)?, session)?);
+    let events = read(&legacy).or_else(|_| read(&storage::backup_path(&legacy)))?;
+    // keep legacy primary/backup intact until explicit clear; failed writes can retry.
+    save(path, &events)?;
+    Ok(events)
+}
+
+pub fn clear_saved(path: &Path) -> Result<(), CoreError> {
+    let legacy = path.with_extension("dat");
+    let legacy_backup = storage::backup_path(&legacy);
+    if path.exists()
+        || storage::backup_path(path).exists()
+        || legacy.exists()
+        || legacy_backup.exists()
+    {
+        save(path, &[])?;
+        let empty = std::fs::read(path)?;
+        storage::atomic_swap(&storage::backup_path(path), &empty)?;
+        for file in [&legacy, &legacy_backup] {
+            if file.exists() {
+                std::fs::remove_file(file)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -298,21 +349,63 @@ mod tests {
         );
     }
     #[test]
-    fn encrypted_roundtrip_and_backup_recovery() {
+    fn json_roundtrip_and_backup_recovery() {
         let dir = std::env::temp_dir().join(format!("rm-history-{}", uuid::Uuid::new_v4()));
-        let path = dir.join("history.dat");
-        let session = crypto::create_password_session(&uuid::Uuid::new_v4().to_string()).unwrap();
+        let path = dir.join("history.json");
         let mut history = History::default();
         history.observe_presence(7, &presence(2, Some(10)), Utc::now());
-        save(&path, &history.events, &session).unwrap();
-        save(&path, &history.events, &session).unwrap();
-        assert!(!std::fs::read_to_string(&path)
+        save(&path, &history.events).unwrap();
+        save(&path, &history.events).unwrap();
+        assert!(std::fs::read_to_string(&path)
             .unwrap()
             .contains("observedAt"));
         storage::atomic_swap(&path, b"corrupt").unwrap();
-        assert_eq!(load(&path, &session).unwrap().len(), 1);
-        let wrong = crypto::create_password_session(&uuid::Uuid::new_v4().to_string()).unwrap();
-        assert!(load(&path, &wrong).is_err());
+        assert_eq!(load(&path).unwrap().len(), 1);
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(load(&path).unwrap().len(), 1);
+        clear_saved(&path).unwrap();
+        assert!(load(&path).unwrap().is_empty());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn migration_recovers_legacy_backup_and_preserves_sources_on_failure() {
+        let dir =
+            std::env::temp_dir().join(format!("rm-history-migration-{}", uuid::Uuid::new_v4()));
+        let path = dir.join("history.json");
+        let legacy = path.with_extension("dat");
+        let session = crypto::create_password_session(&uuid::Uuid::new_v4().to_string()).unwrap();
+        let mut history = History::default();
+        history.observe_presence(7, &presence(2, Some(10)), Utc::now());
+        let payload = serde_json::to_string(&FileHistory {
+            schema: 1,
+            events: history.events,
+        })
+        .unwrap();
+        let sealed = crypto::encrypt_cookie(&payload, &session).unwrap();
+        storage::atomic_write(&legacy, sealed.as_bytes()).unwrap();
+        storage::atomic_write(&legacy, b"corrupt").unwrap();
+        assert!(load_or_migrate(&path, None).is_err());
+        assert!(!path.exists());
+        let blocking_parent = dir.join("blocked");
+        storage::atomic_swap(&blocking_parent, b"not a directory").unwrap();
+        let failed_path = blocking_parent.join("history.json");
+        // make the same legacy source available beside a target that cannot be written.
+        std::fs::create_dir(&path).unwrap();
+        assert!(load_or_migrate(&path, Some(&session)).is_err());
+        assert_eq!(
+            std::fs::read(&storage::backup_path(&legacy)).unwrap(),
+            sealed.as_bytes()
+        );
+        assert!(save(&failed_path, &[]).is_err());
+        std::fs::remove_dir(&path).unwrap();
+        assert_eq!(load_or_migrate(&path, Some(&session)).unwrap().len(), 1);
+        assert!(legacy.exists());
+        assert_eq!(load_or_migrate(&path, None).unwrap().len(), 1);
+        clear_saved(&path).unwrap();
+        assert!(!legacy.exists());
+        assert!(!storage::backup_path(&legacy).exists());
+        assert!(load(&path).unwrap().is_empty());
         std::fs::remove_dir_all(dir).unwrap();
     }
     #[test]
