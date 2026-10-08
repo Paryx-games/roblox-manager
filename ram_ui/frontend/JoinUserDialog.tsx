@@ -3,11 +3,14 @@ import { listen } from "@tauri-apps/api/event";
 import { Popup } from "./components/Popup";
 import { ConfirmModal } from "./ConfirmModal";
 import Select from "./components/Select";
+import { AccountPicker } from "./components/AccountPicker";
+import { allAccountsSelected } from "./lib/accountSelection";
 import { cancelUserJoin, getJoinCleanups, joinUserAccounts, operationError, resetJoinCleanupJournal, retryJoinCleanup, type AccountSummary, type JoinMode, type JoinProgress, type JoinResult, type PendingFollow } from "./lib/ipc";
 
 export function JoinUserDialog({ accounts, selectedIds, initialTarget, onClose }: { accounts: AccountSummary[]; selectedIds: Set<number>; initialTarget?: number; onClose: () => void }) {
   const [target, setTarget] = useState(initialTarget ? String(initialTarget) : "");
-  const [scope, setScope] = useState(selectedIds.size ? "selected" : "all");
+  const [selection, setSelection] = useState<Set<number> | null>(() => selectedIds.size ? new Set(selectedIds) : null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [mode, setMode] = useState<JoinMode>("visibleServer");
   const [busy, setBusy] = useState(false);
   const [cancelled, setCancelled] = useState(false);
@@ -20,7 +23,10 @@ export function JoinUserDialog({ accounts, selectedIds, initialTarget, onClose }
   const operation = useRef<string | null>(null);
   const active = useRef(true);
   const pending = useRef(false);
-  const ids = scope === "selected" ? [...selectedIds].filter(id => accounts.some(account => account.userId === id)) : scope === "all" ? accounts.filter(account => account.canLaunch && !account.cookieExpired).map(account => account.userId) : [Number(scope)];
+  const eligibleIds = accounts.filter(account => account.canLaunch && !account.cookieExpired).map(account => account.userId);
+  const disabledIds = new Set(accounts.filter(account => !account.canLaunch || account.cookieExpired).map(account => account.userId));
+  const chosenIds = selection ?? new Set(eligibleIds);
+  const ids = eligibleIds.filter(id => chosenIds.has(id));
 
   useEffect(() => {
     active.current = true;
@@ -30,7 +36,7 @@ export function JoinUserDialog({ accounts, selectedIds, initialTarget, onClose }
 
   async function start() {
     if (pending.current || !target.trim() || !ids.length) return;
-    pending.current = true; setBusy(true); setError(null); setResults([]); setProgress(null); setCancelled(false);
+    pending.current = true; setBusy(true); setPickerOpen(false); setError(null); setResults([]); setProgress(null); setCancelled(false);
     const id = crypto.randomUUID(); operation.current = id;
     let stop: (() => void) | undefined;
     try {
@@ -59,10 +65,10 @@ export function JoinUserDialog({ accounts, selectedIds, initialTarget, onClose }
   return <><Popup className="confirm-modal join-user-dialog" backdropClassName="confirm-modal-backdrop" labelledBy="join-user-title" busy={busy} onClose={onClose}>
     <div className="confirm-modal-header"><h2 id="join-user-title">Join user’s game</h2></div>
     <label className="join-user-field">Username or user ID<input value={target} disabled={busy} onChange={event => setTarget(event.target.value)} placeholder="Exact username or numeric ID" aria-label="Join target" /></label>
-    <label className="join-user-field">Launch with<Select ariaLabel="Join accounts" value={scope} disabled={busy} onChange={setScope} options={[{ value: "selected", label: `Selected accounts (${selectedIds.size})`, disabled: !selectedIds.size }, { value: "all", label: "All available accounts" }, ...accounts.map(account => ({ value: String(account.userId), label: account.label, disabled: !account.canLaunch || account.cookieExpired }))]} /></label>
+    <div className="join-user-field"><span>Launch with</span><AccountPicker accounts={accounts} mode="multiple" showAllAccounts ariaLabel="Launch accounts" open={pickerOpen} onOpenChange={setPickerOpen} selectedIds={chosenIds} onSelectedIdsChange={next => setSelection(allAccountsSelected(next, eligibleIds) ? null : next)} disabledAccountIds={disabledIds} disabled={busy} /></div>
     <label className="join-user-field">Find server using<Select ariaLabel="Join method" value={mode} disabled={busy} onChange={value => setMode(value as JoinMode)} options={[{ value: "visibleServer", label: "Check selected accounts for a visible server" }, { value: "temporaryFollow", label: "Temporarily follow, join, then unfollow" }]} /></label>
     <p className="settings-muted">{mode === "visibleServer" ? "Check accounts one at a time and reuse the first visible Place ID and Job ID. Roblox still decides whether each account can join." : "Check visible presence first. Follow only if needed, preserve existing follows, and remove temporary follows after the launch request. Following may not grant access."}</p>
-    <p className="settings-muted">Requests run in sequence and respect Roblox’s rate-limit retries and your launch delay. Launch requested does not mean the account has entered the game.</p>
+    <p className="settings-muted join-user-help">Queued requests respect Roblox rate limits and your launch delay. A launch request does not confirm game entry.</p>
     {error && <p className="session-history-error" role="alert">{error}</p>}
     {cleanupUnreadable && <button className="account-button" type="button" disabled={busy} onClick={() => setConfirmReset(true)}>Reset unreadable cleanup journal</button>}
     {progress && <p className="join-user-progress" role="status">{progress.userId ? `${accounts.find(account => account.userId === progress.userId)?.label ?? `User ${progress.userId}`}: ` : ""}{progress.message}{cancelled ? " · cancelling remaining accounts after this step and follow cleanup" : ""}</p>}

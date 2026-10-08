@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { InstancesPage } from "./InstancesPage";
 import { Toast, type ToastItem } from "./Toast";
 import { Popup } from "./components/Popup";
+import { PopupMenu } from "./components/PopupMenu";
 import { ReleaseNotes } from "./components/ReleaseNotes";
 import { Walkthrough, walkthroughSteps } from "./components/Walkthrough";
 import { WalkthroughAccounts, type DemoAccountName } from "./components/WalkthroughAccounts";
@@ -113,8 +114,16 @@ function WindowButton({
 export function App() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyToggle = useRef<HTMLButtonElement>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsMenu = useRef<HTMLDivElement>(null);
   const [joinTarget, setJoinTarget] = useState<number | null | undefined>(undefined);
   const [joinSelection, setJoinSelection] = useState<Set<number> | null>(null);
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const close = (event: PointerEvent) => { if (event.target instanceof Node && !actionsMenu.current?.contains(event.target)) setActionsOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [actionsOpen]);
   const [activeNav, setActiveNav] = useState<PageName>("Accounts");
   const displayedNav = activeNav;
   const settingsGuardRef = useRef<SettingsNavigationGuard | null>(null);
@@ -469,10 +478,13 @@ export function App() {
         <span className="titlebar-version">
           {import.meta.env.VITE_RM_VERSION}
         </span>
-        <div className="titlebar-history-actions">
-          {update && <button type="button" className="account-button titlebar-history-button" onClick={() => setIsReleaseDialogOpen(true)}>Update to {updateVersion}</button>}
-          <button ref={historyToggle} className="account-button titlebar-history-button" type="button" aria-expanded={historyOpen} aria-controls={historyOpen ? "session-history-panel" : undefined} onClick={() => setHistoryOpen(value => !value)}>Session history</button>
-          <button className="account-button titlebar-history-button" type="button" disabled={!accounts.length} onClick={() => { setJoinSelection(null); setJoinTarget(null); }}>Join user</button>
+        <div className="titlebar-history-actions" ref={actionsMenu} onMouseDown={event => event.stopPropagation()}>
+          <button ref={historyToggle} className="window-button" type="button" aria-label="App actions" aria-haspopup="menu" aria-expanded={actionsOpen} data-tip="App actions" onClick={() => setActionsOpen(value => !value)}><Icon name="more" /></button>
+          {actionsOpen && <PopupMenu className="titlebar-actions-menu" onClose={() => setActionsOpen(false)}>
+            <button className="titlebar-action-option" type="button" role="menuitemcheckbox" aria-checked={historyOpen} aria-controls="session-history-panel" onClick={() => { setHistoryOpen(value => !value); setActionsOpen(false); }}><span className="titlebar-action-icon"><Icon name="list" /></span>Session history</button>
+            <button className="titlebar-action-option" type="button" role="menuitem" disabled={!accounts.length} onClick={() => { setActionsOpen(false); setJoinSelection(null); setJoinTarget(null); }}><span className="titlebar-action-icon"><Icon name="accounts" /></span>Join user</button>
+            {update && <button className="titlebar-action-option" type="button" role="menuitem" onClick={() => { setActionsOpen(false); setIsReleaseDialogOpen(true); }}><span className="titlebar-action-icon"><Icon name="update" /></span>Update to {updateVersion}</button>}
+          </PopupMenu>}
         </div>
         <div className="window-controls" aria-label="Window controls">
           <WindowButton

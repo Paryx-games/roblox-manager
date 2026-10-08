@@ -33,9 +33,10 @@ An account with confirmed invalid credentials or active moderation cannot launch
 
 ## Join another user's game
 
-Open **Join user** in the title bar, or **Join game** from an account's
+Open **App actions > Join user** in the title bar, or **Join game** from an account's
 Connections search result. Enter an exact username or numeric user ID, choose
-one account, the current selection, or all available accounts, and choose:
+one or more accounts in **Launch with**, use **All accounts** to toggle every
+available account, and choose:
 
 - **Check selected accounts for a visible server:** RM checks target presence
   from each account in sequence. The first visible Place ID and Job ID is reused

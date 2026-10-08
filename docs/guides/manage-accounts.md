@@ -64,7 +64,7 @@ every available account; select it again to clear those accounts. Accounts and
 Inventories also expose this action above their account lists. Individual
 selection remains available for a smaller set.
 
-Use **Session history** in the title bar from any workspace. The right panel
+Use **App actions > Session history** in the title bar from any workspace. The right panel
 reduces the page width and stays open when you change pages. Drag its left edge,
 or focus the separator and use arrow keys, Home or End to resize it.
 
@@ -87,6 +87,8 @@ Filter by account and choose **Export** for CSV or JSON. Exports contain user
 IDs, observed times, events, game locations and available Place/Job IDs; no
 credentials or account names are included. Exported activity is unencrypted,
 so review it before sharing. Export uses the current account filter.
+The account picker supports multiple selections and **All accounts**. Export
+shows a notification with the selected event count and format.
 
 ### Export account information
 

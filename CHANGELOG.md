@@ -11,6 +11,8 @@
 
 ### Changed
 
+- Session history slides open and closed, exports show a notification, and account filters use the shared multi-account picker. App actions live in the title bar menu, and Join user uses a wider, compact dialog with account selection.
+
 - Startup launch now runs once after unlock using a saved account and Place ID. Startup account checks honor their toggle, and the clipboard privacy toggle clears the clipboard after a successful launch. Automatic MAC rotation runs before the first launch in each RM session, coordinates with manual rotation, requests elevation, and attempts to restore adapter availability on failure.
 
 - Custom Roblox arguments now reach the player with Windows quoting and reserved-parameter validation. FastFlags apply to the selected installation before launches; removed flags restore their original values and unrelated ClientSettings keys are preserved.
