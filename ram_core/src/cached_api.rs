@@ -147,32 +147,31 @@ pub async fn fetch_group_icon(
     client: &RobloxClient,
     id: u64,
 ) -> Result<Option<Vec<u8>>, CoreError> {
-    let cache = group_icons();
-    let _gate = cache.gate.lock().await;
-    if let Some(bytes) = cache.get(&id) {
-        return Ok(Some(bytes));
-    }
-    let generation = cache.generation();
-    let result = group_api::fetch_group_icon(client, id).await?;
-    if let Some(bytes) = result.as_ref().filter(|bytes| bytes.len() <= 1024 * 1024) {
-        cache.insert(generation, id, bytes.clone());
-    }
-    Ok(result)
+    group_icons()
+        .get_or_fetch_optional(
+            id,
+            || group_api::fetch_group_icon(client, id),
+            |bytes| bytes.len() <= 1024 * 1024,
+        )
+        .await
 }
 
 pub async fn fetch_latest_group_announcement(
     client: &RobloxClient,
     id: u64,
 ) -> Option<group_api::LatestGroupAnnouncement> {
-    let cache = announcements();
-    let _gate = cache.gate.lock().await;
-    if let Some(value) = cache.get(&id) {
-        return Some(value);
-    }
-    let generation = cache.generation();
-    let value = group_api::fetch_latest_group_announcement(client, id).await?;
-    cache.insert(generation, id, value.clone());
-    Some(value)
+    announcements()
+        .get_or_fetch_optional(
+            id,
+            || async {
+                Ok::<_, std::convert::Infallible>(
+                    group_api::fetch_latest_group_announcement(client, id).await,
+                )
+            },
+            |_| true,
+        )
+        .await
+        .unwrap_or_default()
 }
 
 pub async fn resolve_universe_name(client: &RobloxClient, id: u64) -> Result<String, CoreError> {
@@ -195,17 +194,9 @@ pub async fn fetch_public_created_at(
     client: &RobloxClient,
     id: u64,
 ) -> Result<Option<chrono::DateTime<chrono::Utc>>, CoreError> {
-    let cache = creation_dates();
-    let _gate = cache.gate.lock().await;
-    if let Some(value) = cache.get(&id) {
-        return Ok(Some(value));
-    }
-    let generation = cache.generation();
-    let value = api::fetch_public_created_at(client, id).await?;
-    if let Some(value) = value {
-        cache.insert(generation, id, value);
-    }
-    Ok(value)
+    creation_dates()
+        .get_or_fetch_optional(id, || api::fetch_public_created_at(client, id), |_| true)
+        .await
 }
 
 #[cfg(test)]

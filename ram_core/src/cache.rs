@@ -103,6 +103,33 @@ impl<K: Eq + Hash + Clone, V: Clone> ResponseCache<K, V> {
         Ok(value)
     }
 
+    /// Optional responses use the same per-key coordination without retaining omissions.
+    pub async fn get_or_fetch_optional<E, F, Fut>(
+        &self,
+        key: K,
+        fetch: F,
+        cacheable: impl Fn(&V) -> bool,
+    ) -> Result<Option<V>, E>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = Result<Option<V>, E>>,
+    {
+        if let Some(value) = self.get(&key) {
+            return Ok(Some(value));
+        }
+        let gate = self.key_gate(&key);
+        let _gate = gate.lock().await;
+        if let Some(value) = self.get(&key) {
+            return Ok(Some(value));
+        }
+        let generation = self.generation();
+        let value = fetch().await?;
+        if let Some(value) = value.as_ref().filter(|value| cacheable(value)) {
+            self.insert(generation, key, value.clone());
+        }
+        Ok(value)
+    }
+
     pub fn invalidate(&self, key: &K) {
         if let Ok(mut entries) = self.entries.lock() {
             entries.values.remove(key);
@@ -124,6 +151,95 @@ impl<K: Eq + Hash + Clone, V: Clone> ResponseCache<K, V> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn optional_fetches_coordinate_per_key_and_recheck_after_waiting() {
+        let cache = ResponseCache::new(Duration::from_secs(60), 4);
+        let entered = tokio::sync::Notify::new();
+        let release = tokio::sync::Notify::new();
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+        let slow = cache.get_or_fetch_optional(
+            1,
+            || async {
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                entered.notify_one();
+                release.notified().await;
+                Ok::<_, ()>(Some("one"))
+            },
+            |_| true,
+        );
+        let other = async {
+            entered.notified().await;
+            let result = tokio::time::timeout(
+                Duration::from_secs(2),
+                cache.get_or_fetch_optional(2, || async { Ok::<_, ()>(Some("two")) }, |_| true),
+            )
+            .await;
+            release.notify_one();
+            assert_eq!(result.unwrap().unwrap(), Some("two"));
+        };
+        let same = cache.get_or_fetch_optional(
+            1,
+            || async {
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                Ok::<_, ()>(Some("unexpected duplicate"))
+            },
+            |_| true,
+        );
+        let (slow, _, same) = tokio::join!(slow, other, same);
+        assert_eq!(slow.unwrap(), Some("one"));
+        assert_eq!(same.unwrap(), Some("one"));
+        assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn optional_cache_preserves_omissions_size_limits_errors_and_clear_generation() {
+        let cache = ResponseCache::new(Duration::from_secs(60), 4);
+        let small = vec![0_u8; 3];
+        let large = vec![0_u8; 5];
+        assert_eq!(
+            cache
+                .get_or_fetch_optional(
+                    1,
+                    || async { Ok::<_, ()>(None) },
+                    |value: &Vec<u8>| value.len() <= 4
+                )
+                .await
+                .unwrap(),
+            None
+        );
+        assert_eq!(cache.get(&1), None);
+        assert_eq!(
+            cache
+                .get_or_fetch_optional(
+                    1,
+                    || async { Ok::<_, ()>(Some(large.clone())) },
+                    |value| value.len() <= 4
+                )
+                .await
+                .unwrap(),
+            Some(large)
+        );
+        assert_eq!(cache.get(&1), None);
+        assert!(cache
+            .get_or_fetch_optional(1, || async { Err::<Option<Vec<u8>>, _>(()) }, |_| true)
+            .await
+            .is_err());
+        assert_eq!(cache.get(&1), None);
+        let result = cache
+            .get_or_fetch_optional(
+                1,
+                || async {
+                    cache.clear();
+                    Ok::<_, ()>(Some(small.clone()))
+                },
+                |_| true,
+            )
+            .await
+            .unwrap();
+        assert_eq!(result, Some(small));
+        assert_eq!(cache.get(&1), None);
+    }
 
     #[tokio::test]
     async fn unrelated_keys_do_not_wait_for_a_slow_fetch() {
