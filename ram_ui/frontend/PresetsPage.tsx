@@ -49,14 +49,14 @@ function PresetDetails({
       <CopyChip value={String(preset.placeId)} label="place ID" />
       {preset.jobId && (
         <>
-          <span className="preset-detail-separator">·</span>
+          <span className="preset-detail-separator">-</span>
           <span>Job ID</span>
           <CopyChip value={preset.jobId} label="job ID" />
         </>
       )}
       {preset.data && (
         <>
-          <span className="preset-detail-separator">·</span>
+          <span className="preset-detail-separator">-</span>
           <CopyChip value={preset.data} label="launch data" />
         </>
       )}
@@ -432,6 +432,7 @@ export function PresetsPage({
                       accounts={accounts}
                       isLoading={isAccountsLoading}
                       mode="multiple"
+                      showAllAccounts
                       open={openPicker === preset.index}
                       onOpenChange={(open) =>
                         setOpenPicker(open ? preset.index : null)

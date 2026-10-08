@@ -215,6 +215,66 @@ pub async fn fetch_friends(
     Ok(friends)
 }
 
+#[derive(Deserialize)]
+struct FollowingResponse {
+    followings: Vec<FollowingEntry>,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FollowingEntry {
+    user_id: u64,
+    is_following: bool,
+}
+
+fn following_relationship(
+    response: FollowingResponse,
+    target_user_id: u64,
+) -> Result<bool, CoreError> {
+    response
+        .followings
+        .into_iter()
+        .find(|entry| entry.user_id == target_user_id)
+        .map(|entry| entry.is_following)
+        .ok_or_else(|| CoreError::RobloxApi {
+            status: 502,
+            message: "Roblox omitted the follow relationship".into(),
+        })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FollowOutcome {
+    success: bool,
+    #[serde(default)]
+    is_captcha_required: bool,
+}
+
+fn require_follow_success(outcome: FollowOutcome) -> Result<(), CoreError> {
+    if !outcome.success || outcome.is_captcha_required {
+        return Err(CoreError::RobloxApi {
+            status: 403,
+            message: "Roblox requires an interactive challenge or did not accept the follow".into(),
+        });
+    }
+    Ok(())
+}
+
+/// Check the existing relationship before a temporary follow.
+pub async fn is_following(
+    client: &RobloxClient,
+    cookie: &str,
+    target_user_id: u64,
+) -> Result<bool, CoreError> {
+    let response: FollowingResponse = client
+        .post_json(
+            "https://friends.roblox.com/v1/user/following-exists",
+            cookie,
+            Some(&serde_json::json!({"targetUserIds": [target_user_id]})),
+        )
+        .await?;
+    following_relationship(response, target_user_id)
+}
+
 /// Follow another user from the authenticated account.
 pub async fn follow_user(
     client: &RobloxClient,
@@ -222,13 +282,14 @@ pub async fn follow_user(
     target_user_id: u64,
 ) -> Result<(), CoreError> {
     tracing::info!(target_user_id, "Following user");
-    perform_connection_action(
-        client,
-        cookie,
-        Method::POST,
-        &format!("https://friends.roblox.com/v1/users/{target_user_id}/follow"),
-    )
-    .await
+    let outcome: FollowOutcome = client
+        .post_json(
+            &format!("https://friends.roblox.com/v1/users/{target_user_id}/follow"),
+            cookie,
+            None,
+        )
+        .await?;
+    require_follow_success(outcome)
 }
 
 /// Unfollow another user from the authenticated account.
@@ -432,16 +493,42 @@ pub async fn download_avatar_images(
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PresenceResponse {
-    user_presences: Vec<PresenceEntry>,
+    user_presences: Option<Vec<PresenceEntry>>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PresenceEntry {
+    user_id: u64,
+    #[serde(default = "unknown_presence_type")]
     user_presence_type: u8,
     place_id: Option<u64>,
     game_id: Option<String>,
     last_location: Option<String>,
+}
+
+fn unknown_presence_type() -> u8 {
+    u8::MAX
+}
+
+fn map_presences(resp: PresenceResponse, user_ids: &[u64]) -> Vec<(u64, Presence)> {
+    let mut seen = std::collections::HashSet::new();
+    resp.user_presences
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|p| user_ids.contains(&p.user_id) && seen.insert(p.user_id))
+        .map(|p| {
+            (
+                p.user_id,
+                Presence {
+                    user_presence_type: p.user_presence_type,
+                    place_id: p.place_id,
+                    game_id: p.game_id,
+                    last_location: p.last_location.unwrap_or_default(),
+                },
+            )
+        })
+        .collect()
 }
 
 /// Fetch presence info for multiple user IDs.
@@ -463,21 +550,7 @@ pub async fn fetch_presences(
         )
         .await?;
 
-    let presences: Vec<_> = user_ids
-        .iter()
-        .zip(resp.user_presences.iter())
-        .map(|(id, p)| {
-            (
-                *id,
-                Presence {
-                    user_presence_type: p.user_presence_type,
-                    place_id: p.place_id,
-                    game_id: p.game_id.clone(),
-                    last_location: p.last_location.clone().unwrap_or_default(),
-                },
-            )
-        })
-        .collect();
+    let presences = map_presences(resp, user_ids);
     tracing::debug!(count = presences.len(), "Fetched presences successfully");
     Ok(presences)
 }
@@ -1009,6 +1082,43 @@ pub fn is_newer_stable_release(remote: &str, local: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn follow_contract_never_treats_missing_relationship_or_captcha_as_success() {
+        let response = serde_json::from_str::<super::FollowingResponse>(
+            r#"{"followings":[{"userId":2,"isFollowing":true},{"userId":1,"isFollowing":false}]}"#,
+        )
+        .unwrap();
+        assert!(super::following_relationship(response, 2).unwrap());
+        let response =
+            serde_json::from_str::<super::FollowingResponse>(r#"{"followings":[]}"#).unwrap();
+        assert!(super::following_relationship(response, 2).is_err());
+        for body in [
+            r#"{"success":false}"#,
+            r#"{"success":true,"isCaptchaRequired":true}"#,
+        ] {
+            assert!(super::require_follow_success(serde_json::from_str(body).unwrap()).is_err());
+        }
+        assert!(super::require_follow_success(
+            serde_json::from_str(r#"{"success":true}"#).unwrap()
+        )
+        .is_ok());
+        for body in ["", "<html>proxy error</html>", "{}"] {
+            assert!(serde_json::from_str::<super::FollowOutcome>(body).is_err());
+        }
+    }
+    #[test]
+    fn presence_maps_user_ids_with_reordered_partial_and_unknown_rows() {
+        let response: super::PresenceResponse = serde_json::from_str(r#"{"userPresences":[{"userId":2,"userPresenceType":99},{"userId":9,"userPresenceType":0},{"userId":1,"userPresenceType":2,"placeId":42},{"userId":2,"userPresenceType":0}]}"#).unwrap();
+        let rows = super::map_presences(response, &[1, 2, 3]);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].0, 2);
+        assert_eq!(rows[0].1.user_presence_type, 99);
+        assert_eq!(rows[1].0, 1);
+        assert_eq!(rows[1].1.place_id, Some(42));
+        let empty: super::PresenceResponse =
+            serde_json::from_str(r#"{"userPresences":null}"#).unwrap();
+        assert!(super::map_presences(empty, &[1]).is_empty());
+    }
     use super::*;
 
     #[test]

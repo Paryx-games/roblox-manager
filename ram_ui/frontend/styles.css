@@ -2965,12 +2965,17 @@ button:focus-visible {
   white-space: nowrap;
 }
 
-.account-picker-option:hover,
+.account-picker-option:hover:not(:disabled),
 .account-picker-option.is-selected,
 .account-picker-manage:hover,
 .account-picker-manage:focus-visible {
   background: var(--action-muted);
 }
+
+.account-picker-option:disabled { color: var(--text-disabled); opacity: 0.5; cursor: not-allowed; }
+.account-picker-option:active:not(:disabled) { background: var(--action-muted); }
+.account-select-all { width: 100%; margin-top: var(--space-2); }
+.account-select-all[aria-pressed="true"] { border-color: var(--action-primary); }
 
 .account-picker-checkbox {
   position: relative;

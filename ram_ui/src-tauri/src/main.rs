@@ -12,7 +12,9 @@ mod background;
 mod benchmark;
 mod client_settings;
 mod discord;
+mod history;
 mod instances;
+mod join_user;
 mod launcher;
 mod lifecycle;
 mod login;
@@ -377,6 +379,7 @@ struct SettingsUpdate {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SettingsConfig {
+    session_history_persist: bool,
     use_credential_manager: bool,
     startup_with_windows: bool,
     refresh_on_startup: bool,
@@ -419,6 +422,7 @@ impl SettingsConfig {
     fn from_config(config: &AppConfig) -> Self {
         Self {
             use_credential_manager: config.use_credential_manager,
+            session_history_persist: config.session_history_persist,
             startup_with_windows: config.startup_with_windows,
             refresh_on_startup: config.refresh_on_startup,
             auto_launch_on_startup: config.auto_launch_on_startup,
@@ -2444,13 +2448,31 @@ async fn connection_action(
     target_user_id: u64,
     action: String,
 ) -> Result<(), String> {
-    let cookie = {
-        let runtime = state
+    if user_id == 0 || target_user_id == 0 || user_id == target_user_id {
+        return Err("Choose another valid player".into());
+    }
+    let _queue = state.joins.queue.lock().await;
+    let cleanup_pending = if matches!(action.as_str(), "follow" | "unfollow") {
+        join_user::check_manual_follow(&state, user_id, target_user_id).await?
+    } else {
+        false
+    };
+    if action == "follow" && cleanup_pending {
+        return Err(
+            "Resolve the pending temporary follow in Join user before following this player again"
+                .into(),
+        );
+    }
+    let worker = state.inner().clone();
+    let cookie = tauri::async_runtime::spawn_blocking(move || {
+        let runtime = worker
             .runtime
             .lock()
             .map_err(|_| "Account state unavailable".to_string())?;
-        account_cookie(&runtime, user_id)?
-    };
+        account_cookie(&runtime, user_id)
+    })
+    .await
+    .map_err(|_| "Connection credential task failed")??;
     let client = RobloxClient::new().map_err(|error| error.to_string())?;
     match action.as_str() {
         "follow" => api::follow_user(&client, &cookie, target_user_id).await,
@@ -2459,7 +2481,11 @@ async fn connection_action(
         "block" => api::block_user(&client, &cookie, target_user_id).await,
         _ => return Err("Unsupported connection action".to_string()),
     }
-    .map_err(|error| error.to_string())
+    .map_err(|_| "Roblox could not complete the connection action. Check the account, connection, and rate limits.".to_string())?;
+    if action == "unfollow" && cleanup_pending {
+        join_user::finish_manual_unfollow(&state, user_id, target_user_id).await?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -2472,8 +2498,10 @@ async fn join_user_game(
         return Err("Choose another player to join".into());
     }
     let state = app.state::<AppState>().inner().clone();
+    let _queue = state.joins.queue.lock().await;
+    let credential_state = state.clone();
     let cookie = tauri::async_runtime::spawn_blocking(move || {
-        let runtime = state
+        let runtime = credential_state
             .runtime
             .lock()
             .map_err(|_| "Account state unavailable")?;
@@ -2493,14 +2521,8 @@ async fn join_user_game(
     if presence.user_presence_type != 2 {
         return Err("The target player is not in a game currently".into());
     }
-    let place_id = presence
-        .place_id
-        .ok_or("Roblox is not reporting the target player's Place ID")?;
-    let job_id = presence
-        .game_id
-        .filter(|value| !value.trim().is_empty())
-        .ok_or(
-        "Roblox is not reporting the target player's server. Their join privacy may be hiding it.",
+    let (place_id, job_id) = ram_core::session_history::server(&presence).ok_or(
+        "Roblox is not reporting a valid target server. Their join privacy may be hiding it.",
     )?;
     launcher::launch(
         &app,
@@ -3301,6 +3323,14 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            join_user::join_user_accounts,
+            join_user::cancel_user_join,
+            join_user::get_join_cleanups,
+            join_user::retry_join_cleanup,
+            join_user::reset_join_cleanup_journal,
+            history::get_session_history,
+            history::set_history_persistence,
+            history::clear_session_history,
             benchmark::benchmark_ready,
             asset_manager::list_asset_workspace,
             asset_manager::add_asset_files,
@@ -3411,6 +3441,8 @@ fn main() {
             }
             tauri::RunEvent::Exit => {
                 app.state::<background::BackgroundTasks>().stop();
+                let state = app.state::<AppState>().inner().clone();
+                let _ = tauri::async_runtime::block_on(history::flush(&state));
                 instances::shutdown(&app.state::<AppState>());
             }
             _ => {}

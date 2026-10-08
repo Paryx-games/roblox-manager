@@ -27,6 +27,9 @@ pub struct AppState {
     pub instances: Arc<Mutex<crate::instances::InstanceState>>,
     pub mac_rotated: Arc<std::sync::atomic::AtomicBool>,
     pub launch_queue: Arc<tokio::sync::Mutex<Option<std::time::Instant>>>,
+    pub history: Arc<Mutex<ram_core::session_history::History>>,
+    pub history_io: Arc<tokio::sync::Mutex<()>>,
+    pub joins: Arc<crate::join_user::JoinState>,
     pub is_shutting_down: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -86,6 +89,9 @@ impl Default for AppState {
             instances: Arc::new(Mutex::new(crate::instances::InstanceState::default())),
             mac_rotated: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             launch_queue: Arc::new(tokio::sync::Mutex::new(None)),
+            history: Arc::new(Mutex::new(Default::default())),
+            history_io: Arc::new(tokio::sync::Mutex::new(())),
+            joins: Arc::new(Default::default()),
             is_shutting_down: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }

@@ -217,6 +217,9 @@ impl AccountStore {
 /// Global application configuration persisted to `config.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppConfig {
+    /// Retain observed activity history across application restarts.
+    #[serde(default)]
+    pub session_history_persist: bool,
     /// Logging verbosity for the trace subscriber. Debug builds are limited to
     /// `debug`/`trace`; release builds allow the full range.
     #[serde(default = "default_log_level")]
@@ -562,6 +565,7 @@ impl Default for AppConfig {
             .unwrap_or_else(|_| std::path::PathBuf::from("."));
         Self {
             log_level: LogLevel::default(),
+            session_history_persist: false,
             accounts_path: data_dir.join("RM").join("accounts.dat"),
             start_on_accounts: true,
             compact_actions: true,

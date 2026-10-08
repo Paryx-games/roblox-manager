@@ -1,4 +1,8 @@
 {
+  "session_history": {
+    "type": "info",
+    "text": "Session history records observed activity while RM is running and unlocked. Memory mode starts empty after restarting. File mode saves readable activity metadata, without credentials, as JSON. Review saved or exported history before sharing."
+  },
   "credential_manager": {
     "type": "info",
     "text": "Keeps the device key in Windows Credential Manager and stores account cookies in per-account credential entries. The account file remains encrypted and can unlock automatically on this Windows user profile; clearing or losing the credentials can make the store unavailable."

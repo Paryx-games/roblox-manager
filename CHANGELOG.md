@@ -2,7 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- Multi-account selectors offer an All accounts action, with the same select/clear action in Accounts and Inventories.
+
+- Added session history on every workspace, with a resizable right panel, event color bars, account filtering, memory-only or JSON file storage, and CSV/JSON exports.
+- Added queued game joins by exact username or user ID, using a server visible to any selected account or temporary follow/unfollow with cleanup recovery and cancellation of remaining accounts.
+
 ### Changed
+
+- App copy and notifications use hyphens or layout instead of middle-dot separators.
+
+- Session history slides open and closed, exports show a notification, and account filters use the shared multi-account picker. App actions live in the title bar menu, and Join user uses a wider, compact dialog with account selection.
 
 - Startup launch now runs once after unlock using a saved account and Place ID. Startup account checks honor their toggle, and the clipboard privacy toggle clears the clipboard after a successful launch. Automatic MAC rotation runs before the first launch in each RM session, coordinates with manual rotation, requests elevation, and attempts to restore adapter availability on failure.
 

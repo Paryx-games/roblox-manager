@@ -42,6 +42,7 @@ pub async fn refresh_presence(
     requested_ids: Vec<u64>,
 ) -> Result<Vec<PresenceUpdate>, String> {
     let state = app.state::<AppState>().inner().clone();
+    crate::history::initialize(&state).await?;
     let ids = if requested_ids.is_empty() {
         unlocked_ids(app)
     } else {
@@ -134,11 +135,17 @@ pub async fn refresh_presence(
                 );
             }
             if let Some(account) = runtime.accounts.find_by_id_mut(user_id) {
+                if let Ok(mut history) = state.history.lock() {
+                    if history.loaded {
+                        history.observe_presence(user_id, &presence, chrono::Utc::now());
+                    }
+                }
                 account.last_presence = presence;
             }
         }
     }
     accounts::publish(app);
+    crate::history::publish(app);
     Ok(updates)
 }
 
@@ -187,7 +194,15 @@ pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
     let instance_app = app.clone();
     let process_app = app.clone();
     let startup_app = app.clone();
+    let history_app = app.clone();
     BackgroundTasks(vec![
+        tauri::async_runtime::spawn(async move {
+            loop {
+                let state = history_app.state::<AppState>().inner().clone();
+                flush_history(&history_app, &state).await;
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }),
         tauri::async_runtime::spawn(crate::startup_actions::run(startup_app)),
         tauri::async_runtime::spawn(async move {
             loop {
@@ -287,4 +302,10 @@ pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
             }
         }),
     ])
+}
+
+async fn flush_history(app: &tauri::AppHandle, state: &AppState) {
+    if crate::history::flush(state).await.is_err() {
+        crate::history::publish(app);
+    }
 }

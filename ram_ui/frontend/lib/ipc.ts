@@ -1,5 +1,22 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export type HistoryKind = "observed" | "joined" | "left" | "changedGame" | "changedServer" | "online" | "offline" | "studio" | "leftStudio" | "unknown" | "moderated";
+export interface HistoryEvent { id: number; observedAt: string; userId: number; kind: HistoryKind; location: string; placeId: number | null; jobId: string | null; }
+export interface HistorySnapshot { events: HistoryEvent[]; persistent: boolean; error: string | null; }
+export function getSessionHistory(): Promise<HistorySnapshot> { return invoke("get_session_history"); }
+export function setHistoryPersistence(persistent: boolean): Promise<HistorySnapshot> { return invoke("set_history_persistence", { persistent }); }
+export function clearSessionHistory(): Promise<HistorySnapshot> { return invoke("clear_session_history"); }
+
+export type JoinMode = "visibleServer" | "temporaryFollow";
+export interface JoinResult { userId: number; requested: boolean; message: string; cleanupPending: boolean; }
+export interface JoinProgress { operationId: string; userId: number; message: string; }
+export interface PendingFollow { userId: number; targetUserId: number; recordedAt: string; }
+export function joinUserAccounts(operationId: string, userIds: number[], target: string, mode: JoinMode): Promise<JoinResult[]> { return invoke("join_user_accounts", { operationId, userIds, target, mode }); }
+export function cancelUserJoin(operationId: string): Promise<void> { return invoke("cancel_user_join", { operationId }); }
+export function getJoinCleanups(): Promise<PendingFollow[]> { return invoke("get_join_cleanups"); }
+export function retryJoinCleanup(userId: number, targetUserId: number): Promise<PendingFollow[]> { return invoke("retry_join_cleanup", { userId, targetUserId }); }
+export function resetJoinCleanupJournal(): Promise<void> { return invoke("reset_join_cleanup_journal", { confirmation: "REVIEWED FOLLOWS" }); }
+
 export interface RobloxSettingResult {
   userId: number;
   success: boolean;
@@ -261,6 +278,7 @@ export const workspacePages = [
 ] as const;
 
 export interface SettingsConfig {
+  sessionHistoryPersist: boolean;
   useCredentialManager: boolean;
   startupWithWindows: boolean;
   refreshOnStartup: boolean;
@@ -299,7 +317,7 @@ export interface SettingsConfig {
 
 export type SettingsUpdate = Omit<
   SettingsConfig,
-  "startupWithWindows"
+  "startupWithWindows" | "sessionHistoryPersist"
 >;
 
 export interface SettingsInfoCard {
