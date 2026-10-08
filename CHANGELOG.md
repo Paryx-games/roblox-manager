@@ -14,6 +14,8 @@
 
 ### Fixed
 
+- Editing a display name clears errors from the previous submission and resets the input's invalid state while preserving successful account notices.
+
 - Group icons, announcements and account creation dates coordinate requests per ID, so an unrelated request can complete while another ID is loading. Missing values and oversized images remain uncached.
 
 - Requests for unrelated avatar, game-icon and asset-thumbnail IDs no longer wait for another cache batch to finish; overlapping batches share results without duplicate per-ID fetches.

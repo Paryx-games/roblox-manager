@@ -34,7 +34,7 @@ export function RobloxSettings({ accounts }: { accounts: AccountSummary[] }) {
       <p>Changes apply on Roblox to {accounts.length === 1 ? "this account" : `all ${accounts.length} selected accounts`}.</p>
       <form className="roblox-display-name-row account-field" onSubmit={(event) => { event.preventDefault(); void saveName(); }}>
         <label htmlFor="roblox-display-name">Display name</label>
-        <input id="roblox-display-name" value={name} disabled={busy} onChange={(event) => { setName(event.target.value); setIsEdited(true); }} aria-describedby="roblox-name-validation" aria-invalid={hasError} />
+        <input id="roblox-display-name" value={name} disabled={busy} onChange={(event) => { setName(event.target.value); setIsEdited(true); setError(""); setResults((current) => current.filter((result) => result.success)); }} aria-describedby="roblox-name-validation" aria-invalid={hasError} />
         <button className={`account-button${changed ? " primary" : ""}`} type="submit" disabled={busy || !changed}>{busy ? "Verifying and setting..." : "Verify and set display name"}</button>
       </form>
       <div id="roblox-name-validation" className={hasError ? "roblox-display-name-error" : undefined}>
