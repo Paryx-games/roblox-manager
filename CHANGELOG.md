@@ -14,6 +14,8 @@
 
 ### Fixed
 
+- Requests for unrelated avatar, game-icon and asset-thumbnail IDs no longer wait for another cache batch to finish; overlapping batches share results without duplicate per-ID fetches.
+
 - Inventory cache requests coordinate per account and credential revision, with up to four independent network fetches at a time. Accepted asset uploads invalidate cached inventories, and store unlock clears account caches.
 
 - Saved-text suggestions and automatic form-data saving are disabled throughout RM, including embedded Roblox login and browser windows.

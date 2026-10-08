@@ -47,8 +47,6 @@ where
     F: FnOnce(Vec<u64>) -> Fut,
     Fut: std::future::Future<Output = Result<Vec<(u64, V)>, CoreError>>,
 {
-    let _gate = cache.gate.lock().await;
-    let generation = cache.generation();
     let mut values = HashMap::new();
     let mut missing = Vec::new();
     for id in ids {
@@ -58,6 +56,21 @@ where
             missing.push(*id);
         }
     }
+    // acquire each missing key once in a stable order, so overlapping batches cannot deadlock
+    missing.sort_unstable();
+    let mut guards = Vec::with_capacity(missing.len());
+    for id in &missing {
+        guards.push(cache.key_gate(id).lock_owned().await);
+    }
+    missing.retain(|id| {
+        if let Some(value) = cache.get(id) {
+            values.insert(*id, value);
+            false
+        } else {
+            true
+        }
+    });
+    let generation = cache.generation();
     if !missing.is_empty() {
         for (id, value) in fetch(missing.clone()).await? {
             if !missing.contains(&id) {
@@ -198,6 +211,81 @@ pub async fn fetch_public_created_at(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn disjoint_batches_and_cache_hits_do_not_wait_for_slow_fetches() {
+        let cache = ResponseCache::new(Duration::from_secs(60), 8);
+        cache.insert(cache.generation(), 4, "cached");
+        let entered = tokio::sync::Notify::new();
+        let release = tokio::sync::Notify::new();
+        let slow = batch(
+            &cache,
+            &[2, 1],
+            |missing| {
+                assert_eq!(missing, vec![1, 2]);
+                async {
+                    entered.notify_one();
+                    release.notified().await;
+                    Ok(vec![(1, "one"), (2, "two")])
+                }
+            },
+            |_| true,
+        );
+        let fast = async {
+            entered.notified().await;
+            let result = tokio::time::timeout(Duration::from_secs(2), async {
+                let hits = batch(
+                    &cache,
+                    &[4, 4],
+                    |_| async { panic!("cached IDs must not fetch") },
+                    |_| true,
+                )
+                .await
+                .unwrap();
+                assert_eq!(hits, vec![(4, "cached"), (4, "cached")]);
+                batch(
+                    &cache,
+                    &[3],
+                    |missing| async move {
+                        assert_eq!(missing, vec![3]);
+                        Ok(vec![(3, "three")])
+                    },
+                    |_| true,
+                )
+                .await
+            })
+            .await;
+            release.notify_one();
+            assert_eq!(result.unwrap().unwrap(), vec![(3, "three")]);
+        };
+        let (slow, _) = tokio::join!(slow, fast);
+        assert_eq!(slow.unwrap(), vec![(2, "two"), (1, "one")]);
+    }
+
+    #[tokio::test]
+    async fn overlapping_batches_share_fetches_even_with_reversed_and_duplicate_ids() {
+        let cache = ResponseCache::new(Duration::from_secs(60), 8);
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+        let fetch = |missing| {
+            assert_eq!(missing, vec![1, 2]);
+            async {
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                tokio::task::yield_now().await;
+                Ok(vec![(1, "one"), (2, "two")])
+            }
+        };
+        let (a, b) = tokio::time::timeout(Duration::from_secs(2), async {
+            tokio::join!(
+                batch(&cache, &[2, 1, 2], fetch, |_| true),
+                batch(&cache, &[1, 2], fetch, |_| true),
+            )
+        })
+        .await
+        .unwrap();
+        assert_eq!(a.unwrap(), vec![(2, "two"), (1, "one"), (2, "two")]);
+        assert_eq!(b.unwrap(), vec![(1, "one"), (2, "two")]);
+        assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 1);
+    }
+
     #[tokio::test]
     async fn batches_reuse_hits_and_retry_omitted_thumbnails() {
         let cache = ResponseCache::new(Duration::from_secs(60), 4);
