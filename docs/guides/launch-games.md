@@ -5,6 +5,32 @@ icon: gamepad
 
 # Launch games
 
+Launch Roblox sessions from the account list. Choose the account first, then start the game you want.
+
+{% stepper %}
+{% step %}
+### Select an account
+
+Choose the Roblox account for this session.
+{% endstep %}
+
+{% step %}
+### Choose a game
+
+Select the Roblox game you want to launch.
+
+Enter its numeric **Place ID**. Optionally provide a **Job ID** to target a particular server and supported launch **Data**. A Job ID is a server identifier, not another Place ID. Saved presets fill these fields for you; private-server links belong in **Private Servers**.
+{% endstep %}
+
+{% step %}
+### Start the session
+
+Launch the game and wait for the Roblox client to open.
+
+An account with confirmed invalid credentials or active moderation cannot launch. Revalidate or replace its credential if appropriate. A successful launch request still depends on the installed Roblox client starting and the destination accepting the account.
+{% endstep %}
+{% endstepper %}
+
 ## Join another user's game
 
 Open **Join user** in the title bar, or **Join game** from an account's
@@ -39,32 +65,6 @@ be re-added/refreshed before retrying. Resetting the account store replaces its
 key and cannot decrypt the old journal; review relationships on Roblox manually,
 then use **Reset unreadable cleanup journal**. This forgets the unreadable record
 and does not change any Roblox relationship.
-
-Launch Roblox sessions from the account list. Choose the account first, then start the game you want.
-
-{% stepper %}
-{% step %}
-### Select an account
-
-Choose the Roblox account for this session.
-{% endstep %}
-
-{% step %}
-### Choose a game
-
-Select the Roblox game you want to launch.
-
-Enter its numeric **Place ID**. Optionally provide a **Job ID** to target a particular server and supported launch **Data**. A Job ID is a server identifier, not another Place ID. Saved presets fill these fields for you; private-server links belong in **Private Servers**.
-{% endstep %}
-
-{% step %}
-### Start the session
-
-Launch the game and wait for the Roblox client to open.
-
-An account with confirmed invalid credentials or active moderation cannot launch. Revalidate or replace its credential if appropriate. A successful launch request still depends on the installed Roblox client starting and the destination accepting the account.
-{% endstep %}
-{% endstepper %}
 
 ### Launch more than one session
 
