@@ -202,7 +202,6 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     setError(null);
     setSelectedItemIds(new Set());
     const forceRefresh = lastInventoryRefresh.current !== refreshCount;
-    lastInventoryRefresh.current = refreshCount;
     void Promise.allSettled([...accountIds].map(async (userId) => ({ userId, items: await fetchAccountInventory(userId, forceRefresh) })))
       .then((results) => {
         if (!isCurrent) return;
@@ -215,7 +214,10 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
         }
       })
       .finally(() => {
-        if (isCurrent) setItemsLoading(false);
+        if (isCurrent) {
+          lastInventoryRefresh.current = refreshCount;
+          setItemsLoading(false);
+        }
       });
     return () => { isCurrent = false; };
   }, [accountIds, accountsLoading, refreshCount]);

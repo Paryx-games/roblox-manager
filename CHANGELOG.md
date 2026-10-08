@@ -14,6 +14,8 @@
 
 ### Fixed
 
+- Changing account selection during an inventory refresh keeps the refresh pending until the current selection finishes loading, so newly selected inventories bypass their cache.
+
 - Editing a display name clears errors from the previous submission and resets the input's invalid state while preserving successful account notices.
 
 - Group icons, announcements and account creation dates coordinate requests per ID, so an unrelated request can complete while another ID is loading. Missing values and oversized images remain uncached.
