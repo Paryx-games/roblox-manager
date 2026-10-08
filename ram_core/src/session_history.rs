@@ -154,6 +154,7 @@ impl History {
         self.next_id = events.iter().map(|e| e.id).max().unwrap_or(0);
         self.events = events;
         self.loaded = true;
+        self.error = None;
     }
 
     pub fn clear(&mut self) {
@@ -394,7 +395,7 @@ mod tests {
         std::fs::create_dir(&path).unwrap();
         assert!(load_or_migrate(&path, Some(&session)).is_err());
         assert_eq!(
-            std::fs::read(&storage::backup_path(&legacy)).unwrap(),
+            std::fs::read(storage::backup_path(&legacy)).unwrap(),
             sealed.as_bytes()
         );
         assert!(save(&failed_path, &[]).is_err());

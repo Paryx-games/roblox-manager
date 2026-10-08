@@ -136,7 +136,9 @@ pub async fn refresh_presence(
             }
             if let Some(account) = runtime.accounts.find_by_id_mut(user_id) {
                 if let Ok(mut history) = state.history.lock() {
-                    history.observe_presence(user_id, &presence, chrono::Utc::now());
+                    if history.loaded {
+                        history.observe_presence(user_id, &presence, chrono::Utc::now());
+                    }
                 }
                 account.last_presence = presence;
             }

@@ -70,7 +70,7 @@ pub async fn initialize(state: &AppState) -> Result<(), String> {
         };
         let events = if persistent {
             session_history::load_or_migrate(&path(&state)?, session.as_ref())
-                .map_err(|_| "Saved history could not be read. Clear history to start again.")
+            .map_err(|_| "Saved history could not be read. Retry after checking the file, or clear history to start again.")
         } else {
             Ok(Vec::new())
         };
@@ -78,7 +78,7 @@ pub async fn initialize(state: &AppState) -> Result<(), String> {
         match events {
             Ok(events) => history.restore(events),
             Err(message) => {
-                history.loaded = true;
+                history.loaded = false;
                 history.error = Some(message.into());
             }
         }
@@ -252,6 +252,7 @@ pub async fn clear_session_history(app: tauri::AppHandle) -> Result<HistorySnaps
             .map_err(|_| "History files or backups could not be cleared. Try again.")?;
         let mut history = worker.history.lock().map_err(|_| "History unavailable")?;
         history.clear();
+        history.loaded = true;
         history.error = None;
         history.saved_generation = history.generation;
         Ok::<_, String>(())
@@ -333,5 +334,20 @@ mod tests {
         initialize(&state).await.unwrap();
         assert!(snapshot(&state).unwrap().events.is_empty());
         assert!(!directory.exists());
+    }
+
+    #[tokio::test]
+    async fn unreadable_history_can_be_retried_without_clearing_it() {
+        let (state, directory) = synthetic_state();
+        let file = path(&state).unwrap();
+        ram_core::storage::atomic_swap(&file, b"broken").unwrap();
+        initialize(&state).await.unwrap();
+        assert!(!state.history.lock().unwrap().loaded);
+        assert!(snapshot(&state).unwrap().error.is_some());
+        session_history::save(&file, &[]).unwrap();
+        initialize(&state).await.unwrap();
+        assert!(state.history.lock().unwrap().loaded);
+        assert!(snapshot(&state).unwrap().error.is_none());
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }
