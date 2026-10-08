@@ -310,7 +310,7 @@ mod tests {
             };
             runtime.config_path = directory.join("config.json");
             runtime.session =
-                Some(crypto::create_password_session("synthetic-history-test").unwrap());
+                Some(crypto::create_password_session(&uuid::Uuid::new_v4().to_string()).unwrap());
             runtime.unlocked = true;
         }
         (state, directory)

@@ -213,7 +213,7 @@ mod tests {
     fn cleanup_journal_is_encrypted_and_removal_is_durable() {
         let dir = std::env::temp_dir().join(format!("rm-join-journal-{}", uuid::Uuid::new_v4()));
         let file = dir.join("pending.dat");
-        let session = crypto::create_password_session("synthetic-join-password").unwrap();
+        let session = crypto::create_password_session(&uuid::Uuid::new_v4().to_string()).unwrap();
         let entry = PendingFollow {
             user_id: 1,
             target_user_id: 2,
