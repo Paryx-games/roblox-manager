@@ -46,6 +46,7 @@ pub fn summaries(state: &AppState) -> Result<Vec<AccountSummary>, String> {
 }
 
 pub fn publish(app: &tauri::AppHandle) {
+    crate::history::observe_moderation(app);
     if let Ok(accounts) = summaries(&app.state::<AppState>()) {
         let _ = app.emit("accounts-updated", &accounts);
     }
@@ -408,6 +409,8 @@ mod tests {
             instances: Arc::new(Mutex::new(Default::default())),
             mac_rotated: Arc::new(Default::default()),
             launch_queue: Arc::new(tokio::sync::Mutex::new(None)),
+            history: Arc::new(Mutex::new(Default::default())),
+            history_io: Arc::new(tokio::sync::Mutex::new(())),
             is_shutting_down: Arc::new(Default::default()),
             inventory_fetches: Arc::new(tokio::sync::Semaphore::new(4)),
             inventory_cache: Arc::new(ram_core::cache::ResponseCache::new(

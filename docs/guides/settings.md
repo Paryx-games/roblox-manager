@@ -5,6 +5,12 @@ icon: gear
 
 # Settings
 
+Session history storage is controlled from **Session history** in the title
+bar. It defaults to memory only. Choose **Save to encrypted file** to retain
+activity across restarts, or **Until app closes** to start empty on the next
+restart. Earlier saved history remains on disk until explicitly cleared.
+See [Session history](manage-accounts.md#session-history) for recording and export details.
+
 Use the section navigation to find preferences. Most edits form a draft: choose **Save Settings** or **Save** in the unsaved-changes bar to apply them, or reset the draft to discard changes. Actions such as changing encryption or testing a webhook have their own controls and confirmation flows.
 
 ## Launching and window management

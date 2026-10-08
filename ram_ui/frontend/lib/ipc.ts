@@ -1,5 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export type HistoryKind = "observed" | "joined" | "left" | "changedGame" | "changedServer" | "online" | "offline" | "studio" | "leftStudio" | "unknown" | "moderated";
+export interface HistoryEvent { id: number; observedAt: string; userId: number; kind: HistoryKind; location: string; placeId: number | null; jobId: string | null; }
+export interface HistorySnapshot { events: HistoryEvent[]; persistent: boolean; error: string | null; }
+export function getSessionHistory(): Promise<HistorySnapshot> { return invoke("get_session_history"); }
+export function setHistoryPersistence(persistent: boolean): Promise<HistorySnapshot> { return invoke("set_history_persistence", { persistent }); }
+export function clearSessionHistory(): Promise<HistorySnapshot> { return invoke("clear_session_history"); }
+
 export interface RobloxSettingResult {
   userId: number;
   success: boolean;
@@ -261,6 +268,7 @@ export const workspacePages = [
 ] as const;
 
 export interface SettingsConfig {
+  sessionHistoryPersist: boolean;
   useCredentialManager: boolean;
   startupWithWindows: boolean;
   refreshOnStartup: boolean;
@@ -299,7 +307,7 @@ export interface SettingsConfig {
 
 export type SettingsUpdate = Omit<
   SettingsConfig,
-  "startupWithWindows"
+  "startupWithWindows" | "sessionHistoryPersist"
 >;
 
 export interface SettingsInfoCard {

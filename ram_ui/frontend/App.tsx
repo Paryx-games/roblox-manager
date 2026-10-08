@@ -17,6 +17,7 @@ import { PresetsPage } from "./PresetsPage";
 import { SettingsPage, type SettingsNavigationGuard } from "./SettingsPage";
 import { InventoriesPage } from "./InventoriesPage";
 import { AssetsPage } from "./AssetsPage";
+import { SessionHistory } from "./SessionHistory";
 import { isSelectAllShortcut, isTextSelectionTarget } from "./lib/selectAllShortcut";
 
 type NavItem = {
@@ -109,6 +110,8 @@ function WindowButton({
 }
 
 export function App() {
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyToggle = useRef<HTMLButtonElement>(null);
   const [activeNav, setActiveNav] = useState<PageName>("Accounts");
   const displayedNav = activeNav;
   const settingsGuardRef = useRef<SettingsNavigationGuard | null>(null);
@@ -463,6 +466,7 @@ export function App() {
           {import.meta.env.VITE_RM_VERSION}
         </span>
         {update && <button type="button" className="account-button titlebar-update" onClick={() => setIsReleaseDialogOpen(true)}>Update to {updateVersion}</button>}
+        <button ref={historyToggle} className="account-button titlebar-update" type="button" aria-expanded={historyOpen} aria-controls={historyOpen ? "session-history-panel" : undefined} onClick={() => setHistoryOpen(value => !value)}>Session history</button>
         <div className="window-controls" aria-label="Window controls">
           <WindowButton
             label="Minimize"
@@ -519,6 +523,7 @@ export function App() {
             <span className="sr-only" aria-live="polite">{displayedNav} page</span>
           </div>
         </div>
+        <SessionHistory open={historyOpen} accounts={accounts} anonymize={settings?.anonymizeNames ?? false} onClose={() => { setHistoryOpen(false); historyToggle.current?.focus(); }} />
       </div>
       {pendingNavigation && <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="unsaved-navigation-title" describedBy="unsaved-navigation-message" busy={isNavigationSaving} onClose={() => setPendingNavigation(null)}>
         <div className="confirm-modal-header"><h2 id="unsaved-navigation-title">Save settings before leaving?</h2></div>

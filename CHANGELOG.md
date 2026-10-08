@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added session history on every workspace, with a resizable right panel, event color bars, account filtering, memory-only or encrypted file storage, and CSV/JSON exports.
+
 ### Changed
 
 - Startup launch now runs once after unlock using a saved account and Place ID. Startup account checks honor their toggle, and the clipboard privacy toggle clears the clipboard after a successful launch. Automatic MAC rotation runs before the first launch in each RM session, coordinates with manual rotation, requests elevation, and attempts to restore adapter availability on failure.

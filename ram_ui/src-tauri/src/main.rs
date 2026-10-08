@@ -12,6 +12,7 @@ mod background;
 mod benchmark;
 mod client_settings;
 mod discord;
+mod history;
 mod instances;
 mod launcher;
 mod lifecycle;
@@ -377,6 +378,7 @@ struct SettingsUpdate {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SettingsConfig {
+    session_history_persist: bool,
     use_credential_manager: bool,
     startup_with_windows: bool,
     refresh_on_startup: bool,
@@ -419,6 +421,7 @@ impl SettingsConfig {
     fn from_config(config: &AppConfig) -> Self {
         Self {
             use_credential_manager: config.use_credential_manager,
+            session_history_persist: config.session_history_persist,
             startup_with_windows: config.startup_with_windows,
             refresh_on_startup: config.refresh_on_startup,
             auto_launch_on_startup: config.auto_launch_on_startup,
@@ -3301,6 +3304,9 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            history::get_session_history,
+            history::set_history_persistence,
+            history::clear_session_history,
             benchmark::benchmark_ready,
             asset_manager::list_asset_workspace,
             asset_manager::add_asset_files,
@@ -3411,6 +3417,8 @@ fn main() {
             }
             tauri::RunEvent::Exit => {
                 app.state::<background::BackgroundTasks>().stop();
+                let state = app.state::<AppState>().inner().clone();
+                let _ = tauri::async_runtime::block_on(history::flush(&state));
                 instances::shutdown(&app.state::<AppState>());
             }
             _ => {}

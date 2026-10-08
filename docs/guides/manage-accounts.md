@@ -57,6 +57,32 @@ Leave the existing account in the list. Use **Replace account credential**, or *
 
 Removing the account first is different: re-adding it creates a new entry and does not restore the removed organisation metadata.
 
+### Session history
+
+Use **Session history** in the title bar from any workspace. The right panel
+reduces the page width and stays open when you change pages. Drag its left edge,
+or focus the separator and use arrow keys, Home or End to resize it.
+
+History records observed game joins, departures, game/server changes, online,
+offline, Studio and moderation changes while RM is running and the store is
+unlocked. The first successful presence observation establishes a baseline;
+it does not claim a new join occurred. Presence is sampled, so brief sessions
+between checks may be missed. Moderation is recorded when account validation
+detects it. Network failures do not count as going offline.
+
+**Until app closes** keeps history in memory and starts empty after a restart.
+**Save to encrypted file** retains the latest 10,000 events in
+`session-history.dat` beside `config.json`, encrypted with the account store's
+data key. A new/recovered account store cannot decrypt history from the old
+store. An unreadable history is preserved until you explicitly clear it.
+Switching back to memory stops writing, but leaves previously saved history
+on disk. **Clear** clears memory and both the saved file and its backup.
+
+Filter by account and choose **Export** for CSV or JSON. Exports contain user
+IDs, observed times, events, game locations and available Place/Job IDs; no
+credentials or account names are included. Exported activity is unencrypted,
+so review it before sharing. Export uses the current account filter.
+
 ### Export account information
 
 **Export accounts** downloads a CSV of account metadata, including `account_age` and `last_used`. It does not export login cookies and is not a credential-store backup. Treat usernames and account organisation as private information when sharing the file.

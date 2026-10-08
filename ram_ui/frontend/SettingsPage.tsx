@@ -1208,6 +1208,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
             />
           </SettingRow>
           <SubsectionHeading id="logging">Logging</SubsectionHeading>
+          <SettingRow referenceId="session_history" infoCards={infoCards}><p className="settings-muted">Open Session history in the title bar to choose memory-only recording or an encrypted history file, filter activity, and export it.</p></SettingRow>
           <SettingRow referenceId="log_level" infoCards={infoCards}>
             <div className="settings-field-row">
               <span>Log level</span>

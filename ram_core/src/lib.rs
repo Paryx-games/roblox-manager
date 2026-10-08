@@ -15,6 +15,7 @@ pub mod multipart;
 pub mod presets;
 pub mod process;
 pub mod redact;
+pub mod session_history;
 pub mod storage;
 
 pub use error::CoreError;
