@@ -61,6 +61,15 @@ Keep the compact desktop layout and each page's existing composition:
 - Settings uses a 200px internal sidebar and section navigation.
 
 Use `min-width: 0` and `min-height: 0` where flexible panes need to shrink.
+Session history is a shared, collapsible right panel across all workspaces.
+Its 280–480px width reduces workspace space; its 8px separator supports dragging
+and arrow/Home/End keyboard resizing. Activity rows use a narrow left marker
+with notification colors and an explicit event label, like notifications.
+The panel slides in over 240ms and out over 160ms; its dock width transitions
+with it so page space tracks the panel. Drag resizing and reduced motion skip
+transitions, and the closed panel is inert. The title bar's App actions menu
+holds history, join-user, and update actions with local icons. Multi-account
+pickers can opt into an All accounts row with `showAllAccounts`.
 Preserve pane scrolling and overlay placement instead of making the whole
 desktop shell scroll. Page headers commonly use `.header-row` (42px) and
 `.header-title` (14px bold); larger headings use the type tokens appropriate

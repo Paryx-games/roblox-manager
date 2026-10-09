@@ -383,6 +383,8 @@ The NSIS template under `ram_ui/src-tauri/installer/` is based on Tauri Bundler 
 
 ## Coding standards
 
+- Never use the middle-dot character (U+00B7) as a separator in app UI, notifications, or new copy. Use a hyphen with spaces, separate lines, or clearer layout instead.
+
 - Preserve existing behavior unless the task explicitly requires changing it. Prefer small, targeted changes over refactors.
 - Comments explain intent, not syntax. Lowercase, concise, only where the why is not obvious.
 - Use `PathBuf` and clean path handling. No hardcoded Unix assumptions.

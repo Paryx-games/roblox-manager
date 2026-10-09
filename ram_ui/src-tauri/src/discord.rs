@@ -96,7 +96,7 @@ pub fn payload(title: &str, detail: &str) -> serde_json::Value {
             { "type": 14, "divider": true, "spacing": 1 },
             { "type": 10, "content": detail },
             { "type": 14, "divider": true, "spacing": 1 },
-            { "type": 10, "content": format!("-# Roblox Manager {} · {}", env!("CARGO_PKG_VERSION"), chrono::Utc::now().format("%Y-%m-%d %H:%M UTC")) }
+            { "type": 10, "content": format!("-# Roblox Manager {} - {}", env!("CARGO_PKG_VERSION"), chrono::Utc::now().format("%Y-%m-%d %H:%M UTC")) }
         ]}]
     })
 }

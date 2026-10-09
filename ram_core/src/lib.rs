@@ -9,12 +9,14 @@ pub mod crypto;
 pub mod error;
 pub mod group_api;
 pub mod instances;
+pub mod join_user;
 pub mod launch_options;
 pub mod models;
 pub mod multipart;
 pub mod presets;
 pub mod process;
 pub mod redact;
+pub mod session_history;
 pub mod storage;
 
 pub use error::CoreError;

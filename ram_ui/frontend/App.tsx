@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { InstancesPage } from "./InstancesPage";
 import { Toast, type ToastItem } from "./Toast";
 import { Popup } from "./components/Popup";
+import { PopupMenu } from "./components/PopupMenu";
 import { ReleaseNotes } from "./components/ReleaseNotes";
 import { Walkthrough, walkthroughSteps } from "./components/Walkthrough";
 import { WalkthroughAccounts, type DemoAccountName } from "./components/WalkthroughAccounts";
@@ -17,6 +18,8 @@ import { PresetsPage } from "./PresetsPage";
 import { SettingsPage, type SettingsNavigationGuard } from "./SettingsPage";
 import { InventoriesPage } from "./InventoriesPage";
 import { AssetsPage } from "./AssetsPage";
+import { SessionHistory } from "./SessionHistory";
+import { JoinUserDialog } from "./JoinUserDialog";
 import { isSelectAllShortcut, isTextSelectionTarget } from "./lib/selectAllShortcut";
 
 type NavItem = {
@@ -109,6 +112,18 @@ function WindowButton({
 }
 
 export function App() {
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyToggle = useRef<HTMLButtonElement>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsMenu = useRef<HTMLDivElement>(null);
+  const [joinTarget, setJoinTarget] = useState<number | null | undefined>(undefined);
+  const [joinSelection, setJoinSelection] = useState<Set<number> | null>(null);
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const close = (event: PointerEvent) => { if (event.target instanceof Node && !actionsMenu.current?.contains(event.target)) setActionsOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [actionsOpen]);
   const [activeNav, setActiveNav] = useState<PageName>("Accounts");
   const displayedNav = activeNav;
   const settingsGuardRef = useRef<SettingsNavigationGuard | null>(null);
@@ -364,6 +379,7 @@ export function App() {
           selectedIds={selectedIds}
           setSelectedIds={setSelectedIds}
           prefilledPlaceId={prefilledPlaceId}
+          onJoinUser={(target, ids) => { setJoinSelection(new Set(ids)); setJoinTarget(target); }}
         />
       );
     }
@@ -462,7 +478,14 @@ export function App() {
         <span className="titlebar-version">
           {import.meta.env.VITE_RM_VERSION}
         </span>
-        {update && <button type="button" className="account-button titlebar-update" onClick={() => setIsReleaseDialogOpen(true)}>Update to {updateVersion}</button>}
+        <div className="titlebar-history-actions" ref={actionsMenu} onMouseDown={event => event.stopPropagation()}>
+          <button ref={historyToggle} className="window-button" type="button" aria-label="App actions" aria-haspopup="menu" aria-expanded={actionsOpen} data-tip="App actions" onClick={() => setActionsOpen(value => !value)}><Icon name="more" /></button>
+          {actionsOpen && <PopupMenu className="titlebar-actions-menu" onClose={() => setActionsOpen(false)}>
+            <button className="titlebar-action-option" type="button" role="menuitemcheckbox" aria-checked={historyOpen} aria-controls="session-history-panel" onClick={() => { setHistoryOpen(value => !value); setActionsOpen(false); }}><span className="titlebar-action-icon"><Icon name="list" /></span>Session history</button>
+            <button className="titlebar-action-option" type="button" role="menuitem" disabled={!accounts.length} onClick={() => { setActionsOpen(false); setJoinSelection(null); setJoinTarget(null); }}><span className="titlebar-action-icon"><Icon name="accounts" /></span>Join user</button>
+            {update && <button className="titlebar-action-option" type="button" role="menuitem" onClick={() => { setActionsOpen(false); setIsReleaseDialogOpen(true); }}><span className="titlebar-action-icon"><Icon name="update" /></span>Update to {updateVersion}</button>}
+          </PopupMenu>}
+        </div>
         <div className="window-controls" aria-label="Window controls">
           <WindowButton
             label="Minimize"
@@ -519,6 +542,7 @@ export function App() {
             <span className="sr-only" aria-live="polite">{displayedNav} page</span>
           </div>
         </div>
+        <SessionHistory open={historyOpen} accounts={accounts} anonymize={settings?.anonymizeNames ?? false} onClose={() => { setHistoryOpen(false); historyToggle.current?.focus(); }} />
       </div>
       {pendingNavigation && <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="unsaved-navigation-title" describedBy="unsaved-navigation-message" busy={isNavigationSaving} onClose={() => setPendingNavigation(null)}>
         <div className="confirm-modal-header"><h2 id="unsaved-navigation-title">Save settings before leaving?</h2></div>
@@ -542,6 +566,7 @@ export function App() {
         </div>
       </Popup>}
       {runtimeToast && <Toast item={runtimeToast} onDismiss={() => setRuntimeToast(null)} />}
+      {joinTarget !== undefined && <JoinUserDialog accounts={accounts} selectedIds={joinSelection ?? selectedIds} initialTarget={joinTarget ?? undefined} onClose={() => setJoinTarget(undefined)} />}
       {startup?.legacyMigrationAvailable && !isMigrationDismissed ? <ConfirmModal title="Import older RM data?" message="Copy accounts and settings from an older RM installation. The original files stay where they are, and your existing RM data won’t be overwritten." confirmLabel={isStartupPending ? "Importing..." : "Import data"} confirmDisabled={isStartupPending} confirmIcon="import" onConfirm={() => void completeStartup(migrateLegacyData)} onCancel={() => setIsMigrationDismissed(true)} /> : isTourVisible ? <Walkthrough
         stepIndex={tutorialStep}
         isPageReady={displayedNav === walkthroughSteps[tutorialStep].page}
