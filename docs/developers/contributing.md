@@ -85,6 +85,26 @@ Run this sequence before every commit. For UI or launch changes, also test on Wi
 
 Use separate test data and backups for migrations, start-over and recovery. Do not test against your only account store. Installer testing belongs on a separate Windows user or VM; see [Releasing RM](releasing.md#installer-verification).
 
+## CI checks and failure comments
+
+The `CI` workflow selects checks from changed file paths, using the same classification code as the PR label job. Labels do not control which checks run. Documentation-only PRs skip frontend checks, Rust checks and Windows packaging. Frontend changes run frontend checks and Windows packaging; Rust changes run Rust checks and Windows packaging. Shared or unknown build inputs, incomplete file lists, and changes to the build/selection workflow run the full set. Pushes to `main`/`v2` and manual runs also run the full set.
+
+Workflow syntax checks, CI script tests and online Zizmor audits run on every PR. The **CI passed** check validates every selected job and rejects failures, cancellations and unexpected skips. Repository maintainers should require this check in branch protection instead of requiring each conditional job individually. Older PR runs are cancelled when superseded; running push and manual validations are allowed to finish.
+
+When PR CI fails, the **CI failure reporter** creates one comment with failed jobs, failed steps and log links. It checks progress every 20 seconds for up to one hour, appends new failures to the same comment, and moves recovered jobs into a **Fixed** dropdown with checked items. A completion event supplies the final update. Once the latest run passes, the reporter hides the comment as **Resolved**; a later failure starts a new comment. Raw logs are kept in Actions rather than copied into PR comments.
+
+The reporter uses API data and reporting scripts from the trusted default branch, so fork PRs do not receive write credentials. It ignores closed PRs, stale commits and superseded runs. The reporter must be present on the repository's default branch before it can run. GitHub moderation/API errors fail the reporter job and are retried by the next reporter invocation; CI results remain available in the Checks tab.
+
+To validate workflow changes locally, run:
+
+```powershell
+node --test .github/scripts/*.test.cjs
+actionlint
+zizmor .github
+```
+
+Zizmor requires an available `GH_TOKEN`, `GITHUB_TOKEN` or `ZIZMOR_GITHUB_TOKEN` for online audits. CI supplies its built-in token. The workflow installs pinned Zizmor and Actionlint versions; Actionlint's binary is also SHA256-verified. Intentional Zizmor exceptions have reasons beside their ignore comments.
+
 ## Open a pull request
 
 ```powershell

@@ -202,7 +202,7 @@ jobs:
                 await github.rest.actions.listWorkflowRuns({
                   owner,
                   repo,
-                  workflow_id: "rust.yml",
+                  workflow_id: "ci.yml",
                   head_sha: sha,
                   per_page: 100,
                 });
@@ -255,7 +255,7 @@ jobs:
 
               if (attempt < 30) {
                 core.info(
-                  `Waiting for rust.yml to pass on ${sha} ` +
+                  `Waiting for ci.yml to pass on ${sha} ` +
                     `(attempt ${attempt}/30)...`,
                 );
 
@@ -266,7 +266,7 @@ jobs:
             }
 
             core.setFailed(
-              `No successful rust.yml run was found for tagged commit ${sha}. ` +
+              `No successful ci.yml run was found for tagged commit ${sha}. ` +
                 "Run CI successfully on this exact commit before releasing it.",
             );
 
@@ -315,10 +315,10 @@ jobs:
       - name: Setup rust
         uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
 
-      # Restore the cache written by rust.yml's trusted main build.
+      # Restore the cache written by ci.yml's trusted main build.
       # Release runs may consume this cache but never modify it.
       - name: Restore cargo cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2 # zizmor: ignore[cache-poisoning]
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2 # zizmor: ignore[cache-poisoning] release restores the main-only CI cache and never saves it
         with:
           shared-key: windows-tauri
           save-if: false
@@ -1335,7 +1335,7 @@ jobs:
       # - the tag was re-checked against the validated SHA
       - name: Create draft release and upload assets
         id: create-release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2 # zizmor: ignore[superfluous-actions] retain explicit draft creation, asset validation and metadata before publishing
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           target_commitish: ${{ needs.prepare.outputs.sha }}
