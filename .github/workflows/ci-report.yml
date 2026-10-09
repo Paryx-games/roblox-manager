@@ -1,0 +1,36 @@
+name: CI failure reporter
+run-name: Update CI failure comment
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] only trusted default-branch scripts run; PR data is API-only
+    workflows: [CI]
+    types: [in_progress, completed]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+concurrency:
+  group: ci-report-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: Update PR failure comment
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      # never check out the triggering PR or consume its artifacts
+      - name: Checkout trusted reporting scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Watch CI and maintain failure comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            await require('./.github/scripts/ci-report.cjs').report({ github, context, core });
