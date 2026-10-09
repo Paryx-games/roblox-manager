@@ -1,14 +1,11 @@
-//! Windows process management — game launching, mutex patching, instance tracking.
+//! Windows process management — game launching, singleton objects, instance tracking.
 //!
 //! # Multi-instance strategy
 //!
-//! Roblox prevents multiple clients by creating a named mutex
-//! `ROBLOX_singletonEvent`. To allow multi-instancing we:
-//!
-//! 1. Enumerate all processes named `RobloxPlayerBeta.exe`.
-//! 2. For each, enumerate its handles looking for the singleton mutex.
-//! 3. Duplicate the handle into our process, then close both the remote and
-//!    local copies — effectively releasing the mutex so the next launch succeeds.
+//! RM reserves `ROBLOX_singletonMutex` and the legacy `ROBLOX_singletonEvent`
+//! name in its own process. The legacy name can refer to a mutex or an event.
+//! Existing events are opened without changing their state. RM never closes
+//! handles inside Roblox processes.
 //!
 //! **This technique interacts with Hyperion (Byfron) and carries ban risk.**
 //! It is gated behind `AppConfig::multi_instance_enabled` (default: off).
@@ -1326,7 +1323,7 @@ fn window_title(hwnd: windows_sys::Win32::Foundation::HWND) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Multi-instance mutex patching (Windows-only, opt-in)
+// Multi-instance singleton objects (Windows-only, opt-in)
 // ---------------------------------------------------------------------------
 
 /// Roblox's singleton lock names have changed across client versions. Some
@@ -1345,62 +1342,241 @@ pub fn roblox_singleton_names() -> Vec<&'static str> {
 /// `ROBLOX_singletonMutex` before any Roblox client launches, pre-empting the
 /// exclusive lock. Some Roblox builds also check the legacy
 /// `ROBLOX_singletonEvent` object, so we reserve both names for the life of the
-/// process.
+/// process. The legacy name may already refer to an event instead of a mutex;
+/// in that case we retain a handle without signalling or resetting the event.
 ///
 /// **This technique interacts with Hyperion (Byfron) and carries ban risk.**
 /// It is gated behind `AppConfig::multi_instance_enabled` (default: off).
 #[cfg(windows)]
 mod multi_instance {
-    use std::sync::OnceLock;
+    use std::sync::Mutex;
     use tracing::info;
-    use windows_sys::Win32::Foundation::HANDLE;
-    use windows_sys::Win32::System::Threading::CreateMutexW;
+    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_INVALID_HANDLE, HANDLE};
+    use windows_sys::Win32::System::Threading::{
+        CreateMutexW, OpenEventW, SYNCHRONIZATION_SYNCHRONIZE,
+    };
 
-    /// Hold the singleton mutex handle for the lifetime of the program.
-    static HELD_MUTEXES: OnceLock<Vec<MutexHandle>> = OnceLock::new();
+    use crate::error::CoreError;
+
+    /// Hold singleton object handles for the lifetime of the program.
+    static HELD_OBJECTS: Mutex<Option<Vec<SingletonHandle>>> = Mutex::new(None);
 
     /// Wrapper so we can store a HANDLE in a static (HANDLE is *mut c_void, not
-    /// Send/Sync by default, but we never dereference it across threads).
-    struct MutexHandle(HANDLE);
-    unsafe impl Send for MutexHandle {}
-    unsafe impl Sync for MutexHandle {}
+    /// Send by default, but we never dereference it across threads).
+    struct SingletonHandle(HANDLE);
+    unsafe impl Send for SingletonHandle {}
+
+    impl Drop for SingletonHandle {
+        fn drop(&mut self) {
+            // rollback only releases our own references, never another process's handles
+            unsafe { CloseHandle(self.0) };
+        }
+    }
+
+    fn acquire_named_objects(
+        held: &mut Option<Vec<SingletonHandle>>,
+        names: &[(&str, bool)],
+    ) -> Result<(), CoreError> {
+        if held.is_some() {
+            return Ok(());
+        }
+        let mut candidate = Vec::with_capacity(names.len());
+        for &(name, allow_event) in names {
+            let raw_name: Vec<u16> = format!("{name}\0").encode_utf16().collect();
+            let mut handle = unsafe { CreateMutexW(std::ptr::null(), 1, raw_name.as_ptr()) };
+            let mut error = if handle.is_null() {
+                unsafe { GetLastError() }
+            } else {
+                0
+            };
+            if handle.is_null() && allow_event && error == ERROR_INVALID_HANDLE {
+                // the name is occupied by another object type; only accept an existing event
+                handle = unsafe { OpenEventW(SYNCHRONIZATION_SYNCHRONIZE, 0, raw_name.as_ptr()) };
+                if handle.is_null() {
+                    error = unsafe { GetLastError() };
+                }
+            }
+            if handle.is_null() {
+                info!(
+                    name,
+                    windows_error = error,
+                    "Could not acquire Roblox singleton object"
+                );
+                return Err(CoreError::Process(format!(
+                    "failed to acquire Roblox singleton object {name} (Windows error {error}); close Roblox and retry"
+                )));
+            }
+            candidate.push(SingletonHandle(handle));
+        }
+        *held = Some(candidate);
+        Ok(())
+    }
 
     /// Acquire the Roblox singleton objects and hold them for the process
-    /// lifetime. Subsequent calls are no-ops (already held). Returns `true` if
-    /// successfully acquired (or already held).
-    pub fn acquire_singleton_mutex() -> bool {
-        HELD_MUTEXES.get_or_init(|| {
-            let mut handles = Vec::new();
-            for name in crate::process::roblox_singleton_names() {
-                let raw_name: Vec<u16> = format!("{name}\0").encode_utf16().collect();
-                let handle = unsafe { CreateMutexW(std::ptr::null(), 1, raw_name.as_ptr()) };
-                if handle.is_null() {
-                    info!(name, "Failed to create Roblox singleton mutex");
+    /// lifetime. Failed attempts release partial acquisitions and remain retryable.
+    pub fn acquire_singleton_objects() -> Result<(), CoreError> {
+        let mut held = HELD_OBJECTS
+            .lock()
+            .map_err(|_| CoreError::Process("Roblox singleton state unavailable".into()))?;
+        let already_held = held.is_some();
+        let names: Vec<_> = crate::process::roblox_singleton_names()
+            .into_iter()
+            .map(|name| (name, name == "ROBLOX_singletonEvent"))
+            .collect();
+        acquire_named_objects(&mut held, &names)?;
+        if !already_held {
+            info!("Acquired Roblox singleton objects - multi-instance enabled");
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use windows_sys::Win32::Foundation::{ERROR_FILE_NOT_FOUND, WAIT_OBJECT_0, WAIT_TIMEOUT};
+        use windows_sys::Win32::System::Threading::{
+            CreateEventW, CreateSemaphoreW, OpenMutexW, WaitForSingleObject,
+        };
+
+        fn names() -> (String, String) {
+            let id = uuid::Uuid::new_v4();
+            (
+                format!("RM-test-legacy-{id}"),
+                format!("RM-test-current-{id}"),
+            )
+        }
+
+        fn wide(name: &str) -> Vec<u16> {
+            name.encode_utf16().chain([0]).collect()
+        }
+
+        #[test]
+        fn existing_legacy_events_are_held_without_changing_their_state() {
+            for initial_state in [0, 1] {
+                let (legacy, current) = names();
+                let event = SingletonHandle(unsafe {
+                    CreateEventW(std::ptr::null(), 1, initial_state, wide(&legacy).as_ptr())
+                });
+                assert!(!event.0.is_null());
+                let mut held = None;
+                acquire_named_objects(&mut held, &[(&legacy, true), (&current, false)]).unwrap();
+                let handles = held.as_ref().unwrap();
+                assert_eq!(handles.len(), 2);
+                assert!(handles.iter().all(|handle| !handle.0.is_null()));
+                let expected = if initial_state == 0 {
+                    WAIT_TIMEOUT
                 } else {
-                    info!(
-                        name,
-                        "Acquired Roblox singleton mutex — multi-instance enabled"
-                    );
-                }
-                handles.push(MutexHandle(handle));
+                    WAIT_OBJECT_0
+                };
+                assert_eq!(unsafe { WaitForSingleObject(event.0, 0) }, expected);
+                // our handle keeps the same event alive after the original owner closes its handle
+                drop(event);
+                let reopened = SingletonHandle(unsafe {
+                    OpenEventW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(&legacy).as_ptr())
+                });
+                assert!(!reopened.0.is_null());
+                assert_eq!(unsafe { WaitForSingleObject(reopened.0, 0) }, expected);
             }
-            handles
-        });
-        HELD_MUTEXES
-            .get()
-            .is_some_and(|handles| handles.iter().all(|h| !h.0.is_null()))
+        }
+
+        #[test]
+        fn fresh_names_remain_mutexes_and_repeated_acquisition_is_a_no_op() {
+            let (legacy, current) = names();
+            let mut held = None;
+            acquire_named_objects(&mut held, &[(&legacy, true), (&current, false)]).unwrap();
+            let original: Vec<_> = held
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|handle| handle.0)
+                .collect();
+            acquire_named_objects(&mut held, &[(&legacy, true), (&current, false)]).unwrap();
+            assert_eq!(
+                held.as_ref()
+                    .unwrap()
+                    .iter()
+                    .map(|handle| handle.0)
+                    .collect::<Vec<_>>(),
+                original
+            );
+            for name in [&legacy, &current] {
+                let handle = SingletonHandle(unsafe {
+                    OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(name).as_ptr())
+                });
+                assert!(!handle.0.is_null());
+            }
+        }
+
+        #[test]
+        fn partial_failure_closes_our_handles_and_can_be_retried() {
+            let (legacy, current) = names();
+            let blocker = SingletonHandle(unsafe {
+                CreateSemaphoreW(std::ptr::null(), 0, 1, wide(&current).as_ptr())
+            });
+            assert!(!blocker.0.is_null());
+            let mut held = None;
+            assert!(
+                acquire_named_objects(&mut held, &[(&legacy, true), (&current, false)]).is_err()
+            );
+            assert!(held.is_none());
+            let released =
+                unsafe { OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(&legacy).as_ptr()) };
+            assert!(released.is_null());
+            assert_eq!(unsafe { GetLastError() }, ERROR_FILE_NOT_FOUND);
+            drop(blocker);
+            acquire_named_objects(&mut held, &[(&legacy, true), (&current, false)]).unwrap();
+            assert_eq!(held.as_ref().unwrap().len(), 2);
+        }
+
+        #[test]
+        fn other_legacy_object_types_are_rejected_without_closing_their_handles() {
+            let (legacy, current) = names();
+            let blocker = SingletonHandle(unsafe {
+                CreateSemaphoreW(std::ptr::null(), 0, 1, wide(&legacy).as_ptr())
+            });
+            assert!(!blocker.0.is_null());
+            let mut held = None;
+            assert!(
+                acquire_named_objects(&mut held, &[(&legacy, true), (&current, false)]).is_err()
+            );
+            assert!(held.is_none());
+            assert_eq!(unsafe { WaitForSingleObject(blocker.0, 0) }, WAIT_TIMEOUT);
+        }
+
+        #[test]
+        fn concurrent_calls_share_one_complete_acquisition() {
+            let names = std::sync::Arc::new(names());
+            let held = std::sync::Arc::new(Mutex::new(None));
+            let threads: Vec<_> = (0..8)
+                .map(|_| {
+                    let names = names.clone();
+                    let held = held.clone();
+                    std::thread::spawn(move || {
+                        let mut guard = held.lock().unwrap();
+                        acquire_named_objects(&mut guard, &[(&names.0, true), (&names.1, false)])
+                            .unwrap();
+                        guard
+                            .as_ref()
+                            .unwrap()
+                            .iter()
+                            .map(|handle| handle.0 as usize)
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            let acquired: Vec<_> = threads
+                .into_iter()
+                .map(|thread| thread.join().unwrap())
+                .collect();
+            assert!(acquired.windows(2).all(|pair| pair[0] == pair[1]));
+            assert_eq!(held.lock().unwrap().as_ref().unwrap().len(), 2);
+        }
     }
 }
 
 #[cfg(windows)]
 pub fn enable_multi_instance() -> Result<(), CoreError> {
-    if multi_instance::acquire_singleton_mutex() {
-        Ok(())
-    } else {
-        Err(CoreError::Process(
-            "failed to acquire Roblox singleton mutexes".into(),
-        ))
-    }
+    multi_instance::acquire_singleton_objects()
 }
 
 #[cfg(not(windows))]
