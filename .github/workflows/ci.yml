@@ -13,8 +13,8 @@ on:
 
   pull_request:
 
-  # only the API-only label job runs in this privileged context
-  pull_request_target: # zizmor: ignore[dangerous-triggers] label job never checks out or executes PR code
+  # only the label job runs here, using scripts from the trusted base commit
+  pull_request_target: # zizmor: ignore[dangerous-triggers] label job only executes trusted base code
     types: [opened, reopened, synchronize]
 
 permissions:
@@ -22,12 +22,38 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'pull_request_target' }}
 
 jobs:
+  changes:
+    name: Select checks from changed files
+    if: github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      frontend: ${{ steps.select.outputs.frontend }}
+      frontendBuild: ${{ steps.select.outputs.frontendBuild }}
+      rust: ${{ steps.select.outputs.rust }}
+      build: ${{ steps.select.outputs.build }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Select required checks
+        id: select
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            await require('./.github/scripts/ci-plan.cjs').select({ github, context, core });
+
   frontend-build:
     name: Frontend build and version check
-    if: github.event_name != 'pull_request_target'
+    needs: changes
+    if: needs.changes.outputs.frontendBuild == 'true'
     runs-on: windows-latest
     timeout-minutes: 15
 
@@ -70,8 +96,8 @@ jobs:
 
   frontend:
     name: Frontend lint, types and tests
-    if: github.event_name != 'pull_request_target'
-    needs: frontend-build
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: windows-latest
     timeout-minutes: 15
 
@@ -106,7 +132,8 @@ jobs:
 
   fmt:
     name: Rust formatting
-    if: github.event_name != 'pull_request_target'
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: windows-latest
     timeout-minutes: 10
 
@@ -126,8 +153,8 @@ jobs:
 
   clippy:
     name: Rust lint (Clippy)
-    if: github.event_name != 'pull_request_target'
-    needs: frontend-build
+    needs: [changes, frontend-build]
+    if: needs.changes.outputs.rust == 'true'
     runs-on: windows-latest
     timeout-minutes: 20
 
@@ -159,8 +186,8 @@ jobs:
 
   test:
     name: Rust tests
-    if: github.event_name != 'pull_request_target'
-    needs: frontend-build
+    needs: [changes, frontend-build]
+    if: needs.changes.outputs.rust == 'true'
     runs-on: windows-latest
     timeout-minutes: 20
 
@@ -190,8 +217,12 @@ jobs:
 
   build:
     name: Windows application and installer
-    if: github.event_name != 'pull_request_target'
-    needs: frontend
+    needs: [changes, frontend-build, frontend]
+    if: >-
+      always() && !cancelled() && needs.changes.outputs.build == 'true' &&
+      needs.frontend-build.result == 'success' &&
+      (needs.frontend.result == 'success' ||
+       (needs.changes.outputs.frontend == 'false' && needs.frontend.result == 'skipped'))
     runs-on: windows-latest
     timeout-minutes: 20
 
@@ -250,21 +281,59 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup rust
-        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Audit workflows and Dependabot online
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
-          key: zizmor
+          version: 1.30.1
+          inputs: .github
+          online-audits: true
+          advanced-security: false
+          annotations: true
+          token: ${{ github.token }}
 
-      - name: Install zizmor
-        run: cargo install --locked zizmor --version 1.30.1
+  workflow-check:
+    name: Workflow syntax and CI script tests
+    if: github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Test CI selection and reporting
+        run: node --test .github/scripts/*.test.cjs
+      - name: Install pinned Actionlint
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+      - name: Validate all workflows
+        shell: bash
+        run: '"$RUNNER_TEMP/actionlint"'
 
-      - name: Run zizmor
-        run: zizmor .github/workflows/
+  passed:
+    name: CI passed
+    needs: [changes, frontend-build, frontend, fmt, clippy, test, build, workflow-check, zizmor]
+    if: always() && github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require all selected checks to pass
+        run: node .github/scripts/ci-gate.cjs
         env:
-          ZIZMOR_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI_NEEDS: ${{ toJSON(needs) }}
 
   label:
     name: PR labels
@@ -276,63 +345,14 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      - name: Checkout trusted label scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
       - name: Sync labels
-        # pin to a commit sha for supply chain safety
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const { owner, repo } = context.repo;
-            const issue_number = context.issue.number;
-
-            const files = await github.paginate(
-              github.rest.pulls.listFiles,
-              { owner, repo, pull_number: issue_number, per_page: 100 },
-            );
-            const paths = files.map(({ filename }) => filename);
-
-            const rules = {
-              rust: /\.rs$|(?:^|\/)Cargo\.(?:toml|lock)$/i,
-              javascript:
-                /\.(?:js|jsx|mjs|cjs|ts|tsx)$|(?:^|\/)(?:package\.json|pnpm-lock\.yaml)$/i,
-              "github-actions": /^\.github\/workflows\/.+\.ya?ml$/i,
-              documentation:
-                /(?:^|\/)(?:README|CHANGELOG|CONTRIBUTING|SECURITY|CODE_OF_CONDUCT)(?:\.[^/]*)?$|\.mdx?$|^docs\//i,
-            };
-
-            const wanted = new Set(
-              Object.entries(rules)
-                .filter(([, pattern]) => paths.some((p) => pattern.test(p)))
-                .map(([label]) => label),
-            );
-
-            const current = await github.paginate(
-              github.rest.issues.listLabelsOnIssue,
-              { owner, repo, issue_number, per_page: 100 },
-            );
-            const currentNames = new Set(current.map(({ name }) => name));
-
-            // only touch labels this workflow owns, never manual ones
-            const managed = Object.keys(rules);
-
-            const toAdd = [...wanted].filter((l) => !currentNames.has(l));
-            const toRemove = managed.filter(
-              (l) => currentNames.has(l) && !wanted.has(l),
-            );
-
-            if (toAdd.length > 0) {
-              await github.rest.issues.addLabels({
-                owner,
-                repo,
-                issue_number,
-                labels: toAdd,
-              });
-            }
-
-            for (const name of toRemove) {
-              await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number,
-                name,
-              });
-            }
+            await require('./.github/scripts/ci-plan.cjs').label({ github, context });
