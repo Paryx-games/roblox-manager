@@ -119,10 +119,14 @@ test('latest retry wins; aggregate failures do not duplicate real causes', () =>
 });
 
 test('comment content cannot inject HTML, mentions or job log URLs', () => {
-  const state = transition(null, run(1), [job('<script>@everyone [bad](https://evil.test)</script>', 'failure')]);
-  const body = render(state, 'https://github.com', 'test', 'rm');
-  assert.doesNotMatch(body, /<script>|@everyone|\[bad\]\(https/);
-  assert.match(body, /&lt;script&gt;/);
+  for (const tag of ['script', 'SCRIPT', 'ScRiPt']) {
+    const state = transition(null, run(1), [job(`<${tag}>@everyone [bad](https://evil.test)</${tag}>`, 'failure')]);
+    const body = render(state, 'https://github.com', 'test', 'rm');
+    assert.equal(body.toLowerCase().includes('<script'), false);
+    assert.equal(body.includes('@everyone'), false);
+    assert.equal(body.includes('[bad](https'), false);
+    assert.ok(body.includes(`&lt;${tag}&gt;`));
+  }
   assert.equal(readState('<!-- rm-ci-report-v1:e30= -->'), null);
 });
 
