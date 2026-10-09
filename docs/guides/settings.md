@@ -18,6 +18,9 @@ Use the section navigation to find preferences. Most edits form a draft: choose 
 - **Start RM with Windows** starts the manager when your Windows user signs in.
 - **Check accounts on startup** checks saved credentials when RM starts.
 - **Enable multi-instance** allows several Roblox clients. Close existing Roblox clients and tray processes before enabling it.
+
+  RM retains both Roblox singleton names for its session, including legacy versions that use an event instead of a mutex. It does not change an existing event's state or close handles inside Roblox. If setup fails, RM releases its partial acquisitions; correct the reported problem and retry saving the draft without restarting RM. An RM session that encountered this error before upgrading needs one restart to load the fix.
+
 - Background-process cleanup and the kill-all confirmation preference control launch safeguards.
 - Auto-arrange, target monitor, grid layout, sizing and spacing control Roblox window placement.
 - Window naming identifies clients by account. Launch pacing spaces successive launches rather than starting every selected account together.

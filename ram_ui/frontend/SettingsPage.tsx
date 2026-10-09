@@ -841,6 +841,11 @@ export function SettingsPage({ onNavigationGuardChange }: {
               onChange={(killBackgroundRoblox) => updateDraft({ killBackgroundRoblox })}
             />
           </SettingRow>
+          {draft.multiInstanceEnabled && !draft.killBackgroundRoblox && (
+            <WarningText>
+              Warning: recommended when multi-instance is enabled. Tray processes stack up.
+            </WarningText>
+          )}
           <SettingRow referenceId="confirm_kill_all" infoCards={infoCards}>
             <Toggle
               checked={draft.confirmKillAll}
@@ -848,11 +853,6 @@ export function SettingsPage({ onNavigationGuardChange }: {
               onChange={(confirmKillAll) => updateDraft({ confirmKillAll })}
             />
           </SettingRow>
-          {draft.multiInstanceEnabled && !draft.killBackgroundRoblox && (
-            <WarningText>
-              Warning: recommended when multi-instance is enabled. Tray processes stack up.
-            </WarningText>
-          )}
 
           <div className="settings-divider" />
           <SubsectionHeading id="window-layout">Window layout</SubsectionHeading>

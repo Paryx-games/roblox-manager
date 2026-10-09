@@ -115,7 +115,7 @@ No. Roblox Manager includes an automated redaction system that scrubs `.ROBLOSEC
 
 <summary>How does Multi-Instance work?</summary>
 
-By default, the official Roblox desktop client allows only one running instance at a time using a Windows named mutex. When Multi-Instance is enabled, Roblox Manager creates and holds both `ROBLOX_singletonMutex` and the legacy `ROBLOX_singletonEvent` for the lifetime of the manager process. This prevents Roblox from acquiring the singleton lock exclusively, allowing multiple clients to run.
+By default, the official Roblox desktop client allows only one running instance at a time using Windows singleton objects. When Multi-Instance is enabled, Roblox Manager reserves `ROBLOX_singletonMutex` and the legacy `ROBLOX_singletonEvent` name for the lifetime of the manager process. The legacy name can refer to a mutex or an existing event; RM retains an existing event without signalling or resetting it. RM only holds handles in its own process and never closes handles inside Roblox. Failed setup releases partial acquisitions so it can be retried.
 
 </details>
 

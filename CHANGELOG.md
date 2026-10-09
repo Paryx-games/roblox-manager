@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Multi-instance settings:** Enabling multi-instance now handles an existing legacy Roblox singleton event without treating it as a mutex. Failed setup releases partial acquisitions and can be retried without restarting RM.
+- **Launch safeguard warning:** The tray-process warning now appears below automatic background-process cleanup instead of the kill-all confirmation checkbox.
+
 ## v2.2.0
 
 ### Added
