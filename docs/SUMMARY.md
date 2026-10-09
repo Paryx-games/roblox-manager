@@ -13,10 +13,13 @@
 ## Guides
 
 * [Manage accounts](guides/manage-accounts.md)
+* [Roblox account settings](guides/roblox-account-settings.md)
+* [Session history](guides/session-history.md)
 * [Launch games](guides/launch-games.md)
 * [Save launch presets](guides/launch-presets.md)
 * [Multi-instance](guides/multi-instance.md)
 * [Running instances](guides/instances.md)
+* [Client controls](guides/client-controls.md)
 * [Groups](guides/groups.md)
 * [Private servers](guides/private-servers.md)
 * [Asset manager](guides/asset-manager.md)
