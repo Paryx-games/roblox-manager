@@ -41,7 +41,7 @@ The shorter checklist does not remove the underlying requirements:
 - Full verification means `cargo fmt --all -- --check`, `cargo check`,
   `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `pnpm --dir ram_ui lint`, and `pnpm --dir ram_ui typecheck`.
-- User-facing changes need a `CHANGELOG.md` entry under `## Unreleased`,
+- User-facing changes need a `CHANGELOG.md` entry under the current unpublished version heading (v2.2.0 while pending), or `## Unreleased` after that version is published,
   subject to AGENTS.md's v2 page rewrite exception.
 - Frontend changes need explicit confirmation against `DESIGN.md` and
   `tokens.css`, plus applicable visual, keyboard, state, scaling, clipping,
