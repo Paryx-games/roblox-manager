@@ -9,7 +9,7 @@ icon: tag
 
 RM follows [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 
-- **MAJOR** - Breaking changes requiring migration, or a substantial new generation of RM through significant architectural work or a material scope change. Effort alone does not justify a major version. Follow [VERSIONING.md](https://github.com/Paryx-games/roblox-manager/blob/v2/VERSIONING.md) for the complete policy.
+- **MAJOR** - Breaking changes requiring migration, or a substantial new generation of RM through significant architectural work or a material scope change. Effort alone does not justify a major version. Follow [VERSIONING.md](https://github.com/Paryx-games/roblox-manager/blob/main/VERSIONING.md) for the complete policy.
 - **MINOR** - Backward-compatible features, settings, tabs, capabilities, or feature removals.
 - **PATCH** - Bug fixes, wording changes, or UI polish. Do not add capability.
 
@@ -35,7 +35,7 @@ The root `Cargo.toml` `[workspace.package].version` is the canonical version. Bo
 
 Run `bump-version.bat` from the repository root for an interactive bump, or `pnpm version:set 2.0.0-beta.3` for automation. The batch script exits after the result; use `bump-version.bat --pause` when you want it to wait for a key before closing. Run `pnpm version:sync` after a manual Cargo edit, and `pnpm version:check` to verify consistency without modifying files. These commands also work with `pnpm --dir ram_ui`.
 
-The tools validate the project version format and Windows component limits, require an earlier alpha/beta tag for rc versions, update Cargo.lock through Cargo, and verify the frozen pnpm lockfile offline. Ordinary failures restore the original manifests and lockfiles and return non-zero. Node.js, Cargo and pnpm must be available, with dependency metadata cached. Review interrupted bumps manually. No command commits, tags, pushes or publishes. See [VERSIONING.md](https://github.com/Paryx-games/roblox-manager/blob/v2/VERSIONING.md) for details and limitations.
+The tools validate the project version format and Windows component limits, require an earlier alpha/beta tag for rc versions, update Cargo.lock through Cargo, and verify the frozen pnpm lockfile offline. Ordinary failures restore the original manifests and lockfiles and return non-zero. Node.js, Cargo and pnpm must be available, with dependency metadata cached. Review interrupted bumps manually. No command commits, tags, pushes or publishes. See [VERSIONING.md](https://github.com/Paryx-games/roblox-manager/blob/main/VERSIONING.md) for details and limitations.
 
 ### Windows installer template
 
@@ -64,13 +64,13 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-The workflow uses Windows, stable Rust, Node 22 and pnpm 11. It installs frozen frontend dependencies, builds the embedded frontend and NSIS bundle with locked Cargo dependencies, and publishes:
+The workflow uses Windows, stable Rust, Node 22 and the pnpm version pinned in the root `package.json` (currently 12.10.1). It installs frozen frontend dependencies, builds the embedded frontend and NSIS bundle with locked Cargo dependencies, and publishes:
 
 - `roblox-manager-vX.Y.Z-windows-x64.exe`
 - `roblox-manager-vX.Y.Z-windows-x64-setup.exe`
 - `SHA256SUMS.txt`, covering both executables
 
-Release notes combine the maintained changelog, GitHub-generated notes, download descriptions and a VirusTotal report for the direct executable. `VIRUSTOTAL_API_KEY` must be configured as a repository secret. The installer is checksummed; the workflow's VirusTotal upload is for the direct executable.
+Release notes combine the maintained changelog, GitHub-generated notes, download descriptions and VirusTotal results for both the direct executable and installer. Configure `VIRUSTOTAL_API_KEY` as a repository secret to enable scanning. Uploads and polling are best-effort; external-service failures do not block publication. Both executables are checksummed.
 
 Local outputs are `target/release/rm_tauri.exe` and `target/release/bundle/nsis/Roblox Manager_<version>_x64-setup.exe`. GitHub asset naming happens later in the release job.
 
@@ -99,4 +99,4 @@ A terminal bundle build verifies compilation and packaging only. Record which in
 
 If the tagged commit is correct and the failure was transient, use **Actions > Release > Re-run all jobs**, or **Run workflow** and enter that existing tag.
 
-Both jobs explicitly check out the requested tag. Fixing `main` and manually dispatching the old tag does not include the source, lockfile or changelog fix. For a source correction, publish a new verified version/tag. Move an unpublished, unused tag only after coordination; never move a tag that users or automation already rely on. Retrying can replace release assets, so do not silently rebuild a distributed version with different contents.
+Release jobs explicitly check out the requested tag. Fixing `main` and manually dispatching the old tag does not include the source, lockfile or changelog fix. For a source correction, publish a new verified version/tag. Move an unpublished, unused tag only after coordination; never move a tag that users or automation already rely on. The workflow refuses to replace an already published release. Retry a transient failure before publication; publish a new verified version for a source correction rather than rebuilding a distributed version with different contents.

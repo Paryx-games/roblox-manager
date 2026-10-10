@@ -9,7 +9,7 @@ The optional **Asset Manager** workspace keeps developer creations, staged files
 
 ## Enable the workspace
 
-Open **Settings > App and data**, enable **Show Inventories and Asset Manager**, and save. Both workspaces then appear in the navigation rail. The separate Clear Cache shortcut switch does not control these pages.
+Open **Settings > App and data > Visible pages**, enable **Show Asset Manager**, and save. Inventories has its own **Show Inventories** switch. The separate Clear Cache shortcut switch does not control these pages.
 
 ## Upload an asset
 

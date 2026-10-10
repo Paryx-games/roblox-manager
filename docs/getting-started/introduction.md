@@ -7,7 +7,7 @@ icon: circle-info
 
 Roblox Manager keeps Roblox accounts and sessions in one Windows app. Organize accounts, choose a game, and launch the sessions you need.
 
-These guides describe the Tauri v2 interface. Older published releases may use egui and have different controls. The desktop shell and React interface use `ram_core` for reusable account, asset, group, preset, API, storage and process behavior. The encrypted account-store format remains compatible with the existing core implementation.
+These guides describe the Tauri v2 interface. The guides follow current source; earlier installed releases may have different controls. Session history and queued Join user require v2.2.0 builds or later. Accounts remain encrypted in the current interface; an interface update does not make stored credentials public.
 
 ### What you can do
 

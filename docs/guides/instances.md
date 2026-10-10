@@ -5,13 +5,13 @@ icon: window-maximize
 
 # Running instances
 
-Open **Instances** to see running Roblox clients, including clients that Roblox Manager did not launch. The toolbar shows the running count and offers **Refresh**, **Arrange windows** and **Kill all Roblox**.
+Open **Instances** to see running Roblox clients, including clients that Roblox Manager did not launch. The toolbar shows the running count and offers **Refresh**, **Arrange windows** and **Close all Roblox**.
 
 ## Understand the rows
 
 Each row shows the account, process ID (PID), Place ID, match type, launch time and available actions. Unknown values mean RM has not established that information.
 
-| Match | Meaning | Individual Kill |
+| Match | Meaning | Individual Close |
 | --- | --- | --- |
 | Exact | A launch token in the client's process command line identifies the managed launch. | Available, with confirmation and a further process check. |
 | Inferred | Estimated from launch order rather than a verified token. | Disabled. |
@@ -33,6 +33,10 @@ Server join requires an identified account and usable destination information. I
 
 ## Close clients
 
-**Kill** closes one exactly matched client after confirmation. **Kill all Roblox** closes every Roblox client, including clients launched outside RM. The global action follows the **Confirm before killing all Roblox instances** preference.
+**Close** closes one exactly matched client after confirmation. **Close all Roblox** closes every Roblox client, including clients launched outside RM. The global action follows the **Confirm before killing all Roblox instances** preference.
+
+## Configure future clients
+
+The **Client controls** panel saves shared FPS, graphics quality, fullscreen and audio defaults for future launches. It does not change the selected running client's settings. See [Client controls](client-controls.md) for the enable/save steps and what happens when overrides are disabled.
 
 Closing clients can interrupt game sessions. Use Focus if you only want to switch windows. See [Multi-instance](multi-instance.md) for launching several clients and [Settings](settings.md) for launch and layout preferences.

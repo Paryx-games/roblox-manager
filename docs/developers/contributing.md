@@ -9,13 +9,13 @@ RM is a Windows-only Rust application with a Tauri shell and React/TypeScript fr
 
 ## Prerequisites and source layout
 
-Use stable Rust, Node 22, pnpm 11, Visual Studio C++ Build Tools, a Windows SDK and WebView2. Roblox is needed for launch testing.
+Use stable Rust, Node 22, the pnpm version pinned in the root `package.json` (currently 12.10.1), Visual Studio C++ Build Tools, a Windows SDK and WebView2. Roblox is needed for launch testing.
 
 - `ram_core/`: existing headless logic, encryption, storage, Roblox APIs and process management.
 - `ram_ui/src-tauri/`: active desktop commands, windows, events, background work, logging and installer files.
 - `ram_ui/frontend/`: active React pages, shared controls, tokens and typed IPC wrappers.
 
-The active application is React + Tauri with reusable domain behavior in `ram_core`. The v2 branch includes narrowly scoped, behavior-preserving extractions from Tauri into core. Follow the limits in [AGENTS.md](https://github.com/Paryx-games/roblox-manager/blob/v2/AGENTS.md) before changing core. Browser subprocess and Windows startup helpers live in `ram_ui/src-tauri/src/`. Read [DESIGN.md](https://github.com/Paryx-games/roblox-manager/blob/v2/DESIGN.md) and `ram_ui/frontend/tokens.css` before interface work. Never expose stored credentials through frontend responses or diagnostics.
+The active application is React + Tauri with reusable domain behavior in `ram_core`. Follow the limits in [AGENTS.md](https://github.com/Paryx-games/roblox-manager/blob/main/AGENTS.md) before changing core. Browser subprocess and Windows startup helpers live in `ram_ui/src-tauri/src/`. Read [DESIGN.md](https://github.com/Paryx-games/roblox-manager/blob/main/DESIGN.md) and `ram_ui/frontend/tokens.css` before interface work. Never expose stored credentials through frontend responses or diagnostics.
 
 ## Set up a fork
 
@@ -111,4 +111,4 @@ Zizmor requires an available `GH_TOKEN`, `GITHUB_TOKEN` or `ZIZMOR_GITHUB_TOKEN`
 git push -u origin dev/your-feature-name
 ```
 
-Follow [PR_CONVENTIONS.md](https://github.com/Paryx-games/roblox-manager/blob/v2/PR_CONVENTIONS.md), including all required description sections and checklist items. Add user-facing changes to the unreleased changelog, respecting the v2 page-completion exception. Open a PR from your fork and describe what changed, why, user-visible behavior, tests run, and any Roblox-version assumptions. Use [SECURITY.md](https://github.com/Paryx-games/roblox-manager/blob/v2/SECURITY.md) for vulnerabilities instead of a public issue.
+Follow [PR_CONVENTIONS.md](https://github.com/Paryx-games/roblox-manager/blob/main/PR_CONVENTIONS.md), including all required description sections and checklist items. Add user-facing changes to the pending version section in the changelog (v2.2.0 while unpublished), respecting the page-completion exception in AGENTS.md. Open a PR from your fork and describe what changed, why, user-visible behavior, tests run, and any Roblox-version assumptions. Use [SECURITY.md](https://github.com/Paryx-games/roblox-manager/blob/main/SECURITY.md) for vulnerabilities instead of a public issue.

@@ -9,7 +9,7 @@ Session history storage is controlled from **App actions > Session history** in 
 bar. It defaults to memory only. Choose **Save to file** to retain
 activity across restarts, or **Until app closes** to start empty on the next
 restart. Earlier saved history remains on disk until explicitly cleared.
-See [Session history](manage-accounts.md#session-history) for recording and export details.
+See [Session history](session-history.md) for recording and export details.
 
 Use the section navigation to find preferences. Most edits form a draft: choose **Save Settings** or **Save** in the unsaved-changes bar to apply them, or reset the draft to discard changes. Actions such as changing encryption or testing a webhook have their own controls and confirmation flows.
 
@@ -21,7 +21,7 @@ Use the section navigation to find preferences. Most edits form a draft: choose 
 
   RM retains both Roblox singleton names for its session, including legacy versions that use an event instead of a mutex. It does not change an existing event's state or close handles inside Roblox. If setup fails, RM releases its partial acquisitions; correct the reported problem and retry saving the draft without restarting RM. An RM session that encountered this error before upgrading needs one restart to load the fix.
 
-- Background-process cleanup and the kill-all confirmation preference control launch safeguards.
+- **Close Roblox tray and background processes automatically** clears leftover background clients. **Confirm before killing all Roblox instances** controls confirmation for the separate close-all action; it does not enable automatic cleanup.
 - Auto-arrange, target monitor, grid layout, sizing and spacing control Roblox window placement.
 - Window naming identifies clients by account. Launch pacing spaces successive launches rather than starting every selected account together.
 
@@ -35,7 +35,7 @@ Choose the cleanup scope before launch and whether to clean on exit. Exit cleanu
 
 ## App and data
 
-**Show Inventories and Asset Manager** controls those two workspaces in the navigation rail. **Show Clear Cache in navigation** adds the separate cache shortcut; it does not control either workspace.
+**Visible pages** provides a separate **Show** switch for each workspace, including **Show Inventories** and **Show Asset Manager**. Save the draft to update the navigation rail. Settings stays accessible even when other pages are hidden. **Show Clear Cache in navigation** adds the separate cache shortcut; it does not control either workspace.
 
 Public avatar URLs are cached for five minutes, game and asset thumbnails for 30 minutes, group details for one minute and announcements for 30 seconds.
 

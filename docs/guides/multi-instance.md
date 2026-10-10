@@ -39,6 +39,8 @@ Open Roblox Manager and go to **Settings**.
 
 Enable the multi-instance option.
 
+Choose **Save Settings** or **Save** in the unsaved-changes bar to apply it. Turning on the draft checkbox alone does not enable multi-instance.
+
 Close existing Roblox clients, including tray/background processes, first. The automatic background-process cleanup preference can help with leftover tray processes; it is separate from deliberately killing every running game.
 {% endstep %}
 

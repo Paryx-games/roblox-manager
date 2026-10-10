@@ -33,6 +33,8 @@ An account with confirmed invalid credentials or active moderation cannot launch
 
 ## Join another user's game
 
+The queued flow below requires v2.2.0 builds or later.
+
 Open **App actions > Join user** in the title bar, or **Join game** from an account's
 Connections search result. Enter an exact username or numeric user ID, choose
 one or more accounts in **Launch with**, use **All accounts** to toggle every
