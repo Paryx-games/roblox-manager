@@ -73,7 +73,7 @@ Roblox Manager never stores account cookies in plain text. It uses **Envelope En
 * **Device Store Mode (Default):** The master wrapping key is stored in Windows Credential Manager. Your store automatically and securely unlocks on your Windows user account without requiring a password prompt on every startup.
 * **Password Store Mode (Optional):** The wrapping key is derived from a master password of your choice using the **Argon2id** key-derivation function.
 
-All file writes use atomic, crash-safe persistence (`.tmp-*` staging, `.bak` backup, and atomic replace) to prevent data corruption during unexpected shutdowns.
+Account stores, settings and presets use atomic persistence (`.tmp-*` staging, `.bak` backup, and atomic replace) to protect saved state during unexpected shutdowns. Diagnostic logs are separate from these saved-state files.
 
 </details>
 
@@ -124,7 +124,7 @@ By default, the official Roblox desktop client allows only one running instance 
 <summary>Is using Multi-Instance safe, and can I get banned?</summary>
 
 {% hint style="warning" %}
-Multi-instance interacts with Roblox's local client process handles. Roblox updates and anti-cheat systems (such as Hyperion) can change client internals without notice. Use multi-instance at your own discretion and risk.
+Multi-instance reserves Roblox's local singleton object names. Roblox updates and anti-cheat systems (such as Hyperion) can change client internals without notice. Use multi-instance at your own discretion and risk.
 {% endhint %}
 
 Roblox Manager does not inject cheats, modify memory scripts, or alter game execution code. However, Roblox Corporation does not officially endorse third-party launchers or multi-client setups.
@@ -149,7 +149,7 @@ If a second client does not open or closes right away:
 <summary>How do I launch multiple accounts into the same game or server?</summary>
 
 1. Hold `Ctrl` or `Shift` and click multiple accounts in the account list to select them.
-2. Using **Bulk launch** in Accounts, specify the **Place ID** (and optionally a **Job ID** or private server link).
+2. Using **Bulk launch** in Accounts, specify the **Place ID** and optionally a **Job ID**. Use the **Private Servers** workspace for private-server links.
 3. Review the target and start the launch. Roblox Manager will launch the accounts in sequence with a configurable launch delay to ensure each client initializes cleanly.
 
 </details>
@@ -234,15 +234,15 @@ The current app has isolated interface profiles and WebView2 recovery handling. 
 
 ### Why is an Instances action disabled?
 
-Individual Kill requires an exact process match. Inferred and unmatched clients cannot be killed individually. Join server needs an identified account, valid selected launch accounts and usable destination details. See [Running instances](guides/instances.md).
+Individual **Close** requires an exact process match. Inferred and unmatched clients cannot be killed individually. Join server needs an identified account, valid selected launch accounts and usable destination details. See [Running instances](guides/instances.md).
 
 ### Why are Inventories and Asset Manager missing?
 
-Enable **Show Inventories and Asset Manager** in Settings and save it. This controls both pages in the navigation rail. See [Settings](guides/settings.md).
+In **Settings > App and data > Visible pages**, enable **Show Inventories** and/or **Show Asset Manager**, then save. Each workspace has its own switch; Settings stays accessible. See [Settings](guides/settings.md).
 
 ### Are all visible advanced settings implemented?
 
-No. Auto-launching games on startup, custom game arguments, FastFlags and automatic MAC rotation are unfinished. Starting RM with Windows and manual MAC rotation are separate actions. Do not assume saved advanced values are applied to game launches.
+The current source implements startup game launches, custom game arguments, FastFlags and automatic MAC rotation. Read [Settings](guides/settings.md) for prerequisites, save behavior and limitations. Older releases may not include newer controls; check your installed version and its release notes. Writing a FastFlag does not guarantee Roblox accepts it, and a launch request does not guarantee admission to a server.
 
 ### What should a bug report include?
 

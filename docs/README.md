@@ -9,7 +9,7 @@ icon: house-chimney
 
 Roblox Manager keeps your Roblox sessions in one place. Manage accounts, launch games, save server targets, and run multiple instances from one Windows app.
 
-These guides describe the current Tauri v2 implementation. The latest published release may still use the older egui interface; check its release notes before expecting the same pages or installer screens.
+These guides follow the current Tauri/React source. Check the version in RM's title bar and the release notes before expecting a new feature. For example, session history and the queued Join user flow require v2.2.0 builds or later; the latest published download may lag behind the source.
 
 ## What you can do
 
@@ -33,6 +33,9 @@ Never share your `.ROBLOSECURITY` cookie. It provides access to your Roblox acco
 ## Explore the guides
 
 * [Save launch presets](guides/launch-presets.md)
+* [Change Roblox display names and visibility](guides/roblox-account-settings.md)
+* [Review and export session history](guides/session-history.md)
+* [Set shared client launch preferences](guides/client-controls.md)
 * [Use multi-instance mode](guides/multi-instance.md)
 * [Inspect running clients](guides/instances.md)
 * [Browse groups](guides/groups.md)

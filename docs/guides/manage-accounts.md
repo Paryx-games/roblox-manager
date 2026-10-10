@@ -57,44 +57,17 @@ Leave the existing account in the list. Use **Replace account credential**, or *
 
 Removing the account first is different: re-adding it creates a new entry and does not restore the removed organisation metadata.
 
+### Select multiple accounts
+
+Use `Ctrl`-click to add or remove individual accounts, or `Shift`-click for a range. **All accounts** above the Accounts list selects every managed account, including accounts hidden by the current search; choose it again to clear that selection. Multi-account pickers in other workspaces also offer **All accounts** for the accounts eligible in that picker.
+
+### Change Roblox account settings
+
+The **Roblox Settings** section changes display names and online/in-game visibility on Roblox. It is separate from local RM preferences. For validation, per-account restrictions, batch results and recovery, see [Roblox account settings](roblox-account-settings.md).
+
 ### Session history
 
-Multi-account pickers include **All accounts** at the top. Select it to choose
-every available account; select it again to clear those accounts. Accounts and
-Inventories also expose this action above their account lists. Individual
-selection remains available for a smaller set.
-
-Use **App actions > Session history** in the title bar from any workspace. The right panel
-reduces the page width and stays open when you change pages. Drag its left edge,
-or focus the separator and use arrow keys, Home or End to resize it.
-
-History records observed game joins, departures, game/server changes, online,
-offline, Studio and moderation changes while RM is running and the store is
-unlocked. The first successful presence observation establishes a baseline;
-it does not claim a new join occurred. Presence is sampled, so brief sessions
-between checks may be missed. Moderation is recorded when account validation
-detects it. Network failures do not count as going offline.
-
-**Until app closes** keeps history in memory and starts empty after a restart.
-**Save to file** retains the latest 10,000 events in readable
-`session-history.json` beside `config.json`. History contains activity metadata
-and no credentials. Existing encrypted `session-history.dat` files are migrated
-after unlock without changing account storage or the encrypted follow-cleanup
-journal. The old encrypted primary and backup are retained for recovery until
-you clear history. Failed migrations preserve the source and can be retried.
-Earlier PR builds do not read the new JSON file; downgrading to those builds
-uses their last encrypted history, which may be older. An unreadable history
-is preserved until you explicitly clear it.
-Switching back to memory stops writing, but leaves previously saved history
-on disk. **Clear** clears memory, the saved JSON file and backup, and any legacy
-encrypted history files.
-
-Filter by account and choose **Export** for CSV or JSON. Exports contain user
-IDs, observed times, events, game locations and available Place/Job IDs; no
-credentials or account names are included. Exported activity is unencrypted,
-so review it before sharing. Export uses the current account filter.
-The account picker supports multiple selections and **All accounts**. Export
-shows a notification with the selected event count and format.
+Open **App actions > Session history** in the title bar to review observed activity across workspaces. See [Session history](session-history.md) for retention, export, clearing and migration details. This feature requires v2.2.0 builds or later.
 
 ### Export account information
 
