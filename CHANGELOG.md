@@ -1,12 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Fixed
-
-- **Multi-instance settings:** Enabling multi-instance now handles an existing legacy Roblox singleton event without treating it as a mutex. Failed setup releases partial acquisitions and can be retried without restarting RM.
-- **Launch safeguard warning:** The tray-process warning now appears below automatic background-process cleanup instead of the kill-all confirmation checkbox.
-
 ## v2.2.0
 
 ### Added
@@ -25,6 +18,10 @@
 - **Interface clarity:** Simplified app messages, buttons, and hints, with clearer browser and launch notifications, account login guidance, client controls, and recovery instructions.
 
 ### Fixed
+
+- **Visibility authentication errors:** Accounts with a known rejected login no longer send visibility requests. Visibility failures now distinguish login rejection, permissions, rate limits and service outages, with explicit recovery guidance rather than repeated generic warnings.
+- **Multi-instance settings:** Enabling multi-instance now handles an existing legacy Roblox singleton event without treating it as a mutex. Failed setup releases partial acquisitions and can be retried without restarting RM.
+- **Launch safeguard warning:** The tray-process warning now appears below automatic background-process cleanup instead of the kill-all confirmation checkbox.
 
 - **Inventory selection:** Changing account selection during an inventory refresh now keeps the refresh pending until the current selection finishes loading, ensuring newly selected inventories bypass their cache.
 - **Display-name editing:** Editing a display name now clears errors from previous submissions and resets the input's invalid state without removing successful account notices.

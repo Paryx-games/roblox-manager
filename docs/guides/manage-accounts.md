@@ -9,6 +9,8 @@ Keep all your Roblox accounts in one organized list.
 
 Each account shows its username, display name, avatar, status, and validation state.
 
+Visibility settings require a working saved login. If an account is marked expired after refresh, log in to it again before loading or changing visibility; RM skips visibility requests for known expired logins. An HTTP 401 from visibility settings means Roblox rejected that request's login, while permission/challenge failures, rate limits and service outages have separate retry guidance. A visibility failure alone does not change the account's credential status. Refresh checks each login and updates its validation state; completion does not mean every checked login was accepted.
+
 ### Add an account
 
 {% stepper %}

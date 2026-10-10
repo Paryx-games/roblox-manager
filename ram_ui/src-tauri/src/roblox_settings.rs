@@ -1,14 +1,38 @@
 use crate::{account_cookie, accounts, save_runtime, state::AppState};
 use ram_core::auth::RobloxClient;
+use ram_core::error::CoreError;
 use serde::Serialize;
 use tauri::Manager;
 
 pub async fn credential(state: AppState, user_id: u64) -> Result<(String, u64), String> {
+    load_credential(state, user_id, false).await
+}
+
+fn visibility_login_check(expired: bool) -> Result<(), &'static str> {
+    if expired {
+        Err("This account's saved login was rejected. Log in again before loading visibility settings.")
+    } else {
+        Ok(())
+    }
+}
+
+async fn load_credential(
+    state: AppState,
+    user_id: u64,
+    visibility: bool,
+) -> Result<(String, u64), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let runtime = state
             .runtime
             .lock()
             .map_err(|_| "Couldn’t read this account. Try again.")?;
+        if visibility {
+            let account = runtime
+                .accounts
+                .find_by_id(user_id)
+                .ok_or("Account not found")?;
+            visibility_login_check(account.cookie_expired)?;
+        }
         let cookie = account_cookie(&runtime, user_id).map_err(|_| {
             "Unlock RM or log in to this account again before changing its settings."
         })?;
@@ -258,6 +282,40 @@ mod tests {
 const PRIVACY_URL: &str = "https://apis.roblox.com/user-settings-api/v1/user-settings";
 const PRIVACY_FIELDS: [&str; 2] = ["whoCanJoinMeInExperiences", "whoCanSeeMyOnlineStatus"];
 
+fn visibility_http_error(status: u16) -> &'static str {
+    match status {
+        401 => "Roblox rejected the login for this visibility request (HTTP 401). Log in again or open Roblox settings in the account browser before retrying.",
+        403 => "Roblox denied permission to load visibility settings. Open the account browser to check for a Roblox challenge or restriction.",
+        429 => "Roblox rate limited visibility settings. Wait a few minutes before retrying.",
+        500..=599 => "Roblox visibility settings are temporarily unavailable. Try again later.",
+        _ => "Roblox could not load visibility settings. Retry or use Roblox settings for this account.",
+    }
+}
+
+fn visibility_request_error(error: &CoreError) -> (&'static str, &'static str, bool) {
+    match error {
+        CoreError::CookieRejected | CoreError::CookieRejectedWithReason(_) => {
+            ("permission", visibility_http_error(403), false)
+        }
+        CoreError::RateLimited => ("rate_limit", visibility_http_error(429), false),
+        CoreError::CsrfTokenMissing => (
+            "csrf",
+            "Roblox's session check could not be completed. Reload visibility settings and retry.",
+            false,
+        ),
+        CoreError::AuthFailed(_) => (
+            "authentication",
+            "RM could not use this account's saved login. Log in again before retrying visibility settings.",
+            false,
+        ),
+        _ => (
+            "transport",
+            "Roblox visibility settings could not be loaded. Check your connection and retry.",
+            true,
+        ),
+    }
+}
+
 fn json_kind(value: &serde_json::Value) -> &'static str {
     match value {
         serde_json::Value::Null => "null",
@@ -467,16 +525,28 @@ async fn fetch_privacy(
             None,
         )
         .await
-        .map_err(|_| {
-            tracing::warn!(
-                event = "roblox_visibility_failure",
-                request_id,
-                user_id,
-                phase,
-                failure = "transport",
-                "Roblox visibility request failed"
-            );
-            "Roblox visibility settings could not be loaded. Try again"
+        .map_err(|error| {
+            let (failure, message, unexpected) = visibility_request_error(&error);
+            if unexpected {
+                tracing::warn!(
+                    event = "roblox_visibility_failure",
+                    request_id,
+                    user_id,
+                    phase,
+                    failure,
+                    "Roblox visibility request failed"
+                );
+            } else {
+                tracing::info!(
+                    event = "roblox_visibility_failure",
+                    request_id,
+                    user_id,
+                    phase,
+                    failure,
+                    "Roblox visibility request could not proceed"
+                );
+            }
+            message
         })?;
     let status = response.status().as_u16();
     tracing::debug!(
@@ -489,16 +559,31 @@ async fn fetch_privacy(
         "Roblox visibility response received"
     );
     if !response.status().is_success() {
-        tracing::warn!(
-            event = "roblox_visibility_failure",
-            request_id,
-            user_id,
-            phase,
-            failure = "http",
-            status,
-            "Roblox denied the visibility request"
-        );
-        return Err("Roblox denied access to visibility settings. Refresh the account or use Roblox settings".into());
+        if matches!(status, 401 | 403 | 429) {
+            tracing::info!(
+                event = "roblox_visibility_failure",
+                request_id,
+                user_id,
+                phase,
+                failure = "http",
+                status,
+                "Roblox visibility request requires user action"
+            );
+        } else {
+            tracing::warn!(
+                event = "roblox_visibility_failure",
+                request_id,
+                user_id,
+                phase,
+                failure = "http",
+                status,
+                "Roblox visibility service returned an unexpected status"
+            );
+        }
+        return Err(format!(
+            "{} Diagnostic ID: {request_id}",
+            visibility_http_error(status)
+        ));
     }
     let value = response.json().await.map_err(|_| {
         tracing::warn!(
@@ -551,7 +636,7 @@ pub async fn get_roblox_privacy(
     let mut results = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for user_id in user_ids.into_iter().filter(|id| seen.insert(*id)) {
-        let result = match credential(state.inner().clone(), user_id).await {
+        let result = match load_credential(state.inner().clone(), user_id, true).await {
             Ok((cookie, _)) => {
                 fetch_privacy(
                     &client,
@@ -649,7 +734,7 @@ async fn change_privacy(
     field: &str,
     value: &str,
 ) -> Result<String, String> {
-    let (mut cookie, _) = credential(state, user_id).await?;
+    let (mut cookie, _) = load_credential(state, user_id, true).await?;
     let request_id = uuid::Uuid::new_v4().to_string();
     let settings = fetch_privacy(client, &cookie, user_id, &request_id, "preflight").await?;
     if !settings.iter().any(|setting| {
@@ -768,6 +853,40 @@ pub async fn change_roblox_privacy(
 #[cfg(test)]
 mod privacy_tests {
     use super::*;
+    #[test]
+    fn rejected_logins_are_stopped_before_visibility_requests() {
+        assert!(visibility_login_check(false).is_ok());
+        assert!(visibility_login_check(true)
+            .unwrap_err()
+            .contains("Log in again"));
+    }
+
+    #[test]
+    fn visibility_failures_distinguish_auth_permissions_rate_limits_and_outages() {
+        assert!(visibility_http_error(401).contains("HTTP 401"));
+        assert!(visibility_http_error(403).contains("permission"));
+        assert!(visibility_http_error(429).contains("rate limited"));
+        assert!(visibility_http_error(503).contains("temporarily unavailable"));
+        let synthetic = "synthetic-secret-never-display";
+        let (kind, message, warning) =
+            visibility_request_error(&CoreError::CookieRejectedWithReason(synthetic.into()));
+        assert_eq!(kind, "permission");
+        assert!(!message.contains(synthetic));
+        assert!(!warning);
+        assert_eq!(
+            visibility_request_error(&CoreError::RateLimited).0,
+            "rate_limit"
+        );
+        assert_eq!(
+            visibility_request_error(&CoreError::CsrfTokenMissing).0,
+            "csrf"
+        );
+        let (kind, message, warning) =
+            visibility_request_error(&CoreError::AuthFailed(synthetic.into()));
+        assert_eq!(kind, "authentication");
+        assert!(!message.contains(synthetic));
+        assert!(!warning);
+    }
     #[test]
     fn visibility_context_accepts_only_roblox_tracker_with_numeric_browser_id() {
         assert_eq!(visibility_tracker("RBXEventTrackerV2=CreateDate=synthetic&rbxid=42&browserid=123456; Domain=roblox.com; Secure"), Some("123456"));

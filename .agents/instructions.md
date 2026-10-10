@@ -314,7 +314,7 @@ git switch -c your-feature-name
 
 ### Changelog
 
-If a commit changes something a user would notice (feature, fix, behavior, UI), add an entry under `## Unreleased` in `CHANGELOG.md` in the same commit. Create the heading above the latest `## vX.Y.Z` if it does not exist. Skip internal refactors, tests, comments, docs, CI, and dependency bumps with no behavior change.
+If a commit changes something a user would notice (feature, fix, behavior, UI), add an entry in `CHANGELOG.md` in the same commit. If the current workspace version has a `## vX.Y.Z` section and has not been published, add current and subsequent changes directly to that section. For the pending v2.2.0 release, use `## v2.2.0`, not `## Unreleased`. Once that version is published, use `## Unreleased` above the latest release until the next version is chosen. Skip internal refactors, tests, comments, docs, CI, and dependency bumps with no behavior change.
 
 Exception: while the v2 Tauri/React page rewrite is in progress, add one consolidated entry when a page is complete instead of one per incremental fix.
 
@@ -347,7 +347,7 @@ The root `Cargo.toml` is the version source of truth. Both Rust crates inherit i
 `.github/workflows/release.yml` runs on pushed `v*` tags and on manual `workflow_dispatch` for an existing tag. Normal pushes to `main` never publish. Both release jobs check out the selected tag. See also `docs/developers/releasing.md`.
 
 1. Run `bump-version.bat` or `pnpm version:set <version>` from the repo root to bump Cargo and sync the frontend mirror and lockfiles. If Cargo was edited manually, run `pnpm version:sync`.
-2. Rename `## Unreleased` in `CHANGELOG.md` to `## vX.Y.Z`. If there is no Unreleased section, add `## vX.Y.Z` above the previous release. The workflow fails if no heading matches the tag exactly.
+2. Use the existing `## vX.Y.Z` section if changes were collected under the pending version. Otherwise rename `## Unreleased` to that heading, or add it above the previous release. Never create duplicate version headings. The workflow fails if no heading matches the tag exactly.
 3. If dependencies changed, sync the lockfiles and check the diffs are expected:
 
    ```powershell

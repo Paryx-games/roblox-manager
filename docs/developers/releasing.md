@@ -46,7 +46,7 @@ The NSIS installer uses `ram_ui/src-tauri/installer/installer.nsi`, based on Tau
 `.github/workflows/release.yml` runs when you push a tag matching `v*`, and can also be re-run manually against an existing tag (see [If GitHub is being stubborn](#if-github-is-being-stubborn)). Normal pushes to `main` or other branches do not publish releases.
 
 1. Run `bump-version.bat` or `pnpm version:set X.Y.Z`. If you edited Cargo manually, run `pnpm version:sync`. Review the resulting manifest and lockfile diff.
-2. Rename `## Unreleased` in `CHANGELOG.md` to `## vX.Y.Z`. If no unreleased section exists, add the heading above the previous release. The workflow requires an exact heading matching the tag.
+2. Use the existing `## vX.Y.Z` section if notes were collected under the unpublished version. Otherwise rename `## Unreleased` to that heading, or add it above the previous release. Never create duplicate version headings. While v2.2.0 is pending, add current and subsequent changes directly under `## v2.2.0`; after publication, resume `## Unreleased` until the next version is chosen. The workflow requires an exact heading matching the tag.
 3. If dependencies changed, regenerate and review the Cargo and pnpm lockfiles using their package managers. Do not edit lockfiles manually.
 4. Run the full verification sequence in [Contributing](contributing.md), then build the release bundle:
 

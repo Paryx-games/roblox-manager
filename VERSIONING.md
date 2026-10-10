@@ -57,7 +57,7 @@ Releases are built and published by `.github/workflows/release.yml`, which runs 
 
 1. Run `bump-version.bat` or `pnpm version:set X.Y.Z` from the repository root. If Cargo was edited manually, run `pnpm version:sync`. Review the manifest and lockfile diff.
 
-2. Rename `## Unreleased` to `## vX.Y.Z` in `CHANGELOG.md`, preserving its entries. If there is no unreleased section, add the release heading above the previous release.
+2. Use the existing `## vX.Y.Z` section if notes were collected under the unpublished version. Otherwise rename `## Unreleased` to that heading, preserving its entries, or add it above the previous release. Never create duplicate version headings. While v2.2.0 is pending, current and subsequent changes belong directly under `## v2.2.0`; after publication, resume `## Unreleased` until the next version is chosen.
 
    > [!WARNING]
    >
