@@ -51,6 +51,9 @@ pub enum CoreError {
     #[error("Account not found: {0}")]
     AccountNotFound(String),
 
+    #[error("{0}")]
+    AccountTags(String),
+
     #[error("Process error: {0}")]
     Process(String),
 

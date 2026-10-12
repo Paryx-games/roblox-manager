@@ -126,6 +126,7 @@ mod tests {
         let mut existing = Account::new(1, "old".into(), "Old".into());
         existing.alias = "Main".into();
         existing.group = "Farm".into();
+        existing.tag_ids = vec!["synthetic-tag".into()];
         existing.is_pinned = true;
         existing.sort_order = 3;
         existing.last_used = Some(chrono::Utc::now());
@@ -133,6 +134,7 @@ mod tests {
         assert_eq!(updated.username, "new");
         assert_eq!(updated.alias, existing.alias);
         assert_eq!(updated.group, existing.group);
+        assert_eq!(updated.tag_ids, existing.tag_ids);
         assert!(updated.is_pinned);
         assert_eq!(updated.sort_order, 3);
         assert_eq!(updated.last_used, existing.last_used);

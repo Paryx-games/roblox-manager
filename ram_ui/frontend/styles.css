@@ -3,6 +3,170 @@
 @import "./tokens.css";
 /* stylelint-enable import-notation */
 
+.account-tags-manager {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: calc(100vh - var(--space-12) * 2);
+  overflow-y: auto;
+}
+
+.account-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.account-tag-picker .account-picker-option > span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-picker-empty,
+.tag-picker-partial {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.tag-picker-empty {
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.tag-signs {
+  display: inline-flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.tag-sign {
+  display: block;
+  width: 16px;
+  height: 6px;
+  flex: 0 0 auto;
+  background: var(--tag-color, var(--text-muted));
+  clip-path: polygon(0 0, 75% 0, 100% 50%, 75% 100%, 0 100%);
+}
+
+.tag-sign + .tag-sign {
+  margin-top: -2px;
+}
+
+.tag-signs.is-empty {
+  opacity: 0.5;
+}
+
+.account-picker.account-picker-groups.tag-picker-signs {
+  display: inline-flex;
+  max-width: calc(var(--space-12) * 4);
+  flex: 0 0 auto;
+}
+
+.account-picker.account-picker-groups.tag-picker-signs .account-picker-trigger {
+  width: auto;
+  height: 28px;
+  min-width: 24px;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: var(--text-xs);
+}
+
+.account-picker.account-picker-groups.tag-picker-signs .account-picker-trigger:hover:not(:disabled),
+.account-picker.account-picker-groups.tag-picker-signs.is-open .account-picker-trigger {
+  color: var(--text-primary);
+  background: var(--action-muted);
+}
+
+.account-picker.account-picker-groups.tag-picker-signs .account-picker-menu {
+  right: 0;
+  left: auto;
+  min-width: 200px;
+}
+
+.account-row .tag-picker-signs .account-tag-badge.is-empty {
+  opacity: 0;
+}
+
+.account-row:hover .tag-picker-signs .account-tag-badge.is-empty,
+.account-row:focus-within .tag-picker-signs .account-tag-badge.is-empty {
+  opacity: 1;
+}
+
+.tag-badge-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-tag-badge[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.5;
+}
+
+.account-tag-catalog .account-tag-list > .tag-signs {
+  flex: 0 0 auto;
+}
+.account-tag-catalog {
+  max-height: calc(var(--space-12) * 4);
+  overflow-y: auto;
+}
+
+.account-tag-catalog .account-tag-list {
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-width) solid var(--border-default);
+}
+
+.account-tag-catalog .account-tag-list > span {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.account-tag-list .account-button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.preset-tag-target {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.preset-row > .preset-tag-target {
+  max-width: calc(var(--space-12) * 5);
+}
+
+.preset-tag-form {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.preset-tag-form > span,
+.preset-tag-target p {
+  color: var(--text-muted);
+}
+
+.preset-tag-form p {
+  grid-column: 2;
+  margin: 0;
+}
+
 .roblox-settings-results {
   margin: var(--space-3) 0 0;
   padding-left: var(--space-4);

@@ -228,6 +228,7 @@ struct AccountSummary {
     display_name: String,
     alias: String,
     group: String,
+    tag_ids: Vec<String>,
     avatar_url: String,
     is_pinned: bool,
     sort_order: u32,
@@ -334,6 +335,8 @@ struct LaunchPresetSummary {
     icon_url: String,
     job_id: Option<String>,
     data: Option<String>,
+    #[serde(default)]
+    tag_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -863,6 +866,7 @@ fn account_summary(
             account.alias.clone()
         },
         group: account.group.clone(),
+        tag_ids: account.tag_ids.clone(),
         avatar_url: if config.anonymize_names {
             String::new()
         } else {
@@ -2656,6 +2660,7 @@ fn preset_summary(index: usize, preset: &LaunchPreset, icon_url: String) -> Laun
         icon_url,
         job_id: preset.job_id.clone(),
         data: preset.data.clone(),
+        tag_ids: preset.tag_ids.clone(),
     }
 }
 
@@ -2699,11 +2704,22 @@ async fn list_launch_presets() -> Result<Vec<LaunchPresetSummary>, String> {
 
 #[tauri::command]
 async fn save_launch_preset(
+    state: tauri::State<'_, AppState>,
     name: String,
     place_id: u64,
     job_id: Option<String>,
     data: Option<String>,
+    tag_ids: Option<Vec<String>>,
 ) -> Result<(), String> {
+    let tag_ids = tag_ids.unwrap_or_default();
+    {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        ram_core::account_tags::validate_ids(&runtime.accounts, &tag_ids)
+            .map_err(|error| error.to_string())?;
+    }
     let trimmed_name = name.trim();
     if trimmed_name.is_empty() || trimmed_name.chars().count() > 80 {
         return Err("Preset name must be between 1 and 80 characters".to_string());
@@ -2716,6 +2732,7 @@ async fn save_launch_preset(
         place_id,
         job_id: job_id.filter(|value| !value.trim().is_empty()),
         data: data.filter(|value| !value.trim().is_empty()),
+        tag_ids,
     };
     tauri::async_runtime::spawn_blocking(move || {
         ram_core::presets::save(&preset_data_dir(), &preset, None)
@@ -2728,12 +2745,23 @@ async fn save_launch_preset(
 
 #[tauri::command]
 async fn update_launch_preset(
+    state: tauri::State<'_, AppState>,
     index: usize,
     name: String,
     place_id: u64,
     job_id: Option<String>,
     data: Option<String>,
+    tag_ids: Option<Vec<String>>,
 ) -> Result<LaunchPresetSummary, String> {
+    let tag_ids = tag_ids.unwrap_or_default();
+    {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        ram_core::account_tags::validate_ids(&runtime.accounts, &tag_ids)
+            .map_err(|error| error.to_string())?;
+    }
     let trimmed_name = name.trim();
     if trimmed_name.is_empty() || trimmed_name.chars().count() > 80 {
         return Err("Preset name must be between 1 and 80 characters".to_string());
@@ -2741,18 +2769,23 @@ async fn update_launch_preset(
     if place_id == 0 {
         return Err("Enter a valid Roblox place ID".to_string());
     }
-    let (presets, _) = load_preset_entries()?;
-    let (path, _) = presets
-        .get(index)
-        .ok_or_else(|| "Preset not found".to_string())?;
     let preset = LaunchPreset {
         name: trimmed_name.to_string(),
         place_id,
         job_id: job_id.filter(|value| !value.trim().is_empty()),
         data: data.filter(|value| !value.trim().is_empty()),
+        tag_ids,
     };
-    ram_core::presets::save(&preset_data_dir(), &preset, Some(path))
-        .map_err(|error| error.to_string())?;
+    let saved = preset.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (presets, _) = load_preset_entries()?;
+        let (path, _) = presets.get(index).ok_or("Preset not found")?;
+        ram_core::presets::save(&preset_data_dir(), &saved, Some(path))
+            .map(|_| ())
+            .map_err(|_| "Preset could not be saved".to_string())
+    })
+    .await
+    .map_err(|_| "Preset save task failed")??;
     Ok(preset_summary(
         index,
         &preset,
@@ -2779,13 +2812,32 @@ async fn launch_launch_preset(
     index: usize,
     user_ids: Vec<u64>,
 ) -> Result<(), String> {
+    let preset = tauri::async_runtime::spawn_blocking(move || {
+        let (presets, _) = load_preset_entries()?;
+        presets
+            .get(index)
+            .map(|(_, preset)| preset.clone())
+            .ok_or_else(|| "Preset not found".to_string())
+    })
+    .await
+    .map_err(|_| "Preset loading task failed")??;
+    let user_ids = if preset.tag_ids.is_empty() {
+        user_ids
+    } else {
+        let state = app.state::<AppState>();
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked {
+            return Err("Unlock accounts before launching".into());
+        }
+        ram_core::account_tags::matching_accounts(&runtime.accounts, &preset.tag_ids)
+            .map_err(|error| error.to_string())?
+    };
     if user_ids.is_empty() {
-        return Err("Select at least one account before launching".to_string());
+        return Err("No accounts selected or matching this preset's tags".to_string());
     }
-    let (presets, _) = load_preset_entries()?;
-    let (_, preset) = presets
-        .get(index)
-        .ok_or_else(|| "Preset not found".to_string())?;
     launcher::batch(
         &app,
         user_ids
@@ -3387,6 +3439,10 @@ fn main() {
             update_account_alias,
             toggle_account_pin,
             update_account_group,
+            accounts::list_account_tags,
+            accounts::save_account_tag,
+            accounts::delete_account_tag,
+            accounts::assign_account_tags,
             reorder_accounts,
             update_player_path,
             create_account_group,

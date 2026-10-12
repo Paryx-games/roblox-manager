@@ -13,6 +13,123 @@ use serde::Serialize;
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagSnapshot {
+    tags: Vec<ram_core::models::AccountTag>,
+    assignments: Vec<TagAssignment>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TagAssignment {
+    user_id: u64,
+    tag_ids: Vec<String>,
+}
+
+fn tag_snapshot(store: &ram_core::models::AccountStore) -> TagSnapshot {
+    TagSnapshot {
+        tags: store.tags.clone(),
+        assignments: store
+            .accounts
+            .iter()
+            .map(|account| TagAssignment {
+                user_id: account.user_id,
+                tag_ids: account.tag_ids.clone(),
+            })
+            .collect(),
+    }
+}
+
+#[tauri::command]
+pub fn list_account_tags(state: tauri::State<'_, AppState>) -> Result<TagSnapshot, String> {
+    let runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Account state unavailable")?;
+    if !runtime.unlocked {
+        return Err("Unlock accounts to view tags".into());
+    }
+    Ok(tag_snapshot(&runtime.accounts))
+}
+
+async fn change_tags(
+    app: tauri::AppHandle,
+    update: impl FnOnce(&mut ram_core::models::AccountStore) -> Result<(), ram_core::CoreError>
+        + Send
+        + 'static,
+) -> Result<TagSnapshot, String> {
+    let state = app.state::<AppState>().inner().clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked {
+            return Err("Unlock accounts to edit tags".into());
+        }
+        let session = runtime
+            .session
+            .as_ref()
+            .ok_or("Account store is locked")?
+            .clone();
+        let path = runtime.config.accounts_path.clone();
+        ram_core::account_tags::commit_candidate(&mut runtime.accounts, update, |candidate| {
+            crypto::save_store(&path, candidate, &session)
+        })
+        .map_err(|error| match error {
+            ram_core::CoreError::AccountTags(message) => message,
+            _ => "Tags could not be saved. Your previous tags were kept".to_string(),
+        })?;
+        Ok(())
+    })
+    .await
+    .map_err(|_| "Tag update task failed")??;
+    publish(&app);
+    let state = app.state::<AppState>();
+    let runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "Account state unavailable")?;
+    let snapshot = tag_snapshot(&runtime.accounts);
+    let _ = app.emit("account-tags-updated", &snapshot.tags);
+    Ok(snapshot)
+}
+
+#[tauri::command]
+pub async fn save_account_tag(
+    app: tauri::AppHandle,
+    id: Option<String>,
+    name: String,
+    color: Option<[u8; 3]>,
+) -> Result<TagSnapshot, String> {
+    change_tags(app, move |store| {
+        ram_core::account_tags::save_tag_with_color(store, id.as_deref(), &name, color)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_account_tag(app: tauri::AppHandle, id: String) -> Result<TagSnapshot, String> {
+    change_tags(app, move |store| {
+        ram_core::account_tags::delete_tag(store, &id)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn assign_account_tags(
+    app: tauri::AppHandle,
+    user_ids: Vec<u64>,
+    tag_ids: Vec<String>,
+    remove: bool,
+) -> Result<TagSnapshot, String> {
+    change_tags(app, move |store| {
+        ram_core::account_tags::assign(store, &user_ids, &tag_ids, remove)
+    })
+    .await
+}
+
 pub struct PendingAddition {
     account: Account,
     created_at: Instant,
@@ -391,6 +508,7 @@ mod tests {
             runtime: Arc::new(Mutex::new(RuntimeState {
                 accounts: AccountStore {
                     accounts: vec![existing],
+                    ..Default::default()
                 },
                 config: AppConfig {
                     accounts_path: path.clone(),
