@@ -47,11 +47,11 @@
 //! [`upgrade_v1`] rewrites them into the format above with a fresh random data
 //! key.
 
-use aes_gcm::aead::{Aead, KeyInit, OsRng, Payload};
+use aes_gcm::aead::{consts::U12, Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
-use rand::RngCore;
+use rand::{rngs::SysRng, TryCryptoRng};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
@@ -84,6 +84,15 @@ const HEADER_LEN: usize = OFF_WRAPPED_KEY + WRAPPED_KEY_LEN;
 /// The prefix bound as AAD when wrapping the data key: magic, version, mode, salt.
 const WRAP_AAD_LEN: usize = OFF_WRAP_NONCE;
 
+fn fill_random(rng: &mut impl TryCryptoRng, bytes: &mut [u8]) -> Result<(), CoreError> {
+    rng.try_fill_bytes(bytes)
+        .map_err(|_| CoreError::Crypto("secure random generation failed".into()))
+}
+
+fn nonce_from_slice(bytes: &[u8]) -> Result<Nonce<U12>, CoreError> {
+    Nonce::try_from(bytes).map_err(|_| CoreError::Crypto("invalid nonce length".into()))
+}
+
 // ---------------------------------------------------------------------------
 // Keys
 // ---------------------------------------------------------------------------
@@ -94,10 +103,10 @@ const WRAP_AAD_LEN: usize = OFF_WRAP_NONCE;
 pub struct StoreKey([u8; KEY_LEN]);
 
 impl StoreKey {
-    fn random() -> Self {
+    fn random() -> Result<Self, CoreError> {
         let mut k = [0u8; KEY_LEN];
-        OsRng.fill_bytes(&mut k);
-        Self(k)
+        fill_random(&mut SysRng, &mut k)?;
+        Ok(Self(k))
     }
 
     fn cipher(&self) -> Result<Aes256Gcm, CoreError> {
@@ -298,7 +307,7 @@ pub fn device_key_or_create() -> Result<StoreKey, CoreError> {
     if let Some(k) = device_key()? {
         return Ok(k);
     }
-    let key = StoreKey::random();
+    let key = StoreKey::random()?;
     device_key_entry()?
         .set_password(&B64.encode(key.0))
         .map_err(|e| CoreError::Keyring(e.to_string()))?;
@@ -353,7 +362,7 @@ fn build_header(
     }
 
     let mut wrap_nonce = [0u8; NONCE_LEN];
-    OsRng.fill_bytes(&mut wrap_nonce);
+    fill_random(&mut SysRng, &mut wrap_nonce)?;
     header[OFF_WRAP_NONCE..OFF_WRAP_NONCE + NONCE_LEN].copy_from_slice(&wrap_nonce);
 
     // AAD is everything decided before the wrap: magic, version, mode, salt.
@@ -361,7 +370,7 @@ fn build_header(
     let wrapped = wrapping_key
         .cipher()?
         .encrypt(
-            Nonce::from_slice(&wrap_nonce),
+            &nonce_from_slice(&wrap_nonce)?,
             Payload {
                 msg: &data_key.0,
                 aad: &aad,
@@ -384,7 +393,7 @@ fn unwrap_data_key(header: &[u8], wrapping_key: &StoreKey) -> Result<StoreKey, C
 
     let plain = wrapping_key
         .cipher()?
-        .decrypt(Nonce::from_slice(nonce), Payload { msg: wrapped, aad })
+        .decrypt(&nonce_from_slice(nonce)?, Payload { msg: wrapped, aad })
         .map_err(|_| CoreError::Crypto("could not unwrap the store's data key".into()))?;
 
     if plain.len() != KEY_LEN {
@@ -445,12 +454,12 @@ fn encrypt_body(header: &[u8], store: &AccountStore, key: &StoreKey) -> Result<V
     let plaintext = serde_json::to_vec(store)?;
 
     let mut nonce = [0u8; NONCE_LEN];
-    OsRng.fill_bytes(&mut nonce);
+    fill_random(&mut SysRng, &mut nonce)?;
 
     let ciphertext = key
         .cipher()?
         .encrypt(
-            Nonce::from_slice(&nonce),
+            &nonce_from_slice(&nonce)?,
             Payload {
                 msg: &plaintext,
                 aad: header,
@@ -473,7 +482,7 @@ fn decrypt_body(data: &[u8], key: &StoreKey) -> Result<AccountStore, CoreError> 
     let plaintext = key
         .cipher()?
         .decrypt(
-            Nonce::from_slice(nonce),
+            &nonce_from_slice(nonce)?,
             Payload {
                 msg: ciphertext,
                 aad: header,
@@ -496,7 +505,7 @@ fn decrypt_body(data: &[u8], key: &StoreKey) -> Result<AccountStore, CoreError> 
 /// if needed, the device key.
 pub fn create_device_session() -> Result<StoreSession, CoreError> {
     let wrapping = device_key_or_create()?;
-    let data_key = StoreKey::random();
+    let data_key = StoreKey::random()?;
     let header = build_header(MODE_DEVICE, None, &wrapping, &data_key)?;
     tracing::debug!("Created new device store session");
     Ok(StoreSession {
@@ -508,9 +517,9 @@ pub fn create_device_session() -> Result<StoreSession, CoreError> {
 /// Start a brand-new password-mode store session.
 pub fn create_password_session(password: &str) -> Result<StoreSession, CoreError> {
     let mut salt = [0u8; SALT_LEN];
-    OsRng.fill_bytes(&mut salt);
+    fill_random(&mut SysRng, &mut salt)?;
     let wrapping = derive_wrapping_key(password, &salt)?;
-    let data_key = StoreKey::random();
+    let data_key = StoreKey::random()?;
     let header = build_header(MODE_PASSWORD, Some(&salt), &wrapping, &data_key)?;
     tracing::debug!("Created new password store session");
     Ok(StoreSession {
@@ -527,7 +536,7 @@ pub fn rewrap(session: &StoreSession, password: Option<&str>) -> Result<StoreSes
     let header = match password {
         Some(pw) => {
             let mut salt = [0u8; SALT_LEN];
-            OsRng.fill_bytes(&mut salt);
+            fill_random(&mut SysRng, &mut salt)?;
             let wrapping = derive_wrapping_key(pw, &salt)?;
             build_header(MODE_PASSWORD, Some(&salt), &wrapping, &session.key)?
         }
@@ -686,7 +695,7 @@ fn decrypt_v1(data: &[u8], key: &StoreKey) -> Result<AccountStore, CoreError> {
     let (nonce, ciphertext) = data.split_at(NONCE_LEN);
     let plaintext = key
         .cipher()?
-        .decrypt(Nonce::from_slice(nonce), ciphertext)
+        .decrypt(&nonce_from_slice(nonce)?, ciphertext)
         .map_err(|_| {
             CoreError::Crypto(
                 "could not decrypt the account store: wrong master password, or the file is corrupted"
@@ -831,12 +840,12 @@ pub fn credential_delete(user_id: u64) -> Result<(), CoreError> {
 /// rounds per cookie, on every launch of every account.
 pub fn encrypt_cookie(cookie: &str, session: &StoreSession) -> Result<String, CoreError> {
     let mut nonce = [0u8; NONCE_LEN];
-    OsRng.fill_bytes(&mut nonce);
+    fill_random(&mut SysRng, &mut nonce)?;
 
     let ciphertext = session
         .key
         .cipher()?
-        .encrypt(Nonce::from_slice(&nonce), cookie.as_bytes())
+        .encrypt(&nonce_from_slice(&nonce)?, cookie.as_bytes())
         .map_err(|e| CoreError::Crypto(e.to_string()))?;
 
     let mut combined = Vec::with_capacity(NONCE_LEN + ciphertext.len());
@@ -858,7 +867,7 @@ pub fn decrypt_cookie(encoded: &str, session: &StoreSession) -> Result<String, C
     let plaintext = session
         .key
         .cipher()?
-        .decrypt(Nonce::from_slice(nonce), ciphertext)
+        .decrypt(&nonce_from_slice(nonce)?, ciphertext)
         .map_err(|_| CoreError::Crypto("cookie decryption failed".into()))?;
 
     String::from_utf8(plaintext).map_err(|e| CoreError::Crypto(e.to_string()))
@@ -869,6 +878,83 @@ mod tests {
     use super::*;
     use crate::models::Account;
     use std::path::PathBuf;
+
+    // fixed synthetic vectors from an independent AES-GCM implementation;
+    // keep these stable so a library upgrade cannot silently change the format
+    const COMPAT_STORE: &str = "UkFNU1RPUkUCAAAAAAAAAAAAAAAAAAAAAAAzMzMzMzMzMzMzMzOmoXBk6LBXDpCayU+FCcEKJOotFqj7p47aaCungayoCFZHshkLQ10vPtnN7UbPyZVERERERERERERERETpLcQAgUyW7MHWeBp5gKo8Rbuvx61IVaPsU7HbY5LY";
+    const COMPAT_COOKIE: &str = "VVVVVVVVVVVVVVVVCkuZ5pGjsbGomiC2u9sRU6TaGvL57EuUbIEWqBTPiZA=";
+
+    #[test]
+    fn aes_gcm_upgrade_preserves_existing_store_and_cookie_bytes() {
+        let bytes = B64.decode(COMPAT_STORE).unwrap();
+        let (store, session) = open_device(&bytes, &StoreKey([0x11; KEY_LEN])).unwrap();
+        assert!(store.accounts.is_empty());
+        assert_eq!(session.key.0, [0x22; KEY_LEN]);
+        assert_eq!(
+            decrypt_cookie(COMPAT_COOKIE, &session).unwrap(),
+            "SYNTHETIC_COOKIE"
+        );
+
+        let nonce = [0x55; NONCE_LEN];
+        let ciphertext = session
+            .key
+            .cipher()
+            .unwrap()
+            .encrypt(
+                &nonce_from_slice(&nonce).unwrap(),
+                b"SYNTHETIC_COOKIE".as_ref(),
+            )
+            .unwrap();
+        let mut encoded = nonce.to_vec();
+        encoded.extend_from_slice(&ciphertext);
+        assert_eq!(B64.encode(encoded), COMPAT_COOKIE);
+    }
+
+    #[test]
+    fn compatible_ciphertext_still_rejects_tampering_and_wrong_keys() {
+        let bytes = B64.decode(COMPAT_STORE).unwrap();
+        let wrapping = StoreKey([0x11; KEY_LEN]);
+        assert!(open_device(&bytes, &StoreKey([0x12; KEY_LEN])).is_err());
+        for offset in [
+            OFF_SALT,
+            OFF_WRAP_NONCE,
+            OFF_WRAPPED_KEY,
+            HEADER_LEN,
+            bytes.len() - 1,
+        ] {
+            let mut damaged = bytes.clone();
+            damaged[offset] ^= 1;
+            assert!(open_device(&damaged, &wrapping).is_err());
+        }
+        let (_, session) = open_device(&bytes, &wrapping).unwrap();
+        let mut cookie = B64.decode(COMPAT_COOKIE).unwrap();
+        *cookie.last_mut().unwrap() ^= 1;
+        assert!(decrypt_cookie(&B64.encode(cookie), &session).is_err());
+        assert!(nonce_from_slice(&[0; NONCE_LEN - 1]).is_err());
+    }
+
+    #[test]
+    fn random_generation_failure_returns_a_safe_error() {
+        struct UnavailableRandom;
+        impl rand::TryRng for UnavailableRandom {
+            type Error = std::io::Error;
+            fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+                Err(std::io::Error::other("synthetic internal random failure"))
+            }
+            fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+                Err(std::io::Error::other("synthetic internal random failure"))
+            }
+            fn try_fill_bytes(&mut self, _: &mut [u8]) -> Result<(), Self::Error> {
+                Err(std::io::Error::other("synthetic internal random failure"))
+            }
+        }
+        impl TryCryptoRng for UnavailableRandom {}
+        let err = fill_random(&mut UnavailableRandom, &mut [0; KEY_LEN]).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Encryption/Decryption error: secure random generation failed"
+        );
+    }
 
     fn scratch(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("ram_crypto_{}_{name}", std::process::id()));
@@ -902,11 +988,11 @@ mod tests {
         let key = derive_key_v1(password);
         let plaintext = serde_json::to_vec(store).unwrap();
         let mut nonce = [0u8; NONCE_LEN];
-        OsRng.fill_bytes(&mut nonce);
+        fill_random(&mut SysRng, &mut nonce).unwrap();
         let ct = key
             .cipher()
             .unwrap()
-            .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
+            .encrypt(&nonce_from_slice(&nonce).unwrap(), plaintext.as_ref())
             .unwrap();
         let mut out = nonce.to_vec();
         out.extend_from_slice(&ct);
@@ -1033,7 +1119,7 @@ mod tests {
         // Goes through `open_device` with a dummy wrapping key rather than
         // `unlock_with_device`, so the assertion is about the mode check and not
         // about whether this machine happens to have a credential store.
-        let err = open_device(&bytes, &StoreKey::random())
+        let err = open_device(&bytes, &StoreKey::random().unwrap())
             .unwrap_err()
             .to_string();
         assert!(err.contains("master password"), "unhelpful error: {err}");
@@ -1045,7 +1131,7 @@ mod tests {
         let p = scratch("v1asdevice");
         write_v1(&p, &store_with(1), "pw");
         let bytes = std::fs::read(&p).unwrap();
-        let err = open_device(&bytes, &StoreKey::random())
+        let err = open_device(&bytes, &StoreKey::random().unwrap())
             .unwrap_err()
             .to_string();
         assert!(err.contains("master password"), "unhelpful error: {err}");
