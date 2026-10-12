@@ -2944,7 +2944,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d5285893bb5eb82e6aaf5d59ee909a06a16737a8970984dd7746ba9283498d6"
 dependencies = [
  "phf_shared 0.10.0",
- "rand 0.8.7",
+ "rand 0.8.8",
 ]
 
 [[package]]
@@ -2954,7 +2954,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
 dependencies = [
  "phf_shared 0.11.3",
- "rand 0.8.7",
+ "rand 0.8.8",
 ]
 
 [[package]]
@@ -3318,7 +3318,7 @@ dependencies = [
  "base64 0.23.1",
  "chrono",
  "keyring",
- "rand 0.8.7",
+ "rand 0.10.2",
  "regex",
  "reqwest",
  "serde",
@@ -3348,9 +3348,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.7"
+version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22f6172bdec972074665ed81ed53b71da00bfc44b65a753cfde883ec4c702a1a"
+checksum = "e058c7de0b26af77780c769414d6257830bb240f3c38477dbc2c16e5f54d6d4c"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
