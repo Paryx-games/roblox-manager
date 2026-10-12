@@ -1,7 +1,7 @@
 import { useEffect, type RefObject } from "react";
 import { isSelectAllShortcut, isTextSelectionTarget } from "../lib/selectAllShortcut";
 
-export function useSelectAllShortcut(onSelectAll: (event: KeyboardEvent) => void, options: { isEnabled?: boolean; scopeRef?: RefObject<HTMLElement> } = {}) {
+export function useSelectAllShortcut(onSelectAll: (event: KeyboardEvent) => void, options: { isEnabled?: boolean; scopeRef?: RefObject<HTMLElement | null> } = {}) {
   const { isEnabled = true, scopeRef } = options;
   useEffect(() => {
     if (!isEnabled) return;

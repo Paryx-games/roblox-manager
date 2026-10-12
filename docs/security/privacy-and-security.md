@@ -81,6 +81,8 @@ Credential replacement updates the encrypted store. If you remove an account fir
 
 Roblox Manager encrypts account data before storing it. Cookies are not stored as plain text.
 
+If Windows cannot provide secure randomness for a new key, salt or nonce, RM stops the operation and reports an error. It does not fall back to predictable values or save the failed encryption result.
+
 <details>
 
 <summary>View storage protections</summary>

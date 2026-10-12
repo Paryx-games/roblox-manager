@@ -74,8 +74,7 @@ fn backoff_for_attempt(attempt: u32) -> Duration {
     let jitter = if spread == 0 {
         0
     } else {
-        use rand::Rng as _;
-        rand::thread_rng().gen_range(0..=spread)
+        rand::random_range(0..=spread)
     };
     Duration::from_millis(base.saturating_sub(spread / 2).saturating_add(jitter))
 }

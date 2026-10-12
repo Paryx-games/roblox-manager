@@ -35,6 +35,8 @@ Setup embeds Microsoft's WebView2 bootstrapper and runs it when the runtime is m
 
 ## Upgrade an existing installation
 
+Setup and uninstall use Windows Restart Manager to check the executable in the selected installation folder. If it is in use, you may be prompted to close the application before continuing.
+
 1. Close Roblox Manager, including its tray process.
 2. Back up your encrypted store and configuration before testing a new build.
 3. Run the newer installer and review its upgrade and shortcut choices.

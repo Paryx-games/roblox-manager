@@ -18,10 +18,10 @@ chrono = "0.4"
 tauri = { version = "2", features = [] }
 serde_json = { workspace = true }
 reqwest = { workspace = true }
-wry = "0.56"
+wry = "0.57"
 tao = "0.37"
-webview2-com = "0.38.2"
-windows-core = "0.61.2"
+webview2-com = "0.39.1"
+windows-core = "0.62"
 base64 = "0.23.1"
 tauri-plugin-dialog = "2"
 uuid.workspace = true
