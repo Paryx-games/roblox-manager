@@ -1026,6 +1026,7 @@ export function AccountsPage({
   const isMultiSelection = selectedAccounts.length > 1;
   const tagAccounts = isMultiSelection ? selectedAccounts : selectedAccount ? [selectedAccount] : [];
   const selectedTagIds = commonTags(tagAccounts);
+  const mixedTagIds = [...new Set(tagAccounts.flatMap(account => account.tagIds))].filter(id => !selectedTagIds.includes(id));
   function changeSelectedTags(next: string[]) {
     const added = next.filter(id => !selectedTagIds.includes(id));
     const removed = selectedTagIds.filter(id => !next.includes(id));
@@ -2019,8 +2020,9 @@ export function AccountsPage({
             <button className="account-button account-select-all" type="button" disabled={loading || mutationLoading || !accounts.length} aria-pressed={allAccountsSelected(selectedIds, accounts.map(account => account.userId))} onClick={() => setSelectedIds(toggleAllAccounts(selectedIds, accounts.map(account => account.userId)))}><Icon name="accounts" />All accounts</button>
           </div>
           <div className="account-tags-toolbar">
-            <button className="account-button" type="button" disabled={loading || !!error} onClick={() => setTagManagerOpen(true)}>Tags{tagFilter.length ? ' (' + tagFilter.length + ')' : ''}</button>
-            {tagFilter.length > 0 && <button className="account-button" type="button" disabled={!visibleAccounts.length || tagBusy} onClick={() => { setSelectedIds(new Set(visibleAccounts.map(account => account.userId))); setSelectedId(visibleAccounts[0]?.userId ?? null); }}>Select matching accounts</button>}
+            <TagPicker tags={tags} selected={tagFilter} onChange={setTagFilter} label="account filter" emptyLabel="All tags" clearLabel="Show all accounts" disabled={loading || !!error || tagBusy} onManage={() => setTagManagerOpen(true)} />
+            {tagFilter.length > 1 && <button className="icon-button bordered" type="button" aria-label="Match all selected tags" aria-pressed={matchAllTags} data-tip={matchAllTags ? "Matching all selected tags - click to match any" : "Matching any selected tag - click to match all"} onClick={() => setMatchAllTags(current => !current)}>{matchAllTags ? "All" : "Any"}</button>}
+            {tagFilter.length > 0 && <button className="icon-button bordered" type="button" aria-label="Select matching accounts" data-tip="Select matching accounts" disabled={!visibleAccounts.length || tagBusy} onClick={() => { setSelectedIds(new Set(visibleAccounts.map(account => account.userId))); setSelectedId(visibleAccounts[0]?.userId ?? null); }}><Icon name="accounts" /></button>}
           </div>
           <div className="accounts-groups">
             {loading && (
@@ -2310,43 +2312,16 @@ export function AccountsPage({
             <div className="group-editor-header">
               <h2 id="tag-manager-title">Account tags</h2>
               <button
-                className="account-button"
+                className="icon-button"
                 type="button"
+                aria-label="Close tag manager"
+                data-tip="Close"
                 disabled={tagBusy}
                 onClick={() => setTagManagerOpen(false)}
               >
-                Close
+                <Icon name="close" />
               </button>
             </div>
-            <p>
-              Tags stack independently of groups. Filter the sidebar, then select
-              matching accounts to launch them together.
-            </p>
-            <TagPicker
-              tags={tags}
-              selected={tagFilter}
-              onChange={setTagFilter}
-              label="account filter"
-              disabled={tagBusy}
-            />
-            <Select
-              value={matchAllTags ? "all" : "any"}
-              ariaLabel="Tag matching"
-              disabled={tagBusy}
-              onChange={(value) => setMatchAllTags(value === "all")}
-              options={[
-                { value: "any", label: "Match any selected tag" },
-                { value: "all", label: "Match all selected tags" },
-              ]}
-            />
-            <button
-              className="account-button"
-              type="button"
-              disabled={tagBusy || !tagFilter.length}
-              onClick={() => setTagFilter([])}
-            >
-              Clear filter
-            </button>
             <form
               className="group-editor-field"
               onSubmit={(event) => {
@@ -2700,6 +2675,10 @@ export function AccountsPage({
                         {account.label}<Icon name="close" />
                       </button>
                     ))}
+                  </div>
+                  <div className="account-selection-tags">
+                    <span>Shared tags</span>
+                    <TagPicker tags={tags} selected={selectedTagIds} mixed={mixedTagIds} onChange={changeSelectedTags} disabled={tagBusy || mutationLoading} busy={tagBusy} label="selected accounts" emptyLabel="No shared tags" onManage={() => setTagManagerOpen(true)} />
                   </div>
                   <div className="account-selection-tools">
                     <button className="account-button" type="button" disabled={mutationLoading || presenceLoading} onClick={() => void refreshPresence()}><Icon name="refresh" />{presenceLoading ? "Refreshing..." : "Refresh status"}</button>
@@ -3139,11 +3118,7 @@ export function AccountsPage({
                 )}
               </section>
 
-              <section className="account-card" aria-labelledby="account-profile-tags"><h2 id="account-profile-tags">Tags</h2>
-                {isMultiSelection && <p>Shown tags belong to every selected account. Adding a tag applies it to all selected accounts; other tags stay unchanged.</p>}
-                <TagPicker tags={tags} selected={selectedTagIds} onChange={changeSelectedTags} disabled={tagBusy || mutationLoading} label={isMultiSelection ? "selected accounts" : "this account"} />
-                {tagError && <p className="accounts-error" role="alert">{tagError}</p>}
-              </section>
+              {tagError && <p className="accounts-error" role="alert">{tagError}</p>}
               {!isMultiSelection && <section className="account-card account-info-grid">
                 <div>
                   <label htmlFor="account-alias">Alias</label>
@@ -3178,6 +3153,7 @@ export function AccountsPage({
                     className="account-group-picker"
                   />
                 </div>
+                <div><span>Tags</span><TagPicker tags={tags} selected={selectedTagIds} onChange={changeSelectedTags} disabled={tagBusy || mutationLoading} busy={tagBusy} label="this account" onManage={() => setTagManagerOpen(true)} /></div>
                 <div>
                   <span>Last activity</span>
                   <strong className="data-value">
