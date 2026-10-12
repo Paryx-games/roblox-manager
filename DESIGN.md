@@ -104,7 +104,7 @@ libraries. Keep live account and process status distinct from static access
 permissions, notification severity, and private-server ownership.
 
 Account tags use user-selected RGB colors, separate from live-status tokens.
-Their compact bookmark-shaped signposts sit on account rows and beside profile
+Their compact horizontal signposts sit on account rows and beside profile
 names. A single profile tag includes its name; multiple tags show overlapping
 color signs, with names available through the accessible label and tooltip.
 Clicking the signs opens the existing checkbox-menu pattern. The tag editor

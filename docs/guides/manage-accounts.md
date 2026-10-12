@@ -65,7 +65,7 @@ Use `Ctrl`-click to add or remove individual accounts, or `Shift`-click for a ra
 
 ### Account tags
 
-Tags appear as small colored signposts on the actual account rows. Click an account's signs to check or uncheck its tags directly. One tag also shows its name beside the profile name; two or more tags show overlapping colors. Hover over the signs to see the names. Untagged accounts reveal the tag control on hover or keyboard focus.
+Tags appear as small horizontal colored signposts on the actual account rows. Click an account's signs to check or uncheck its tags directly. One tag also shows its name beside the profile name; two or more tags show stacked horizontal color strips. Hover over the signs to see the names. Untagged accounts reveal the tag control on hover or keyboard focus.
 
 Choose **Manage tags...** from a tag menu to create or edit a name and color, using the same color controls as groups. Names are unique without regard to case, limited to 40 characters, and you can keep up to 128 tags. Renaming or recoloring preserves assignments and preset references; deleting a tag removes it from every account, and presets using it must be edited before launching. Existing tags without a saved color start with a neutral color.
 

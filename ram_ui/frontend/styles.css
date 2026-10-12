@@ -39,22 +39,22 @@
 
 .tag-signs {
   display: inline-flex;
-  height: 16px;
+  flex-direction: column;
   flex: 0 0 auto;
   align-items: center;
 }
 
 .tag-sign {
   display: block;
-  width: 8px;
-  height: 16px;
+  width: 16px;
+  height: 6px;
   flex: 0 0 auto;
   background: var(--tag-color, var(--text-muted));
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 75%, 0 100%);
+  clip-path: polygon(0 0, 75% 0, 100% 50%, 75% 100%, 0 100%);
 }
 
 .tag-sign + .tag-sign {
-  margin-left: -4px;
+  margin-top: -2px;
 }
 
 .tag-signs.is-empty {
