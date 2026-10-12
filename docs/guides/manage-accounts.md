@@ -65,9 +65,13 @@ Use `Ctrl`-click to add or remove individual accounts, or `Shift`-click for a ra
 
 ### Account tags
 
-Use the **All tags** picker above the Accounts list to filter by several tags. Choose **Manage tags...** in the picker to create, rename or delete tags. Names are unique without regard to case, limited to 40 characters, and you can keep up to 128 tags. The **Any / All** control switches between matching any selected tag or every selected tag. **Select matching accounts** replaces the current selection with the visible matches; launch controls then apply to that selection. **Show all accounts** in the tag picker clears the filter, while **All accounts** still selects every managed account, including hidden accounts.
+Tags appear as small colored signposts on the actual account rows. Click an account's signs to check or uncheck its tags directly. One tag also shows its name beside the profile name; two or more tags show overlapping colors. Hover over the signs to see the names. Untagged accounts reveal the tag control on hover or keyboard focus.
 
-The **Tags** picker beside **Group** lets you check or uncheck several tags without changing the account's group. With several accounts selected, **Shared tags** shows tags belonging to all of them; a partially assigned tag is marked **Some selected** in the menu. Checking it applies it to every selected account. Unchecking a shared tag removes it from the selection and preserves other assignments. **Manage tags...** is also available from the profile picker. Renaming a tag retains assignments and preset references; deleting one removes it from all accounts, and presets using it must be edited before launching.
+Choose **Manage tags...** from a tag menu to create or edit a name and color, using the same color controls as groups. Names are unique without regard to case, limited to 40 characters, and you can keep up to 128 tags. Renaming or recoloring preserves assignments and preset references; deleting a tag removes it from every account, and presets using it must be edited before launching. Existing tags without a saved color start with a neutral color.
+
+The small tag action beside **Add group** filters the sidebar. Its menu can match any selected tag or **Match all selected tags**. **Select matching accounts** replaces the current selection with visible matches for batch actions. **Show all accounts** clears the filter; **All accounts** still selects every managed account, including hidden accounts.
+
+With several accounts selected, the profile tag menu shows shared tags and marks partially assigned tags as **Some selected**. Checking a partial tag applies it to every selected account. Unchecking a shared tag removes it from the selection while preserving other assignments. Tag edits never change account groups.
 
 Tags are saved with the encrypted account store and retained during credential replacement. Existing stores load with no tags. Older RM versions ignore tag fields and can discard them if they save the store, so retain a backup before downgrading.
 

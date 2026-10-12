@@ -208,6 +208,12 @@ pub struct AccountTag {
     /// Stable across renames so saved preset targets keep their meaning.
     pub id: String,
     pub name: String,
+    #[serde(default = "default_tag_color")]
+    pub color: [u8; 3],
+}
+
+pub fn default_tag_color() -> [u8; 3] {
+    [107, 112, 128]
 }
 
 impl AccountStore {

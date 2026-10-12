@@ -44,6 +44,15 @@ pub fn validate_ids(store: &AccountStore, ids: &[String]) -> Result<(), CoreErro
 }
 
 pub fn save_tag(store: &mut AccountStore, id: Option<&str>, name: &str) -> Result<(), CoreError> {
+    save_tag_with_color(store, id, name, None)
+}
+
+pub fn save_tag_with_color(
+    store: &mut AccountStore,
+    id: Option<&str>,
+    name: &str,
+    color: Option<[u8; 3]>,
+) -> Result<(), CoreError> {
     let name = validate_name(name)?;
     if store
         .tags
@@ -61,6 +70,9 @@ pub fn save_tag(store: &mut AccountStore, id: Option<&str>, name: &str) -> Resul
             .find(|tag| tag.id == id)
             .ok_or_else(|| CoreError::AccountTags("Tag no longer exists".into()))?;
         tag.name = name;
+        if let Some(color) = color {
+            tag.color = color;
+        }
     } else {
         if store.tags.len() >= MAX_TAGS {
             return Err(CoreError::AccountTags(
@@ -70,6 +82,7 @@ pub fn save_tag(store: &mut AccountStore, id: Option<&str>, name: &str) -> Resul
         store.tags.push(AccountTag {
             id: uuid::Uuid::new_v4().to_string(),
             name,
+            color: color.unwrap_or_else(crate::models::default_tag_color),
         });
     }
     Ok(())
@@ -140,6 +153,23 @@ pub fn matching_accounts(store: &AccountStore, ids: &[String]) -> Result<Vec<u64
 mod tests {
     use super::*;
     use crate::models::{Account, LaunchPreset};
+
+    #[test]
+    fn old_tags_load_with_a_neutral_color_and_renames_preserve_new_colors() {
+        let legacy: AccountTag = serde_json::from_str(r#"{"id":"legacy","name":"Old"}"#).unwrap();
+        assert_eq!(legacy.color, crate::models::default_tag_color());
+        let mut store = AccountStore {
+            tags: vec![legacy],
+            ..Default::default()
+        };
+        save_tag_with_color(&mut store, Some("legacy"), "Colored", Some([60, 180, 60])).unwrap();
+        save_tag(&mut store, Some("legacy"), "Renamed").unwrap();
+        assert_eq!(store.tags[0].color, [60, 180, 60]);
+        assert_eq!(store.tags[0].id, "legacy");
+        let decoded: AccountStore =
+            serde_json::from_value(serde_json::to_value(&store).unwrap()).unwrap();
+        assert_eq!(decoded.tags, store.tags);
+    }
 
     fn sample() -> AccountStore {
         AccountStore {
@@ -221,7 +251,7 @@ mod tests {
         let path = directory.join("accounts.dat");
         let session = crate::crypto::create_password_session("synthetic-password").unwrap();
         let mut store = sample();
-        save_tag(&mut store, None, "Synthetic tag").unwrap();
+        save_tag_with_color(&mut store, None, "Synthetic tag", Some([60, 180, 60])).unwrap();
         crate::crypto::save_store(&path, &store, &session).unwrap();
         let ids = vec![store.tags[0].id.clone()];
         commit_candidate(

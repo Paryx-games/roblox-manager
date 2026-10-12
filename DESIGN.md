@@ -103,6 +103,14 @@ icon set; use it for interface actions instead of emoji or one-off icon
 libraries. Keep live account and process status distinct from static access
 permissions, notification severity, and private-server ownership.
 
+Account tags use user-selected RGB colors, separate from live-status tokens.
+Their compact bookmark-shaped signposts sit on account rows and beside profile
+names. A single profile tag includes its name; multiple tags show overlapping
+color signs, with names available through the accessible label and tooltip.
+Clicking the signs opens the existing checkbox-menu pattern. The tag editor
+reuses the group color picker and palette; untagged row controls appear on hover
+or keyboard focus.
+
 ### Color, shape, and typography
 
 Use the three neutral surface levels for depth, with no box shadows. Blue

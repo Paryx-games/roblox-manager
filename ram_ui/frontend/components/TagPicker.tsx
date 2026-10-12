@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { PopupMenu } from "./PopupMenu";
+import { TagSigns } from "./TagSigns";
 import type { AccountTag } from "../lib/ipc";
 
 export function TagPicker({
@@ -14,6 +15,12 @@ export function TagPicker({
   onManage,
   mixed = [],
   busy = false,
+  signs = false,
+  showSingleName = false,
+  matchAll,
+  onMatchAllChange,
+  onSelectMatching,
+  canSelectMatching = true,
 }: {
   tags: AccountTag[];
   selected: string[];
@@ -25,6 +32,12 @@ export function TagPicker({
   onManage?: () => void;
   mixed?: string[];
   busy?: boolean;
+  signs?: boolean;
+  showSingleName?: boolean;
+  matchAll?: boolean;
+  onMatchAllChange?: (value: boolean) => void;
+  onSelectMatching?: () => void;
+  canSelectMatching?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [above, setAbove] = useState(false);
@@ -36,7 +49,11 @@ export function TagPicker({
     ...tags,
     ...selected
       .filter((id) => !tags.some((tag) => tag.id === id))
-      .map((id) => ({ id, name: "Missing tag" })),
+      .map((id) => ({
+        id,
+        name: "Missing tag",
+        color: [107, 112, 128] as [number, number, number],
+      })),
   ];
   const names = selected.map(
     (id) => options.find((tag) => tag.id === id)?.name ?? "Missing tag",
@@ -97,24 +114,56 @@ export function TagPicker({
   return (
     <div
       ref={container}
-      className={`account-picker account-picker-groups account-tag-picker ${open ? "is-open" : ""}`}
+      className={`account-picker account-picker-groups account-tag-picker ${signs ? "tag-picker-signs" : ""} ${open ? "is-open" : ""}`}
+      onClick={(event) => {
+        if (signs) event.stopPropagation();
+      }}
+      onKeyDown={(event) => {
+        if (signs) event.stopPropagation();
+      }}
+      onDragStart={(event) => {
+        if (signs) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
     >
       <button
         ref={trigger}
-        className="account-picker-trigger"
+        className={`account-picker-trigger ${signs ? "account-tag-badge" : ""} ${selected.length ? "" : "is-empty"}`}
         type="button"
         disabled={disabled}
-        aria-label={`Tags for ${label}`}
+        aria-label={`Tags for ${label}${signs ? `: ${names.length ? names.join(", ") : emptyLabel}` : ""}`}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-busy={busy}
         data-tip={names.length ? names.join(", ") : emptyLabel}
         onClick={() => setOpen((current) => !current)}
       >
-        <span className="account-picker-left">
-          <span>{busy ? "Saving tags..." : summary}</span>
-        </span>
-        <Icon name="chevron-down" />
+        {signs ? (
+          <>
+            <TagSigns
+              tags={selected
+                .map((id) => options.find((tag) => tag.id === id)!)
+                .filter(Boolean)}
+            />
+            {showSingleName && selected.length === 1 && (
+              <span className="tag-badge-name">{names[0]}</span>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="account-picker-left">
+              <TagSigns
+                tags={selected
+                  .map((id) => options.find((tag) => tag.id === id)!)
+                  .filter(Boolean)}
+              />
+              <span>{busy ? "Saving tags..." : summary}</span>
+            </span>
+            <Icon name="chevron-down" />
+          </>
+        )}
       </button>
       {open && (
         <PopupMenu
@@ -164,6 +213,7 @@ export function TagPicker({
                 ) : null}
               </span>
               <span>{tag.name}</span>
+              <TagSigns tags={[tag]} />
               {mixed.includes(tag.id) && !selected.includes(tag.id) && (
                 <span className="tag-picker-partial">Some selected</span>
               )}
@@ -178,6 +228,31 @@ export function TagPicker({
           >
             {clearLabel}
           </button>
+          {onMatchAllChange && selected.length > 1 && (
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={!!matchAll}
+              className="account-picker-manage"
+              onClick={() => onMatchAllChange(!matchAll)}
+            >
+              Match all selected tags
+            </button>
+          )}
+          {onSelectMatching && selected.length > 0 && (
+            <button
+              type="button"
+              role="menuitem"
+              className="account-picker-manage"
+              disabled={!canSelectMatching}
+              onClick={() => {
+                setOpen(false);
+                onSelectMatching();
+              }}
+            >
+              Select matching accounts
+            </button>
+          )}
           {onManage && (
             <button
               type="button"

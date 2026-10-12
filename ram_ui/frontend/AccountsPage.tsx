@@ -70,6 +70,7 @@ import { PromptModal } from "./components/PromptModal";
 import { RobloxSettings } from "./components/RobloxSettings";
 import { TimedNotice } from "./components/TimedNotice";
 import { TagPicker } from "./components/TagPicker";
+import { TagSigns } from "./components/TagSigns";
 import { commonTags, matchesTags } from "./lib/accountTags";
 import { listAccountTags, saveAccountTag, deleteAccountTag, assignAccountTags, type AccountTag, type TagSnapshot } from "./lib/ipc";
 import {
@@ -268,6 +269,10 @@ function noticeTitle(kind: ToastKind) {
 
 function AccountRow({
   account,
+  tags,
+  tagBusy,
+  onTagsChange,
+  onManageTags,
   selected,
   onSelect,
   onDropAccount,
@@ -281,6 +286,10 @@ function AccountRow({
   onDropIndicatorChange,
 }: {
   account: AccountSummary;
+  tags: AccountTag[];
+  tagBusy: boolean;
+  onTagsChange: (account: AccountSummary, ids: string[]) => void;
+  onManageTags: () => void;
   selected: boolean;
   onSelect: (event: AccountSelectionEvent) => void;
   onDropAccount: (
@@ -374,6 +383,7 @@ function AccountRow({
       <span className="account-row-bar" aria-hidden="true" />
       <AccountAvatar account={account} />
       <span className="account-row-name">{account.label}</span>
+      <TagPicker tags={tags} selected={account.tagIds} onChange={ids => onTagsChange(account, ids)} signs label={account.label} disabled={tagBusy} busy={tagBusy} onManage={onManageTags} />
       <button
         className={`account-row-pin ${account.isPinned ? "is-pinned" : ""}`}
         type="button"
@@ -393,6 +403,10 @@ function AccountRow({
 
 function AccountGroup({
   group,
+  tags,
+  tagBusy,
+  onTagsChange,
+  onManageTags,
   collapsed,
   onToggle,
   selectedIds,
@@ -413,6 +427,10 @@ function AccountGroup({
   showUngroupedSeparator,
 }: {
   group: AccountGroup;
+  tags: AccountTag[];
+  tagBusy: boolean;
+  onTagsChange: (account: AccountSummary, ids: string[]) => void;
+  onManageTags: () => void;
   collapsed: boolean;
   selectedIds: ReadonlySet<number>;
   onToggle: () => void;
@@ -542,6 +560,10 @@ function AccountGroup({
           {group.accounts.map((account) => (
             <AccountRow
               account={account}
+              tags={tags}
+              tagBusy={tagBusy}
+              onTagsChange={onTagsChange}
+              onManageTags={onManageTags}
               key={account.userId}
               selected={selectedIds.has(account.userId)}
               onSelect={(event) => onSelect(account.userId, event)}
@@ -594,6 +616,7 @@ export function AccountsPage({
   const [matchAllTags, setMatchAllTags] = useState(false);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [tagName, setTagName] = useState("");
+  const [tagColor, setTagColor] = useState(rgbToHex([107, 112, 128]));
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [deleteTagTarget, setDeleteTagTarget] = useState<AccountTag | null>(null);
   const [tagBusy, setTagBusy] = useState(false);
@@ -615,7 +638,9 @@ export function AccountsPage({
       }));
       return true;
     } catch (reason) {
-      setTagError(typeof reason === "string" ? reason : "Tags could not be saved. Retry; your previous tags were kept.");
+      const message = typeof reason === "string" ? reason : "Tags could not be saved. Retry; your previous tags were kept.";
+      setTagError(message);
+      setNotice(message, "error", "standard", "Tag update failed");
       return false;
     } finally { tagPending.current = false; setTagBusy(false); }
   }
@@ -1027,6 +1052,12 @@ export function AccountsPage({
   const tagAccounts = isMultiSelection ? selectedAccounts : selectedAccount ? [selectedAccount] : [];
   const selectedTagIds = commonTags(tagAccounts);
   const mixedTagIds = [...new Set(tagAccounts.flatMap(account => account.tagIds))].filter(id => !selectedTagIds.includes(id));
+  function changeRowTags(account: AccountSummary, next: string[]) {
+    const added = next.filter(id => !account.tagIds.includes(id));
+    const removed = account.tagIds.filter(id => !next.includes(id));
+    if (added.length || removed.length) void changeTags(() => assignAccountTags([account.userId], added.length ? added : removed, !added.length));
+  }
+
   function changeSelectedTags(next: string[]) {
     const added = next.filter(id => !selectedTagIds.includes(id));
     const removed = selectedTagIds.filter(id => !next.includes(id));
@@ -1984,6 +2015,7 @@ export function AccountsPage({
               >
                 <Icon name="groups" />
               </button>
+              <TagPicker tags={tags} selected={tagFilter} onChange={setTagFilter} signs label="account filter" emptyLabel="Filter tags" clearLabel="Show all accounts" disabled={loading || !!error || tagBusy} onManage={() => setTagManagerOpen(true)} matchAll={matchAllTags} onMatchAllChange={setMatchAllTags} onSelectMatching={() => { setSelectedIds(new Set(visibleAccounts.map(account => account.userId))); setSelectedId(visibleAccounts[0]?.userId ?? null); }} canSelectMatching={visibleAccounts.length > 0} />
             </div>
             <div className="accounts-sort-row">
               <span>Sort:</span>
@@ -2018,11 +2050,6 @@ export function AccountsPage({
               </div>
             )}
             <button className="account-button account-select-all" type="button" disabled={loading || mutationLoading || !accounts.length} aria-pressed={allAccountsSelected(selectedIds, accounts.map(account => account.userId))} onClick={() => setSelectedIds(toggleAllAccounts(selectedIds, accounts.map(account => account.userId)))}><Icon name="accounts" />All accounts</button>
-          </div>
-          <div className="account-tags-toolbar">
-            <TagPicker tags={tags} selected={tagFilter} onChange={setTagFilter} label="account filter" emptyLabel="All tags" clearLabel="Show all accounts" disabled={loading || !!error || tagBusy} onManage={() => setTagManagerOpen(true)} />
-            {tagFilter.length > 1 && <button className="icon-button bordered" type="button" aria-label="Match all selected tags" aria-pressed={matchAllTags} data-tip={matchAllTags ? "Matching all selected tags - click to match any" : "Matching any selected tag - click to match all"} onClick={() => setMatchAllTags(current => !current)}>{matchAllTags ? "All" : "Any"}</button>}
-            {tagFilter.length > 0 && <button className="icon-button bordered" type="button" aria-label="Select matching accounts" data-tip="Select matching accounts" disabled={!visibleAccounts.length || tagBusy} onClick={() => { setSelectedIds(new Set(visibleAccounts.map(account => account.userId))); setSelectedId(visibleAccounts[0]?.userId ?? null); }}><Icon name="accounts" /></button>}
           </div>
           <div className="accounts-groups">
             {loading && (
@@ -2070,6 +2097,10 @@ export function AccountsPage({
             {!loading && groups.map((group) => (
               <AccountGroup
                 group={group}
+                tags={tags}
+                tagBusy={tagBusy}
+                onTagsChange={changeRowTags}
+                onManageTags={() => setTagManagerOpen(true)}
                 key={group.name}
                 collapsed={Boolean(collapsed[group.name])}
                 onToggle={() =>
@@ -2326,10 +2357,11 @@ export function AccountsPage({
               className="group-editor-field"
               onSubmit={(event) => {
                 event.preventDefault();
-                void changeTags(() => saveAccountTag(editingTag, tagName)).then(
+                void changeTags(() => saveAccountTag(editingTag, tagName, hexToRgb(tagColor) ?? undefined)).then(
                   (saved) => {
                     if (saved) {
                       setTagName("");
+                      setTagColor(rgbToHex([107, 112, 128]));
                       setEditingTag(null);
                     }
                   },
@@ -2337,7 +2369,7 @@ export function AccountsPage({
               }}
             >
               <label htmlFor="account-tag-name">
-                {editingTag ? "Rename tag" : "New tag"}
+                {editingTag ? "Edit tag" : "New tag"}
               </label>
               <input
                 id="account-tag-name"
@@ -2346,13 +2378,18 @@ export function AccountsPage({
                 disabled={tagBusy}
                 onChange={(event) => setTagName(event.target.value)}
               />
+              <div className="group-editor-field">
+                <span>Color</span>
+                <div className="group-color-controls"><input className="group-color-picker" type="color" value={tagColor} aria-label="Choose tag color" disabled={tagBusy} onChange={event => setTagColor(event.target.value)} /><span className="group-color-value">{tagColor}</span></div>
+                <div className="group-color-presets">{GROUP_COLOR_PRESETS.map(preset => <button key={preset.label} className="group-color-swatch" type="button" aria-label={`${preset.label} tag color`} aria-pressed={tagColor === rgbToHex(preset.color)} disabled={tagBusy} style={{ backgroundColor: `rgb(${preset.color.join(", ")})` }} onClick={() => setTagColor(rgbToHex(preset.color))} />)}</div>
+              </div>
               <div className="account-tag-list">
                 <button
                   className="account-button"
                   type="submit"
                   disabled={tagBusy || !tagName.trim()}
                 >
-                  {tagBusy ? "Saving..." : editingTag ? "Save name" : "Create tag"}
+                  {tagBusy ? "Saving..." : editingTag ? "Save tag" : "Create tag"}
                 </button>
                 {editingTag && (
                   <button
@@ -2378,18 +2415,20 @@ export function AccountsPage({
               {!tags.length && <p>No tags yet. Create your first tag above.</p>}
               {tags.map((tag) => (
                 <div className="account-tag-list" key={tag.id}>
+                  <TagSigns tags={[tag]} />
                   <span>{tag.name}</span>
                   <button
                     className="account-button"
                     type="button"
                     disabled={tagBusy}
-                    aria-label={"Rename " + tag.name}
+                    aria-label={"Edit " + tag.name}
                     onClick={() => {
                       setEditingTag(tag.id);
                       setTagName(tag.name);
+                      setTagColor(rgbToHex(tag.color ?? [107, 112, 128]));
                     }}
                   >
-                    Rename
+                    Edit
                   </button>
                   <button
                     className="account-button"
@@ -2662,7 +2701,7 @@ export function AccountsPage({
                       {selectedAccounts.length > 3 && <span className="account-selection-overflow">+{selectedAccounts.length - 3}</span>}
                     </div>
                     <div className="account-profile-copy">
-                      <h2>{selectedAccounts.length} accounts selected</h2>
+                      <div className="account-identity-name"><h2>{selectedAccounts.length} accounts selected</h2><TagPicker tags={tags} selected={selectedTagIds} mixed={mixedTagIds} onChange={changeSelectedTags} signs showSingleName disabled={tagBusy || mutationLoading} busy={tagBusy} label="selected accounts" onManage={() => setTagManagerOpen(true)} /></div>
                       <p>Launch options and connection actions apply to every selected account.</p>
                     </div>
                     <button className="account-button" type="button" disabled={mutationLoading} onClick={clearSelection}>
@@ -2675,10 +2714,6 @@ export function AccountsPage({
                         {account.label}<Icon name="close" />
                       </button>
                     ))}
-                  </div>
-                  <div className="account-selection-tags">
-                    <span>Shared tags</span>
-                    <TagPicker tags={tags} selected={selectedTagIds} mixed={mixedTagIds} onChange={changeSelectedTags} disabled={tagBusy || mutationLoading} busy={tagBusy} label="selected accounts" emptyLabel="No shared tags" onManage={() => setTagManagerOpen(true)} />
                   </div>
                   <div className="account-selection-tools">
                     <button className="account-button" type="button" disabled={mutationLoading || presenceLoading} onClick={() => void refreshPresence()}><Icon name="refresh" />{presenceLoading ? "Refreshing..." : "Refresh status"}</button>
@@ -2696,6 +2731,7 @@ export function AccountsPage({
                     <h2>
                       {selectedAccount.displayName || selectedAccount.label}
                     </h2>
+                    <TagPicker tags={tags} selected={selectedTagIds} onChange={changeSelectedTags} signs showSingleName disabled={tagBusy || mutationLoading} busy={tagBusy} label="this account" onManage={() => setTagManagerOpen(true)} />
                     <button
                       className="identity-icon-button"
                       type="button"
@@ -3153,7 +3189,7 @@ export function AccountsPage({
                     className="account-group-picker"
                   />
                 </div>
-                <div><span>Tags</span><TagPicker tags={tags} selected={selectedTagIds} onChange={changeSelectedTags} disabled={tagBusy || mutationLoading} busy={tagBusy} label="this account" onManage={() => setTagManagerOpen(true)} /></div>
+
                 <div>
                   <span>Last activity</span>
                   <strong className="data-value">

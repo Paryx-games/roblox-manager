@@ -11,17 +11,11 @@
   overflow-y: auto;
 }
 
-.account-tag-list,
-.account-tags-toolbar {
+.account-tag-list {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-}
-
-.account-tags-toolbar .account-tag-picker {
-  min-width: 0;
-  flex: 1;
 }
 
 .account-tag-picker .account-picker-option > span:nth-child(2) {
@@ -43,25 +37,84 @@
   padding: var(--space-3);
 }
 
-.account-selection-tags {
-  display: flex;
+.tag-signs {
+  display: inline-flex;
+  height: 16px;
+  flex: 0 0 auto;
   align-items: center;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
+}
+
+.tag-sign {
+  display: block;
+  width: 8px;
+  height: 16px;
+  flex: 0 0 auto;
+  background: var(--tag-color, var(--text-muted));
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 75%, 0 100%);
+}
+
+.tag-sign + .tag-sign {
+  margin-left: -4px;
+}
+
+.tag-signs.is-empty {
+  opacity: 0.5;
+}
+
+.account-picker.account-picker-groups.tag-picker-signs {
+  display: inline-flex;
+  max-width: calc(var(--space-12) * 4);
+  flex: 0 0 auto;
+}
+
+.account-picker.account-picker-groups.tag-picker-signs .account-picker-trigger {
+  width: auto;
+  height: 28px;
+  min-width: 24px;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
   color: var(--text-muted);
-  font-size: var(--text-sm);
+  background: transparent;
+  font-size: var(--text-xs);
 }
 
-.account-selection-tags .account-tag-picker {
+.account-picker.account-picker-groups.tag-picker-signs .account-picker-trigger:hover:not(:disabled),
+.account-picker.account-picker-groups.tag-picker-signs.is-open .account-picker-trigger {
+  color: var(--text-primary);
+  background: var(--action-muted);
+}
+
+.account-picker.account-picker-groups.tag-picker-signs .account-picker-menu {
+  right: 0;
+  left: auto;
+  min-width: 200px;
+}
+
+.account-row .tag-picker-signs .account-tag-badge.is-empty {
+  opacity: 0;
+}
+
+.account-row:hover .tag-picker-signs .account-tag-badge.is-empty,
+.account-row:focus-within .tag-picker-signs .account-tag-badge.is-empty {
+  opacity: 1;
+}
+
+.tag-badge-name {
   min-width: 0;
-  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.account-tags-toolbar {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: var(--border-width) solid var(--border-default);
+.account-tag-badge[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.5;
 }
 
+.account-tag-catalog .account-tag-list > .tag-signs {
+  flex: 0 0 auto;
+}
 .account-tag-catalog {
   max-height: calc(var(--space-12) * 4);
   overflow-y: auto;

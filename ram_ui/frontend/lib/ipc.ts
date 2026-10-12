@@ -141,10 +141,10 @@ export interface LaunchPresetSummary {
   tagIds: string[];
 }
 
-export interface AccountTag { id: string; name: string; }
+export interface AccountTag { id: string; name: string; color: [number, number, number]; }
 export interface TagSnapshot { tags: AccountTag[]; assignments: { userId: number; tagIds: string[] }[]; }
 export function listAccountTags(): Promise<TagSnapshot> { return invoke("list_account_tags"); }
-export function saveAccountTag(id: string | null, name: string): Promise<TagSnapshot> { return invoke("save_account_tag", { id, name }); }
+export function saveAccountTag(id: string | null, name: string, color?: [number, number, number]): Promise<TagSnapshot> { return invoke("save_account_tag", { id, name, color }); }
 export function deleteAccountTag(id: string): Promise<TagSnapshot> { return invoke("delete_account_tag", { id }); }
 export function assignAccountTags(userIds: number[], tagIds: string[], remove: boolean): Promise<TagSnapshot> { return invoke("assign_account_tags", { userIds, tagIds, remove }); }
 

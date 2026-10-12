@@ -101,9 +101,10 @@ pub async fn save_account_tag(
     app: tauri::AppHandle,
     id: Option<String>,
     name: String,
+    color: Option<[u8; 3]>,
 ) -> Result<TagSnapshot, String> {
     change_tags(app, move |store| {
-        ram_core::account_tags::save_tag(store, id.as_deref(), &name)
+        ram_core::account_tags::save_tag_with_color(store, id.as_deref(), &name, color)
     })
     .await
 }
