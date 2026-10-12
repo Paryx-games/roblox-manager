@@ -28,6 +28,7 @@ fn accounts() -> Vec<Value> {
 fn response(command: &str) -> Result<Value, &'static str> {
     Ok(match command {
         "list_accounts" | "revalidate_accounts" => json!(accounts()),
+        "list_account_tags" => json!({"tags": [], "assignments": []}),
         "store_status" | "unlock_device" => json!({
             "exists": true, "unlocked": true, "needsPassword": false,
             "legacy": false, "accountCount": 2
@@ -64,7 +65,7 @@ fn response(command: &str) -> Result<Value, &'static str> {
         }]),
         "list_launch_presets" => json!([{
             "index": 0, "name": "Demo adventure", "placeId": 123456789,
-            "iconUrl": "", "jobId": null, "data": null
+            "iconUrl": "", "jobId": null, "data": null, "tagIds": []
         }]),
         "fetch_account_inventory" => json!([{
             "assetId": 900001, "name": "Demo builder's hat", "assetType": "Hat",

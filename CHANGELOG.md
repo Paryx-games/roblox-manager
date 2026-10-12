@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Account tags:** Stack tags independently of groups, manage and filter them from Accounts, assign them to selected accounts, and save preset tag targets that resolve matching accounts at launch time.
 - **Multi-account selection:** Added an **All accounts** action, with consistent select/clear controls across Accounts and Inventories.
 - **Session history:** Added session history across every workspace, featuring a **resizable right panel**, colour-coded events, account filtering, memory-only or JSON file storage, and **CSV/JSON exports**.
 - **Queued game joins:** Added the ability to join games by **exact username or user ID** across multiple accounts, using a server visible to any selected account or temporary follow/unfollow with cleanup recovery and cancellation support.

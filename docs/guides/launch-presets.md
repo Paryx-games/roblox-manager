@@ -5,6 +5,14 @@ icon: bookmark
 
 # Save launch presets
 
+### Target accounts by tag
+
+When creating or editing a preset, choose **Target tags** to launch every current account matching any of those tags. These saved targets take precedence over the manual account picker and are resolved again each time you launch. Leave the tag selection empty to keep the manual picker behavior. Normal credential and moderation checks still apply.
+
+Tag targets refer to stable IDs in your encrypted account store. Renaming a tag keeps the preset working. Deleting a referenced tag, or importing a preset whose tags do not exist in this store, stops the launch with an error. Edit the preset and remove the **Missing tag** entry or replace it with a local tag; it never silently falls back to manually selected accounts. Existing presets have no tag targets and keep their previous behavior.
+
+Older RM versions do not support tag targets and can discard them when editing a preset. Use a version supporting tags for these presets, and retain backups before downgrading.
+
 Presets store a launch target so you do not have to re-enter the same values for every account. The same presets are available in single-account and bulk-launch views.
 
 ## Create a preset

@@ -69,6 +69,9 @@ import { PopupMenu } from "./components/PopupMenu";
 import { PromptModal } from "./components/PromptModal";
 import { RobloxSettings } from "./components/RobloxSettings";
 import { TimedNotice } from "./components/TimedNotice";
+import { TagPicker } from "./components/TagPicker";
+import { commonTags, matchesTags } from "./lib/accountTags";
+import { listAccountTags, saveAccountTag, deleteAccountTag, assignAccountTags, type AccountTag, type TagSnapshot } from "./lib/ipc";
 import {
   Toast,
   ToastStack,
@@ -586,6 +589,36 @@ export function AccountsPage({
   );
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [tags, setTags] = useState<AccountTag[]>([]);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [matchAllTags, setMatchAllTags] = useState(false);
+  const [tagManagerOpen, setTagManagerOpen] = useState(false);
+  const [tagName, setTagName] = useState("");
+  const [editingTag, setEditingTag] = useState<string | null>(null);
+  const [deleteTagTarget, setDeleteTagTarget] = useState<AccountTag | null>(null);
+  const [tagBusy, setTagBusy] = useState(false);
+  const [tagError, setTagError] = useState<string | null>(null);
+  const tagPending = useRef(false);
+
+  async function changeTags(action: () => Promise<TagSnapshot>): Promise<boolean> {
+    if (tagPending.current) return false;
+    tagPending.current = true;
+    setTagBusy(true);
+    setTagError(null);
+    try {
+      const snapshot = await action();
+      setTags(snapshot.tags);
+      setTagFilter(current => current.filter(id => snapshot.tags.some(tag => tag.id === id)));
+      setAccounts(current => current.map(account => {
+        const assignment = snapshot.assignments.find(item => item.userId === account.userId);
+        return assignment ? { ...account, tagIds: assignment.tagIds } : account;
+      }));
+      return true;
+    } catch (reason) {
+      setTagError(typeof reason === "string" ? reason : "Tags could not be saved. Retry; your previous tags were kept.");
+      return false;
+    } finally { tagPending.current = false; setTagBusy(false); }
+  }
   const [sortMode, setSortMode] = useState<SortMode>("custom");
   const [descending, setDescending] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -855,7 +888,9 @@ export function AccountsPage({
           if (status.exists) await unlockDevice();
           else await createDeviceStore();
         }
-        return listAccounts();
+        const [nextAccounts, snapshot] = await Promise.all([listAccounts(), listAccountTags()]);
+        if (mounted) setTags(snapshot.tags);
+        return nextAccounts;
       })
       .then((nextAccounts) => {
         if (!mounted) return;
@@ -891,9 +926,22 @@ export function AccountsPage({
     return () => { isActive = false; stopListening?.(); };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    let stopListening: (() => void) | undefined;
+    void listen<AccountTag[]>("account-tags-updated", event => {
+      if (!active) return;
+      setTags(event.payload);
+      setTagFilter(current => current.filter(id => event.payload.some(tag => tag.id === id)));
+    }).then(stop => { if (active) stopListening = stop; else stop(); })
+      .catch(() => { if (active) setTagError("Live tags could not be connected. Reopen Accounts to retry."); });
+    return () => { active = false; stopListening?.(); };
+  }, []);
+
   const visibleAccounts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     const filtered = accounts.filter((account) => {
+      if (!matchesTags(account.tagIds, tagFilter, matchAllTags)) return false;
       if (!query) return true;
       return [account.label, account.username, account.displayName]
         .join(" ")
@@ -931,7 +979,7 @@ export function AccountsPage({
       }
       return 0;
     });
-  }, [accounts, descending, search, sortMode]);
+  }, [accounts, descending, search, sortMode, tagFilter, matchAllTags]);
 
   useSelectAllShortcut(() => {
     setSelectedIds((current) => new Set([...current, ...visibleAccounts.map((account) => account.userId)]));
@@ -976,6 +1024,13 @@ export function AccountsPage({
     accounts.find((account) => account.userId === selectedId) ?? null;
   const selectedAccounts = accounts.filter((account) => selectedIds.has(account.userId));
   const isMultiSelection = selectedAccounts.length > 1;
+  const tagAccounts = isMultiSelection ? selectedAccounts : selectedAccount ? [selectedAccount] : [];
+  const selectedTagIds = commonTags(tagAccounts);
+  function changeSelectedTags(next: string[]) {
+    const added = next.filter(id => !selectedTagIds.includes(id));
+    const removed = selectedTagIds.filter(id => !next.includes(id));
+    if (added.length || removed.length) void changeTags(() => assignAccountTags(tagAccounts.map(account => account.userId), added.length ? added : removed, !added.length));
+  }
   const selectionKey = selectedAccounts.map((account) => account.userId).sort((a, b) => a - b).join(",");
   const restrictedSelection = selectedAccounts.filter((account) => !account.canLaunch);
 
@@ -1963,6 +2018,10 @@ export function AccountsPage({
             )}
             <button className="account-button account-select-all" type="button" disabled={loading || mutationLoading || !accounts.length} aria-pressed={allAccountsSelected(selectedIds, accounts.map(account => account.userId))} onClick={() => setSelectedIds(toggleAllAccounts(selectedIds, accounts.map(account => account.userId)))}><Icon name="accounts" />All accounts</button>
           </div>
+          <div className="account-tags-toolbar">
+            <button className="account-button" type="button" disabled={loading || !!error} onClick={() => setTagManagerOpen(true)}>Tags{tagFilter.length ? ' (' + tagFilter.length + ')' : ''}</button>
+            {tagFilter.length > 0 && <button className="account-button" type="button" disabled={!visibleAccounts.length || tagBusy} onClick={() => { setSelectedIds(new Set(visibleAccounts.map(account => account.userId))); setSelectedId(visibleAccounts[0]?.userId ?? null); }}>Select matching accounts</button>}
+          </div>
           <div className="accounts-groups">
             {loading && (
               <LoadingSkeleton layout="accounts" label="Loading accounts" count={6} />
@@ -2238,6 +2297,165 @@ export function AccountsPage({
                 </div>
               )}
           </Popup>
+        )}
+
+        {tagManagerOpen && (
+          <Popup
+            className="group-editor account-tags-manager"
+            backdropClassName="group-editor-backdrop"
+            labelledBy="tag-manager-title"
+            busy={tagBusy}
+            onClose={() => setTagManagerOpen(false)}
+          >
+            <div className="group-editor-header">
+              <h2 id="tag-manager-title">Account tags</h2>
+              <button
+                className="account-button"
+                type="button"
+                disabled={tagBusy}
+                onClick={() => setTagManagerOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <p>
+              Tags stack independently of groups. Filter the sidebar, then select
+              matching accounts to launch them together.
+            </p>
+            <TagPicker
+              tags={tags}
+              selected={tagFilter}
+              onChange={setTagFilter}
+              label="account filter"
+              disabled={tagBusy}
+            />
+            <Select
+              value={matchAllTags ? "all" : "any"}
+              ariaLabel="Tag matching"
+              disabled={tagBusy}
+              onChange={(value) => setMatchAllTags(value === "all")}
+              options={[
+                { value: "any", label: "Match any selected tag" },
+                { value: "all", label: "Match all selected tags" },
+              ]}
+            />
+            <button
+              className="account-button"
+              type="button"
+              disabled={tagBusy || !tagFilter.length}
+              onClick={() => setTagFilter([])}
+            >
+              Clear filter
+            </button>
+            <form
+              className="group-editor-field"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void changeTags(() => saveAccountTag(editingTag, tagName)).then(
+                  (saved) => {
+                    if (saved) {
+                      setTagName("");
+                      setEditingTag(null);
+                    }
+                  },
+                );
+              }}
+            >
+              <label htmlFor="account-tag-name">
+                {editingTag ? "Rename tag" : "New tag"}
+              </label>
+              <input
+                id="account-tag-name"
+                value={tagName}
+                maxLength={40}
+                disabled={tagBusy}
+                onChange={(event) => setTagName(event.target.value)}
+              />
+              <div className="account-tag-list">
+                <button
+                  className="account-button"
+                  type="submit"
+                  disabled={tagBusy || !tagName.trim()}
+                >
+                  {tagBusy ? "Saving..." : editingTag ? "Save name" : "Create tag"}
+                </button>
+                {editingTag && (
+                  <button
+                    className="account-button"
+                    type="button"
+                    disabled={tagBusy}
+                    onClick={() => {
+                      setEditingTag(null);
+                      setTagName("");
+                    }}
+                  >
+                    Cancel rename
+                  </button>
+                )}
+              </div>
+            </form>
+            {tagError && (
+              <p className="accounts-error" role="alert">
+                {tagError}
+              </p>
+            )}
+            <div className="account-tag-catalog">
+              {!tags.length && <p>No tags yet. Create your first tag above.</p>}
+              {tags.map((tag) => (
+                <div className="account-tag-list" key={tag.id}>
+                  <span>{tag.name}</span>
+                  <button
+                    className="account-button"
+                    type="button"
+                    disabled={tagBusy}
+                    aria-label={"Rename " + tag.name}
+                    onClick={() => {
+                      setEditingTag(tag.id);
+                      setTagName(tag.name);
+                    }}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    className="account-button"
+                    type="button"
+                    disabled={tagBusy}
+                    aria-label={"Delete " + tag.name}
+                    onClick={() => setDeleteTagTarget(tag)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          </Popup>
+        )}
+        {deleteTagTarget && (
+          <ConfirmModal
+            title="Delete tag"
+            message={
+              <>
+                Delete <strong>{deleteTagTarget.name}</strong> from every account?
+                Presets using this tag will need to be edited before they can
+                launch.
+              </>
+            }
+            confirmLabel="Delete tag"
+            busy={tagBusy}
+            onCancel={() => setDeleteTagTarget(null)}
+            onConfirm={() => {
+              const id = deleteTagTarget.id;
+              void changeTags(() => deleteAccountTag(id)).then((saved) => {
+                if (saved) {
+                  setDeleteTagTarget(null);
+                  if (editingTag === id) {
+                    setEditingTag(null);
+                    setTagName("");
+                  }
+                }
+              });
+            }}
+          />
         )}
 
         {groupEditor && (
@@ -2921,6 +3139,11 @@ export function AccountsPage({
                 )}
               </section>
 
+              <section className="account-card" aria-labelledby="account-profile-tags"><h2 id="account-profile-tags">Tags</h2>
+                {isMultiSelection && <p>Shown tags belong to every selected account. Adding a tag applies it to all selected accounts; other tags stay unchanged.</p>}
+                <TagPicker tags={tags} selected={selectedTagIds} onChange={changeSelectedTags} disabled={tagBusy || mutationLoading} label={isMultiSelection ? "selected accounts" : "this account"} />
+                {tagError && <p className="accounts-error" role="alert">{tagError}</p>}
+              </section>
               {!isMultiSelection && <section className="account-card account-info-grid">
                 <div>
                   <label htmlFor="account-alias">Alias</label>

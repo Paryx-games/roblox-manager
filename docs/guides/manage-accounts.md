@@ -61,7 +61,15 @@ Removing the account first is different: re-adding it creates a new entry and do
 
 ### Select multiple accounts
 
-Use `Ctrl`-click to add or remove individual accounts, or `Shift`-click for a range. **All accounts** above the Accounts list selects every managed account, including accounts hidden by the current search; choose it again to clear that selection. Multi-account pickers in other workspaces also offer **All accounts** for the accounts eligible in that picker.
+Use `Ctrl`-click to add or remove individual accounts, or `Shift`-click for a range. **All accounts** above the Accounts list selects every managed account, including hidden accounts. Choose it again to clear that selection. Multi-account pickers in other workspaces offer **All accounts** for eligible accounts.
+
+### Account tags
+
+Open **Tags** above the Accounts sidebar to create, rename or delete tags and filter the account list. Names are unique without regard to case, limited to 40 characters, and you can keep up to 128 tags. Select **Match any** or **Match all** for a combination of tags. **Select matching accounts** replaces the current selection with the visible matches; launch controls then apply to that selection. **All accounts** still selects every managed account, including hidden accounts.
+
+The **Tags** section on an account profile lets you add several tags without changing its group. With several accounts selected, it shows tags shared by all of them. Adding or removing a shared tag applies to all selected accounts and preserves their other tags. Renaming a tag retains assignments and preset references; deleting one removes it from all accounts, and presets using it must be edited before launching.
+
+Tags are saved with the encrypted account store and retained during credential replacement. Existing stores load with no tags. Older RM versions ignore tag fields and can discard them if they save the store, so retain a backup before downgrading.
 
 ### Change Roblox account settings
 

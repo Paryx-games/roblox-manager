@@ -169,6 +169,7 @@ pub fn migrate_favourites(
             place_id: favourite.place_id,
             job_id: None,
             data: None,
+            tag_ids: Vec::new(),
         };
         if !existing.iter().any(|(_, saved)| saved == &preset) {
             let path = save(directory, &preset, None)

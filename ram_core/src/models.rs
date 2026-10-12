@@ -18,9 +18,11 @@ pub struct Account {
     /// Optional alias set by the user for quick identification.
     #[serde(default)]
     pub alias: String,
-    /// Optional group/tag for organizing accounts.
+    /// Optional group for organizing accounts.
     #[serde(default)]
     pub group: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tag_ids: Vec<String>,
     /// Cached avatar thumbnail URL.
     #[serde(default)]
     pub avatar_url: String,
@@ -64,6 +66,7 @@ impl Account {
             encrypted_cookie: None,
             alias: String::new(),
             group: String::new(),
+            tag_ids: Vec::new(),
             avatar_url: String::new(),
             last_presence: Presence::default(),
             last_validated: None,
@@ -196,6 +199,15 @@ impl Presence {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AccountStore {
     pub accounts: Vec<Account>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<AccountTag>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AccountTag {
+    /// Stable across renames so saved preset targets keep their meaning.
+    pub id: String,
+    pub name: String,
 }
 
 impl AccountStore {
@@ -706,6 +718,8 @@ pub struct LaunchPreset {
     pub job_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tag_ids: Vec<String>,
 }
 
 /// A saved private server for quick launching.

@@ -17,6 +17,10 @@ import { Icon } from "./components/Icon";
 import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
 import Select from "./components/Select";
+import { listen } from "@tauri-apps/api/event";
+import { TagPicker } from "./components/TagPicker";
+import { matchesTags } from "./lib/accountTags";
+import { listAccountTags, operationError, type AccountTag } from "./lib/ipc";
 
 type PresetSort = "custom" | "name" | "recent";
 
@@ -73,6 +77,11 @@ export function PresetsPage({
 }) {
   const [presets, setPresets] = useState<LaunchPresetSummary[]>([]);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [tags, setTags] = useState<AccountTag[]>([]);
+  const [tagError, setTagError] = useState<string | null>(null);
+  const [tagLoading, setTagLoading] = useState(true);
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [editTagIds, setEditTagIds] = useState<string[]>([]);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
   const [presetAccounts, setPresetAccounts] = useState<
     Record<number, Set<number>>
@@ -122,8 +131,19 @@ export function PresetsPage({
     void reload();
     void listAccounts()
       .then(setAccounts)
-      .catch(() => setAccounts([]))
+      .catch(() => { setAccounts([]); setError("Accounts could not be loaded. Unlock accounts and reopen Presets to retry."); })
       .finally(() => setIsAccountsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const stops: (() => void)[] = [];
+    void listAccountTags().then(snapshot => { if(active) setTags(snapshot.tags); }).catch(() => { if(active) setTagError("Account tags could not be loaded. Unlock accounts and reopen Presets to retry."); }).finally(() => { if(active) setTagLoading(false); });
+    for (const promise of [
+      listen<AccountTag[]>("account-tags-updated", event => { if(active) { setTags(event.payload); setTagError(null); setTagLoading(false); } }),
+      listen<AccountSummary[]>("accounts-updated", event => { if(active) setAccounts(event.payload); }),
+    ]) void promise.then(stop => { if(active) stops.push(stop); else stop(); }).catch(() => { if(active) setTagError("Live account tags could not be connected. Reopen Presets to retry."); });
+    return () => { active=false; stops.forEach(stop => stop()); };
   }, []);
 
   useEffect(() => {
@@ -191,15 +211,16 @@ export function PresetsPage({
     setSaving(true);
     setError(null);
     try {
-      await saveLaunchPreset(name.trim(), parsedPlaceId, jobId, data);
+      await saveLaunchPreset(name.trim(), parsedPlaceId, jobId, data, tagIds);
       setName("");
       setPlaceId("");
       setJobId("");
       setData("");
+      setTagIds([]);
       await reload();
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "The launch preset could not be saved. Check its name and positive numeric Place ID, then retry.",
+        operationError(reason, "The launch preset could not be saved. Check its name and positive numeric Place ID, then retry."),
       );
     } finally {
       setSaving(false);
@@ -208,16 +229,14 @@ export function PresetsPage({
 
   async function launchPreset(preset: LaunchPresetSummary) {
     const selectedAccountIds = presetAccounts[preset.index] ?? selectedIds;
-    if (!selectedAccountIds.size) return;
+    if (!selectedAccountIds.size && !preset.tagIds.length) return;
     setLaunchingIndex(preset.index);
     setError(null);
     try {
       await launchLaunchPreset(preset.index, [...selectedAccountIds]);
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : "Some accounts couldn’t launch. Refresh them and check the game. Check Instances before retrying; some may already be running.",
+        operationError(reason, "Some accounts couldn’t launch. Refresh them and check the game. Check Instances before retrying; some may already be running."),
       );
     } finally {
       setLaunchingIndex(null);
@@ -240,6 +259,7 @@ export function PresetsPage({
   }
 
   function openEdit(preset: LaunchPresetSummary) {
+    setEditTagIds(preset.tagIds);
     setEditTarget(preset);
     setEditName(preset.name);
     setEditPlaceId(String(preset.placeId));
@@ -259,6 +279,7 @@ export function PresetsPage({
         parsedPlaceId,
         editJobId,
         editData,
+        editTagIds,
       );
       setPresets((current) =>
         current.map((preset) =>
@@ -268,9 +289,7 @@ export function PresetsPage({
       setEditTarget(null);
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : "The preset edits could not be saved. Check the name and Place ID; your draft is still available in the editor.",
+        operationError(reason, "The preset edits could not be saved. Check the name and Place ID; your draft is still available in the editor."),
       );
     } finally {
       setEditSaving(false);
@@ -345,6 +364,7 @@ export function PresetsPage({
               />
             </label>
           </div>
+          <div className="preset-tag-target preset-tag-form"><span>Target tags (optional)</span><TagPicker tags={tags} selected={tagIds} onChange={setTagIds} disabled={saving || tagLoading || !!tagError} label="new preset" /><p>Matching any saved tag selects accounts at launch time. Leave empty to use the account picker.</p></div>
           <div className="preset-form-actions">
             <button
               className="account-button primary"
@@ -360,9 +380,9 @@ export function PresetsPage({
 
         <section className="preset-card" aria-labelledby="saved-presets">
           <h2 id="saved-presets">Saved presets</h2>
-          {error && (
+          {(error || tagError) && (
             <p className="preset-error" role="alert">
-              {error}
+              {error || tagError}
             </p>
           )}
           <div className="preset-toolbar">
@@ -428,7 +448,7 @@ export function PresetsPage({
                         onCopy={(value) => void copyValue(value)}
                       />
                     </div>
-                    <AccountPicker
+                    {preset.tagIds.length > 0 ? <div className="preset-tag-target"><span>Tags: {preset.tagIds.map(id => tags.find(tag => tag.id === id)?.name ?? 'Missing tag').join(', ')}</span><span>{accounts.filter(account => matchesTags(account.tagIds,preset.tagIds)).length} matching accounts</span></div> : <AccountPicker
                       accounts={accounts}
                       isLoading={isAccountsLoading}
                       mode="multiple"
@@ -447,13 +467,13 @@ export function PresetsPage({
                       showManageAccounts
                       onManageAccounts={onNavigateAccounts}
                       className="preset-account-picker"
-                    />
+                    />}
                     <div className="preset-actions">
                       <button
                         className={`account-button ${selectedAccountIds.size ? "primary" : ""}`}
                         type="button"
                         disabled={
-                          !selectedAccountIds.size || launchingIndex === preset.index
+                          (!selectedAccountIds.size && !preset.tagIds.length) || launchingIndex === preset.index
                         }
                         onClick={() => void launchPreset(preset)}
                       >
@@ -612,6 +632,7 @@ export function PresetsPage({
               onChange={(event) => setEditData(event.target.value)}
               autoComplete="off"
             />
+            <span>Target tags (optional)</span><TagPicker tags={tags} selected={editTagIds} onChange={setEditTagIds} disabled={editSaving || tagLoading || !!tagError} label="edited preset" />
             <button
               className="account-button primary"
               type="button"

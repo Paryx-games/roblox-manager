@@ -65,6 +65,7 @@ export interface AccountSummary {
   displayName: string;
   alias: string;
   group: string;
+  tagIds: string[];
   avatarUrl: string;
   isPinned: boolean;
   sortOrder: number;
@@ -137,7 +138,15 @@ export interface LaunchPresetSummary {
   iconUrl: string;
   jobId: string | null;
   data: string | null;
+  tagIds: string[];
 }
+
+export interface AccountTag { id: string; name: string; }
+export interface TagSnapshot { tags: AccountTag[]; assignments: { userId: number; tagIds: string[] }[]; }
+export function listAccountTags(): Promise<TagSnapshot> { return invoke("list_account_tags"); }
+export function saveAccountTag(id: string | null, name: string): Promise<TagSnapshot> { return invoke("save_account_tag", { id, name }); }
+export function deleteAccountTag(id: string): Promise<TagSnapshot> { return invoke("delete_account_tag", { id }); }
+export function assignAccountTags(userIds: number[], tagIds: string[], remove: boolean): Promise<TagSnapshot> { return invoke("assign_account_tags", { userIds, tagIds, remove }); }
 
 export interface GroupSearchResult {
   id: number;
@@ -677,9 +686,11 @@ export async function saveLaunchPreset(
   placeId: number,
   jobId: string,
   data: string,
+  tagIds: string[] = [],
 ): Promise<void> {
   return invoke<void>("save_launch_preset", {
     name,
+    tagIds,
     placeId,
     jobId: jobId.trim() || null,
     data: data.trim() || null,
@@ -696,9 +707,11 @@ export async function updateLaunchPreset(
   placeId: number,
   jobId: string,
   data: string,
+  tagIds: string[] = [],
 ): Promise<LaunchPresetSummary> {
   return invoke<LaunchPresetSummary>("update_launch_preset", {
     index,
+    tagIds,
     name,
     placeId,
     jobId: jobId.trim() || null,
