@@ -16,7 +16,7 @@
     "version:check": "node scripts/tauri.mjs version:check"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/api": "^2.12.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
