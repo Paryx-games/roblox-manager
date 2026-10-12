@@ -39,7 +39,7 @@ The tools validate the project version format and Windows component limits, requ
 
 ### Windows installer template
 
-The NSIS installer uses `ram_ui/src-tauri/installer/installer.nsi`, based on Tauri Bundler 2.9.4. It adds setup and uninstall choices while retaining Tauri's install, upgrade and WebView2 handling. When upgrading the Tauri CLI, compare this template with the matching upstream version and rebuild the installer before releasing.
+The NSIS installer uses `ram_ui/src-tauri/installer/installer.nsi`, based on Tauri Bundler 2.9.4 and checked against Tauri 2.12.1. It includes Restart Manager support and passes the installed executable's full path to the running-application check. It adds setup and uninstall choices while retaining Tauri's install, upgrade and WebView2 handling. When upgrading the Tauri CLI, compare this template with the matching upstream version and rebuild the installer before releasing.
 
 ## Publishing a release
 

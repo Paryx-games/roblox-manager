@@ -1,4 +1,4 @@
-; based on tauri-bundler v2.9.4's installer.nsi
+; based on tauri-bundler v2.9.4's installer.nsi, checked against tauri v2.12.1
 Unicode true
 ManifestDPIAware true
 ; Add in `dpiAwareness` `PerMonitorV2` to manifest for Windows 10 1607+ (note this should not affect lower versions since they should be able to ignore this and pick up `dpiAware` `true` set by `ManifestDPIAware true`)
@@ -27,6 +27,7 @@ ManifestDPIAwareness PerMonitorV2
 !include "utils.nsh"
 !include "FileAssociation.nsh"
 !include "Win\COM.nsh"
+!include "Win\RestartManager.nsh"
 !include "Win\Propkey.nsh"
 !include "StrFunc.nsh"
 ${StrCase}
@@ -682,7 +683,7 @@ Section Install
     !insertmacro NSIS_HOOK_PREINSTALL
   !endif
 
-  !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+  !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
   ${If} $ResetBrowserData = 1
     DetailPrint "Resetting interface browser data."
@@ -830,7 +831,7 @@ Section Uninstall
     !insertmacro NSIS_HOOK_PREUNINSTALL
   !endif
 
-  !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+  !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
   ; Delete the app directory and its content from disk
   ; Copy main executable
