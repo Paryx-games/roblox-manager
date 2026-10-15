@@ -606,7 +606,16 @@ export async function fetchAccountInventory(
   userId: number,
   forceRefresh = false,
 ): Promise<InventoryItem[]> {
-  return invoke<InventoryItem[]>("fetch_account_inventory", { userId, forceRefresh });
+  return (await fetchInventorySnapshot(userId, forceRefresh)).items;
+}
+
+export interface InventorySnapshot {
+  items: InventoryItem[];
+  cached: boolean;
+}
+
+export async function fetchInventorySnapshot(userId: number, forceRefresh = false): Promise<InventorySnapshot> {
+  return invoke<InventorySnapshot>("fetch_account_inventory", { userId, forceRefresh });
 }
 
 export type InventoryBrowserTarget = {

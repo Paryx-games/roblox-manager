@@ -267,6 +267,13 @@ struct InventoryItem {
     price_robux: Option<u64>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InventorySnapshot {
+    items: Vec<InventoryItem>,
+    cached: bool,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct InventoryBrowserTarget {
@@ -2283,7 +2290,7 @@ async fn fetch_account_inventory(
     state: tauri::State<'_, AppState>,
     user_id: u64,
     force_refresh: Option<bool>,
-) -> Result<Vec<InventoryItem>, String> {
+) -> Result<InventorySnapshot, String> {
     let revision = {
         let runtime = state
             .runtime
@@ -2318,7 +2325,10 @@ async fn fetch_account_inventory(
         }
         if !force_refresh.unwrap_or(false) {
             if let Some(items) = state.inventory_cache.get(&key) {
-                return Ok(items);
+                return Ok(InventorySnapshot {
+                    items,
+                    cached: true,
+                });
             }
         }
     }
@@ -2379,7 +2389,10 @@ async fn fetch_account_inventory(
         }
         state.inventory_cache.insert(generation, key, items.clone());
     }
-    Ok(items)
+    Ok(InventorySnapshot {
+        items,
+        cached: false,
+    })
 }
 
 #[tauri::command]

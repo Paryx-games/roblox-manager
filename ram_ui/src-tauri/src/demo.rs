@@ -67,10 +67,10 @@ fn response(command: &str) -> Result<Value, &'static str> {
             "index": 0, "name": "Demo adventure", "placeId": 123456789,
             "iconUrl": "", "jobId": null, "data": null, "tagIds": []
         }]),
-        "fetch_account_inventory" => json!([{
+        "fetch_account_inventory" => json!({"cached": true, "items": [{
             "assetId": 900001, "name": "Demo builder's hat", "assetType": "Hat",
             "iconUrl": "/demo-avatars/builderman.png", "priceRobux": 100
-        }]),
+        }]}),
         "search_connection_users" => json!([]),
         "refresh_account_presence" => json!([
             {"userId": 900001, "presence": "neutral", "presenceText": "Demo account", "location": ""},

@@ -379,6 +379,8 @@ export function App() {
           selectedIds={selectedIds}
           setSelectedIds={setSelectedIds}
           prefilledPlaceId={prefilledPlaceId}
+          inventoriesAvailable={visibility.inventories}
+          onOpenInventories={() => navigateTo(visibility.inventories ? "Inventories" : "Settings")}
           onJoinUser={(target, ids) => { setJoinSelection(new Set(ids)); setJoinTarget(target); }}
         />
       );

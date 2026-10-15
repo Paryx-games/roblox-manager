@@ -9,7 +9,7 @@ import { getSelectionRectangle, selectInventoryAsset, selectInventoryAssets, typ
 import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
 import {
   browseAsAccount,
-  fetchAccountInventory,
+  fetchInventorySnapshot,
   listAccounts,
   listAccountGroups,
   openInventoryAssets,
@@ -73,6 +73,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [items, setItems] = useState<OwnedInventoryItem[]>([]);
   const [loadedAccountCount, setLoadedAccountCount] = useState(0);
+  const [cachedAccountCount, setCachedAccountCount] = useState(0);
   const [comparison, setComparison] = useState<InventoryComparison>("all");
   const [sort, setSort] = useState<InventorySort>("name");
   const [sortDirection, setSortDirection] = useState<InventorySortDirection>("ascending");
@@ -200,15 +201,17 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     let isCurrent = true;
     setItemsLoading(true);
     setLoadedAccountCount(0);
+    setCachedAccountCount(0);
     setError(null);
     setSelectedItemIds(new Set());
     const forceRefresh = lastInventoryRefresh.current !== refreshCount;
-    void Promise.allSettled([...accountIds].map(async (userId) => ({ userId, items: await fetchAccountInventory(userId, forceRefresh) })))
+    void Promise.allSettled([...accountIds].map(async (userId) => ({ userId, ...await fetchInventorySnapshot(userId, forceRefresh) })))
       .then((results) => {
         if (!isCurrent) return;
         const loaded = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
         setItems(mergeAccountInventories(loaded));
         setLoadedAccountCount(loaded.length);
+        setCachedAccountCount(loaded.filter(inventory => inventory.cached).length);
         const failures = results.filter((result) => result.status === "rejected").length;
         if (failures) {
           setError(`${failures} ${failures === 1 ? "account inventory" : "account inventories"} could not be loaded. Refresh selected to retry.`);
@@ -602,6 +605,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             <button className="account-button" type="button" disabled={visibleItems.length === 0 || itemsLoading} onClick={() => setSelectedItemIds((current) => new Set([...current, ...visibleItems.map((item) => item.assetId)]))}>Select all</button>
             <button className="account-button" type="button" disabled={selectedItemIds.size === 0} onClick={() => setSelectedItemIds(new Set())}>Clear selection</button>
             <span>{visibleItems.length} {visibleItems.length === 1 ? "item" : "items"}</span>
+              {!itemsLoading && loadedAccountCount > 0 && <span className="inventory-cache-summary" data-tip="Inventories are cached in memory for 15 minutes. Refresh selected fetches current ownership.">{cachedAccountCount ? `${cachedAccountCount} / ${loadedAccountCount} cached` : "Updated from Roblox"}</span>}
             <div className="inventories-view-controls">
               <div className="inventories-view-switch" role="group" aria-label="Inventory view">
                 <button type="button" aria-pressed={view === "grid"} onClick={() => setView("grid")}><Icon name="grid" />Grid</button>

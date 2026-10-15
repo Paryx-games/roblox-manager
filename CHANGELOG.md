@@ -12,6 +12,7 @@
 
 ### Changed
 
+- **Inventory previews:** Accounts now loads a compact two-row inventory grid with a link to the full Inventories workspace. Both pages show cache use and share inventories for 15 minutes, with Refresh fetching current ownership.
 - **Account tag layout:** Moved the tag filter beside All accounts, tightened sort spacing, and arranged up to three tag signs horizontally with a +N overflow count.
 - **Consistent formatting:** App copy and notifications now use hyphens or layout spacing instead of middle-dot separators.
 - **Session history and navigation:** Session history now slides open and closed, exports trigger notifications, and account filters use the shared multi-account picker. App actions have moved to the **title bar menu**, while Join user now uses a wider, more compact dialog with account selection.

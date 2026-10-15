@@ -77,8 +77,8 @@ impl Default for AppState {
             })),
             inventory_fetches: Arc::new(tokio::sync::Semaphore::new(4)),
             inventory_cache: Arc::new(ram_core::cache::ResponseCache::new(
-                std::time::Duration::from_secs(60),
-                32,
+                std::time::Duration::from_secs(15 * 60),
+                64,
             )),
             presence_cache: Arc::new(ram_core::cache::ResponseCache::new(
                 std::time::Duration::from_secs(2),
