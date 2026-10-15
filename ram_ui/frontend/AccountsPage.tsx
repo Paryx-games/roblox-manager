@@ -71,6 +71,7 @@ import { RobloxSettings } from "./components/RobloxSettings";
 import { TimedNotice } from "./components/TimedNotice";
 import { TagPicker } from "./components/TagPicker";
 import { TagSigns } from "./components/TagSigns";
+import { AccountSections, AccountSection } from "./components/AccountSections";
 import { commonTags, matchesTags } from "./lib/accountTags";
 import { listAccountTags, saveAccountTag, deleteAccountTag, assignAccountTags, type AccountTag, type TagSnapshot } from "./lib/ipc";
 import {
@@ -2015,7 +2016,6 @@ export function AccountsPage({
               >
                 <Icon name="groups" />
               </button>
-              <TagPicker tags={tags} selected={tagFilter} onChange={setTagFilter} signs label="account filter" emptyLabel="Filter tags" clearLabel="Show all accounts" disabled={loading || !!error || tagBusy} onManage={() => setTagManagerOpen(true)} matchAll={matchAllTags} onMatchAllChange={setMatchAllTags} onSelectMatching={() => { setSelectedIds(new Set(visibleAccounts.map(account => account.userId))); setSelectedId(visibleAccounts[0]?.userId ?? null); }} canSelectMatching={visibleAccounts.length > 0} />
             </div>
             <div className="accounts-sort-row">
               <span>Sort:</span>
@@ -2049,7 +2049,10 @@ export function AccountsPage({
                 </button>
               </div>
             )}
-            <button className="account-button account-select-all" type="button" disabled={loading || mutationLoading || !accounts.length} aria-pressed={allAccountsSelected(selectedIds, accounts.map(account => account.userId))} onClick={() => setSelectedIds(toggleAllAccounts(selectedIds, accounts.map(account => account.userId)))}><Icon name="accounts" />All accounts</button>
+            <div className="accounts-selection-row">
+              <button className="account-button account-select-all" type="button" disabled={loading || mutationLoading || !accounts.length} aria-pressed={allAccountsSelected(selectedIds, accounts.map(account => account.userId))} onClick={() => setSelectedIds(toggleAllAccounts(selectedIds, accounts.map(account => account.userId)))}><Icon name="accounts" />All accounts</button>
+              <TagPicker tags={tags} selected={tagFilter} onChange={setTagFilter} signs label="account filter" emptyLabel="Filter tags" clearLabel="Show all accounts" disabled={loading || !!error || tagBusy} onManage={() => setTagManagerOpen(true)} matchAll={matchAllTags} onMatchAllChange={setMatchAllTags} onSelectMatching={() => { setSelectedIds(new Set(visibleAccounts.map(account => account.userId))); setSelectedId(visibleAccounts[0]?.userId ?? null); }} canSelectMatching={visibleAccounts.length > 0} />
+            </div>
           </div>
           <div className="accounts-groups">
             {loading && (
@@ -2902,6 +2905,9 @@ export function AccountsPage({
                 </section>
               )}
 
+              {tagError && <p className="accounts-error" role="alert">{tagError}</p>}
+              <AccountSections>
+              <AccountSection id="launch" label="launch controls">
               <section
                 data-walkthrough="launch"
                 className={`account-card launch-card ${
@@ -2988,11 +2994,15 @@ export function AccountsPage({
                 ))}
               </section>
 
+              </AccountSection>
+              <AccountSection id="roblox-settings" label="Roblox settings">
               <RobloxSettings
                 key={isMultiSelection ? selectionKey : selectedAccount.userId}
                 accounts={isMultiSelection ? selectedAccounts : [selectedAccount]}
               />
 
+              </AccountSection>
+              <AccountSection id="connections" label="connections">
               <section className="account-card connections-card">
                 <h3>Connections</h3>
                 <p>
@@ -3098,6 +3108,8 @@ export function AccountsPage({
                 )}
               </section>
 
+              </AccountSection>
+              <AccountSection id="inventory" label="inventory">
               <section className="account-card">
                 <div className="account-card-header">
                   <h3>{isMultiSelection ? "Shared Roblox inventory" : "Roblox inventory"}</h3>
@@ -3154,8 +3166,8 @@ export function AccountsPage({
                 )}
               </section>
 
-              {tagError && <p className="accounts-error" role="alert">{tagError}</p>}
-              {!isMultiSelection && <section className="account-card account-info-grid">
+              </AccountSection>
+              {!isMultiSelection && <AccountSection id="details" label="account details"><section className="account-card account-info-grid">
                 <div>
                   <label htmlFor="account-alias">Alias</label>
                   <input
@@ -3229,7 +3241,8 @@ export function AccountsPage({
                     </button>
                   </div>
                 </div>
-              </section>}
+              </section></AccountSection>}
+              </AccountSections>
 
 
             </>

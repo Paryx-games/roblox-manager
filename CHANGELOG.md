@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Account layouts:** Rearrange account sections using six-dot drag handles or Alt + Up/Down. Layouts save automatically across all accounts.
 - **Account tags:** Stack colored tags independently of groups, edit them from horizontal signposts on account rows and beside profile names, filter through the sidebar tag action, and save preset tag targets that resolve matching accounts at launch time.
 - **Multi-account selection:** Added an **All accounts** action, with consistent select/clear controls across Accounts and Inventories.
 - **Session history:** Added session history across every workspace, featuring a **resizable right panel**, colour-coded events, account filtering, memory-only or JSON file storage, and **CSV/JSON exports**.
@@ -11,6 +12,7 @@
 
 ### Changed
 
+- **Account tag layout:** Moved the tag filter beside All accounts, tightened sort spacing, and arranged up to three tag signs horizontally with a +N overflow count.
 - **Consistent formatting:** App copy and notifications now use hyphens or layout spacing instead of middle-dot separators.
 - **Session history and navigation:** Session history now slides open and closed, exports trigger notifications, and account filters use the shared multi-account picker. App actions have moved to the **title bar menu**, while Join user now uses a wider, more compact dialog with account selection.
 - **Startup and privacy controls:** Startup launch now runs once after unlock using a saved account and Place ID. Startup account checks respect their toggle, and clipboard privacy clears the clipboard after a successful launch. **Automatic MAC rotation** runs before the first launch in each RM session, coordinates with manual rotation, requests elevation, and attempts to restore adapter availability if rotation fails.

@@ -105,11 +105,16 @@ permissions, notification severity, and private-server ownership.
 
 Account tags use user-selected RGB colors, separate from live-status tokens.
 Their compact horizontal signposts sit on account rows and beside profile
-names. A single profile tag includes its name; multiple tags show overlapping
-color signs, with names available through the accessible label and tooltip.
+names. A single profile tag includes its name; multiple tags show up to three
+signs side by side with a +N overflow count. All names remain available through the accessible label and tooltip.
 Clicking the signs opens the existing checkbox-menu pattern. The tag editor
 reuses the group color picker and palette; untagged row controls appear on hover
 or keyboard focus.
+
+Account detail sections reuse the existing cards with a six-dot drag handle.
+Drag or Alt + Up/Down rearranges the actual DOM order, preserving keyboard
+reading order. A local saved layout applies across accounts; identity and
+recovery notices remain above the movable sections.
 
 ### Color, shape, and typography
 

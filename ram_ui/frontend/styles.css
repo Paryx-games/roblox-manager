@@ -39,9 +39,9 @@
 
 .tag-signs {
   display: inline-flex;
-  flex-direction: column;
   flex: 0 0 auto;
   align-items: center;
+  gap: var(--space-1);
 }
 
 .tag-sign {
@@ -53,8 +53,10 @@
   clip-path: polygon(0 0, 75% 0, 100% 50%, 75% 100%, 0 100%);
 }
 
-.tag-sign + .tag-sign {
-  margin-top: -2px;
+.tag-overflow {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 .tag-signs.is-empty {
@@ -3697,8 +3699,51 @@ button:focus-visible {
 .accounts-list-head {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: 14px var(--space-4) var(--space-3);
+}
+
+.accounts-selection-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.accounts-selection-row .account-select-all {
+  flex: 1;
+}
+
+.account-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.account-section {
+  position: relative;
+  min-width: 0;
+}
+
+.account-section > .account-card {
+  padding-left: var(--space-12);
+}
+
+.account-section-handle {
+  position: absolute;
+  z-index: 1;
+  top: var(--space-2);
+  left: var(--space-2);
+  cursor: grab;
+}
+
+.account-section-handle:active {
+  cursor: grabbing;
+}
+
+.account-section.is-drag-target {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius);
 }
 
 .accounts-search-row,
@@ -5566,10 +5611,14 @@ button:focus-visible {
   user-select: none;
 }
 
-.accounts-detail-panel.is-account-restricted .launch-card ~ .account-card {
+.accounts-detail-panel.is-account-restricted .account-sections .account-card {
   filter: blur(5px);
   pointer-events: none;
   user-select: none;
+}
+
+.accounts-detail-panel.is-account-restricted .account-section-handle {
+  visibility: hidden;
 }
 
 .account-card {
