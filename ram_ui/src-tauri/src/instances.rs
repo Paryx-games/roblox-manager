@@ -150,6 +150,11 @@ fn sweep(app: &tauri::AppHandle) -> Result<InstanceWorkspace, String> {
     }
     let live = instances.tokens.scan();
     let outcome = instances.registry.sweep(&live, chrono::Utc::now());
+    for instance in &outcome.exited {
+        if instance.attribution.is_exact() {
+            crate::discord::client_exited(app, instance.user_id, instance.place_id);
+        }
+    }
     if !outcome.abandoned.is_empty() {
         let _ = app.emit(
             "background-notice",

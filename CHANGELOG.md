@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Discord routing:** Save multiple named webhooks, pause delivery globally or per destination, and route each event to any combination of channels. Added optional session-expiry, launch-failure and client-exit notifications, with two-column controls and info cards.
 - **Private-server checks:** Added live link checks, owner profile details, ownership badges, refresh and stop controls, and status sorting. Unavailable owner data stays unknown.
 - **Account layouts:** Rearrange account sections using six-dot drag handles or Alt + Up/Down. Layouts save automatically across all accounts.
 - **Account tags:** Stack colored tags independently of groups, edit them from horizontal signposts on account rows and beside profile names, filter through the sidebar tag action, and save preset tag targets that resolve matching accounts at launch time.
@@ -20,7 +21,7 @@
 - **Session history and navigation:** Session history now slides open and closed, exports trigger notifications, and account filters use the shared multi-account picker. App actions have moved to the **title bar menu**, while Join user now uses a wider, more compact dialog with account selection.
 - **Startup and privacy controls:** Startup launch now runs once after unlock using a saved account and Place ID. Startup account checks respect their toggle, and clipboard privacy clears the clipboard after a successful launch. **Automatic MAC rotation** runs before the first launch in each RM session, coordinates with manual rotation, requests elevation, and attempts to restore adapter availability if rotation fails.
 - **Roblox launch configuration:** Custom Roblox arguments now reach the player with proper **Windows argument quoting** and reserved-parameter validation. **FastFlags** apply to the selected installation before launching, removed flags restore their original values, and unrelated ClientSettings keys remain untouched.
-- **Caching and performance:** Public Roblox metadata and thumbnails now use **bounded shared memory caches**. Inventories cache for one minute with an explicit refresh bypass, while overlapping presence refreshes reuse recent results. **Clear application caches** now removes these cached responses.
+- **Caching and performance:** Public Roblox metadata and thumbnails now use **bounded shared memory caches**. Inventories cache for 15 minutes with an explicit refresh bypass, while overlapping presence refreshes reuse recent results. **Clear application caches** now removes these cached responses.
 - **Interface clarity:** Simplified app messages, buttons, and hints, with clearer browser and launch notifications, account login guidance, client controls, and recovery instructions.
 
 ### Fixed

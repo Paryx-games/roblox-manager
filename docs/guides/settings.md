@@ -39,7 +39,7 @@ Choose the cleanup scope before launch and whether to clean on exit. Exit cleanu
 
 Public avatar URLs are cached for five minutes, game and asset thumbnails for 30 minutes, group details for one minute and announcements for 30 seconds.
 
-Account inventories are cached in memory for one minute and invalidated when RM accepts an asset upload; requests for the same account share work, with up to four accounts fetched at once. **Refresh selected** bypasses that cache.
+Accounts and Inventories share up to 64 inventories cached in memory for 15 minutes, invalidated when RM accepts an asset upload. Requests for the same account share work, with up to four accounts fetched at once. **Refresh selected** and the Accounts preview's refresh action bypass that cache.
 
 Presence requests arriving together share a result for up to two seconds.
 
@@ -55,7 +55,15 @@ Device mode unlocks through Windows Credential Manager. Password mode requires a
 
 ## Discord notifications
 
-Configure the webhook through the integration controls, then use the explicit test action to send a test notification. The webhook URL is a credential stored in Windows Credential Manager, not ordinary configuration text. Never include it in screenshots or bug reports.
+Choose **Add webhook** under **Integrations > Discord notifications**, give the destination a name, and enter its URL. Up to 16 destinations can be saved. The URL is a credential stored in Windows Credential Manager, not ordinary configuration text. Saved URLs are never returned to the interface. Never include them in screenshots or bug reports.
+
+**Enable Discord notifications** pauses or resumes all delivery without removing saved URLs. Each destination also has its own **Enabled** switch, plus **Test**, **Replace** and **Remove** actions. Replacing a URL preserves that destination's routing and enabled state. Test actions explicitly send a test even when automatic delivery is paused.
+
+Event controls and destinations use two columns where space permits. Enable an event, then check every destination that should receive it. Moderation can go to several channels while batch launches go to a different channel. An event needs its own switch, the global switch, and at least one enabled destination checked before it will be sent. These preferences save immediately, independently of the main Settings draft.
+
+Moderation and batch-launch events keep their existing defaults. **Account session expired**, **Launch request failed** and **Roblox client exited** start disabled. Expiry only fires on a new rejection during account verification. Client exits require exact attribution and include manually closed clients; they do not prove a crash. Info cards beside each option explain when it fires. RM must be running. Delivery uses a bounded in-memory queue and does not retry lost events after restart.
+
+The existing webhook is retained as **Primary webhook**. Routing metadata is saved atomically alongside notification preferences, while every URL stays in its own credential entry. Older RM versions may reject the expanded preferences file and do not support extra destinations; retain the previous preferences backup before downgrading.
 
 ## Custom arguments and FastFlags
 

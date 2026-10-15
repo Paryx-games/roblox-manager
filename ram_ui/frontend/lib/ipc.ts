@@ -41,9 +41,22 @@ export function changeRobloxPrivacy(userIds: number[], field: RobloxPrivacyField
   return invoke("change_roblox_privacy", { userIds, field, value });
 }
 
-export interface DiscordNotificationSettings { moderationDetected: boolean; batchLaunchFinished: boolean; }
+export type DiscordEvent = "moderationDetected" | "batchLaunchFinished" | "sessionExpired" | "launchFailed" | "clientExited";
+export interface DiscordDestination { id: string; name: string; enabled: boolean; events: DiscordEvent[]; }
+export interface DiscordNotificationSettings {
+  enabled: boolean;
+  moderationDetected: boolean;
+  batchLaunchFinished: boolean;
+  sessionExpired: boolean;
+  launchFailed: boolean;
+  clientExited: boolean;
+  destinations: DiscordDestination[];
+}
 export function getDiscordNotifications(): Promise<DiscordNotificationSettings> { return invoke("get_discord_notifications"); }
 export function saveDiscordNotifications(settings: DiscordNotificationSettings): Promise<void> { return invoke("save_discord_notifications", { settings }); }
+export function saveDiscordDestination(id: string | null, name: string, url: string): Promise<DiscordNotificationSettings> { return invoke("save_discord_destination", { id, name, url }); }
+export function removeDiscordDestination(id: string): Promise<DiscordNotificationSettings> { return invoke("remove_discord_destination", { id }); }
+export function testDiscordDestination(id: string): Promise<void> { return invoke("test_discord_destination", { id }); }
 export function launchAccounts(userIds: number[], placeId: number, jobId: string, data: string): Promise<void> {
   return invoke("launch_accounts", { userIds, placeId, jobId: jobId.trim() || null, data: data.trim() || null });
 }

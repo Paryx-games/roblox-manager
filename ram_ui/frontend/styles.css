@@ -320,8 +320,52 @@
 
 .discord-event-options {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
   margin-top: var(--space-4);
+}
+
+.discord-destination-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.discord-destination {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.discord-event {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+}
+
+.discord-event legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-1);
+}
+
+.discord-event-routes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+@media (max-width: 1000px) {
+  .discord-destination-grid,
+  .discord-event-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .instances-description {
@@ -3723,6 +3767,7 @@ button:focus-visible {
 
 .accounts-selection-row .account-select-all {
   flex: 1;
+  margin-top: 0;
 }
 
 .account-sections {
@@ -3740,12 +3785,30 @@ button:focus-visible {
   padding-left: var(--space-12);
 }
 
-.account-section-handle {
+.account-section .account-section-handle {
   position: absolute;
   z-index: 1;
   top: var(--space-2);
   left: var(--space-2);
   cursor: grab;
+}
+
+.saved-workspace-header {
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-right: var(--space-4);
+}
+
+.saved-workspace-header > .account-button,
+.preset-card-head > .account-button {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.private-server-card .preset-card-head h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .account-section-handle:active {
@@ -3894,10 +3957,15 @@ button:focus-visible {
   justify-content: center;
 }
 
-.account-inventory-tile img {
+.account-inventory-tile img:not(.account-icon) {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.account-inventory-tile .account-icon {
+  width: var(--space-6);
+  height: var(--space-6);
 }
 
 .account-inventory-tile strong {

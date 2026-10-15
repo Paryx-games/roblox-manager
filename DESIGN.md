@@ -54,11 +54,20 @@ Keep the compact desktop layout and each page's existing composition:
   beside a client controls panel. The panel stacks below the list on narrower layouts;
   controls are saved shared launch defaults with an explicit notice that running clients are unchanged.
 - Groups uses account/group selection and detail sections for group content.
-- Private Servers and Presets use their existing lists, filters, and editing flows.
+- Private Servers and Presets lead with saved lists, filters, and editing flows.
+  Header actions open compact add forms; preset creation uses two columns.
+  Private-server shields use ownership tokens for owned, unknown, and not-owned
+  results, while link checks remain separate from ownership.
 - Inventories uses a 220px account sidebar, a grid/list workspace, and a
   resizable, collapsible filter panel on the right.
 - Asset Manager uses creation/upload controls and tabular results.
 - Settings uses a 200px internal sidebar and section navigation.
+
+Discord integration controls reuse existing cards, toggles, and info cards.
+Named destinations and event routing form two columns when space permits,
+with a single-column fallback. Global and per-destination switches pause
+delivery while retaining saved routes. Routine explanations belong in info
+cards; immediate warnings, errors, and pending feedback remain visible.
 
 Use `min-width: 0` and `min-height: 0` where flexible panes need to shrink.
 Session history is a shared, collapsible right panel across all workspaces.

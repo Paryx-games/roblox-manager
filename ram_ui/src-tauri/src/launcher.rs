@@ -84,6 +84,9 @@ async fn launch_impl(
     let request_id = uuid::Uuid::new_v4().to_string();
     progress(app, &request_id, request.user_id, "waiting");
     let result = launch_queued(app, &request_id, &request, startup).await;
+    if result.is_err() {
+        crate::discord::launch_failed(app, request.user_id, request.place_id);
+    }
     progress(
         app,
         &request_id,

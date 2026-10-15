@@ -86,6 +86,10 @@ function getCurrentColorIconContent(name: string) {
           <path d="m3 3 18 18" />
         </>
       );
+    case "shield-check":
+      return <><path d="M20 13c0 5-3.5 7.5-8 8.5C7.5 20.5 4 18 4 13V6l8-3 8 3v7Z" /><path d="m9 12 2 2 4-4" /></>;
+    case "shield-x":
+      return <><path d="M20 13c0 5-3.5 7.5-8 8.5C7.5 20.5 4 18 4 13V6l8-3 8 3v7Z" /><path d="m10 10 4 4m0-4-4 4" /></>;
     case "shield-question-mark":
       return (
         <>

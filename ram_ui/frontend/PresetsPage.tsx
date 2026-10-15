@@ -314,7 +314,7 @@ export function PresetsPage({
 
   return (
     <>
-      <div className="header-row">
+      <div className="header-row saved-workspace-header">
         <h1 className="header-title">Presets</h1>
         <button className="account-button" type="button" disabled={saving} aria-expanded={showCreate} onClick={() => setShowCreate(current => !current)}><Icon name="add" />{showCreate ? "Close form" : "New preset"}</button>
       </div>
@@ -369,7 +369,7 @@ export function PresetsPage({
               />
             </label>
           </div>
-          <div className="preset-tag-target preset-tag-form"><span>Target tags (optional) <InfoTip text="Matching any saved tag selects accounts at launch time. Leave empty to use the account picker. Renaming tags preserves targets; deleted tags must be replaced before launching." /></span><TagPicker tags={tags} selected={tagIds} onChange={setTagIds} disabled={saving || tagLoading || !!tagError} label="new preset" /></div>
+          <div className="preset-tag-target preset-tag-form"><span>Target tags <InfoTip text="Matching any saved tag selects accounts at launch time. Leave empty to use the account picker. Renaming tags preserves targets; deleted tags must be replaced before launching." /></span><TagPicker tags={tags} selected={tagIds} onChange={setTagIds} disabled={saving || tagLoading || !!tagError} label="new preset" /></div>
           <div className="preset-form-actions">
             <button
               className="account-button primary"

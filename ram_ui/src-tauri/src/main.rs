@@ -1439,9 +1439,7 @@ async fn get_settings(state: tauri::State<'_, AppState>) -> Result<SettingsSnaps
             .session
             .as_ref()
             .is_some_and(|session| session.needs_password());
-        let has_discord_webhook = crypto::discord_webhook()
-            .map_err(|error| error.to_string())?
-            .is_some();
+        let has_discord_webhook = discord::configured(&runtime.config_path)?;
         let mut settings_config = SettingsConfig::from_config(&runtime.config);
         settings_config.page_visibility = page_visibility::load(&runtime.config_path);
         Ok(SettingsSnapshot {
@@ -3485,6 +3483,9 @@ fn main() {
             save_discord_webhook,
             remove_discord_webhook,
             test_discord_webhook,
+            discord::save_discord_destination,
+            discord::remove_discord_destination,
+            discord::test_discord_destination,
             change_password,
             clear_password,
             update_account_alias,

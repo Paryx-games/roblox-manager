@@ -113,7 +113,7 @@
   },
   "custom_game_args": {
     "type": "warning",
-    "text": "Pass custom command-line arguments directly to RobloxPlayerBeta.exe. Unsupported arguments may trigger Hyperion anti-cheat warnings; only use if you know what you are doing."
+    "text": "Pass extra command-line arguments directly to RobloxPlayerBeta.exe on future launches. Use double quotes around values with spaces. Launch URI parameters and credentials are reserved. Unsupported arguments may trigger Hyperion anti-cheat warnings; only use if you know what you are doing."
   },
   "roblox_fast_flags": {
     "type": "warning",
@@ -125,6 +125,30 @@
   },
   "discord_webhook": {
     "type": "info",
-    "text": "Sends notifications to a private Discord channel when you launch games or accounts are moderated. You control the webhook URL; rotate it anytime from your Discord server settings. RM never shares webhook URLs or moderation data outside this channel."
+    "text": "Save up to 16 named Discord destinations and route each event to any combination. Global, event and destination toggles pause delivery without removing URLs or routes. Preferences save immediately. URLs stay in Windows Credential Manager. RM must be running. Test buttons send explicitly even while paused. Queued delivery is bounded and is not retained across restarts."
+  },
+  "discord_moderation": {
+    "type": "info",
+    "text": "New or changed account restrictions detected during account refreshes. Repeated checks of the same restriction do not repeat the alert."
+  },
+  "discord_batch": {
+    "type": "info",
+    "text": "Completed or stopped batches from Accounts, Presets and Private Servers. Reports launch requests; clients may still be connecting."
+  },
+  "discord_expiry": {
+    "type": "info",
+    "text": "Sent once when verification changes an account from a working saved login to an expired session. Network failures alone do not trigger this event. Disabled by default."
+  },
+  "discord_launch_failure": {
+    "type": "info",
+    "text": "A validated launch request failed before RM could complete it. Includes account and place IDs without credentials or private links. Disabled by default."
+  },
+  "discord_client_exit": {
+    "type": "info",
+    "text": "An exactly attributed Roblox client exited, including clients closed manually. This does not prove a crash. Inferred and unmatched clients do not trigger this event. Disabled by default."
+  },
+  "page_visibility": {
+    "type": "info",
+    "text": "Choose which workspaces appear in navigation. Settings remains available so hidden pages can be re-enabled."
   }
 }

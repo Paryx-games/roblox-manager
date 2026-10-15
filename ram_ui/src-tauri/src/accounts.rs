@@ -448,22 +448,37 @@ pub async fn refresh(
                 account.moderation.as_ref(),
             )
             .then_some(account.user_id);
+            let expired = account.cookie_expired
+                && previous
+                    .find_by_id(user_id)
+                    .is_some_and(|previous| !previous.cookie_expired);
             let moderation_notice = moderation_notice
                 .and_then(|id| runtime.accounts.find_by_id(id))
                 .map(|account| account_summary(account, None, &runtime.config).label);
+            let expired_notice = runtime
+                .accounts
+                .find_by_id(user_id)
+                .filter(|_| expired)
+                .map(|account| account_summary(account, None, &runtime.config).label);
+            let notices = Some((moderation_notice, expired_notice));
             if save_runtime(&runtime).is_err() {
                 runtime.accounts = previous;
                 return Err("Account refresh could not be saved".to_string());
             }
-            Ok((true, moderation_notice))
+            Ok((true, notices))
         })
         .await
         .map_err(|_| "Account refresh task failed")??;
         if did_complete {
             completed += 1;
             publish(app);
-            if let Some(label) = moderation_notice {
-                crate::discord::moderation(app, &label);
+            if let Some((moderation, expired)) = moderation_notice {
+                if let Some(label) = moderation {
+                    crate::discord::moderation(app, &label);
+                }
+                if let Some(label) = expired {
+                    crate::discord::session_expired(app, &label);
+                }
             }
         }
     }
@@ -530,6 +545,7 @@ mod tests {
             history: Arc::new(Mutex::new(Default::default())),
             history_io: Arc::new(tokio::sync::Mutex::new(())),
             joins: Arc::new(Default::default()),
+            discord: Arc::new(Default::default()),
             is_shutting_down: Arc::new(Default::default()),
             inventory_fetches: Arc::new(tokio::sync::Semaphore::new(4)),
             inventory_cache: Arc::new(ram_core::cache::ResponseCache::new(

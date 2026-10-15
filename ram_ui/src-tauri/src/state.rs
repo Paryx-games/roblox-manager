@@ -30,6 +30,7 @@ pub struct AppState {
     pub history: Arc<Mutex<ram_core::session_history::History>>,
     pub history_io: Arc<tokio::sync::Mutex<()>>,
     pub joins: Arc<crate::join_user::JoinState>,
+    pub discord: Arc<crate::discord::NotificationQueue>,
     pub is_shutting_down: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -92,6 +93,7 @@ impl Default for AppState {
             history: Arc::new(Mutex::new(Default::default())),
             history_io: Arc::new(tokio::sync::Mutex::new(())),
             joins: Arc::new(Default::default()),
+            discord: Arc::new(Default::default()),
             is_shutting_down: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }

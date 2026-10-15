@@ -44,7 +44,7 @@ function OwnershipBadge({
       data-tip={content.label}
       aria-label={content.label}
     >
-      <Icon name={content.icon} />
+      <Icon name={content.icon} tone="current-color" />
     </span>
   );
 }
@@ -334,7 +334,7 @@ export function PrivateServersPage({
   }
   return (
     <>
-      <div className="header-row">
+      <div className="header-row saved-workspace-header">
         <h1 className="header-title">Private Servers</h1>
         <button className="account-button" type="button" aria-expanded={showCreate} disabled={saving} onClick={() => setShowCreate(current => !current)}><Icon name="add" />{showCreate ? "Close form" : "Add server"}</button>
       </div>
@@ -392,8 +392,7 @@ export function PrivateServersPage({
           aria-labelledby="saved-private-servers"
         >
           <div className="preset-card-head">
-            <h2 id="saved-private-servers">Saved private servers ({servers.length})</h2>
-            <InfoTip text="Checks run while this page is open. Green means the owner is a managed account, yellow means ownership is unknown, and red means the returned owner is not managed here. A resolved link does not guarantee every account can join. Refresh status retries checks; Stop checking stops queued checks." />
+            <h2 id="saved-private-servers">Saved private servers ({servers.length}) <InfoTip text="Checks run while this page is open. Green means the owner is a managed account, yellow means ownership is unknown, and red means the returned owner is not managed here. A resolved link does not guarantee every account can join. Refresh status retries checks; Stop checking stops queued checks." /></h2>
             <button className="account-button" type="button" disabled={loading || saving || deleting || editSaving} onClick={() => {
               if (checking) { checkVersion.current += 1; setChecking(false); }
               else void reload();

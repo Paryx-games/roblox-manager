@@ -259,6 +259,50 @@ pub fn delete_discord_webhook() -> Result<(), CoreError> {
     }
 }
 
+fn discord_destination_entry_name(id: &str) -> Result<String, CoreError> {
+    if id == "default" {
+        return Ok(DISCORD_WEBHOOK_ENTRY.into());
+    }
+    if uuid::Uuid::parse_str(id).is_ok_and(|value| value.to_string() == id) {
+        return Ok(format!("discord-webhook-{id}"));
+    }
+    Err(CoreError::Keyring(
+        "Invalid Discord destination identifier".into(),
+    ))
+}
+
+fn discord_destination_entry(id: &str) -> Result<keyring::Entry, CoreError> {
+    keyring::Entry::new(SERVICE_NAME, &discord_destination_entry_name(id)?)
+        .map_err(|_| CoreError::Keyring("Discord credential entry unavailable".into()))
+}
+
+/// Read one named webhook without exposing its URL through application settings.
+pub fn discord_destination(id: &str) -> Result<Option<String>, CoreError> {
+    match discord_destination_entry(id)?.get_password() {
+        Ok(url) => Ok(Some(url)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(_) => Err(CoreError::Keyring(
+            "Discord credential could not be read".into(),
+        )),
+    }
+}
+
+/// Save a named webhook in a separate entry, preserving the legacy primary entry.
+pub fn set_discord_destination(id: &str, url: &str) -> Result<(), CoreError> {
+    discord_destination_entry(id)?
+        .set_password(url)
+        .map_err(|_| CoreError::Keyring("Discord credential could not be saved".into()))
+}
+
+pub fn delete_discord_destination(id: &str) -> Result<(), CoreError> {
+    match discord_destination_entry(id)?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(_) => Err(CoreError::Keyring(
+            "Discord credential could not be removed".into(),
+        )),
+    }
+}
+
 /// Read the device wrapping key, or `Ok(None)` if this device has never had
 /// one.
 ///
@@ -878,6 +922,28 @@ mod tests {
     use super::*;
     use crate::models::Account;
     use std::path::PathBuf;
+
+    #[test]
+    fn discord_destinations_preserve_legacy_names_and_cannot_address_other_credentials() {
+        assert_eq!(
+            discord_destination_entry_name("default").unwrap(),
+            DISCORD_WEBHOOK_ENTRY
+        );
+        assert_eq!(
+            discord_destination_entry_name("00000000-0000-4000-8000-000000000001").unwrap(),
+            "discord-webhook-00000000-0000-4000-8000-000000000001"
+        );
+        for id in [
+            "device-key",
+            "123",
+            "../default",
+            "discord-webhook",
+            "",
+            "00000000000040008000000000000001",
+        ] {
+            assert!(discord_destination_entry_name(id).is_err());
+        }
+    }
 
     // fixed synthetic vectors from an independent AES-GCM implementation;
     // keep these stable so a library upgrade cannot silently change the format
