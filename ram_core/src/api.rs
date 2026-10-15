@@ -1132,6 +1132,162 @@ fn private_server_owner(
     })
 }
 
+fn private_server_lookup_error() -> CoreError {
+    CoreError::RobloxApi {
+        status: 0,
+        message: "Private server ownership could not be verified".into(),
+    }
+}
+
+fn owned_server_candidates(
+    body: &serde_json::Value,
+    user_id: u64,
+    place_id: u64,
+    universe_id: Option<u64>,
+) -> Result<Vec<(u64, Option<String>)>, CoreError> {
+    let rows = body
+        .get("data")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(private_server_lookup_error)?;
+    let mut candidates = Vec::new();
+    for row in rows {
+        let owner = row
+            .get("ownerId")
+            .and_then(serde_json::Value::as_u64)
+            .filter(|id| *id > 0)
+            .ok_or_else(private_server_lookup_error)?;
+        if owner != user_id {
+            return Err(private_server_lookup_error());
+        }
+        let row_place = row
+            .get("placeId")
+            .and_then(serde_json::Value::as_u64)
+            .filter(|id| *id > 0);
+        let row_universe = row
+            .get("universeId")
+            .and_then(serde_json::Value::as_u64)
+            .filter(|id| *id > 0);
+        if row_place.is_some_and(|id| id != place_id)
+            && universe_id
+                .zip(row_universe)
+                .is_some_and(|(expected, id)| expected != id)
+        {
+            continue;
+        }
+        if row_place.is_some_and(|id| id != place_id) && universe_id.is_none() {
+            continue;
+        }
+        let id = row
+            .get("privateServerId")
+            .and_then(serde_json::Value::as_u64)
+            .filter(|id| *id > 0)
+            .ok_or_else(private_server_lookup_error)?;
+        let name = row
+            .get("ownerName")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string);
+        candidates.push((id, name));
+    }
+    Ok(candidates)
+}
+
+fn private_server_detail_link(
+    link: &str,
+    place_id: u64,
+) -> Result<ParsedPrivateServerUrl, CoreError> {
+    if valid_private_server_code(link) {
+        return Ok(ParsedPrivateServerUrl::Direct {
+            place_id,
+            link_code: link.into(),
+        });
+    }
+    parse_private_server_url(link).map_err(|_| private_server_lookup_error())
+}
+
+fn checked_private_server_cursor(body: &serde_json::Value) -> Result<Option<String>, CoreError> {
+    match body.get("nextPageCursor") {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(value)) if value.is_empty() => Ok(None),
+        Some(serde_json::Value::String(value)) if value.len() <= 4096 => Ok(Some(value.clone())),
+        _ => Err(private_server_lookup_error()),
+    }
+}
+
+/// Verify ownership against the authenticated account's complete owned-server list.
+/// A negative result is returned only after every relevant server and page was checked.
+pub async fn check_owned_private_server(
+    client: &RobloxClient,
+    cookie: &str,
+    user_id: u64,
+    place_id: u64,
+    universe_id: Option<u64>,
+    link_code: &str,
+) -> Result<Option<PrivateServerCheck>, CoreError> {
+    if user_id == 0 || place_id == 0 || !valid_private_server_code(link_code) {
+        return Err(private_server_lookup_error());
+    }
+    let mut cursor: Option<String> = None;
+    let mut seen = std::collections::HashSet::new();
+    let mut details_checked = 0;
+    for _ in 0..10 {
+        let mut url =
+            reqwest::Url::parse("https://games.roblox.com/v1/private-servers/my-private-servers")
+                .map_err(|_| private_server_lookup_error())?;
+        url.query_pairs_mut()
+            .append_pair("privateServersTab", "MyPrivateServers")
+            .append_pair("itemsPerPage", "25");
+        if let Some(cursor) = &cursor {
+            url.query_pairs_mut().append_pair("cursor", cursor);
+        }
+        let body: serde_json::Value = client.get_json(url.as_str(), cookie).await?;
+        for (id, owner_username) in owned_server_candidates(&body, user_id, place_id, universe_id)?
+        {
+            details_checked += 1;
+            if details_checked > 25 {
+                return Err(private_server_lookup_error());
+            }
+            let detail: serde_json::Value = client
+                .get_json(
+                    &format!("https://games.roblox.com/v1/vip-servers/{id}"),
+                    cookie,
+                )
+                .await?;
+            if detail.get("id").and_then(serde_json::Value::as_u64) != Some(id) {
+                return Err(private_server_lookup_error());
+            }
+            let link = detail
+                .get("link")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(private_server_lookup_error)?;
+            let code = match private_server_detail_link(link, place_id)? {
+                ParsedPrivateServerUrl::Direct { link_code, .. } => link_code,
+                ParsedPrivateServerUrl::Share { share_code } => {
+                    resolve_share_link(client, cookie, &share_code).await?.2
+                }
+            };
+            if code == link_code {
+                return Ok(Some(PrivateServerCheck {
+                    status: match detail.get("active").and_then(serde_json::Value::as_bool) {
+                        Some(true) => "valid",
+                        Some(false) => "invalid",
+                        None => "unknown",
+                    },
+                    owner_id: Some(user_id),
+                    owner_username,
+                }));
+            }
+        }
+        cursor = checked_private_server_cursor(&body)?;
+        let Some(next) = &cursor else {
+            return Ok(None);
+        };
+        if !seen.insert(next.clone()) {
+            return Err(private_server_lookup_error());
+        }
+    }
+    Err(private_server_lookup_error())
+}
+
 /// Validate the existing join-page contract, then match the accessible-server API by access code.
 /// Missing launcher markup or inaccessible owner data remains unknown, never proof of non-ownership.
 pub async fn check_private_server(
@@ -1186,18 +1342,17 @@ pub async fn check_private_server(
             .await
         {
             Ok(body) => body,
-            Err(_) => break,
+            Err(error) => return Err(error),
         };
         if let Some((id, name)) = private_server_owner(&body, &access_code) {
             result.owner_id = Some(id);
             result.owner_username = name;
             break;
         }
-        cursor = body
-            .get("nextPageCursor")
-            .and_then(|value| value.as_str())
-            .filter(|value| !value.is_empty())
-            .map(str::to_string);
+        if !body.get("data").is_some_and(serde_json::Value::is_array) {
+            return Err(private_server_lookup_error());
+        }
+        cursor = checked_private_server_cursor(&body)?;
         if cursor
             .as_ref()
             .is_none_or(|cursor| !seen.insert(cursor.clone()))
@@ -1323,6 +1478,70 @@ mod tests {
             serde_json::json!({"data": [{"accessCode": code, "owner": null}]}),
         ] {
             assert_eq!(private_server_owner(&body, code), None);
+        }
+    }
+
+    #[test]
+    fn owned_server_checks_accept_empty_lists_and_match_places_or_universes() {
+        let body = serde_json::json!({"data": [
+            {"privateServerId": 1, "ownerId": 10, "ownerName": "Synthetic", "placeId": 100, "universeId": 200},
+            {"privateServerId": 2, "ownerId": 10, "placeId": 101, "universeId": 200},
+            {"privateServerId": 3, "ownerId": 10, "placeId": 102, "universeId": 300}
+        ]});
+        assert_eq!(
+            owned_server_candidates(&body, 10, 100, Some(200)).unwrap(),
+            vec![(1, Some("Synthetic".into())), (2, None)]
+        );
+        assert_eq!(
+            owned_server_candidates(&body, 10, 100, None).unwrap(),
+            vec![(1, Some("Synthetic".into()))]
+        );
+        assert!(
+            owned_server_candidates(&serde_json::json!({"data": []}), 10, 100, Some(200))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn incomplete_owned_server_data_cannot_prove_non_ownership() {
+        for body in [
+            serde_json::json!({}),
+            serde_json::json!({"data": null}),
+            serde_json::json!({"data": [{}]}),
+            serde_json::json!({"data": [{"ownerId": 11, "privateServerId": 1, "placeId": 100}]}),
+            serde_json::json!({"data": [{"ownerId": 10, "placeId": 100}]}),
+        ] {
+            assert!(owned_server_candidates(&body, 10, 100, Some(200)).is_err());
+        }
+        assert_eq!(
+            checked_private_server_cursor(&serde_json::json!({"nextPageCursor": "a/b=="})).unwrap(),
+            Some("a/b==".into())
+        );
+        assert!(checked_private_server_cursor(&serde_json::json!({"nextPageCursor": 12})).is_err());
+        assert!(
+            checked_private_server_cursor(&serde_json::json!({"nextPageCursor": null}))
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn owned_server_links_support_codes_and_urls_but_never_treat_empty_as_a_match() {
+        for link in [
+            "synthetic-code",
+            "https://www.roblox.com/games/100?privateServerLinkCode=synthetic-code",
+        ] {
+            assert!(
+                matches!(private_server_detail_link(link, 100).unwrap(), ParsedPrivateServerUrl::Direct { place_id: 100, ref link_code } if link_code == "synthetic-code")
+            );
+        }
+        for link in [
+            "",
+            "https://untrusted.invalid/games/100?privateServerLinkCode=synthetic",
+            "code&other=value",
+        ] {
+            assert!(private_server_detail_link(link, 100).is_err());
         }
     }
 

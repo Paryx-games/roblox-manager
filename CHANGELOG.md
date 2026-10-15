@@ -26,6 +26,7 @@
 
 ### Fixed
 
+- **Shared private-server ownership:** Shared links can now show a red badge after complete owned-server checks find no match among the checked accounts, even when the owner's profile is unavailable. Failed or incomplete checks stay unknown and report retry guidance.
 - **Secure random failures:** Key, salt and nonce generation now returns a safe error if Windows cannot provide secure randomness, instead of terminating the operation with a panic.
 - **Installer compatibility:** Updated Windows setup for Tauri 2.12, using Restart Manager to check the installed executable before upgrade or uninstall.
 - **Visibility authentication errors:** Accounts with a known rejected login no longer send visibility requests. Visibility failures now distinguish login rejection, permissions, rate limits and service outages, with explicit recovery guidance rather than repeated generic warnings.

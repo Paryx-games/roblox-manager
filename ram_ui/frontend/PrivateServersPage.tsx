@@ -25,9 +25,11 @@ type OwnershipStatus = "owned" | "unknown" | "not-owned";
 function OwnershipBadge({
   status,
   accountName,
+  description,
 }: {
   status: OwnershipStatus;
   accountName?: string;
+  description?: string;
 }) {
   const content = {
     owned: {
@@ -35,14 +37,14 @@ function OwnershipBadge({
       label: `Owned by ${accountName ?? "one of your accounts"}`,
     },
     unknown: { icon: "shield-question-mark", label: "Ownership unverified" },
-    "not-owned": { icon: "shield-x", label: "Not owned by any account" },
+    "not-owned": { icon: "shield-x", label: "Not owned by a checked account" },
   }[status];
 
   return (
     <span
       className={`private-server-ownership private-server-ownership-${status}`}
-      data-tip={content.label}
-      aria-label={content.label}
+      data-tip={status === "owned" ? content.label : description ?? content.label}
+      aria-label={status === "owned" ? content.label : description ?? content.label}
     >
       <Icon name={content.icon} tone="current-color" />
     </span>
@@ -392,7 +394,7 @@ export function PrivateServersPage({
           aria-labelledby="saved-private-servers"
         >
           <div className="preset-card-head">
-            <h2 id="saved-private-servers">Saved private servers ({servers.length}) <InfoTip text="Checks run while this page is open. Green means the owner is a managed account, yellow means ownership is unknown, and red means the returned owner is not managed here. A resolved link does not guarantee every account can join. Refresh status retries checks; Stop checking stops queued checks." /></h2>
+            <h2 id="saved-private-servers">Saved private servers ({servers.length}) <InfoTip text="Checks run while this page is open. Green means the owner is a managed account, yellow means ownership is unknown, and red means the returned owner is not managed here or complete owned-server checks found no match among the checked accounts. Hover over a shield for its check scope. A resolved link does not guarantee every account can join. Refresh status retries checks; Stop checking stops queued checks." /></h2>
             <button className="account-button" type="button" disabled={loading || saving || deleting || editSaving} onClick={() => {
               if (checking) { checkVersion.current += 1; setChecking(false); }
               else void reload();
@@ -483,7 +485,7 @@ export function PrivateServersPage({
                     >
                       <Icon name={checks[server.index]?.status === "valid" ? "check" : checks[server.index]?.status === "invalid" ? "close" : "warning"} />
                     </span>
-                    <OwnershipBadge status={checks[server.index]?.ownership ?? "unknown"} accountName={checks[server.index]?.ownerUsername ?? undefined} />
+                    <OwnershipBadge status={checks[server.index]?.ownership ?? "unknown"} accountName={checks[server.index]?.ownerUsername ?? undefined} description={checks[server.index]?.message} />
                     <span className="private-server-name-block">
                       <span className="private-server-name">{server.name}</span>
                       {checks[server.index]?.ownerId ? <a
@@ -496,7 +498,7 @@ export function PrivateServersPage({
                       >
                         @{checks[server.index].ownerUsername ?? checks[server.index].ownerId}
                         <Icon name="square-arrow-out-up-right" />
-                      </a> : <span className="private-server-owner-link">Owner unknown</span>}
+                      </a> : <span className="private-server-owner-link">{checks[server.index] ? "Owner profile unavailable" : checking ? "Checking owner..." : "Owner not checked"}</span>}
                     </span>
                     <AccountPicker
                       accounts={accounts}
