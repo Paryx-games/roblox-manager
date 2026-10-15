@@ -1031,35 +1031,181 @@ pub enum ParsedPrivateServerUrl {
     Share { share_code: String },
 }
 
-fn private_server_parameter(input: &str, name: &str) -> Option<String> {
-    input.split(['?', '&']).find_map(|part| {
-        let (key, value) = part.split_once('=')?;
-        (key.eq_ignore_ascii_case(name) && !value.is_empty()).then(|| value.to_string())
-    })
+fn private_server_parameter(url: &reqwest::Url, name: &str) -> Option<String> {
+    let mut values = url
+        .query_pairs()
+        .filter(|(key, _)| key.eq_ignore_ascii_case(name));
+    let (_, value) = values.next()?;
+    (values.next().is_none() && valid_private_server_code(&value)).then(|| value.into_owned())
+}
+
+fn valid_private_server_code(code: &str) -> bool {
+    !code.is_empty()
+        && code.len() <= 512
+        && code
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"-_".contains(&byte))
 }
 
 pub fn parse_private_server_url(input: &str) -> Result<ParsedPrivateServerUrl, &'static str> {
-    let input = input.trim();
-    if let Some((_, after_games)) = input.split_once("/games/") {
-        let place_id = after_games
-            .chars()
-            .take_while(char::is_ascii_digit)
-            .collect::<String>()
+    let error = "Enter a valid Roblox private server URL";
+    let url = reqwest::Url::parse(input.trim()).map_err(|_| error)?;
+    if url.scheme() != "https"
+        || !matches!(url.host_str(), Some("www.roblox.com" | "roblox.com"))
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(error);
+    }
+    let segments: Vec<_> = url.path_segments().ok_or(error)?.collect();
+    if segments.first() == Some(&"games") {
+        let place_id = segments
+            .get(1)
+            .ok_or(error)?
             .parse::<u64>()
-            .map_err(|_| "Enter a valid Roblox private server URL")?;
-        let link_code = private_server_parameter(input, "privateServerLinkCode")
+            .map_err(|_| error)?;
+        if place_id == 0 {
+            return Err(error);
+        }
+        let link_code = private_server_parameter(&url, "privateServerLinkCode")
             .ok_or("Enter a valid Roblox private server URL")?;
         return Ok(ParsedPrivateServerUrl::Direct {
             place_id,
             link_code,
         });
     }
-    if input.contains("/share") || input.contains("type=Server") {
-        if let Some(share_code) = private_server_parameter(input, "code") {
+    if url.path().trim_end_matches('/') == "/share" {
+        if let Some(share_code) = private_server_parameter(&url, "code") {
             return Ok(ParsedPrivateServerUrl::Share { share_code });
         }
     }
     Err("Enter a valid Roblox private server URL")
+}
+
+#[derive(Debug, Clone, serde::Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PrivateServerCheck {
+    pub status: &'static str,
+    pub owner_id: Option<u64>,
+    pub owner_username: Option<String>,
+}
+
+impl Default for PrivateServerCheck {
+    fn default() -> Self {
+        Self {
+            status: "unknown",
+            owner_id: None,
+            owner_username: None,
+        }
+    }
+}
+
+fn private_access_code(html: &str) -> Option<String> {
+    let pattern = regex::Regex::new(
+        r#"Roblox\.GameLauncher\.joinPrivateGame\(\d+\s*,\s*['"]([0-9a-fA-F-]{36})['"]"#,
+    )
+    .ok()?;
+    let value = pattern.captures(html)?.get(1)?.as_str();
+    uuid::Uuid::parse_str(value).ok().map(|id| id.to_string())
+}
+
+fn private_server_owner(
+    body: &serde_json::Value,
+    access_code: &str,
+) -> Option<(u64, Option<String>)> {
+    body.get("data")?.as_array()?.iter().find_map(|server| {
+        let code = server.get("accessCode")?.as_str()?;
+        if !code.eq_ignore_ascii_case(access_code) {
+            return None;
+        }
+        let owner = server.get("owner")?;
+        let id = owner.get("id")?.as_u64().filter(|id| *id > 0)?;
+        Some((
+            id,
+            owner
+                .get("name")
+                .and_then(|value| value.as_str())
+                .map(str::to_string),
+        ))
+    })
+}
+
+/// Validate the existing join-page contract, then match the accessible-server API by access code.
+/// Missing launcher markup or inaccessible owner data remains unknown, never proof of non-ownership.
+pub async fn check_private_server(
+    client: &RobloxClient,
+    cookie: &str,
+    place_id: u64,
+    link_code: &str,
+) -> Result<PrivateServerCheck, CoreError> {
+    if place_id == 0 || !valid_private_server_code(link_code) {
+        return Ok(PrivateServerCheck {
+            status: "invalid",
+            ..Default::default()
+        });
+    }
+    let url =
+        format!("https://www.roblox.com/games/{place_id}/game?privateServerLinkCode={link_code}");
+    let html = match client.get_text(&url, cookie).await {
+        Ok(html) => html,
+        Err(CoreError::RobloxApi {
+            status: 400 | 404, ..
+        }) => {
+            return Ok(PrivateServerCheck {
+                status: "invalid",
+                ..Default::default()
+            })
+        }
+        Err(error) => return Err(error),
+    };
+    let Some(access_code) = private_access_code(&html) else {
+        return Ok(PrivateServerCheck::default());
+    };
+    let mut result = PrivateServerCheck {
+        status: "valid",
+        ..Default::default()
+    };
+    let mut cursor: Option<String> = None;
+    let mut seen = std::collections::HashSet::new();
+    for _ in 0..10 {
+        let mut url = reqwest::Url::parse(&format!(
+            "https://games.roblox.com/v1/games/{place_id}/private-servers"
+        ))
+        .map_err(|_| CoreError::RobloxApi {
+            status: 0,
+            message: "Private server request unavailable".into(),
+        })?;
+        if let Some(cursor) = &cursor {
+            url.query_pairs_mut()
+                .append_pair("exclusiveStartKeyCursor", cursor);
+        }
+        let body = match client
+            .get_json::<serde_json::Value>(url.as_str(), cookie)
+            .await
+        {
+            Ok(body) => body,
+            Err(_) => break,
+        };
+        if let Some((id, name)) = private_server_owner(&body, &access_code) {
+            result.owner_id = Some(id);
+            result.owner_username = name;
+            break;
+        }
+        cursor = body
+            .get("nextPageCursor")
+            .and_then(|value| value.as_str())
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
+        if cursor
+            .as_ref()
+            .is_none_or(|cursor| !seen.insert(cursor.clone()))
+        {
+            break;
+        }
+    }
+    Ok(result)
 }
 
 pub fn is_newer_stable_release(remote: &str, local: &str) -> bool {
@@ -1145,12 +1291,51 @@ mod tests {
             "https://www.roblox.com/games/123",
             "https://www.roblox.com/games/no-id?privateServerLinkCode=synthetic",
             "https://www.roblox.com/share?code=",
+            "http://www.roblox.com/games/123?privateServerLinkCode=synthetic",
+            "https://evil.invalid/games/123?privateServerLinkCode=synthetic",
+            "https://www.roblox.com@evil.invalid/games/123?privateServerLinkCode=synthetic",
+            "https://www.roblox.com/games/0?privateServerLinkCode=synthetic",
+            "https://www.roblox.com/games/123?privateServerLinkCode=one&privateServerLinkCode=two",
+            "https://www.roblox.com/games/123?privateServerLinkCode=synthetic%26other%3Dvalue",
         ] {
             assert_eq!(
                 parse_private_server_url(input).err(),
                 Some("Enter a valid Roblox private server URL")
             );
         }
+    }
+
+    #[test]
+    fn private_server_owner_is_matched_by_access_code_only() {
+        let code = "00000000-0000-4000-8000-000000000001";
+        let body = serde_json::json!({"data": [
+            {"name": "Same name", "owner": {"id": 10, "name": "WrongOwner"}},
+            {"accessCode": "00000000-0000-4000-8000-000000000002", "owner": {"id": 11}},
+            {"accessCode": code, "owner": {"id": 12, "name": "SyntheticOwner", "newField": true}}
+        ]});
+        assert_eq!(
+            private_server_owner(&body, code),
+            Some((12, Some("SyntheticOwner".into())))
+        );
+        for body in [
+            serde_json::json!({}),
+            serde_json::json!({"data": null}),
+            serde_json::json!({"data": [{"accessCode": code, "owner": null}]}),
+        ] {
+            assert_eq!(private_server_owner(&body, code), None);
+        }
+    }
+
+    #[test]
+    fn private_server_markup_requires_a_valid_uuid_and_missing_markup_stays_unknown() {
+        assert_eq!(private_access_code("Roblox.GameLauncher.joinPrivateGame(123, '00000000-0000-4000-8000-000000000001', 'synthetic')"), Some("00000000-0000-4000-8000-000000000001".into()));
+        assert!(private_access_code("<html>Unknown page</html>").is_none());
+        assert!(private_access_code(
+            "Roblox.GameLauncher.joinPrivateGame(123, '------------------------------------')"
+        )
+        .is_none());
+        assert_eq!(PrivateServerCheck::default().status, "unknown");
+        assert_eq!(PrivateServerCheck::default().owner_id, None);
     }
 
     #[test]

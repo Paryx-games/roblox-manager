@@ -1,4 +1,6 @@
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
+import { InfoTip } from "./components/InfoTip";
+import { TagSigns } from "./components/TagSigns";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   launchLaunchPreset,
@@ -96,6 +98,7 @@ export function PresetsPage({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [launchingIndex, setLaunchingIndex] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LaunchPresetSummary | null>(
@@ -217,6 +220,7 @@ export function PresetsPage({
       setJobId("");
       setData("");
       setTagIds([]);
+      setShowCreate(false);
       await reload();
     } catch (reason) {
       setError(
@@ -312,9 +316,10 @@ export function PresetsPage({
     <>
       <div className="header-row">
         <h1 className="header-title">Presets</h1>
+        <button className="account-button" type="button" disabled={saving} aria-expanded={showCreate} onClick={() => setShowCreate(current => !current)}><Icon name="add" />{showCreate ? "Close form" : "New preset"}</button>
       </div>
       <main className="presets-page">
-        <section className="preset-card" aria-labelledby="new-preset">
+        {showCreate && <section className="preset-card" aria-labelledby="new-preset">
           <div className="preset-card-head">
             <h2 id="new-preset">New preset</h2>
             <button
@@ -364,7 +369,7 @@ export function PresetsPage({
               />
             </label>
           </div>
-          <div className="preset-tag-target preset-tag-form"><span>Target tags (optional)</span><TagPicker tags={tags} selected={tagIds} onChange={setTagIds} disabled={saving || tagLoading || !!tagError} label="new preset" /><p>Matching any saved tag selects accounts at launch time. Leave empty to use the account picker.</p></div>
+          <div className="preset-tag-target preset-tag-form"><span>Target tags (optional) <InfoTip text="Matching any saved tag selects accounts at launch time. Leave empty to use the account picker. Renaming tags preserves targets; deleted tags must be replaced before launching." /></span><TagPicker tags={tags} selected={tagIds} onChange={setTagIds} disabled={saving || tagLoading || !!tagError} label="new preset" /></div>
           <div className="preset-form-actions">
             <button
               className="account-button primary"
@@ -376,10 +381,10 @@ export function PresetsPage({
               {saving ? "Adding..." : "Add preset"}
             </button>
           </div>
-        </section>
+        </section>}
 
         <section className="preset-card" aria-labelledby="saved-presets">
-          <h2 id="saved-presets">Saved presets</h2>
+          <div className="preset-card-head"><h2 id="saved-presets">Saved presets ({presets.length})</h2><button className="account-button" type="button" disabled={loading || saving || deleting || editSaving} onClick={() => void reload()}><Icon name="refresh" />Refresh</button></div>
           {(error || tagError) && (
             <p className="preset-error" role="alert">
               {error || tagError}
@@ -423,8 +428,8 @@ export function PresetsPage({
           ) : orderedPresets.length === 0 ? (
             <div className="account-empty-inline preset-empty">
               <Icon name="game" />
-              <strong>No presets yet</strong>
-              <span>Create one above to launch favorite games faster.</span>
+              <strong>{search.trim() ? "No matching presets" : "No presets yet"}</strong>
+              <span>{search.trim() ? "Try another search term." : "Choose New preset to save a game and launch targets."}</span>
             </div>
           ) : (
             <div className="preset-rows">
@@ -448,7 +453,10 @@ export function PresetsPage({
                         onCopy={(value) => void copyValue(value)}
                       />
                     </div>
-                    {preset.tagIds.length > 0 ? <div className="preset-tag-target"><span>Tags: {preset.tagIds.map(id => tags.find(tag => tag.id === id)?.name ?? 'Missing tag').join(', ')}</span><span>{accounts.filter(account => matchesTags(account.tagIds,preset.tagIds)).length} matching accounts</span></div> : <AccountPicker
+                    {preset.tagIds.length > 0 ? <div className="preset-tag-target" data-tip={preset.tagIds.map(id => tags.find(tag => tag.id === id)?.name ?? "Missing tag").join(", ")}>
+                      <span className="preset-tag-summary"><TagSigns tags={preset.tagIds.flatMap(id => tags.filter(tag => tag.id === id))} />{preset.tagIds.length} {preset.tagIds.length === 1 ? "tag" : "tags"}</span>
+                      <span>{accounts.filter(account => matchesTags(account.tagIds, preset.tagIds)).length} matching accounts</span>
+                    </div> : <AccountPicker
                       accounts={accounts}
                       isLoading={isAccountsLoading}
                       mode="multiple"
@@ -473,7 +481,7 @@ export function PresetsPage({
                         className={`account-button ${selectedAccountIds.size ? "primary" : ""}`}
                         type="button"
                         disabled={
-                          (!selectedAccountIds.size && !preset.tagIds.length) || launchingIndex === preset.index
+                          (!selectedAccountIds.size && !preset.tagIds.length) || launchingIndex !== null || loading || deleting || editSaving || saving
                         }
                         onClick={() => void launchPreset(preset)}
                       >

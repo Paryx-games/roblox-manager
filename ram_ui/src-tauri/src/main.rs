@@ -19,6 +19,7 @@ mod launcher;
 mod lifecycle;
 mod login;
 mod page_visibility;
+mod private_servers;
 mod roblox_settings;
 mod startup_actions;
 mod state;
@@ -1816,33 +1817,38 @@ async fn list_private_servers(
     for server in &mut servers {
         icon_urls.push(enrich_private_server(server).await);
     }
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    if runtime.config.private_servers != original_servers {
-        return Ok(runtime
-            .config
-            .private_servers
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        if runtime.config.private_servers != original_servers {
+            return Ok(runtime
+                .config
+                .private_servers
+                .iter()
+                .enumerate()
+                .map(|(index, server)| private_server_summary(index, server, String::new()))
+                .collect());
+        }
+        if original_servers != servers {
+            let mut candidate = runtime.config.clone();
+            candidate.private_servers = servers.clone();
+            candidate
+                .save(&runtime.config_path)
+                .map_err(|_| "Private server details could not be saved".to_string())?;
+            runtime.config = candidate;
+        }
+        Ok(servers
             .iter()
             .enumerate()
-            .map(|(index, server)| private_server_summary(index, server, String::new()))
-            .collect());
-    }
-    if original_servers != servers {
-        let mut candidate = runtime.config.clone();
-        candidate.private_servers = servers.clone();
-        candidate
-            .save(&runtime.config_path)
-            .map_err(|_| "Private server details could not be saved".to_string())?;
-        runtime.config = candidate;
-    }
-    Ok(servers
-        .iter()
-        .enumerate()
-        .zip(icon_urls)
-        .map(|((index, server), icon_url)| private_server_summary(index, server, icon_url))
-        .collect())
+            .zip(icon_urls)
+            .map(|((index, server), icon_url)| private_server_summary(index, server, icon_url))
+            .collect())
+    })
+    .await
+    .map_err(|_| "Private server list task failed".to_string())?
 }
 
 async fn build_private_server(
@@ -1910,18 +1916,27 @@ async fn add_private_server(
         return Err("Server name must be between 1 and 64 characters".to_string());
     }
     let (server, icon_url) = build_private_server(&state, name, &url).await?;
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    let index = runtime.config.private_servers.len();
-    runtime.config.private_servers.push(server);
-    save_config(&runtime)?;
-    Ok(private_server_summary(
-        index,
-        &runtime.config.private_servers[index],
-        icon_url,
-    ))
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable")?;
+        let mut candidate = runtime.config.clone();
+        let index = candidate.private_servers.len();
+        candidate.private_servers.push(server);
+        candidate
+            .save(&runtime.config_path)
+            .map_err(|_| "Private server could not be saved")?;
+        runtime.config = candidate;
+        Ok(private_server_summary(
+            index,
+            &runtime.config.private_servers[index],
+            icon_url,
+        ))
+    })
+    .await
+    .map_err(|_| "Private server save task failed")?
 }
 
 #[tauri::command]
@@ -1935,21 +1950,39 @@ async fn update_private_server(
     if name.is_empty() || name.chars().count() > 64 {
         return Err("Server name must be between 1 and 64 characters".to_string());
     }
-    let (server, icon_url) = build_private_server(&state, name, &url).await?;
-    let mut runtime = state
+    let original = state
         .runtime
         .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    if index >= runtime.config.private_servers.len() {
-        return Err("Private server not found".to_string());
-    }
-    runtime.config.private_servers[index] = server;
-    save_config(&runtime)?;
-    Ok(private_server_summary(
-        index,
-        &runtime.config.private_servers[index],
-        icon_url,
-    ))
+        .map_err(|_| "Application state unavailable")?
+        .config
+        .private_servers
+        .get(index)
+        .cloned()
+        .ok_or("Private server not found")?;
+    let (server, icon_url) = build_private_server(&state, name, &url).await?;
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable")?;
+        if runtime.config.private_servers.get(index) != Some(&original) {
+            return Err("Private servers changed. Refresh the list before editing again".into());
+        }
+        let mut candidate = runtime.config.clone();
+        candidate.private_servers[index] = server;
+        candidate
+            .save(&runtime.config_path)
+            .map_err(|_| "Private server edits could not be saved")?;
+        runtime.config = candidate;
+        Ok(private_server_summary(
+            index,
+            &runtime.config.private_servers[index],
+            icon_url,
+        ))
+    })
+    .await
+    .map_err(|_| "Private server save task failed")?
 }
 
 #[tauri::command]
@@ -1966,8 +1999,13 @@ async fn remove_private_server(
         if index >= runtime.config.private_servers.len() {
             return Err("Private server not found".to_string());
         }
-        runtime.config.private_servers.remove(index);
-        save_config(&runtime)
+        let mut candidate = runtime.config.clone();
+        candidate.private_servers.remove(index);
+        candidate
+            .save(&runtime.config_path)
+            .map_err(|_| "Private server removal could not be saved".to_string())?;
+        runtime.config = candidate;
+        Ok(())
     })
     .await
     .map_err(|_| "Private server removal task failed".to_string())?
@@ -3467,6 +3505,7 @@ fn main() {
             remove_account,
             launch_account,
             list_private_servers,
+            private_servers::check_private_server,
             add_private_server,
             remove_private_server,
             rename_private_server,

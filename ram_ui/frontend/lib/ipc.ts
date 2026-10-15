@@ -131,6 +131,18 @@ export interface PrivateServerSummary {
   ownerProfileUrl?: string;
 }
 
+export interface PrivateServerCheck {
+  status: "valid" | "invalid" | "unknown";
+  ownership: "owned" | "unknown" | "not-owned";
+  ownerId: number | null;
+  ownerUsername: string | null;
+  message: string;
+}
+
+export async function checkPrivateServer(index: number): Promise<PrivateServerCheck> {
+  return invoke<PrivateServerCheck>("check_private_server", { index });
+}
+
 export interface LaunchPresetSummary {
   index: number;
   name: string;
