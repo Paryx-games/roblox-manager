@@ -26,6 +26,7 @@
 
 ### Fixed
 
+- **Settings info alignment:** The Visible pages info card now aligns with the info cards at the far right of other settings rows.
 - **Shared private-server ownership:** Shared links can now show a red badge after complete owned-server checks find no match among the checked accounts, even when the owner's profile is unavailable. Failed or incomplete checks stay unknown and report retry guidance.
 - **Secure random failures:** Key, salt and nonce generation now returns a safe error if Windows cannot provide secure randomness, instead of terminating the operation with a panic.
 - **Installer compatibility:** Updated Windows setup for Tauri 2.12, using Restart Manager to check the installed executable before upgrade or uninstall.

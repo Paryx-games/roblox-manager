@@ -1195,7 +1195,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
               Asset Manager uploads are permanent and public. Every asset is moderated under the account that uploaded it.
             </WarningText>
           )}
-          <SubsectionHeading id="page-visibility">Visible pages <InfoButton referenceId="page_visibility" infoCards={infoCards} /></SubsectionHeading>
+          <SubsectionHeading id="page-visibility"><span className="settings-row"><span>Visible pages</span><InfoButton referenceId="page_visibility" infoCards={infoCards} /></span></SubsectionHeading>
           {workspacePages.map(({ key, label }) => <div className="settings-row" key={key}><Toggle checked={draft.pageVisibility[key]} label={`Show ${label}`} onChange={(visible) => updateDraft({ pageVisibility: { ...draft.pageVisibility, [key]: visible } })} /></div>)}
           <SettingRow referenceId="utility_enabled" infoCards={infoCards}>
             <Toggle
