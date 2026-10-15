@@ -26,7 +26,7 @@ RM has no 0.x or beta phase for the project as a whole - every version line stil
 >
 > Under SemVer, a pre-release version sorts _before_ the plain version it leads up to (`v2.0.0-rc.1` < `v2.0.0`), and tooling generally should not treat a pre-release as the "latest" stable version.
 
-GitHub's Latest release slot is an exception for release candidates: the workflow publishes an `-rc.N` tag as a full GitHub release so it can occupy that slot during final testing. The tag is still a SemVer prerelease, and the latest actually stable version remains the newest plain `vX.Y.Z` tag.
+Every tag containing a hyphen, including `-rc.N`, is published as a GitHub prerelease and never marked latest. Stable release notes compare against the last stable tag.
 
 ## Where the version lives
 
@@ -90,14 +90,14 @@ Releases are built and published by `.github/workflows/release.yml`, which runs 
 
    Pushing the tag is what triggers the workflow.
 
-6. The Windows workflow installs Node 22/pnpm 11 dependencies, builds the embedded frontend and NSIS installer, and publishes `roblox-manager-vX.Y.Z-windows-x64.exe`, `roblox-manager-vX.Y.Z-windows-x64-setup.exe` and `SHA256SUMS.txt`. Notes include the maintained changelog, GitHub-generated notes, download guidance and a VirusTotal report for the direct executable. The workflow requires its `VIRUSTOTAL_API_KEY` secret. Local output remains under `target/release/`; GitHub renaming happens in the release job.
+6. The Windows workflow installs Node 22 and the pnpm version pinned in `package.json`, builds the embedded frontend and NSIS installer, and publishes `roblox-manager-vX.Y.Z-windows-x64.exe`, `roblox-manager-vX.Y.Z-windows-x64-setup.exe`, `COMMIT.txt` and `SHA256SUMS.txt`. Notes include the maintained changelog, GitHub-generated notes, download guidance and VirusTotal results for both executables. VirusTotal scanning is best-effort and an unavailable scan does not block a release. Local output remains under `target/release/`; GitHub renaming happens in the release job.
 
 ## If GitHub is being stubborn
 
 For a transient runner or service failure with a correct tagged commit, use **Actions > Release > Re-run all jobs**. Alternatively, **Run workflow** accepts an existing tag through `workflow_dispatch`.
 
-Both checkout steps explicitly use that tag. A fix pushed only to `main` does not change the source, lockfiles or changelog built for an existing tag. A manual retry is not a way to include untagged changes.
+Prepare resolves the tag and requires its commit to be on `main`. Build and release scripts check out the validated commit SHA. Publication waits for green CI on that exact SHA and manual approval; the tag is rechecked before the final immutable publish. A fix pushed only to `main` does not change the source, lockfiles or changelog built for an existing tag. A manual retry is not a way to include untagged changes.
 
-If the tagged source needs fixing, commit and verify the fix, then publish a new version/tag. Only consider moving an unpublished, unused tag after coordination. Never move a tag that users have downloaded or automation depends on. A retry can replace release assets, so do not use it to silently change an already distributed version.
+If the tagged source needs fixing, commit and verify the fix, then publish a new version/tag. Only consider moving an unpublished, unused tag after coordination. Never move a tag that users have downloaded or automation depends on. Retries are limited to unpublished tags, including failed and draft runs; published releases cannot be replaced.
 
 For custom NSIS template maintenance and the manual installer test matrix, see [Releasing RM](docs/developers/releasing.md).
