@@ -1867,22 +1867,14 @@ async fn build_private_server(
             place_name: String::new(),
         },
         ParsedPrivateServerUrl::Share { share_code } => {
-            let (cookie, client) = {
-                let runtime = state
-                    .runtime
-                    .lock()
-                    .map_err(|_| "Application state unavailable".to_string())?;
-                let user_id = runtime
-                    .accounts
-                    .accounts
-                    .first()
-                    .map(|account| account.user_id)
-                    .ok_or_else(|| "Add an account before using a share link".to_string())?;
-                (
-                    account_cookie(&runtime, user_id)?,
-                    RobloxClient::new().map_err(|error| error.to_string())?,
-                )
-            };
+            let credential_state = state.clone();
+            let cookie = tauri::async_runtime::spawn_blocking(move || {
+                let runtime = credential_state.runtime.lock().map_err(|_| "Application state unavailable")?;
+                let user_id = runtime.accounts.accounts.iter().find(|account| !account.cookie_expired)
+                    .map(|account| account.user_id).ok_or("Refresh a working account before using a share link")?;
+                account_cookie(&runtime, user_id).map_err(|_| "A working account credential is unavailable. Unlock or refresh accounts and retry")
+            }).await.map_err(|_| "Private server credential task failed")??;
+            let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
             let (place_id, universe_id, link_code, access_code) =
                 api::resolve_share_link(&client, &cookie, &share_code)
                     .await

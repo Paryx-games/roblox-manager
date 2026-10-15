@@ -150,6 +150,7 @@ export interface PrivateServerCheck {
   ownerId: number | null;
   ownerUsername: string | null;
   message: string;
+  ownerLookup: "notChecked" | "found" | "notListed" | "rateLimited" | "unavailable" | "incomplete";
 }
 
 export async function checkPrivateServer(index: number): Promise<PrivateServerCheck> {

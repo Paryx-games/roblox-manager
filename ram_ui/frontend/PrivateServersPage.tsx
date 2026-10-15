@@ -9,6 +9,7 @@ import {
   listPrivateServers,
   removePrivateServer,
   updatePrivateServer,
+  operationError,
   type AccountSummary,
   type PrivateServerSummary,
 } from "./lib/ipc";
@@ -19,6 +20,7 @@ import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
 import Select from "./components/Select";
 import { InfoTip } from "./components/InfoTip";
+import { privateServerOwnerLabel, runPrivateServerChecks } from "./lib/privateServerChecks";
 
 type OwnershipStatus = "owned" | "unknown" | "not-owned";
 
@@ -153,15 +155,19 @@ export function PrivateServersPage({
     const version = ++checkVersion.current;
     setChecking(true);
     setError(null);
+    setChecks(current => Object.fromEntries(Object.entries(current).filter(([index]) => !targets.some(target => target.index === Number(index)))));
+    let failures = 0;
     try {
-      for (const server of targets) {
-        if (checkVersion.current !== version) return;
-        const result = await checkPrivateServer(server.index);
-        if (checkVersion.current !== version) return;
-        setChecks(current => ({ ...current, [server.index]: result }));
-      }
-    } catch {
-      if (checkVersion.current === version) setError("Server checks could not finish. Refresh accounts and retry Refresh status. Ownership remains unknown when Roblox cannot return it.");
+      await runPrivateServerChecks(targets, checkPrivateServer, {
+        isCurrent: () => checkVersion.current === version,
+        onResult: (index, result) => setChecks(current => ({ ...current, [index]: result })),
+        onError: (index, reason) => {
+          failures += 1;
+          const message = operationError(reason, "This server could not be checked. Refresh status to retry.");
+          setChecks(current => ({ ...current, [index]: { status: "unknown", ownership: "unknown", ownerId: null, ownerUsername: null, ownerLookup: "unavailable", message } }));
+          setError(`${failures} server ${failures === 1 ? "check failed" : "checks failed"}. Other bookmarks are still checked. Refresh status to retry.`);
+        },
+      });
     } finally { if (checkVersion.current === version) setChecking(false); }
   }
   useEffect(() => {
@@ -498,7 +504,7 @@ export function PrivateServersPage({
                       >
                         @{checks[server.index].ownerUsername ?? checks[server.index].ownerId}
                         <Icon name="square-arrow-out-up-right" />
-                      </a> : <span className="private-server-owner-link">{checks[server.index] ? "Owner profile unavailable" : checking ? "Checking owner..." : "Owner not checked"}</span>}
+                      </a> : <span className="private-server-owner-link" data-tip={checks[server.index]?.message}>{privateServerOwnerLabel(checks[server.index], checking)}</span>}
                     </span>
                     <AccountPicker
                       accounts={accounts}

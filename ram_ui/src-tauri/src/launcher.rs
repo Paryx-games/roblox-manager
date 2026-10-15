@@ -198,6 +198,11 @@ async fn launch_queued(
     let needs_tray_cleanup = config.kill_background_roblox || multi_instance;
     progress(app, request_id, request.user_id, "authenticating");
     let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
+    let resolved_access_code = match request.link_code.as_deref() {
+        Some(link_code) => Some(ram_core::api::resolve_private_server_access(&client, &cookie, request.place_id, link_code).await
+            .map_err(|_| "This private-server invitation could not be resolved. Check its link and this account's access before trying again.")?),
+        None => request.access_code.clone(),
+    };
     let ticket = client
         .generate_auth_ticket(&cookie)
         .await
@@ -226,7 +231,7 @@ async fn launch_queued(
     let job_id = request.job_id.clone();
     let data = request.data.clone();
     let link_code = request.link_code.clone();
-    let access_code = request.access_code.clone();
+    let access_code = resolved_access_code;
     progress(app, request_id, request.user_id, "launching");
     let clear_clipboard = config.privacy_mode && config.privacy_clear_clipboard;
     let launch_state = state.clone();
