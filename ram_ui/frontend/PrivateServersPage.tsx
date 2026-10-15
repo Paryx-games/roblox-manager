@@ -20,7 +20,7 @@ import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
 import Select from "./components/Select";
 import { InfoTip } from "./components/InfoTip";
-import { privateServerOwnerLabel, runPrivateServerChecks } from "./lib/privateServerChecks";
+import { privateServerAvailabilityLabel, privateServerOwnershipLabel, privateServerOwnerLabel, runPrivateServerChecks } from "./lib/privateServerChecks";
 
 type OwnershipStatus = "owned" | "unknown" | "not-owned";
 
@@ -39,12 +39,13 @@ function OwnershipBadge({
       label: `Owned by ${accountName ?? "one of your accounts"}`,
     },
     unknown: { icon: "shield-question-mark", label: "Ownership unverified" },
-    "not-owned": { icon: "shield-x", label: "Not owned by a checked account" },
+    "not-owned": { icon: "shield-x", label: "None of your saved accounts owns this server" },
   }[status];
 
   return (
     <span
       className={`private-server-ownership private-server-ownership-${status}`}
+      role="img"
       data-tip={status === "owned" ? content.label : description ?? content.label}
       aria-label={status === "owned" ? content.label : description ?? content.label}
     >
@@ -400,7 +401,7 @@ export function PrivateServersPage({
           aria-labelledby="saved-private-servers"
         >
           <div className="preset-card-head">
-            <h2 id="saved-private-servers">Saved private servers ({servers.length}) <InfoTip text="Checks run while this page is open. Green means the owner is a managed account, yellow means ownership is unknown, and red means the returned owner is not managed here or complete owned-server checks found no match among the checked accounts. Hover over a shield for its check scope. A resolved link does not guarantee every account can join. Refresh status retries checks; Stop checking stops queued checks." /></h2>
+            <h2 id="saved-private-servers">Saved private servers ({servers.length}) <InfoTip text="Left shield: green if any saved account owns the server, red if none do after complete checks, and yellow while checking or if ownership is unknown. Right icon: green if the invitation resolves, red if it is inactive or invalid, and yellow if availability is unknown. Roblox checks each selected account's join access when launching." /></h2>
             <button className="account-button" type="button" disabled={loading || saving || deleting || editSaving} onClick={() => {
               if (checking) { checkVersion.current += 1; setChecking(false); }
               else void reload();
@@ -484,14 +485,15 @@ export function PrivateServersPage({
                 </div>
                 {group.map((server) => (
                   <div className="private-server-row" key={server.index}>
+                    <OwnershipBadge status={checks[server.index]?.ownership ?? "unknown"} accountName={checks[server.index]?.ownerUsername ?? undefined} description={privateServerOwnershipLabel(checks[server.index], checking)} />
                     <span
-                      className="private-server-status"
-                      data-tip={checks[server.index]?.message ?? (checking ? "Checking link and ownership" : "Not yet checked")}
-                      aria-label={checks[server.index]?.message ?? "Not yet checked"}
+                      className={`private-server-status private-server-status-${checks[server.index]?.status ?? "unknown"}`}
+                      role="img"
+                      data-tip={privateServerAvailabilityLabel(checks[server.index], checking)}
+                      aria-label={privateServerAvailabilityLabel(checks[server.index], checking)}
                     >
-                      <Icon name={checks[server.index]?.status === "valid" ? "check" : checks[server.index]?.status === "invalid" ? "close" : "warning"} />
+                      <Icon name={checks[server.index]?.status === "valid" ? "check" : checks[server.index]?.status === "invalid" ? "close" : "warning"} tone="current-color" />
                     </span>
-                    <OwnershipBadge status={checks[server.index]?.ownership ?? "unknown"} accountName={checks[server.index]?.ownerUsername ?? undefined} description={checks[server.index]?.message} />
                     <span className="private-server-name-block">
                       <span className="private-server-name">{server.name}</span>
                       {checks[server.index]?.ownerId ? <a

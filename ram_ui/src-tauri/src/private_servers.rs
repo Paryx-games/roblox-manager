@@ -16,11 +16,14 @@ fn ownership_status(
     managed_owner: bool,
     complete: bool,
     checked: usize,
+    saved: usize,
 ) -> &'static str {
     match check.owner_id {
         Some(_) if managed_owner => "owned",
         Some(_) => "not-owned",
-        None if check.status == "valid" && complete && checked > 0 => "not-owned",
+        None if check.status == "valid" && complete && checked > 0 && checked == saved => {
+            "not-owned"
+        }
         None => "unknown",
     }
 }
@@ -258,13 +261,24 @@ async fn check_private_server_inner(state: AppState, index: usize) -> Result<Ser
     let managed_owner = check
         .owner_id
         .is_some_and(|owner| runtime.accounts.find_by_id(owner).is_some());
-    let ownership = ownership_status(&check, managed_owner, complete, checked);
+    let all_saved_accounts_checked = complete && checked == runtime.accounts.accounts.len();
+    let ownership = ownership_status(
+        &check,
+        managed_owner,
+        complete,
+        checked,
+        runtime.accounts.accounts.len(),
+    );
+    if !all_saved_accounts_checked && !failed {
+        failure_message = "Some saved accounts have expired or unavailable logins. Refresh them to finish checking ownership";
+    }
     tracing::debug!(
         event = "private_server_check",
         phase = "complete",
         ownership,
         checked_accounts = checked,
-        owned_checks_complete = complete
+        owned_checks_complete = complete,
+        all_saved_accounts_checked
     );
     if check.owner_id.is_none() {
         if let Some(problem) = owner_problem {
@@ -321,19 +335,20 @@ mod tests {
             status: "valid",
             ..Default::default()
         };
-        assert_eq!(ownership_status(&valid, false, true, 2), "not-owned");
-        assert_eq!(ownership_status(&valid, false, false, 2), "unknown");
-        assert_eq!(ownership_status(&valid, false, true, 0), "unknown");
+        assert_eq!(ownership_status(&valid, false, true, 2, 2), "not-owned");
+        assert_eq!(ownership_status(&valid, false, true, 2, 3), "unknown");
+        assert_eq!(ownership_status(&valid, false, false, 2, 2), "unknown");
+        assert_eq!(ownership_status(&valid, false, true, 0, 0), "unknown");
         assert_eq!(
-            ownership_status(&api::PrivateServerCheck::default(), false, true, 2),
+            ownership_status(&api::PrivateServerCheck::default(), false, true, 2, 2),
             "unknown"
         );
         let known = api::PrivateServerCheck {
             owner_id: Some(1),
             ..valid
         };
-        assert_eq!(ownership_status(&known, true, false, 0), "owned");
-        assert_eq!(ownership_status(&known, false, false, 0), "not-owned");
+        assert_eq!(ownership_status(&known, true, false, 0, 3), "owned");
+        assert_eq!(ownership_status(&known, false, false, 0, 3), "not-owned");
     }
     #[test]
     fn failed_lookups_do_not_claim_roblox_omitted_owner_data() {

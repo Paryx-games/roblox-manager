@@ -56,8 +56,9 @@ Keep the compact desktop layout and each page's existing composition:
 - Groups uses account/group selection and detail sections for group content.
 - Private Servers and Presets lead with saved lists, filters, and editing flows.
   Header actions open compact add forms; preset creation uses two columns.
-  Private-server shields use ownership tokens for owned, unknown, and not-owned
-  results, while link checks remain separate from ownership.
+  Private-server rows place the ownership shield first, using ownership tokens
+  for owned, unknown/checking, and not-owned results. The next icon independently
+  reports invitation availability, with access and notification tokens.
 - Inventories uses a 220px account sidebar, a grid/list workspace, and a
   resizable, collapsible filter panel on the right.
 - Asset Manager uses creation/upload controls and tabular results.

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { privateServerOwnerLabel, runPrivateServerChecks } from "../frontend/lib/privateServerChecks.ts";
+import { privateServerAvailabilityLabel, privateServerOwnershipLabel, privateServerOwnerLabel, runPrivateServerChecks } from "../frontend/lib/privateServerChecks.ts";
 
 test("one failed bookmark does not stop later owner checks", async () => {
   const results = [];
@@ -29,4 +29,15 @@ test("owner labels distinguish absent metadata from failed requests", () => {
   assert.equal(privateServerOwnerLabel({ ownerLookup: "rateLimited" }, false), "Owner lookup rate-limited");
   assert.equal(privateServerOwnerLabel({ ownerLookup: "unavailable" }, false), "Owner lookup failed");
   assert.equal(privateServerOwnerLabel({ ownerLookup: "incomplete" }, false), "Owner lookup incomplete");
+});
+
+test("ownership and availability indicators describe independent states", () => {
+  const ownedInactive = { ownership: "owned", ownerUsername: "SyntheticOwner", status: "invalid" };
+  assert.equal(privateServerOwnershipLabel(ownedInactive, false), "Owned by SyntheticOwner");
+  assert.match(privateServerAvailabilityLabel(ownedInactive, false), /inactive or invalid/);
+  const sharedActive = { ownership: "not-owned", status: "valid", ownerLookup: "rateLimited" };
+  assert.match(privateServerOwnershipLabel(sharedActive, false), /None of your saved accounts/);
+  assert.match(privateServerAvailabilityLabel(sharedActive, false), /Invitation resolves/);
+  assert.match(privateServerOwnershipLabel(undefined, true), /Checking whether any saved account/);
+  assert.match(privateServerAvailabilityLabel(undefined, true), /Checking server availability/);
 });

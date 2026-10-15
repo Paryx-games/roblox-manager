@@ -2768,8 +2768,10 @@ button:focus-visible {
   height: 20px;
   align-items: center;
   justify-content: center;
-  color: var(--status-warning);
+  color: var(--access-restricted);
 }
+.private-server-status-valid { color: var(--access-allowed); }
+.private-server-status-invalid { color: var(--notification-error); }
 .private-server-status .account-icon {
   width: 16px;
   height: 16px;

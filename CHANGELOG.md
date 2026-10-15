@@ -5,7 +5,7 @@
 ### Added
 
 - **Discord routing:** Save multiple named webhooks, pause delivery globally or per destination, and route each event to any combination of channels. Added optional session-expiry, launch-failure and client-exit notifications, with two-column controls and info cards.
-- **Private-server checks:** Added live link checks, owner profile details, ownership badges, refresh and stop controls, and status sorting. Unavailable owner data stays unknown.
+- **Private-server checks:** Added live link checks, owner profile details, ownership badges, refresh and stop controls, and status sorting. Profile availability, ownership and invitation availability remain separate.
 - **Account layouts:** Rearrange account sections using six-dot drag handles or Alt + Up/Down. Layouts save automatically across all accounts.
 - **Account tags:** Stack colored tags independently of groups, edit them from horizontal signposts on account rows and beside profile names, filter through the sidebar tag action, and save preset tag targets that resolve matching accounts at launch time.
 - **Multi-account selection:** Added an **All accounts** action, with consistent select/clear controls across Accounts and Inventories.
@@ -26,10 +26,11 @@
 
 ### Fixed
 
+- **Private-server indicators:** The left shield now shows ownership across saved accounts, and the right icon independently shows invitation availability. Incomplete account checks stay yellow rather than claiming no saved account owns the server.
 - **Private-server profile checks:** Every working account now checks its accessible-server metadata, reusing the resolved invitation. Owner lookup errors retain the resolved link status and show specific failure, rate-limit, incomplete, or not-listed states. Failed bookmarks no longer stop the remaining checks.
 - **Private-server resolution:** Share links support universe-only responses and use the same validated invitation parser as status checks. Share imports skip expired accounts, and launches resolve a fresh UUID access code instead of relying on an empty or stale saved code.
 - **Settings info alignment:** The Visible pages info card now aligns with the info cards at the far right of other settings rows.
-- **Shared private-server ownership:** Shared links can now show a red badge after complete owned-server checks find no match among the checked accounts, even when the owner's profile is unavailable. Failed or incomplete checks stay unknown and report retry guidance.
+- **Shared private-server ownership:** Shared links can now show a red badge after complete owned-server checks find no match among all saved accounts, even when the owner's profile is unavailable. Failed or incomplete checks stay unknown and report retry guidance.
 - **Secure random failures:** Key, salt and nonce generation now returns a safe error if Windows cannot provide secure randomness, instead of terminating the operation with a panic.
 - **Installer compatibility:** Updated Windows setup for Tauri 2.12, using Restart Manager to check the installed executable before upgrade or uninstall.
 - **Visibility authentication errors:** Accounts with a known rejected login no longer send visibility requests. Visibility failures now distinguish login rejection, permissions, rate limits and service outages, with explicit recovery guidance rather than repeated generic warnings.
