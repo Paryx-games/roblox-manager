@@ -64,13 +64,14 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-The workflow uses Windows, stable Rust, Node 22 and the pnpm version pinned in the root `package.json` (currently 12.10.1). It installs frozen frontend dependencies, builds the embedded frontend and NSIS bundle with locked Cargo dependencies, and publishes:
+The workflow uses Windows, the Rust version pinned in `rust-toolchain.toml`, Node 22 and the pnpm version pinned in the root `package.json` (currently 12.10.1). It installs frozen frontend dependencies, builds the embedded frontend and NSIS bundle with locked Cargo dependencies, and publishes:
 
 - `roblox-manager-vX.Y.Z-windows-x64.exe`
 - `roblox-manager-vX.Y.Z-windows-x64-setup.exe`
-- `SHA256SUMS.txt`, covering both executables
+- `COMMIT.txt`, containing the validated source commit
+- `SHA256SUMS.txt`, covering both executables and `COMMIT.txt`
 
-Release notes combine the maintained changelog, GitHub-generated notes, download descriptions and VirusTotal results for both the direct executable and installer. Configure `VIRUSTOTAL_API_KEY` as a repository secret to enable scanning. Uploads and polling are best-effort; external-service failures do not block publication. Both executables are checksummed.
+Release notes combine the maintained changelog, GitHub-generated notes, download descriptions and VirusTotal results for both the direct executable and installer. Uploads and polling are best-effort; external-service failures do not block publication. Both executables and the commit manifest are checksummed and attested.
 
 Local outputs are `target/release/rm_tauri.exe` and `target/release/bundle/nsis/Roblox Manager_<version>_x64-setup.exe`. GitHub asset naming happens later in the release job.
 
@@ -99,4 +100,4 @@ A terminal bundle build verifies compilation and packaging only. Record which in
 
 If the tagged commit is correct and the failure was transient, use **Actions > Release > Re-run all jobs**, or **Run workflow** and enter that existing tag.
 
-Release jobs explicitly check out the requested tag. Fixing `main` and manually dispatching the old tag does not include the source, lockfile or changelog fix. For a source correction, publish a new verified version/tag. Move an unpublished, unused tag only after coordination; never move a tag that users or automation already rely on. The workflow refuses to replace an already published release. Retry a transient failure before publication; publish a new verified version for a source correction rather than rebuilding a distributed version with different contents.
+Prepare requires the tag commit to be on `main`. Build and release scripts check out that validated SHA, and CI must pass on that exact commit. Package summaries list the tag, SHA, filenames and hashes before publication. After manual approval, the workflow verifies downloaded checksums and the commit manifest, creates a draft, rechecks the tag and publishes as its final operation. Every hyphenated tag, including an rc, is a prerelease and never latest. Release titles use `vX.Y.Z - Roblox Manager`. Fixing `main` and manually dispatching the old tag does not include the source, lockfile or changelog fix. For a source correction, publish a new verified version/tag. Move an unpublished, unused tag only after coordination; never move a tag that users or automation already rely on. The workflow refuses to replace an already published release. Retry a transient failure before publication; publish a new verified version for a source correction rather than rebuilding a distributed version with different contents.

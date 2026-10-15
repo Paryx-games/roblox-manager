@@ -144,9 +144,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup rust
-        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
-        with:
-          components: rustfmt
+        shell: pwsh
+        run: ./scripts/setup-rust.ps1
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -171,9 +170,8 @@ jobs:
           path: ram_ui/dist
 
       - name: Setup rust
-        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
-        with:
-          components: clippy
+        shell: pwsh
+        run: ./scripts/setup-rust.ps1
 
       - name: Cache rust
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -204,7 +202,8 @@ jobs:
           path: ram_ui/dist
 
       - name: Setup rust
-        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
+        shell: pwsh
+        run: ./scripts/setup-rust.ps1
 
       - name: Cache rust
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -233,7 +232,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup rust
-        uses: dtolnay/rust-toolchain@stable # zizmor: ignore[unpinned-uses] intentionally floating for latest stable rust
+        shell: pwsh
+        run: ./scripts/setup-rust.ps1
 
       # This is the trusted writer for the cache consumed by release.yml.
       # PRs and other refs may restore it, but only main may save it.
