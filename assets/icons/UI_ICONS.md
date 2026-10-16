@@ -7,6 +7,7 @@ should be a transparent square SVG with a simple monochrome mark and a
 | Former glyph/use | Asset path | UI location |
 | --- | --- | --- |
 | accounts clipboard | `assets/icons/accounts.svg` | Accounts navigation and paste-cookie action |
+| friends | `assets/icons/friends.svg` | Friends navigation |
 | groups | `assets/icons/groups.svg` | Groups navigation |
 | lock | `assets/icons/lock.svg` | Private Servers navigation and store unlock screens |
 | star | `assets/icons/star.svg` | Presets navigation and preset controls |

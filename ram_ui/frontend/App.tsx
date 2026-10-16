@@ -13,6 +13,7 @@ import { benchmarkReady, acknowledgeStartup, checkReleaseUpdate, clearPassword, 
 import { defaultPageVisibility, workspacePages, listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
+import { FriendsPage } from "./FriendsPage";
 import { GroupsPage } from "./GroupsPage";
 import { PrivateServersPage } from "./PrivateServersPage";
 import { PresetsPage } from "./PresetsPage";
@@ -33,6 +34,7 @@ type PageName =
   | "Accounts"
   | "Instances"
   | "Groups"
+  | "Friends"
   | "Private Servers"
   | "Presets"
   | "Inventories"
@@ -43,6 +45,7 @@ const navItems: NavItem[] = [
   { label: "Accounts", icon: "id-card", page: "Accounts" },
   { label: "Instances", icon: "app-window", page: "Instances" },
   { label: "Groups", icon: "users", page: "Groups" },
+  { label: "Friends", icon: "friends", page: "Friends" },
   { label: "Private Servers", icon: "game", page: "Private Servers" },
   { label: "Presets", icon: "star", page: "Presets" },
   { label: "Inventories", icon: "inventory", page: "Inventories" },
@@ -138,6 +141,8 @@ export function App() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [workspace, setWorkspace] = useState<InstanceWorkspace>({ instances: [], runningCount: 0 });
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [accountsReady, setAccountsReady] = useState(false);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
   const [launches, setLaunches] = useState<Record<string, LaunchProgress>>({});
   const [isInstancesLoading, setIsInstancesLoading] = useState(true);
   const benchmarkDataReady = useRef(false);
@@ -265,6 +270,7 @@ export function App() {
           if (!isActive) return;
           hasAccountEvent = true;
           setAccounts(event.payload);
+          setAccountsReady(true); setAccountsError(null);
           if (event.payload.length > 0) void refreshStartup();
         }),
         listen<LaunchProgress>("launch-progress", (event) => {
@@ -294,7 +300,9 @@ export function App() {
       if (!isActive) return;
       if (instanceResult.status === "fulfilled" && !hasInstanceEvent) setWorkspace(instanceResult.value);
       if (instanceResult.status === "rejected" && !hasInstanceEvent) setInstancesError("Running instances could not be loaded. Retry to reconnect.");
-      if (accountResult.status === "fulfilled" && !hasAccountEvent) setAccounts(accountResult.value);
+      if (accountResult.status === "fulfilled" && !hasAccountEvent) { setAccounts(accountResult.value); setAccountsError(null); }
+      if (accountResult.status === "rejected" && !hasAccountEvent) setAccountsError("Managed accounts could not be loaded. Retry or open Accounts to check the store.");
+      setAccountsReady(true);
       if (window.__RM_BENCHMARK__) {
         benchmarkDataReady.current = (instanceResult.status === "fulfilled" || hasInstanceEvent)
           && (accountResult.status === "fulfilled" || hasAccountEvent);
@@ -392,6 +400,8 @@ export function App() {
     if (page === "Instances") {
       return <InstancesPage workspace={workspace} accounts={accounts} selectedIds={selectedIds} onSelectedIdsChange={setSelectedIds} launches={Object.values(launches)} isLoading={isInstancesLoading} error={instancesError} onRefresh={refreshInstances} />;
     }
+
+    if (page === "Friends") return <FriendsPage accounts={accounts} accountsReady={accountsReady} accountsError={accountsError} onRetryAccounts={async()=>{try{setAccounts(await listAccounts());setAccountsError(null);}catch{setAccountsError("Managed accounts could not be loaded. Open Accounts to check the store, then retry.");}finally{setAccountsReady(true);}}} multiInstanceEnabled={settings?.multiInstanceEnabled ?? false} />;
 
     if (page === "Groups") {
       return (

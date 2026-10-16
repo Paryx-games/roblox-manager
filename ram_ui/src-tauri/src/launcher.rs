@@ -68,22 +68,47 @@ fn validate_request(request: &LaunchRequest) -> Result<(), String> {
 }
 
 pub async fn launch(app: &tauri::AppHandle, request: LaunchRequest) -> Result<(), String> {
-    launch_impl(app, request, false).await
+    launch_impl(app, request, false, false, false).await
 }
 
 pub async fn launch_startup(app: &tauri::AppHandle, request: LaunchRequest) -> Result<(), String> {
-    launch_impl(app, request, true).await
+    launch_impl(app, request, true, false, false).await
+}
+
+pub async fn launch_new_instance(
+    app: &tauri::AppHandle,
+    request: LaunchRequest,
+    session_confirmed: bool,
+) -> Result<(), String> {
+    launch_impl(app, request, false, true, !session_confirmed).await
+}
+
+fn validate_instance_policy(required: bool, enabled: bool) -> Result<(), String> {
+    if required && !enabled {
+        return Err("Multi-instance was disabled before this launch. Enable it in Settings or confirm the saved launch policy before retrying.".into());
+    }
+    Ok(())
 }
 
 async fn launch_impl(
     app: &tauri::AppHandle,
     request: LaunchRequest,
     startup: bool,
+    require_multi_instance: bool,
+    check_account_session: bool,
 ) -> Result<(), String> {
     validate_request(&request)?;
     let request_id = uuid::Uuid::new_v4().to_string();
     progress(app, &request_id, request.user_id, "waiting");
-    let result = launch_queued(app, &request_id, &request, startup).await;
+    let result = launch_queued(
+        app,
+        &request_id,
+        &request,
+        startup,
+        require_multi_instance,
+        check_account_session,
+    )
+    .await;
     if result.is_err() {
         crate::discord::launch_failed(
             app,
@@ -168,11 +193,16 @@ async fn launch_queued(
     request_id: &str,
     request: &LaunchRequest,
     startup: bool,
+    require_multi_instance: bool,
+    check_account_session: bool,
 ) -> Result<(), String> {
     let state = app.state::<AppState>().inner().clone();
     let mut next_launch = state.launch_queue.lock().await;
     if let Some(deadline) = *next_launch {
         tokio::time::sleep(deadline.saturating_duration_since(Instant::now())).await;
+    }
+    if check_account_session {
+        instances::require_no_account_session(&state, request.user_id)?;
     }
     let credential_state = state.clone();
     let user_id = request.user_id;
@@ -187,6 +217,7 @@ async fn launch_queued(
         let player_path = runtime.config.custom_player_paths.get(&user_id).cloned().or_else(|| runtime.config.roblox_player_path.clone());
         Ok((cookie, runtime.config.clone(), player_path, *runtime.credential_revisions.get(&user_id).unwrap_or(&0)))
     }).await.map_err(|_| "Launch credential task failed")??;
+    validate_instance_policy(require_multi_instance, config.multi_instance_enabled)?;
     let options_state = state.clone();
     let options_config = config.clone();
     let (executable, custom_args) = tauri::async_runtime::spawn_blocking(move || {
@@ -351,6 +382,13 @@ async fn launch_queued(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_new_instance_requests_cannot_reuse_a_client_after_policy_changes() {
+        assert!(validate_instance_policy(true, false).is_err());
+        assert!(validate_instance_policy(true, true).is_ok());
+        assert!(validate_instance_policy(false, false).is_ok());
+    }
 
     #[test]
     fn batch_job_ids_are_included_only_for_a_shared_explicit_destination() {

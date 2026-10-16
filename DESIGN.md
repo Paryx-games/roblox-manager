@@ -53,6 +53,7 @@ Keep the compact desktop layout and each page's existing composition:
 - Instances shows selectable client rows with attribution and process actions
   beside a client controls panel. The panel stacks below the list on narrower layouts;
   controls are saved shared launch defaults with an explicit notice that running clients are unchanged.
+- Friends uses a compact table and profile sidebar, with a single Refresh header action, shared account picker, status filters, anchored menus and the standard join/confirmation dialogs. Job IDs use `--font-mono`, truncate visually and retain full tooltip/copy values. Playing, Studio, online, offline and unavailable states remain distinct.
 - Groups uses account/group selection and detail sections for group content.
 - Private Servers and Presets lead with saved lists, filters, and editing flows.
   Header actions open compact add forms; preset creation uses two columns.
@@ -101,10 +102,10 @@ changes.
 | Surfaces | `--bg-canvas`, `--bg-surface`, `--bg-raised` |
 | Text | `--text-primary`, `--text-muted`, `--text-disabled` |
 | Borders and actions | `--border-default`, `--action-primary`, `--action-danger`, `--action-muted` |
-| Live status | `--status-online`, `--status-warning`, `--status-danger`, `--status-neutral` |
+| Live status | `--status-online`, `--status-studio`, `--status-warning`, `--status-danger`, `--status-neutral` |
 | Other semantic states | `--notification-*`, `--access-*`, `--ownership-*` |
 | Guided tour | `--walkthrough-outline`, `--walkthrough-dim`, `--walkthrough-dock` |
-| Typography | `--font-sans`, `--text-xs`, `--text-sm`, `--text-base`, `--text-lg`, `--text-xl` |
+| Typography | `--font-sans`, `--font-mono`, `--text-xs`, `--text-sm`, `--text-base`, `--text-lg`, `--text-xl` |
 | Spacing | `--space-1`, `--space-2`, `--space-3`, `--space-4`, `--space-6`, `--space-8`, `--space-12` |
 | Shape and motion | `--radius`, `--border-width`, `--duration-*`, `--ease-standard` |
 

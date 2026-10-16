@@ -21,6 +21,7 @@
 * [Running instances](guides/instances.md)
 * [Client controls](guides/client-controls.md)
 * [Groups](guides/groups.md)
+* [Friends](guides/friends.md)
 * [Private servers](guides/private-servers.md)
 * [Asset manager](guides/asset-manager.md)
 * [Inventories](guides/inventories.md)

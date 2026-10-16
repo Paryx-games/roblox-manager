@@ -591,6 +591,47 @@ pub async fn resolve_universe_name(
     Ok(name)
 }
 
+#[derive(Deserialize)]
+struct UniverseName {
+    id: u64,
+    name: String,
+}
+
+fn map_universe_names(ids: &[u64], names: Vec<UniverseName>) -> Vec<(u64, String)> {
+    let mut seen = std::collections::HashSet::new();
+    names
+        .into_iter()
+        .filter(|game| ids.contains(&game.id) && !game.name.is_empty() && seen.insert(game.id))
+        .map(|game| (game.id, game.name))
+        .collect()
+}
+
+pub async fn fetch_universe_names(
+    client: &RobloxClient,
+    ids: &[u64],
+) -> Result<Vec<(u64, String)>, CoreError> {
+    #[derive(Deserialize)]
+    struct Response {
+        data: Vec<UniverseName>,
+    }
+    let mut names = Vec::new();
+    for batch in ids.chunks(50) {
+        let ids_param = batch
+            .iter()
+            .map(u64::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        let response: Response = client
+            .get_json(
+                &format!("https://games.roblox.com/v1/games?universeIds={ids_param}"),
+                "",
+            )
+            .await?;
+        names.extend(map_universe_names(batch, response.data));
+    }
+    Ok(names)
+}
+
 /// Fetch game icon thumbnail URLs for a batch of universe IDs.
 /// Returns a vec of `(universe_id, url)` pairs.
 pub async fn fetch_game_icons(
@@ -1463,6 +1504,33 @@ pub fn is_newer_stable_release(remote: &str, local: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn universe_names_are_paired_by_id_and_ignore_missing_or_unrequested_games() {
+        let names = vec![
+            UniverseName {
+                id: 2,
+                name: "Second".into(),
+            },
+            UniverseName {
+                id: 99,
+                name: "Unexpected".into(),
+            },
+            UniverseName {
+                id: 1,
+                name: String::new(),
+            },
+            UniverseName {
+                id: 2,
+                name: "Duplicate".into(),
+            },
+        ];
+        assert_eq!(
+            map_universe_names(&[1, 2], names),
+            vec![(2, "Second".into())]
+        );
+        assert!(serde_json::from_str::<UniverseName>(r#"{"name":"Missing ID"}"#).is_err());
+    }
+
     #[test]
     fn follow_contract_never_treats_missing_relationship_or_captcha_as_success() {
         let response = serde_json::from_str::<super::FollowingResponse>(

@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Friends workspace:** Added account-specific friend browsing, distinct presence filters, local search/sorting, full Job ID copying, cached profile/mutual-friend/group details, safe single-account joins, confirmed remove/block actions and incoming request management. Account switching ignores stale responses and retains the selected account locally.
+
 - **Server IDs:** Added a Job ID column to Instances and included confirmed public Job IDs in applicable Discord notifications. Unknown, stale and ambiguous server IDs are omitted from notifications.
 
 - **Discord routing:** Save multiple named webhooks, pause delivery globally or per destination, and route each event to any combination of channels. Added optional session-expiry, launch-failure and client-exit notifications, with two-column controls and info cards.

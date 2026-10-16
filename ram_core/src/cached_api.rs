@@ -107,6 +107,19 @@ pub async fn fetch_avatars(
     .await
 }
 
+pub async fn fetch_universe_names(
+    client: &RobloxClient,
+    ids: &[u64],
+) -> Result<Vec<(u64, String)>, CoreError> {
+    batch(
+        universe_names(),
+        ids,
+        |missing| async move { api::fetch_universe_names(client, &missing).await },
+        |name| !name.is_empty(),
+    )
+    .await
+}
+
 pub async fn fetch_game_icons(
     client: &RobloxClient,
     _cookie: &str,

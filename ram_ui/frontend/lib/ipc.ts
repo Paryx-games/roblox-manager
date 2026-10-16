@@ -291,6 +291,7 @@ export interface PageVisibility {
   accounts: boolean;
   instances: boolean;
   groups: boolean;
+  friends: boolean;
   privateServers: boolean;
   presets: boolean;
   inventories: boolean;
@@ -298,7 +299,7 @@ export interface PageVisibility {
 }
 
 export const defaultPageVisibility: PageVisibility = {
-  accounts: true, instances: true, groups: true, privateServers: true,
+  accounts: true, instances: true, groups: true, friends: true, privateServers: true,
   presets: true, inventories: false, assetManager: false,
 };
 
@@ -306,6 +307,7 @@ export const workspacePages = [
   { key: "accounts", label: "Accounts" },
   { key: "instances", label: "Instances" },
   { key: "groups", label: "Groups" },
+  { key: "friends", label: "Friends" },
   { key: "privateServers", label: "Private Servers" },
   { key: "presets", label: "Presets" },
   { key: "inventories", label: "Inventories" },
@@ -931,3 +933,17 @@ export async function loggingTargets(): Promise<string[]> { return invoke<string
 
 export interface PrivateServerCheckSnapshot { failed: boolean; checks: Record<number, PrivateServerCheck>; checking: boolean; }
 export async function cachedPrivateServerChecks(): Promise<PrivateServerCheckSnapshot> { return invoke<PrivateServerCheckSnapshot>("cached_private_server_checks"); }
+
+export interface FriendUser { userId: number; username: string; displayName: string; avatarUrl: string; }
+export type FriendStatus = "playing" | "studio" | "online" | "offline" | "unknown";
+export interface Friend extends FriendUser { status: FriendStatus; activity: string; placeId: number | null; jobId: string | null; gameName: string | null; placeName: string | null; gameIcon: string | null; }
+export interface FriendsSnapshot { friends: Friend[]; refreshedAt: string | null; warnings: string[]; }
+export interface FriendRequestsPage { users: FriendUser[]; nextCursor: string | null; warnings: string[]; }
+export type FriendDetailTab = "details" | "mutual" | "groups";
+export interface FriendDetails { profile: {description: string; created: string | null} | null; mutual: FriendUser[]; groups: {id: number; name: string; role: string}[]; }
+export type FriendAction = "accept" | "decline" | "remove" | "block";
+export function getFriends(userId: number, refresh = false): Promise<FriendsSnapshot> { return invoke("get_friends", {userId, refresh}); }
+export function getFriendRequests(userId: number, cursor: string | null = null, refresh = false): Promise<FriendRequestsPage> { return invoke("get_friend_requests", {userId, cursor, refresh}); }
+export function getFriendDetails(userId: number, targetId: number, section: FriendDetailTab): Promise<FriendDetails> { return invoke("get_friend_details", {userId, targetId, section}); }
+export function friendAction(userId: number, targetId: number, action: FriendAction): Promise<void> { return invoke("friend_action", {userId, targetId, action}); }
+export function joinFriendGame(userId: number, targetId: number, expectedJobId: string | null, reuseConfirmed: boolean, requireNewInstance = false): Promise<void> { return invoke("join_friend_game", {userId, targetId, expectedJobId, reuseConfirmed, requireNewInstance}); }

@@ -547,6 +547,7 @@ mod tests {
             joins: Arc::new(Default::default()),
             discord: Arc::new(Default::default()),
             private_server_checks: Arc::new(Default::default()),
+            friends: Arc::new(Default::default()),
             is_shutting_down: Arc::new(Default::default()),
             inventory_fetches: Arc::new(tokio::sync::Semaphore::new(4)),
             inventory_cache: Arc::new(ram_core::cache::ResponseCache::new(

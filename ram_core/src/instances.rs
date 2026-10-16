@@ -436,6 +436,14 @@ impl InstanceRegistry {
             .collect()
     }
 
+    /// Whether a client is tracked or still starting for this account.
+    pub fn has_session(&self, user_id: u64) -> bool {
+        self.tracked
+            .iter()
+            .any(|instance| instance.user_id == user_id)
+            || self.pending.iter().any(|launch| launch.user_id == user_id)
+    }
+
     /// PIDs believed to belong to `user_id`, exact and inferred alike. Callers
     /// that care about the difference want [`Self::instances_for`].
     pub fn pids_for(&self, user_id: u64) -> Vec<u32> {
@@ -497,6 +505,27 @@ mod tests {
     }
 
     /// A client whose command line RM could read and which carries `token`.
+    #[test]
+    fn session_checks_include_pending_clients_before_a_process_appears() {
+        let mut registry = InstanceRegistry::new();
+        let now = Utc::now();
+        assert!(!registry.has_session(1));
+        registry.note_launch(1, 2, 100, &[], now);
+        assert!(registry.has_session(1));
+        assert!(!registry.has_session(2));
+        registry.sweep(
+            &[LiveClient {
+                pid: 10,
+                start_time: 1,
+                token: LaunchToken::Found(100),
+            }],
+            now,
+        );
+        assert!(registry.has_session(1));
+        registry.sweep(&[], now);
+        assert!(!registry.has_session(1));
+    }
+
     #[test]
     fn job_ids_are_normalized_and_invalid_values_are_omitted() {
         assert_eq!(

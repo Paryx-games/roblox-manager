@@ -35,7 +35,7 @@ Choose the cleanup scope before launch and whether to clean on exit. Exit cleanu
 
 ## App and data
 
-**Visible pages** provides a separate **Show** switch for each workspace, including **Show Inventories** and **Show Asset Manager**. Save the draft to update the navigation rail. Settings stays accessible even when other pages are hidden. **Show Clear Cache in navigation** adds the separate cache shortcut; it does not control either workspace.
+**Visible pages** provides a separate **Show** switch for each workspace, including **Show Friends**, **Show Inventories** and **Show Asset Manager**. Save the draft to update the navigation rail. Settings stays accessible even when other pages are hidden. **Show Clear Cache in navigation** adds the separate cache shortcut; it does not control either workspace.
 
 Public avatar URLs are cached for five minutes, game and asset thumbnails for 30 minutes, group details for one minute and announcements for 30 seconds.
 

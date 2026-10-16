@@ -87,6 +87,17 @@ pub fn record_presence_check(
     Ok(())
 }
 
+pub fn require_no_account_session(state: &AppState, user_id: u64) -> Result<(), String> {
+    let instances = state
+        .instances
+        .lock()
+        .map_err(|_| "Instance tracking unavailable")?;
+    if instances.registry.has_session(user_id) {
+        return Err("An instance for this account is running or still starting. Confirm possible session replacement before joining.".into());
+    }
+    Ok(())
+}
+
 pub fn account_server(state: &AppState, user_id: u64) -> Option<(u64, String)> {
     let instances = state.instances.lock().ok()?;
     let mut matches = instances

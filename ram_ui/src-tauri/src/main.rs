@@ -12,6 +12,7 @@ mod background;
 mod benchmark;
 mod client_settings;
 mod discord;
+mod friends;
 mod history;
 mod instances;
 mod join_user;
@@ -1013,6 +1014,7 @@ async fn unlock_device(
     .await
     .map_err(|_| "Device unlock task failed".to_string())??;
     app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().friends.clear();
     app.state::<AppState>().private_server_checks.clear();
     app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
@@ -1053,6 +1055,7 @@ async fn create_device_store(
     .await
     .map_err(|_| "Device store task failed".to_string())??;
     app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().friends.clear();
     app.state::<AppState>().private_server_checks.clear();
     app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
@@ -1099,6 +1102,7 @@ async fn unlock_password(
     runtime.session = Some(session);
     runtime.unlocked = true;
     app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().friends.clear();
     app.state::<AppState>().private_server_checks.clear();
     app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
@@ -1747,6 +1751,7 @@ async fn clean_orphaned_data(state: tauri::State<'_, AppState>) -> Result<usize,
 #[tauri::command]
 fn clear_application_caches(state: tauri::State<'_, AppState>) -> Result<usize, String> {
     Ok(ram_core::cached_api::clear()
+        + state.friends.clear()
         + state.private_server_checks.clear()
         + state.inventory_cache.clear()
         + state.presence_cache.clear())
@@ -3502,6 +3507,11 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             logging_targets,
+            friends::get_friends,
+            friends::get_friend_requests,
+            friends::get_friend_details,
+            friends::friend_action,
+            friends::join_friend_game,
             join_user::join_user_accounts,
             join_user::cancel_user_join,
             join_user::get_join_cleanups,

@@ -8,6 +8,7 @@ pub mod cache;
 pub mod cached_api;
 pub mod crypto;
 pub mod error;
+pub mod friends;
 pub mod group_api;
 pub mod instances;
 pub mod join_user;
