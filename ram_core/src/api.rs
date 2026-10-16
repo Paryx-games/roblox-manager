@@ -331,9 +331,11 @@ pub async fn block_user(
     target_user_id: u64,
 ) -> Result<(), CoreError> {
     tracing::info!(target_user_id, "Blocking user");
+    let mut contextual_cookie = cookie.to_string();
+    client.add_browser_context(&mut contextual_cookie).await?;
     perform_connection_action(
         client,
-        cookie,
+        &contextual_cookie,
         Method::POST,
         &format!("https://apis.roblox.com/user-blocking-api/v1/users/{target_user_id}/block-user"),
     )

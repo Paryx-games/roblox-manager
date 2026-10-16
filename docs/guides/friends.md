@@ -21,6 +21,8 @@ The right panel loads extended information only for the selected friend. **Detai
 
 The three-dot menu supports copying identifiers, viewing the profile panel, opening the Roblox profile, joining eligible games, removing a friend and blocking a user. Remove, block and decline actions require confirmation. Failed or unconfirmed mutations keep the current list visible and explain how to retry safely.
 
+Blocking uses a temporary browser context issued by Roblox, shared with RM's existing settings integration. If Roblox cannot provide it, the action stops with an error. RM never fabricates or persists that context. Blocking also removes an existing friendship on Roblox; unblocking does not restore it.
+
 ## Join a friend
 
 Playing friends offer **Join**. Choose one managed account in the dialog. Expired, restricted and self-target accounts cannot be used. The dialog follows the saved **Multi-instance** setting; that setting cannot be overridden per launch here. With Multi-instance disabled, when Roblox is already running, or when retrying an uncertain launch, RM asks for confirmation because Roblox may reuse a client or disconnect another session for this account. The shared launch queue also checks for running or pending clients before an unconfirmed launch. Friends never closes clients itself.

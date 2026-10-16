@@ -35,6 +35,7 @@
 ### Fixed
 
 - **Friend activity:** Offline and unavailable friends no longer display stale activity returned by Roblox.
+- **User blocking:** Reused Roblox-issued browser context for block actions so the current API accepts them. Browser context remains temporary and is scrubbed from logs.
 
 - **Private-server indicators:** The left shield now shows ownership across saved accounts, and the right icon independently shows invitation availability. Incomplete account checks stay yellow rather than claiming no saved account owns the server.
 - **Private-server profile checks:** Every working account now checks its accessible-server metadata, reusing the resolved invitation. Owner lookup errors retain the resolved link status and show specific failure, rate-limit, incomplete, or not-listed states. Failed bookmarks no longer stop the remaining checks.
