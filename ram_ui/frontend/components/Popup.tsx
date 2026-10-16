@@ -38,7 +38,7 @@ export function Popup({
 
     function keepFocusInDialog(event: KeyboardEvent) {
       if (event.key !== "Tab") return;
-      const dialogs = document.querySelectorAll<HTMLElement>('[data-rm-overlay][aria-modal="true"]');
+      const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[data-rm-overlay][aria-modal="true"]')).filter(element => element.getClientRects().length > 0);
       if (dialogs[dialogs.length - 1] !== dialogElement) return;
       const focusable = Array.from(
         dialogElement.querySelectorAll<HTMLElement>(

@@ -927,3 +927,6 @@ export async function checkReleaseUpdate(): Promise<[string, string] | null> { r
 export async function openReleasePage(url: string): Promise<void> { return invoke("open_release_page", { url }); }
 
 export async function loggingTargets(): Promise<string[]> { return invoke<string[]>("logging_targets"); }
+
+export interface PrivateServerCheckSnapshot { failed: boolean; checks: Record<number, PrivateServerCheck>; checking: boolean; }
+export async function cachedPrivateServerChecks(): Promise<PrivateServerCheckSnapshot> { return invoke<PrivateServerCheckSnapshot>("cached_private_server_checks"); }

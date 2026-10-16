@@ -5,7 +5,7 @@
 ### Added
 
 - **Discord routing:** Save multiple named webhooks, pause delivery globally or per destination, and route each event to any combination of channels. Added optional session-expiry, launch-failure and client-exit notifications, with two-column controls and info cards.
-- **Private-server checks:** Added live link checks, owner profile details, ownership badges, refresh and stop controls, and status sorting. Profile availability, ownership and invitation availability remain separate.
+- **Private-server checks:** Added live link checks, owner profile details, ownership badges, background refresh controls, and status sorting. Profile availability, ownership and invitation availability remain separate.
 - **Account layouts:** Rearrange account sections using six-dot drag handles or Alt + Up/Down. Layouts save automatically across all accounts.
 - **Account tags:** Stack colored tags independently of groups, edit them from horizontal signposts on account rows and beside profile names, filter through the sidebar tag action, and save preset tag targets that resolve matching accounts at launch time.
 - **Multi-account selection:** Added an **All accounts** action, with consistent select/clear controls across Accounts and Inventories.
@@ -14,8 +14,9 @@
 
 ### Changed
 
-- **Compact controls:** Reduced account drag-handle spacing, overlapped tag signs, and preserved primary-button text and icon contrast while launching.
 - **Quieter logging:** Added a searchable crate checkbox menu. Selected crates use the saved log level and dependencies default to warnings; new debug configurations enable RM diagnostics without HTTP frame noise.
+- **Cached workspaces:** Visited pages retain loaded state, and private-server ownership/link badges refresh from a shared five-minute background cache with matching colors and shorter labels.
+- **Compact controls:** Reduced account drag-handle spacing, overlapped tag signs, and preserved primary-button text and icon contrast while launching.
 
 - **Presets and Private Servers:** Saved entries now lead both workspaces, with compact add forms opened from the header and preset tag guidance moved into an info card. Private-server ownership uses green, yellow, and red badges.
 - **Inventory previews:** Accounts now loads a compact two-row inventory grid with a link to the full Inventories workspace. Both pages show cache use and share inventories for 15 minutes, with Refresh fetching current ownership.

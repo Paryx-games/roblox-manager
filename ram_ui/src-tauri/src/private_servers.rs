@@ -2,7 +2,7 @@ use crate::{account_cookie, state::AppState};
 use ram_core::{api, auth::RobloxClient};
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerCheck {
     #[serde(flatten)]
@@ -48,19 +48,240 @@ fn merge_check(current: &mut api::PrivateServerCheck, result: api::PrivateServer
     }
 }
 
+#[derive(Default)]
+pub struct CheckCache {
+    entries: std::sync::Mutex<std::collections::HashMap<usize, CachedCheck>>,
+    requested: std::sync::Mutex<std::collections::HashSet<usize>>,
+    notify: tokio::sync::Notify,
+}
+
+impl CheckCache {
+    pub fn clear(&self) -> usize {
+        let mut entries = self
+            .entries
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let count = entries.len();
+        entries.clear();
+        self.requested
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.notify.notify_one();
+        count
+    }
+}
+
+struct CachedCheck {
+    identity: CheckIdentity,
+    result: Option<ServerCheck>,
+    checked_at: Option<std::time::Instant>,
+    checking: bool,
+    failed: bool,
+}
+
+#[derive(Clone, PartialEq)]
+struct CheckIdentity {
+    server: ram_core::models::PrivateServer,
+    accounts: Vec<(u64, u64, bool)>,
+}
+
+fn identities(state: &AppState) -> Vec<CheckIdentity> {
+    let Ok(runtime) = state.runtime.lock() else {
+        return Vec::new();
+    };
+    if !runtime.unlocked {
+        return Vec::new();
+    }
+    let accounts: Vec<_> = runtime
+        .accounts
+        .accounts
+        .iter()
+        .map(|account| {
+            (
+                account.user_id,
+                *runtime
+                    .credential_revisions
+                    .get(&account.user_id)
+                    .unwrap_or(&0),
+                account.cookie_expired,
+            )
+        })
+        .collect();
+    runtime
+        .config
+        .private_servers
+        .iter()
+        .map(|server| CheckIdentity {
+            server: server.clone(),
+            accounts: accounts.clone(),
+        })
+        .collect()
+}
+
+#[derive(Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckSnapshot {
+    failed: bool,
+    checks: std::collections::HashMap<usize, ServerCheck>,
+    checking: bool,
+}
+
+fn cache_snapshot(service: &CheckCache, current: &[CheckIdentity]) -> CheckSnapshot {
+    let mut cache = service
+        .entries
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    cache.retain(|index, entry| current.get(*index) == Some(&entry.identity));
+    let queued = service
+        .requested
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .iter()
+        .any(|index| *index < current.len());
+    CheckSnapshot {
+        failed: cache.values().any(|entry| entry.failed),
+        checks: cache
+            .iter()
+            .filter_map(|(index, entry)| entry.result.clone().map(|result| (*index, result)))
+            .collect(),
+        checking: queued
+            || cache.values().any(|entry| entry.checking)
+            || current
+                .iter()
+                .enumerate()
+                .any(|(index, _)| !cache.contains_key(&index)),
+    }
+}
+
+fn snapshot(state: &AppState) -> CheckSnapshot {
+    cache_snapshot(&state.private_server_checks, &identities(state))
+}
+
 #[tauri::command]
-pub async fn check_private_server(
+pub fn cached_private_server_checks(state: tauri::State<'_, AppState>) -> CheckSnapshot {
+    snapshot(state.inner())
+}
+
+#[tauri::command]
+pub fn check_private_server(
     state: tauri::State<'_, AppState>,
     index: usize,
 ) -> Result<ServerCheck, String> {
-    tokio::time::timeout(
-        std::time::Duration::from_secs(60),
-        check_private_server_inner(state.inner().clone(), index),
-    )
-    .await
-    .map_err(|_| {
-        "This server check timed out. Wait before refreshing status to retry".to_string()
-    })?
+    if identities(state.inner()).get(index).is_none() {
+        return Err("Private server not found or accounts locked".into());
+    }
+    state
+        .private_server_checks
+        .requested
+        .lock()
+        .map_err(|_| "Server checks unavailable")?
+        .insert(index);
+    state.private_server_checks.notify.notify_one();
+    Ok(snapshot(state.inner())
+        .checks
+        .remove(&index)
+        .unwrap_or_else(|| ServerCheck {
+            check: api::PrivateServerCheck::default(),
+            ownership: "unknown",
+            message: "Checking...".into(),
+        }))
+}
+
+fn publish(app: &tauri::AppHandle, state: &AppState, previous: &mut Option<CheckSnapshot>) {
+    use tauri::Emitter;
+    let next = snapshot(state);
+    if previous.as_ref() != Some(&next) {
+        let _ = app.emit("private-server-checks-updated", &next);
+        *previous = Some(next);
+    }
+}
+
+pub async fn run_background(app: tauri::AppHandle) {
+    use tauri::Manager;
+    let state = app.state::<AppState>().inner().clone();
+    let mut previous = None;
+    loop {
+        let current = identities(&state);
+        for (index, identity) in current.iter().enumerate() {
+            if identities(&state).get(index) != Some(identity) {
+                break;
+            }
+            let requested = state
+                .private_server_checks
+                .requested
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .remove(&index);
+            let due = {
+                let mut cache = state
+                    .private_server_checks
+                    .entries
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner());
+                cache.retain(|key, entry| current.get(*key) == Some(&entry.identity));
+                let entry = cache.entry(index).or_insert_with(|| CachedCheck {
+                    identity: identity.clone(),
+                    result: None,
+                    checked_at: None,
+                    checking: false,
+                    failed: false,
+                });
+                let due = requested
+                    || entry
+                        .checked_at
+                        .is_none_or(|time| time.elapsed() >= std::time::Duration::from_secs(300));
+                entry.checking = due;
+                due
+            };
+            if !due {
+                continue;
+            }
+            publish(&app, &state, &mut previous);
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(60),
+                check_private_server_inner(state.clone(), index),
+            )
+            .await;
+            if identities(&state).get(index) != Some(identity) {
+                continue;
+            }
+            {
+                let mut cache = state
+                    .private_server_checks
+                    .entries
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner());
+                if let Some(entry) = cache.get_mut(&index) {
+                    entry.checking = false;
+                    entry.checked_at = Some(std::time::Instant::now());
+                    match result {
+                        Ok(Ok(result)) => {
+                            entry.result = Some(result);
+                            entry.failed = false;
+                        }
+                        _ => {
+                            entry.failed = true;
+                            if entry.result.is_none() {
+                                entry.result = Some(ServerCheck {
+                                    check: api::PrivateServerCheck::default(),
+                                    ownership: "unknown",
+                                    message: "Check failed. Refresh to retry.".into(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            publish(&app, &state, &mut previous);
+        }
+        // Prune removed bookmarks and locked stores even when there is no work.
+        publish(&app, &state, &mut previous);
+        tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {},
+            _ = state.private_server_checks.notify.notified() => {},
+        }
+    }
 }
 
 async fn check_private_server_inner(state: AppState, index: usize) -> Result<ServerCheck, String> {
@@ -310,6 +531,88 @@ async fn check_private_server_inner(state: AppState, index: usize) -> Result<Ser
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn synthetic_identity() -> CheckIdentity {
+        CheckIdentity {
+            server: ram_core::models::PrivateServer {
+                name: "Synthetic".into(),
+                place_id: 1,
+                universe_id: None,
+                link_code: "synthetic-link".into(),
+                access_code: String::new(),
+                place_name: String::new(),
+            },
+            accounts: vec![(10, 1, false)],
+        }
+    }
+
+    #[test]
+    fn cached_badges_survive_refresh_and_invalidate_on_identity_changes() {
+        let service = CheckCache::default();
+        let identity = synthetic_identity();
+        service.entries.lock().unwrap().insert(
+            0,
+            CachedCheck {
+                identity: identity.clone(),
+                checked_at: Some(std::time::Instant::now()),
+                checking: false,
+                failed: false,
+                result: Some(ServerCheck {
+                    check: api::PrivateServerCheck {
+                        status: "valid",
+                        ..Default::default()
+                    },
+                    ownership: "not-owned",
+                    message: "Synthetic".into(),
+                }),
+            },
+        );
+        let cached = cache_snapshot(&service, std::slice::from_ref(&identity));
+        assert!(!cached.checking);
+        assert_eq!(cached.checks[&0].check.status, "valid");
+        assert_eq!(cached.checks[&0].ownership, "not-owned");
+        service.requested.lock().unwrap().insert(0);
+        let refreshing = cache_snapshot(&service, std::slice::from_ref(&identity));
+        assert!(refreshing.checking);
+        assert_eq!(refreshing.checks.len(), 1);
+        let mut changed = identity.clone();
+        changed.accounts[0].1 += 1;
+        assert!(cache_snapshot(&service, &[changed]).checks.is_empty());
+        service.entries.lock().unwrap().insert(
+            0,
+            CachedCheck {
+                identity: identity.clone(),
+                result: None,
+                checked_at: None,
+                checking: false,
+                failed: false,
+            },
+        );
+        let mut edited = identity;
+        edited.server.link_code = "another-synthetic-link".into();
+        assert!(cache_snapshot(&service, &[edited]).checks.is_empty());
+        assert!(!cache_snapshot(&service, &[]).checking);
+        assert!(service.entries.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn clearing_checks_drops_results_and_queued_refreshes() {
+        let service = CheckCache::default();
+        service.entries.lock().unwrap().insert(
+            0,
+            CachedCheck {
+                identity: synthetic_identity(),
+                result: None,
+                checked_at: None,
+                checking: true,
+                failed: false,
+            },
+        );
+        service.requested.lock().unwrap().insert(0);
+        assert_eq!(service.clear(), 1);
+        assert!(service.entries.lock().unwrap().is_empty());
+        assert!(service.requested.lock().unwrap().is_empty());
+    }
+
     #[test]
     fn later_owner_metadata_is_retained_even_for_an_inactive_owned_server() {
         let mut current = api::PrivateServerCheck {

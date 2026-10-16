@@ -28,7 +28,7 @@ Search or sort saved servers by name, recency or status. The row's menu offers l
 
 ## Check links and ownership
 
-The page checks saved links with available managed accounts when it opens. Choose **Refresh status** to reload bookmarks and retry checks, or use **Check link and ownership** in one row's menu. **Stop checking** stops queued checks; an in-progress request may still finish.
+RM checks saved links in the background after accounts unlock, even while another page is open. Both badges use a memory cache for five minutes and keep their previous values during refresh. Choose **Refresh status** to queue fresh checks, or use **Check link and ownership** in one row's menu. Checks run one at a time and time out after 60 seconds per server. Account or bookmark changes invalidate cached results; locking or clearing application caches removes them. Results are discarded when RM exits.
 
 The **left shield** shows ownership across saved accounts: **green** means at least one saved account owns the server, **red** means none owns it, and **yellow** means ownership is being checked or could not be fully verified. A red result requires either a returned owner ID that is not saved in RM, or complete owned-server checks for every saved account. Expired or unavailable accounts keep an otherwise inconclusive result yellow. Failed authentication, rate limits, missing fields and incomplete pagination do not count as proof of non-ownership.
 
@@ -40,7 +40,7 @@ RM checks the accessible-server list for every working account, since another ac
 
 Each bookmark check has a 60-second limit, including Roblox retries, so an unavailable service cannot hold up the queue indefinitely. A timeout reports a retryable failed check; it does not establish non-ownership.
 
-The owner text distinguishes **Owner not listed for these accounts**, **Owner lookup rate-limited**, **Owner lookup failed**, and **Owner lookup incomplete**. Hover over the text or shield for details. Profiles require an owner ID returned by Roblox. A shared invitation can work even when it is absent from every checked account's accessible-server metadata; its owner's username remains unavailable in that case. Wait before retrying rate limits, and use **Refresh status** to retry failed or incomplete requests.
+The owner text shows **Owner unknown**, **Owner check limited**, or **Owner check failed** when a profile is unavailable. Hover over the text or shield for details. Profiles require an owner ID returned by Roblox. A shared invitation can work even when it is absent from every checked account's accessible-server metadata; its owner's username remains unavailable in that case. Wait before retrying rate limits, and use **Refresh status** to retry failed or incomplete requests.
 
 {% hint style="warning" %}
 Treat private-server links and access codes as private invitations. Do not post them in issues, screenshots, commits, or chat logs.

@@ -1,15 +1,18 @@
+import { useAccountUpdates } from "./hooks/useAccountUpdates";
+import { listen } from "@tauri-apps/api/event";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   addPrivateServer,
   checkPrivateServer,
+  cachedPrivateServerChecks,
+  type PrivateServerCheckSnapshot,
   type PrivateServerCheck,
   listAccounts,
   launchPrivateServer,
   listPrivateServers,
   removePrivateServer,
   updatePrivateServer,
-  operationError,
   type AccountSummary,
   type PrivateServerSummary,
 } from "./lib/ipc";
@@ -20,7 +23,7 @@ import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
 import Select from "./components/Select";
 import { InfoTip } from "./components/InfoTip";
-import { privateServerAvailabilityLabel, privateServerOwnershipLabel, privateServerOwnerLabel, runPrivateServerChecks } from "./lib/privateServerChecks";
+import { privateServerAvailabilityLabel, privateServerOwnershipLabel, privateServerOwnerLabel } from "./lib/privateServerChecks";
 
 type OwnershipStatus = "owned" | "unknown" | "not-owned";
 
@@ -38,8 +41,8 @@ function OwnershipBadge({
       icon: "shield-check",
       label: `Owned by ${accountName ?? "one of your accounts"}`,
     },
-    unknown: { icon: "shield-question-mark", label: "Ownership unverified" },
-    "not-owned": { icon: "shield-x", label: "None of your saved accounts owns this server" },
+    unknown: { icon: "shield-question-mark", label: "Owner unknown" },
+    "not-owned": { icon: "shield-x", label: "Not owned by your accounts" },
   }[status];
 
   return (
@@ -74,6 +77,7 @@ export function PrivateServersPage({
   const [descending, setDescending] = useState(false);
   const [checks, setChecks] = useState<Record<number, PrivateServerCheck>>({});
   const [checking, setChecking] = useState(false);
+  const [checkFailed, setCheckFailed] = useState(false);
   const checkVersion = useRef(0);
   const mounted = useRef(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -100,6 +104,8 @@ export function PrivateServersPage({
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuPlacement, setMenuPlacement] = useState("");
   const addSectionRef = useRef<HTMLElement>(null);
+
+  useAccountUpdates(setAccounts, () => setError("Live account updates disconnected. Restart RM to reconnect."));
 
   useEffect(() => {
     if (openMenu === null) return;
@@ -143,8 +149,10 @@ export function PrivateServersPage({
       const loaded = await listPrivateServers();
       if (!mounted.current || checkVersion.current !== version) return;
       setServers(loaded);
-      setChecks({});
-      void validateServers(loaded);
+      const cached = await cachedPrivateServerChecks();
+      if (!mounted.current || checkVersion.current !== version) return;
+      setChecks(cached.checks);
+      setChecking(cached.checking); setCheckFailed(cached.failed);
       setError(null);
     } catch {
       if (mounted.current && checkVersion.current === version) setError("Saved private-server bookmarks could not be loaded. Use Refresh status to retry; saved bookmarks were not changed.");
@@ -153,33 +161,29 @@ export function PrivateServersPage({
     }
   }
   async function validateServers(targets: PrivateServerSummary[]) {
-    const version = ++checkVersion.current;
     setChecking(true);
     setError(null);
-    setChecks(current => Object.fromEntries(Object.entries(current).filter(([index]) => !targets.some(target => target.index === Number(index)))));
-    let failures = 0;
     try {
-      await runPrivateServerChecks(targets, checkPrivateServer, {
-        isCurrent: () => checkVersion.current === version,
-        onResult: (index, result) => setChecks(current => ({ ...current, [index]: result })),
-        onError: (index, reason) => {
-          failures += 1;
-          const message = operationError(reason, "This server could not be checked. Refresh status to retry.");
-          setChecks(current => ({ ...current, [index]: { status: "unknown", ownership: "unknown", ownerId: null, ownerUsername: null, ownerLookup: "unavailable", message } }));
-          setError(`${failures} server ${failures === 1 ? "check failed" : "checks failed"}. Other bookmarks are still checked. Refresh status to retry.`);
-        },
-      });
-    } finally { if (checkVersion.current === version) setChecking(false); }
+      for (const target of targets) await checkPrivateServer(target.index);
+      const cached = await cachedPrivateServerChecks();
+      if (mounted.current) { setChecks(cached.checks); setChecking(cached.checking); setCheckFailed(cached.failed); }
+    } catch {
+      if (mounted.current) { setError("Status refresh could not start. Try again."); setChecking(false); }
+    }
   }
   useEffect(() => {
     mounted.current = true;
     let active = true;
+    const subscription = listen<PrivateServerCheckSnapshot>("private-server-checks-updated", event => {
+      if (active) { setChecks(event.payload.checks); setChecking(event.payload.checking); setCheckFailed(event.payload.failed); }
+    });
+    void subscription.catch(() => { if (active) setError("Live server updates disconnected. Restart RM to reconnect."); });
     void reload();
     void listAccounts()
       .then(accounts => { if (active) setAccounts(accounts); })
       .catch(() => { if (active) { setAccounts([]); setError("Accounts could not be loaded. Open Accounts, refresh them, then reopen Private Servers."); } })
       .finally(() => { if (active) setIsAccountsLoading(false); });
-    return () => { active = false; mounted.current = false; checkVersion.current += 1; };
+    return () => { active = false; mounted.current = false; checkVersion.current += 1; void subscription.then(unlisten => unlisten()).catch(() => {}); };
   }, []);
   const groups = useMemo(() => {
     const map = new Map<number, PrivateServerSummary[]>();
@@ -402,12 +406,10 @@ export function PrivateServersPage({
         >
           <div className="preset-card-head">
             <h2 id="saved-private-servers">Saved private servers ({servers.length}) <InfoTip text="Left shield: green if any saved account owns the server, red if none do after complete checks, and yellow while checking or if ownership is unknown. Right icon: green if the invitation resolves, red if it is inactive or invalid, and yellow if availability is unknown. Roblox checks each selected account's join access when launching." /></h2>
-            <button className="account-button" type="button" disabled={loading || saving || deleting || editSaving} onClick={() => {
-              if (checking) { checkVersion.current += 1; setChecking(false); }
-              else void reload();
-            }}><Icon name={checking ? "close" : "refresh"} />{checking ? "Stop checking" : "Refresh status"}</button>
+            <button className="account-button" type="button" disabled={checking || loading || saving || deleting || editSaving} onClick={() => { if (!servers.length) void reload(); else void validateServers(servers); }}><Icon name="refresh" />Refresh status</button>
           </div>
-          {checking && <p className="common-inventory-summary" role="status">Checking links and ownership with Roblox...</p>}
+          {checking && <p className="common-inventory-summary" role="status">Refreshing server status...</p>}
+          {checkFailed && <p className="private-server-error" role="alert">Some checks failed. Last known results are shown. Refresh to retry.</p>}
           {error && (
             <p className="private-server-error" role="alert">
               {error}

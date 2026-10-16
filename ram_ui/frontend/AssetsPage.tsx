@@ -1,3 +1,4 @@
+import { useAccountUpdates } from "./hooks/useAccountUpdates";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -147,6 +148,11 @@ export function AssetsPage({
     },
     [],
   );
+
+  useAccountUpdates(updated => {
+    setAccounts(updated);
+    setSelectedUserId(current => updated.some(account => account.userId === current) ? current : null);
+  }, () => notify("Live updates disconnected", "Restart RM to reconnect."));
 
   useEffect(() => {
     isMounted.current = true;

@@ -1,3 +1,4 @@
+import { WorkspaceActiveContext } from "./hooks/useWorkspaceActive";
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { InstancesPage } from "./InstancesPage";
@@ -126,6 +127,8 @@ export function App() {
   }, [actionsOpen]);
   const [activeNav, setActiveNav] = useState<PageName>("Accounts");
   const displayedNav = activeNav;
+  const [visitedPages, setVisitedPages] = useState<PageName[]>(["Accounts"]);
+  useEffect(() => { setVisitedPages(pages => pages.includes(activeNav) ? pages : [...pages, activeNav]); }, [activeNav]);
   const settingsGuardRef = useRef<SettingsNavigationGuard | null>(null);
   const [pendingNavigation, setPendingNavigation] = useState<PageName | null>(null);
   const [isNavigationSaving, setIsNavigationSaving] = useState(false);
@@ -535,12 +538,11 @@ export function App() {
 
         <div className="main-col" data-walkthrough="workspace">
           <div className="page-transition-viewport">
-            <div
-              key={displayedNav}
-              className="page-transition-layer"
-            >
-              {renderPage(displayedNav)}
-            </div>
+            {[...new Set([...visitedPages, displayedNav])].map(page => (
+              <WorkspaceActiveContext.Provider key={page} value={page === displayedNav}><div className="page-transition-layer" hidden={page !== displayedNav}>
+                {renderPage(page)}
+              </div></WorkspaceActiveContext.Provider>
+            ))}
             <span className="sr-only" aria-live="polite">{displayedNav} page</span>
           </div>
         </div>

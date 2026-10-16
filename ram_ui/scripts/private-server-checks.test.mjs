@@ -25,10 +25,10 @@ test("cancelled and stale bookmark requests never replace current results", asyn
 });
 
 test("owner labels distinguish absent metadata from failed requests", () => {
-  assert.equal(privateServerOwnerLabel({ ownerLookup: "notListed" }, false), "Owner not listed for these accounts");
-  assert.equal(privateServerOwnerLabel({ ownerLookup: "rateLimited" }, false), "Owner lookup rate-limited");
-  assert.equal(privateServerOwnerLabel({ ownerLookup: "unavailable" }, false), "Owner lookup failed");
-  assert.equal(privateServerOwnerLabel({ ownerLookup: "incomplete" }, false), "Owner lookup incomplete");
+  assert.equal(privateServerOwnerLabel({ ownerLookup: "notListed" }, false), "Owner unknown");
+  assert.equal(privateServerOwnerLabel({ ownerLookup: "rateLimited" }, false), "Owner check limited");
+  assert.equal(privateServerOwnerLabel({ ownerLookup: "unavailable" }, false), "Owner check failed");
+  assert.equal(privateServerOwnerLabel({ ownerLookup: "incomplete" }, false), "Owner unknown");
 });
 
 test("ownership and availability indicators describe independent states", () => {
@@ -36,8 +36,8 @@ test("ownership and availability indicators describe independent states", () => 
   assert.equal(privateServerOwnershipLabel(ownedInactive, false), "Owned by SyntheticOwner");
   assert.match(privateServerAvailabilityLabel(ownedInactive, false), /inactive or invalid/);
   const sharedActive = { ownership: "not-owned", status: "valid", ownerLookup: "rateLimited" };
-  assert.match(privateServerOwnershipLabel(sharedActive, false), /None of your saved accounts/);
-  assert.match(privateServerAvailabilityLabel(sharedActive, false), /Invitation resolves/);
-  assert.match(privateServerOwnershipLabel(undefined, true), /Checking whether any saved account/);
-  assert.match(privateServerAvailabilityLabel(undefined, true), /Checking server availability/);
+  assert.match(privateServerOwnershipLabel(sharedActive, false), /Not owned by your accounts/);
+  assert.match(privateServerAvailabilityLabel(sharedActive, false), /Link active/);
+  assert.match(privateServerOwnershipLabel(undefined, true), /Checking owner/);
+  assert.match(privateServerAvailabilityLabel(undefined, true), /Checking link/);
 });

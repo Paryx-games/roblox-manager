@@ -288,4 +288,4 @@ that every existing page satisfies every accessibility or interaction
 requirement. For new visual patterns not covered here, discuss the approach
 before implementation as required by AGENTS.md.
 
-Primary buttons keep `--text-on-action` contrast for text and icons, including pending/disabled states.
+Visited workspaces keep their mounted state when hidden. Hidden overlays and page shortcuts must not intercept input. Primary buttons keep `--text-on-action` contrast for text and icons, including pending/disabled states. Both private-server indicators use the ownership palette consistently: green for confirmed, yellow for unknown, and red for negative results.

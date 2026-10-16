@@ -1013,6 +1013,7 @@ async fn unlock_device(
     .await
     .map_err(|_| "Device unlock task failed".to_string())??;
     app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().private_server_checks.clear();
     app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(status)
@@ -1052,6 +1053,7 @@ async fn create_device_store(
     .await
     .map_err(|_| "Device store task failed".to_string())??;
     app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().private_server_checks.clear();
     app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(status)
@@ -1097,6 +1099,7 @@ async fn unlock_password(
     runtime.session = Some(session);
     runtime.unlocked = true;
     app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().private_server_checks.clear();
     app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(StoreStatus {
@@ -1743,11 +1746,10 @@ async fn clean_orphaned_data(state: tauri::State<'_, AppState>) -> Result<usize,
 
 #[tauri::command]
 fn clear_application_caches(state: tauri::State<'_, AppState>) -> Result<usize, String> {
-    Ok(
-        ram_core::cached_api::clear()
-            + state.inventory_cache.clear()
-            + state.presence_cache.clear(),
-    )
+    Ok(ram_core::cached_api::clear()
+        + state.private_server_checks.clear()
+        + state.inventory_cache.clear()
+        + state.presence_cache.clear())
 }
 
 #[tauri::command]
@@ -3583,6 +3585,7 @@ fn main() {
             launch_account,
             list_private_servers,
             private_servers::check_private_server,
+            private_servers::cached_private_server_checks,
             add_private_server,
             remove_private_server,
             rename_private_server,

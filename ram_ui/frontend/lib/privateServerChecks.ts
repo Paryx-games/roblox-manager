@@ -25,23 +25,23 @@ export async function runPrivateServerChecks(
 export function privateServerOwnerLabel(check: PrivateServerCheck | undefined, checking: boolean): string {
   if (!check) return checking ? "Checking owner..." : "Owner not checked";
   switch (check.ownerLookup) {
-    case "rateLimited": return "Owner lookup rate-limited";
-    case "unavailable": return "Owner lookup failed";
-    case "incomplete": return "Owner lookup incomplete";
-    case "notListed": return "Owner not listed for these accounts";
+    case "rateLimited": return "Owner check limited";
+    case "unavailable": return "Owner check failed";
+    case "incomplete": return "Owner unknown";
+    case "notListed": return "Owner unknown";
     case "notChecked": return "Owner not checked";
-    default: return "Owner profile unavailable";
+    default: return "Owner unknown";
   }
 }
 
 export function privateServerAvailabilityLabel(check: PrivateServerCheck | undefined, checking: boolean): string {
-  if (check?.status === "valid") return "Invitation resolves. Roblox checks each selected account's join access when launching.";
-  if (check?.status === "invalid") return "Private-server invitation is inactive or invalid.";
-  return checking && !check ? "Checking server availability..." : "Server availability could not be verified. Refresh status to retry.";
+  if (check?.status === "valid") return "Link active. Join access is checked at launch.";
+  if (check?.status === "invalid") return "Link inactive or invalid.";
+  return checking && !check ? "Checking link..." : "Link unknown. Refresh to retry.";
 }
 
 export function privateServerOwnershipLabel(check: PrivateServerCheck | undefined, checking: boolean): string {
   if (check?.ownership === "owned") return `Owned by ${check.ownerUsername ?? "one of your saved accounts"}`;
-  if (check?.ownership === "not-owned") return "None of your saved accounts owns this server.";
-  return checking && !check ? "Checking whether any saved account owns this server..." : "Ownership could not be verified for every saved account. Refresh accounts and retry.";
+  if (check?.ownership === "not-owned") return "Not owned by your accounts.";
+  return checking && !check ? "Checking owner..." : "Owner unknown. Refresh to retry.";
 }

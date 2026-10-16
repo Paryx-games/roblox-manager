@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { Popup } from "./components/Popup";
 
 type ConfirmModalProps = {
@@ -33,6 +33,8 @@ export function ConfirmModal({
   confirmIcon = "delete",
   busy = false,
 }: ConfirmModalProps) {
+  const titleId = useId();
+  const messageId = useId();
   return (
     <Popup
       className="confirm-modal"
@@ -40,12 +42,12 @@ export function ConfirmModal({
       onClose={onCancel}
       closeOnBackdrop
       role="alertdialog"
-      labelledBy="confirm-modal-title"
-      describedBy="confirm-modal-message"
+      labelledBy={titleId}
+      describedBy={messageId}
       busy={busy}
     >
         <div className="confirm-modal-header">
-          <h2 id="confirm-modal-title">{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           <button
             className="icon-button"
             type="button"
@@ -57,7 +59,7 @@ export function ConfirmModal({
             <ModalIcon name="close" />
           </button>
         </div>
-        <div id="confirm-modal-message" className="confirm-modal-message">
+        <div id={messageId} className="confirm-modal-message">
           {message}
         </div>
         <div className="confirm-modal-actions">

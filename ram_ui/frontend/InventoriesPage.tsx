@@ -1,3 +1,4 @@
+import { useAccountUpdates } from "./hooks/useAccountUpdates";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { AccountAvatar } from "./components/AccountAvatar";
@@ -110,6 +111,15 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const animationFrameRef = useRef<number | null>(null);
   const suppressClickRef = useRef(false);
   const copyTimeoutRef = useRef<number | null>(null);
+
+  useAccountUpdates(updated => {
+    setAccounts(updated);
+    setAccountIds(current => {
+      const available = new Set(updated.map(account => account.userId));
+      const retained = [...current].filter(id => available.has(id));
+      return retained.length === current.size ? current : new Set(retained);
+    });
+  }, () => setError("Live account updates disconnected. Restart RM to reconnect."));
 
   useEffect(() => {
     if (!isFilterSidebarCollapsed && shouldFocusSidebarSearch) {
