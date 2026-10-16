@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Server IDs:** Added a Job ID column to Instances and included confirmed public Job IDs in applicable Discord notifications. Unknown, stale and ambiguous server IDs are omitted from notifications.
+
 - **Discord routing:** Save multiple named webhooks, pause delivery globally or per destination, and route each event to any combination of channels. Added optional session-expiry, launch-failure and client-exit notifications, with two-column controls and info cards.
 - **Private-server checks:** Added live link checks, owner profile details, ownership badges, background refresh controls, and status sorting. Profile availability, ownership and invitation availability remain separate.
 - **Account layouts:** Rearrange account sections using six-dot drag handles or Alt + Up/Down. Layouts save automatically across all accounts.

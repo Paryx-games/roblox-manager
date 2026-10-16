@@ -535,16 +535,28 @@ pub async fn run(app: tauri::AppHandle) {
     }
 }
 
-pub fn session_expired(app: &tauri::AppHandle, label: &str) {
-    dispatch(app, Event::SessionExpired, payload("Account session expired", &format!("**Account:** {}\n\nRoblox rejected this account's saved login during verification. Log in again from Accounts.", safe_label(label))));
+fn job_detail(job_id: Option<&str>) -> String {
+    ram_core::instances::normalize_job_id(job_id)
+        .map(|job| format!("\n**Job ID:** `{job}`"))
+        .unwrap_or_default()
 }
 
-pub fn launch_failed(app: &tauri::AppHandle, user_id: u64, place_id: u64) {
-    dispatch(app, Event::LaunchFailed, payload("Launch request failed", &format!("**Account ID:** {user_id}\n**Place ID:** {place_id}\n\nRM could not complete this launch request. Check Accounts and Instances before retrying.")));
+fn account_server_detail(app: &tauri::AppHandle, user_id: u64) -> String {
+    crate::instances::account_server(&app.state::<AppState>(), user_id)
+        .map(|(place, job)| format!("\n**Place ID:** {place}{}", job_detail(Some(&job))))
+        .unwrap_or_default()
 }
 
-pub fn client_exited(app: &tauri::AppHandle, user_id: u64, place_id: u64) {
-    dispatch(app, Event::ClientExited, payload("Roblox client exited", &format!("**Account ID:** {user_id}\n**Place ID:** {place_id}\n\nAn exactly attributed Roblox client has exited. This includes clients closed manually; it does not confirm a crash.")));
+pub fn session_expired(app: &tauri::AppHandle, user_id: u64, label: &str) {
+    dispatch(app, Event::SessionExpired, payload("Account session expired", &format!("**Account:** {}{}\n\nRoblox rejected this account's saved login during verification. Log in again from Accounts.", safe_label(label), account_server_detail(app, user_id))));
+}
+
+pub fn launch_failed(app: &tauri::AppHandle, user_id: u64, place_id: u64, job_id: Option<&str>) {
+    dispatch(app, Event::LaunchFailed, payload("Launch request failed", &format!("**Account ID:** {user_id}\n**Place ID:** {place_id}{}\n\nRM could not complete this launch request. Check Accounts and Instances before retrying.", job_detail(job_id))));
+}
+
+pub fn client_exited(app: &tauri::AppHandle, user_id: u64, place_id: u64, job_id: Option<&str>) {
+    dispatch(app, Event::ClientExited, payload("Roblox client exited", &format!("**Account ID:** {user_id}\n**Place ID:** {place_id}{}\n\nAn exactly attributed Roblox client has exited. This includes clients closed manually; it does not confirm a crash.", job_detail(job_id))));
 }
 
 pub fn moderation_changed(
@@ -561,16 +573,22 @@ pub fn moderation_changed(
     })
 }
 
-pub fn moderation(app: &tauri::AppHandle, label: &str) {
-    dispatch(app, Event::ModerationDetected, payload("Moderation detected", &format!("**Account:** {}\n\nRoblox reported a new or changed account restriction. Open the account on Roblox to review the moderation notice.", safe_label(label))));
+pub fn moderation(app: &tauri::AppHandle, user_id: u64, label: &str) {
+    dispatch(app, Event::ModerationDetected, payload("Moderation detected", &format!("**Account:** {}{}\n\nRoblox reported a new or changed account restriction. Open the account on Roblox to review the moderation notice.", safe_label(label), account_server_detail(app, user_id))));
 }
 
-pub fn batch_finished(app: &tauri::AppHandle, total: usize, completed: usize, place_id: u64) {
+pub fn batch_finished(
+    app: &tauri::AppHandle,
+    total: usize,
+    completed: usize,
+    place_id: u64,
+    job_id: Option<&str>,
+) {
     if total < 2 {
         return;
     }
     let stopped = completed < total;
-    let detail = format!("**Place ID:** {place_id}\n**Launch requests completed:** {completed} / {total}\n**Failed:** {}\n**Not attempted:** {}\n\n{}", usize::from(stopped), total.saturating_sub(completed + usize::from(stopped)),
+    let detail = format!("**Place ID:** {place_id}{}\n**Launch requests completed:** {completed} / {total}\n**Failed:** {}\n**Not attempted:** {}\n\n{}", job_detail(job_id), usize::from(stopped), total.saturating_sub(completed + usize::from(stopped)),
         if stopped { "The batch stopped after a launch failure. Check RM before retrying." } else { "All launch requests finished. Roblox clients may still be starting or connecting; check Instances." });
     dispatch(
         app,
@@ -589,6 +607,29 @@ pub fn batch_finished(app: &tauri::AppHandle, total: usize, completed: usize, pl
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn notification_job_details_include_only_normalized_public_server_ids() {
+        let job = "12345678-ABCD-4234-8234-123456789ABC";
+        let detail = job_detail(Some(job));
+        assert_eq!(
+            detail,
+            "\n**Job ID:** `12345678-abcd-4234-8234-123456789abc`"
+        );
+        let notification = payload("Synthetic event", &format!("Place ID: 10{detail}"));
+        assert!(notification
+            .to_string()
+            .contains("12345678-abcd-4234-8234-123456789abc"));
+        for value in [
+            None,
+            Some(""),
+            Some("synthetic-private-link"),
+            Some("@everyone"),
+            Some("00000000-0000-0000-0000-000000000000"),
+        ] {
+            assert!(job_detail(value).is_empty());
+        }
+    }
+
     #[test]
     fn legacy_preferences_preserve_events_and_disable_new_events() {
         let settings: NotificationSettings =

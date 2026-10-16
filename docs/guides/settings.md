@@ -67,6 +67,8 @@ Event controls and destinations use two columns where space permits. Enable an e
 
 Moderation and batch-launch events keep their existing defaults. **Account session expired**, **Launch request failed** and **Roblox client exited** start disabled. Expiry only fires on a new rejection during account verification. Client exits require exact attribution and include manually closed clients; they do not prove a crash. Info cards beside each option explain when it fires. RM must be running. Delivery uses a bounded in-memory queue and does not retry lost events after restart.
 
+Notifications include a **Job ID** when RM can confirm one. Launch failures include the requested public server ID; batches include it when every request targets that same server. Client exits include the Job ID from the last confirmed instance snapshot when available. Moderation and expiry events include server details when exactly one confirmed client is tracked for the account. Unknown values and private-server invitation/access codes are omitted.
+
 The existing webhook is retained as **Primary webhook**. Routing metadata is saved atomically alongside notification preferences, while every URL stays in its own credential entry. Older RM versions may reject the expanded preferences file and do not support extra destinations; retain the previous preferences backup before downgrading.
 
 ## Custom arguments and FastFlags

@@ -550,8 +550,8 @@
 .instance-details {
   display: grid;
   min-width: 0;
-  flex: 1 1 280px;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
+  flex: 1 1 380px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.5fr);
   gap: var(--space-3);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
@@ -561,6 +561,10 @@
   display: grid;
   gap: var(--space-1);
   overflow-wrap: anywhere;
+}
+
+.instance-job > span:last-child {
+  user-select: text;
 }
 
 .instance-details > span > span:first-child {

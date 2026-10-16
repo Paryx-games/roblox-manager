@@ -85,7 +85,12 @@ async fn launch_impl(
     progress(app, &request_id, request.user_id, "waiting");
     let result = launch_queued(app, &request_id, &request, startup).await;
     if result.is_err() {
-        crate::discord::launch_failed(app, request.user_id, request.place_id);
+        crate::discord::launch_failed(
+            app,
+            request.user_id,
+            request.place_id,
+            request.job_id.as_deref(),
+        );
     }
     progress(
         app,
@@ -100,19 +105,33 @@ async fn launch_impl(
     result
 }
 
+fn common_job_id(requests: &[LaunchRequest]) -> Option<String> {
+    let first = requests.first()?;
+    let job = ram_core::instances::normalize_job_id(first.job_id.as_deref())?;
+    requests
+        .iter()
+        .all(|request| {
+            request.place_id == first.place_id
+                && ram_core::instances::normalize_job_id(request.job_id.as_deref()).as_ref()
+                    == Some(&job)
+        })
+        .then_some(job)
+}
+
 pub async fn batch(app: &tauri::AppHandle, requests: Vec<LaunchRequest>) -> Result<(), String> {
     let total = requests.len();
     let place_id = requests
         .first()
         .map(|request| request.place_id)
         .unwrap_or(0);
+    let job_id = common_job_id(&requests);
     for (completed, request) in requests.into_iter().enumerate() {
         if let Err(error) = launch(app, request).await {
-            crate::discord::batch_finished(app, total, completed, place_id);
+            crate::discord::batch_finished(app, total, completed, place_id, job_id.as_deref());
             return Err(error);
         }
     }
-    crate::discord::batch_finished(app, total, total, place_id);
+    crate::discord::batch_finished(app, total, total, place_id, job_id.as_deref());
     Ok(())
 }
 
@@ -332,6 +351,34 @@ async fn launch_queued(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn batch_job_ids_are_included_only_for_a_shared_explicit_destination() {
+        let request = |job: Option<&str>| LaunchRequest {
+            user_id: 1,
+            place_id: 2,
+            job_id: job.map(str::to_owned),
+            data: None,
+            link_code: None,
+            access_code: None,
+        };
+        let job = "12345678-1234-4234-8234-123456789abc";
+        assert_eq!(
+            common_job_id(&[request(Some(job)), request(Some(job))]).as_deref(),
+            Some(job)
+        );
+        assert!(common_job_id(&[]).is_none());
+        assert!(common_job_id(&[request(Some(job)), request(None)]).is_none());
+        assert!(common_job_id(&[
+            request(Some(job)),
+            request(Some("87654321-1234-4234-8234-123456789abc"))
+        ])
+        .is_none());
+        let mut private = request(None);
+        private.access_code = Some(job.into());
+        private.link_code = Some("synthetic-invitation".into());
+        assert!(common_job_id(&[private]).is_none());
+    }
 
     #[test]
     fn spacing_preserves_the_tray_cleanup_window() {

@@ -54,6 +54,12 @@ use std::collections::{HashSet, VecDeque};
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 
+/// Normalize a public Job ID supplied by a server-specific source.
+pub fn normalize_job_id(value: Option<&str>) -> Option<String> {
+    let parsed = uuid::Uuid::parse_str(value?.trim()).ok()?;
+    (!parsed.is_nil()).then(|| parsed.hyphenated().to_string())
+}
+
 /// How long a launch stays eligible for the appearance-order *fallback*.
 ///
 /// Generous on purpose. A cold Roblox start on a slow disk, with the
@@ -491,6 +497,23 @@ mod tests {
     }
 
     /// A client whose command line RM could read and which carries `token`.
+    #[test]
+    fn job_ids_are_normalized_and_invalid_values_are_omitted() {
+        assert_eq!(
+            normalize_job_id(Some(" 12345678-ABCD-4234-8234-123456789ABC ")).as_deref(),
+            Some("12345678-abcd-4234-8234-123456789abc")
+        );
+        for value in [
+            None,
+            Some(""),
+            Some("not-a-job"),
+            Some("00000000-0000-0000-0000-000000000000"),
+            Some("@everyone\nprivateServerLinkCode=synthetic"),
+        ] {
+            assert!(normalize_job_id(value).is_none());
+        }
+    }
+
     fn tagged(pid: u32, token: i64) -> LiveClient {
         LiveClient {
             pid,

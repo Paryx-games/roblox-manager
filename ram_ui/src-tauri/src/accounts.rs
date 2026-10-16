@@ -474,10 +474,10 @@ pub async fn refresh(
             publish(app);
             if let Some((moderation, expired)) = moderation_notice {
                 if let Some(label) = moderation {
-                    crate::discord::moderation(app, &label);
+                    crate::discord::moderation(app, user_id, &label);
                 }
                 if let Some(label) = expired {
-                    crate::discord::session_expired(app, &label);
+                    crate::discord::session_expired(app, user_id, &label);
                 }
             }
         }

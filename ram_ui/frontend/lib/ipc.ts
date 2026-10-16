@@ -865,6 +865,7 @@ export interface InstanceSummary {
   userId: number | null;
   label: string;
   placeId: number | null;
+  jobId: string | null;
   attribution: "exact" | "inferred" | "unmatched";
   launchedAt: string | null;
 }

@@ -9,13 +9,15 @@ Open **Instances** to see running Roblox clients, including clients that Roblox 
 
 ## Understand the rows
 
-Each row shows the account, process ID (PID), Place ID, match type, launch time and available actions. Unknown values mean RM has not established that information.
+Each row shows the account, process ID (PID), Place ID, Job ID, match type, launch time and available actions. Unknown values mean RM has not established that information.
 
 | Match | Meaning | Individual Close |
 | --- | --- | --- |
 | Exact | A launch token in the client's process command line identifies the managed launch. | Available, with confirmation and a further process check. |
 | Inferred | Estimated from launch order rather than a verified token. | Disabled. |
 | Unmatched | The client's account could not be identified. | Disabled. |
+
+The **Job ID** column shows the public server ID from a recent presence response. It requires an exact account match, one tracked client for that account, the same Place ID, and a presence check started after launch. Presence older than 30 seconds is treated as stale. Unknown, stale or ambiguous server IDs stay **Unknown**. No extra Roblox requests are made for this column.
 
 An inferred match is a guess. An unmatched row is not evidence that the account's credentials are invalid.
 
