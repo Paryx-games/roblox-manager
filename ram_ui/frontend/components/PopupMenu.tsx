@@ -42,6 +42,7 @@ export function PopupMenu({ children, className, style, menuRef, onKeyDown, onCl
       onKeyDown={(event) => {
         onKeyDown?.(event);
         if (event.defaultPrevented) return;
+        if (event.target instanceof HTMLInputElement && ["Home", "End", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
         if (event.key === "Tab") {
           onClose();
           return;

@@ -125,10 +125,34 @@ impl<W: Write> Write for LevelColorWriter<W> {
     }
 }
 
-fn logging_filter(level: LogLevel, override_filter: Option<&str>) -> EnvFilter {
+#[tauri::command]
+fn logging_targets() -> Vec<String> {
+    include_str!("../../../Cargo.lock")
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("name = \"")
+                .and_then(|value| value.strip_suffix('"'))
+        })
+        .map(|name| name.replace('-', "_"))
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn target_filter(level: LogLevel, targets: &[String], override_filter: Option<&str>) -> EnvFilter {
+    let available = logging_targets();
+    let directives = std::iter::once("warn".to_string())
+        .chain(
+            targets
+                .iter()
+                .filter(|target| available.contains(target))
+                .map(|target| format!("{target}={}", level.clamp_for_profile().filter_string())),
+        )
+        .collect::<Vec<_>>()
+        .join(",");
     override_filter
         .and_then(|value| EnvFilter::try_new(value).ok())
-        .unwrap_or_else(|| EnvFilter::new(level.clamp_for_profile().filter_string()))
+        .unwrap_or_else(|| EnvFilter::new(directives))
 }
 
 impl<'a, M: MakeWriter<'a>> MakeWriter<'a> for Scrubbed<M> {
@@ -181,9 +205,9 @@ impl<W: Write> Drop for ScrubbingWriter<W> {
     }
 }
 
-fn init_logging(level: LogLevel) {
+fn init_logging(level: LogLevel, targets: &[String]) {
     let override_filter = std::env::var("RUST_LOG").ok();
-    let filter = || logging_filter(level, override_filter.as_deref());
+    let filter = || target_filter(level, targets, override_filter.as_deref());
     let color_enabled = std::env::var_os("NO_COLOR").is_none()
         && std::env::var("FORCE_COLOR").map_or(cfg!(debug_assertions), |value| value != "0");
     let console = || ColoredConsole {
@@ -385,6 +409,7 @@ struct SettingsUpdate {
     page_visibility: page_visibility::PageVisibility,
     utility_enabled: bool,
     log_level: LogLevel,
+    log_targets: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -427,6 +452,7 @@ struct SettingsConfig {
     page_visibility: page_visibility::PageVisibility,
     utility_enabled: bool,
     log_level: LogLevel,
+    log_targets: Vec<String>,
 }
 
 impl SettingsConfig {
@@ -470,6 +496,7 @@ impl SettingsConfig {
             page_visibility: page_visibility::PageVisibility::default(),
             utility_enabled: config.utility_enabled,
             log_level: config.log_level,
+            log_targets: config.log_targets.clone(),
         }
     }
 }
@@ -501,6 +528,15 @@ impl SettingsUpdate {
         }
         if self.tiling_padding > 50 {
             return Err("Window padding must be between 0 and 50 pixels".to_string());
+        }
+        let known_targets = logging_targets();
+        if self.log_targets.len() > known_targets.len()
+            || self
+                .log_targets
+                .iter()
+                .any(|target| !known_targets.contains(target))
+        {
+            return Err("Choose logging targets from the available crates".into());
         }
         if !self.log_level.allowed_in_profile() {
             return Err("That log level is unavailable in this build".to_string());
@@ -550,6 +586,7 @@ impl SettingsUpdate {
         config.developer_options = self.developer_options;
         config.utility_enabled = self.utility_enabled;
         config.log_level = self.log_level;
+        config.log_targets = self.log_targets;
         Ok(())
     }
 }
@@ -1521,6 +1558,18 @@ async fn save_settings(
 #[cfg(test)]
 mod settings_validation_tests {
     use super::*;
+
+    #[test]
+    fn unknown_logging_targets_cannot_partially_change_preferences() {
+        let mut config = AppConfig::default();
+        let original = serde_json::to_value(&config).unwrap();
+        let mut payload = serde_json::to_value(SettingsConfig::from_config(&config)).unwrap();
+        payload["logTargets"] = serde_json::json!(["h2=trace,synthetic-invalid"]);
+        payload["utilityEnabled"] = serde_json::json!(!config.utility_enabled);
+        let update: SettingsUpdate = serde_json::from_value(payload).unwrap();
+        assert!(update.apply_to_config(&mut config).is_err());
+        assert_eq!(serde_json::to_value(&config).unwrap(), original);
+    }
 
     #[test]
     fn startup_launch_requires_both_targets_and_does_not_partially_apply_invalid_settings() {
@@ -3231,7 +3280,11 @@ mod logging_tests {
         let subscriber = tracing_subscriber::fmt()
             .without_time()
             .with_ansi(false)
-            .with_env_filter(logging_filter(level, override_filter))
+            .with_env_filter(target_filter(
+                level,
+                &ram_core::models::default_log_targets(),
+                override_filter,
+            ))
             .with_writer(Scrubbed(writer))
             .finish();
         tracing::subscriber::with_default(subscriber, || {
@@ -3244,6 +3297,36 @@ mod logging_tests {
         let console_text = String::from_utf8(console.lock().unwrap().clone()).unwrap();
         let file_text = String::from_utf8(file.lock().unwrap().clone()).unwrap();
         (console_text, file_text)
+    }
+
+    #[test]
+    fn selected_crates_keep_dependency_debug_noise_out() {
+        let output = Arc::new(Mutex::new(Vec::new()));
+        let writer = output.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_env_filter(target_filter(
+                LogLevel::Debug,
+                &ram_core::models::default_log_targets(),
+                None,
+            ))
+            .with_writer(move || SharedOutput(writer.clone()))
+            .finish();
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::debug!(target: "ram_core::api", "app diagnostic");
+            tracing::debug!(target: "h2::codec", "dependency debug");
+            tracing::warn!(target: "h2::codec", "dependency warning");
+        });
+        let text = String::from_utf8(output.lock().unwrap().clone()).unwrap();
+        assert_eq!(text.contains("app diagnostic"), cfg!(debug_assertions));
+        assert!(!text.contains("dependency debug"));
+        assert!(text.contains("dependency warning"));
+        let targets = logging_targets();
+        assert!(targets.contains(&"ram_core".into()));
+        assert!(targets.contains(&"rm_tauri".into()));
+        assert!(targets.contains(&"h2".into()));
+        assert!(targets.windows(2).all(|pair| pair[0] < pair[1]));
     }
 
     #[test]
@@ -3342,9 +3425,9 @@ fn main() {
     let log_level = app_state
         .runtime
         .lock()
-        .map(|runtime| runtime.config.log_level)
+        .map(|runtime| (runtime.config.log_level, runtime.config.log_targets.clone()))
         .unwrap_or_default();
-    init_logging(log_level);
+    init_logging(log_level.0, &log_level.1);
     tracing::info!(
         event = "startup",
         version = env!("CARGO_PKG_VERSION"),
@@ -3416,6 +3499,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            logging_targets,
             join_user::join_user_accounts,
             join_user::cancel_user_join,
             join_user::get_join_cleanups,

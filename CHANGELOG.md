@@ -14,6 +14,8 @@
 
 ### Changed
 
+- **Quieter logging:** Added a searchable crate checkbox menu. Selected crates use the saved log level and dependencies default to warnings; new debug configurations enable RM diagnostics without HTTP frame noise.
+
 - **Presets and Private Servers:** Saved entries now lead both workspaces, with compact add forms opened from the header and preset tag guidance moved into an info card. Private-server ownership uses green, yellow, and red badges.
 - **Inventory previews:** Accounts now loads a compact two-row inventory grid with a link to the full Inventories workspace. Both pages show cache use and share inventories for 15 minutes, with Refresh fetching current ownership.
 - **Account tag layout:** Moved the tag filter beside All accounts, tightened sort spacing, and arranged up to three tag signs horizontally with a +N overflow count.

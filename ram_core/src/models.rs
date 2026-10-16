@@ -102,6 +102,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn older_configs_get_quiet_dependency_logging_without_changing_saved_levels() {
+        let config = AppConfig::default();
+        let mut old = serde_json::to_value(&config).unwrap();
+        old.as_object_mut().unwrap().remove("log_targets");
+        old["log_level"] = serde_json::json!("Warn");
+        let loaded: AppConfig = serde_json::from_value(old).unwrap();
+        assert_eq!(loaded.log_targets, default_log_targets());
+        assert_eq!(loaded.log_level, LogLevel::Warn);
+        assert_eq!(config.log_level, default_log_level());
+    }
+
+    #[test]
     fn new_accounts_allow_launching() {
         let account = Account::new(1, "username".to_string(), "Display name".to_string());
         assert!(account.can_launch());
@@ -238,10 +250,11 @@ pub struct AppConfig {
     /// Retain observed activity history across application restarts.
     #[serde(default)]
     pub session_history_persist: bool,
-    /// Logging verbosity for the trace subscriber. Debug builds are limited to
-    /// `debug`/`trace`; release builds allow the full range.
+    /// Verbosity for selected tracing targets. Release builds cap this at Info.
     #[serde(default = "default_log_level")]
     pub log_level: LogLevel,
+    #[serde(default = "default_log_targets")]
+    pub log_targets: Vec<String>,
     /// Open RM on the accounts workspace after startup.
     #[serde(default = "default_true")]
     pub start_on_accounts: bool,
@@ -565,7 +578,15 @@ fn default_true() -> bool {
 }
 
 fn default_log_level() -> LogLevel {
-    LogLevel::default()
+    if cfg!(debug_assertions) {
+        LogLevel::Debug
+    } else {
+        LogLevel::Info
+    }
+}
+
+pub fn default_log_targets() -> Vec<String> {
+    vec!["ram_core".into(), "rm_tauri".into()]
 }
 
 fn default_mac_oui() -> String {
@@ -582,7 +603,8 @@ impl Default for AppConfig {
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|_| std::path::PathBuf::from("."));
         Self {
-            log_level: LogLevel::default(),
+            log_level: default_log_level(),
+            log_targets: default_log_targets(),
             session_history_persist: false,
             accounts_path: data_dir.join("RM").join("accounts.dat"),
             start_on_accounts: true,

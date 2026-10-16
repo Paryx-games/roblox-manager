@@ -9,6 +9,7 @@ import {
 } from "react";
 import { ConfirmModal } from "./ConfirmModal";
 import { Icon } from "./components/Icon";
+import { LogTargetPicker } from "./components/LogTargetPicker";
 import { DiscordNotifications } from "./components/DiscordNotifications";
 import Select from "./components/Select";
 import { Toast, ToastStack, type ToastItem, type ToastKind } from "./Toast";
@@ -534,7 +535,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
   const handleSave = useCallback(async () => {
     if (!draft || !snapshot || isSaving || busyAction === "roblox-directory") return false;
     if (!isDirty) return true;
-    const shouldRestart = draft.logLevel !== snapshot.config.logLevel;
+    const shouldRestart = draft.logLevel !== snapshot.config.logLevel || JSON.stringify([...draft.logTargets].sort()) !== JSON.stringify([...snapshot.config.logTargets].sort());
     const { startupWithWindows, ...settingsUpdate } = draft;
     setIsSaving(true);
     try {
@@ -1227,6 +1228,9 @@ export function SettingsPage({ onNavigationGuardChange }: {
                 }}
               />
             </div>
+          </SettingRow>
+          <SettingRow referenceId="log_targets" infoCards={infoCards}>
+            <div className="settings-field-row"><span>Logging crates</span><LogTargetPicker disabled={isSaving} selected={draft.logTargets} onChange={logTargets => updateDraft({ logTargets })} /></div>
           </SettingRow>
           <button
             className="account-button"

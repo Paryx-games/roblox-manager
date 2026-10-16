@@ -67,6 +67,10 @@
     "type": "warning",
     "text": "Shows Inventories and Asset Manager in the navigation rail. Asset uploads create permanent public Roblox assets and are moderated under the account that uploads them."
   },
+  "log_targets": {
+    "type": "info",
+    "text": "Selected Rust crates use the chosen log level. Other crates show warnings and errors. Debug builds default to Debug for ram_core and rm_tauri; release builds use Info. Changes apply after restarting. RUST_LOG overrides these preferences. The searchable list includes crates from Cargo.lock, not Cargo compiler output."
+  },
   "log_level": {
     "type": "warning",
     "text": "Sets the app's tracing verbosity for the current build. Only change this if you know what you're doing: debug and trace can generate a lot of log noise and slow down troubleshooting work."

@@ -348,6 +348,7 @@ export interface SettingsConfig {
   pageVisibility: PageVisibility;
   utilityEnabled: boolean;
   logLevel: LogLevel;
+  logTargets: string[];
 }
 
 export type SettingsUpdate = Omit<
@@ -924,3 +925,5 @@ export async function migrateLegacyData(): Promise<void> { return invoke("migrat
 export async function resetAccountStore(confirmation: string): Promise<StoreStatus> { return invoke("reset_account_store", { confirmation }); }
 export async function checkReleaseUpdate(): Promise<[string, string] | null> { return invoke("check_release_update"); }
 export async function openReleasePage(url: string): Promise<void> { return invoke("open_release_page", { url }); }
+
+export async function loggingTargets(): Promise<string[]> { return invoke<string[]>("logging_targets"); }

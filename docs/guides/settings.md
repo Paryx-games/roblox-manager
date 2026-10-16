@@ -45,7 +45,9 @@ Presence requests arriving together share a result for up to two seconds.
 
 **Clear application caches** removes these memory caches and rejects cache writes from requests already in flight; account stores and browser profiles are retained. Account caches are also cleared when the store unlocks. Caches expire automatically and are discarded when RM exits.
 
-Logging controls the diagnostic level, and data-location controls show the active paths. Use the Roblox installation section to inspect the selected installation rather than assuming the default installation is always correct.
+**Logging crates** is a searchable checkbox menu of Rust crates from the current Cargo lockfile. Selected crates use **Log level**; everything else shows warnings and errors. New debug-build settings default to Debug for `ram_core` and `rm_tauri`, equivalent to `warn,ram_core=debug,rm_tauri=debug`. Release builds retain the Info ceiling and default to Info for those crates. Existing saved levels are preserved. Save logging changes to restart RM. An explicit valid `RUST_LOG` overrides the saved selection. This controls runtime tracing, not Cargo compiler output.
+
+Data-location controls show the active paths. Use the Roblox installation section to inspect the selected installation rather than assuming the default installation is always correct.
 
 The tray keeps the manager available in the background when its main window is closed. Use the tray's exit action to finish the process rather than assuming closing the window stops background work.
 

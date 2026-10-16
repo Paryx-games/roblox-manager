@@ -7779,3 +7779,8 @@ button:focus-visible {
     width: 100%;
   }
 }
+
+.log-target-picker { position: relative; min-width: 220px; }
+.log-target-menu { position: absolute; z-index: 20; right: 0; left: auto; width: 300px; max-height: 320px; overflow-y: auto; }
+.log-target-menu input { width: 100%; }
+.log-target-menu button { display: flex; width: 100%; align-items: center; gap: var(--space-2); }
