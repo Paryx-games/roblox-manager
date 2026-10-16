@@ -2902,7 +2902,7 @@ button:focus-visible {
 }
 
 .private-server-actions .account-button.primary {
-  color: var(--text-primary);
+  color: var(--text-on-action);
   border-color: var(--action-primary);
   background: var(--action-primary);
 }
@@ -3607,7 +3607,7 @@ button:focus-visible {
 }
 
 .preset-actions .account-button.primary {
-  color: var(--text-primary);
+  color: var(--text-on-action);
   border-color: var(--action-primary);
   background: var(--action-primary);
 }
@@ -3784,14 +3784,15 @@ button:focus-visible {
 }
 
 .account-section > .account-card {
-  padding-left: var(--space-12);
+  padding-left: var(--space-8);
 }
 
 .account-section .account-section-handle {
   position: absolute;
   z-index: 1;
   top: var(--space-2);
-  left: var(--space-2);
+  left: var(--space-1);
+  width: var(--space-6);
   cursor: grab;
 }
 
@@ -4795,7 +4796,7 @@ button:focus-visible {
 
 .groups-button.primary {
   border-color: var(--action-primary);
-  color: var(--text-primary);
+  color: var(--text-on-action);
   background: var(--action-primary);
 }
 
@@ -6524,13 +6525,13 @@ button:focus-visible {
 
 .account-button.primary {
   isolation: isolate;
-  color: var(--text-primary);
+  color: var(--text-on-action);
   border-color: var(--action-primary);
   background: var(--action-primary);
 }
 
 .account-button.primary .account-icon {
-  filter: invert(95%);
+  filter: brightness(0) invert(1);
 }
 
 .account-button:disabled {
@@ -6567,12 +6568,22 @@ button:focus-visible {
 }
 
 .account-button.primary:disabled {
-  border-color: var(--border-default);
+  color: var(--text-on-action);
+  border-color: var(--action-primary);
+  background: var(--action-primary);
 }
 
 .account-button.primary:disabled .account-icon {
-  filter: invert(65%);
+  filter: brightness(0) invert(1);
 }
+
+.account-button.primary .account-icon-current-color,
+.account-button.primary:disabled .account-icon-current-color,
+.groups-button.primary .account-icon-current-color {
+  filter: none;
+}
+
+.groups-button.primary:disabled { opacity: 1; }
 
 .account-status-button {
   transition:
@@ -7779,6 +7790,8 @@ button:focus-visible {
     width: 100%;
   }
 }
+
+.tag-sign + .tag-sign { margin-left: calc(-1 * var(--space-2)); }
 
 .log-target-picker { position: relative; min-width: 220px; }
 .log-target-menu { position: absolute; z-index: 20; right: 0; left: auto; width: 300px; max-height: 320px; overflow-y: auto; }

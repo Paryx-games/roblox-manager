@@ -116,7 +116,7 @@ permissions, notification severity, and private-server ownership.
 Account tags use user-selected RGB colors, separate from live-status tokens.
 Their compact horizontal signposts sit on account rows and beside profile
 names. A single profile tag includes its name; multiple tags show up to three
-signs side by side with a +N overflow count. All names remain available through the accessible label and tooltip.
+slightly overlapping signs with a +N overflow count. All names remain available through the accessible label and tooltip.
 Clicking the signs opens the existing checkbox-menu pattern. The tag editor
 reuses the group color picker and palette; untagged row controls appear on hover
 or keyboard focus.
@@ -287,3 +287,5 @@ This document was checked against the current source. It does not certify
 that every existing page satisfies every accessibility or interaction
 requirement. For new visual patterns not covered here, discuss the approach
 before implementation as required by AGENTS.md.
+
+Primary buttons keep `--text-on-action` contrast for text and icons, including pending/disabled states.
