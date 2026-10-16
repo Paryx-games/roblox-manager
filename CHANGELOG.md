@@ -34,6 +34,8 @@
 
 ### Fixed
 
+- **Friend activity:** Offline and unavailable friends no longer display stale activity returned by Roblox.
+
 - **Private-server indicators:** The left shield now shows ownership across saved accounts, and the right icon independently shows invitation availability. Incomplete account checks stay yellow rather than claiming no saved account owns the server.
 - **Private-server profile checks:** Every working account now checks its accessible-server metadata, reusing the resolved invitation. Owner lookup errors retain the resolved link status and show specific failure, rate-limit, incomplete, or not-listed states. Failed bookmarks no longer stop the remaining checks.
 - **Private-server resolution:** Share links support universe-only responses and use the same validated invitation parser as status checks. Share imports skip expired accounts, and launches resolve a fresh UUID access code instead of relying on an empty or stale saved code.

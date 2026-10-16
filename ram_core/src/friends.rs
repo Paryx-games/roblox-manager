@@ -62,6 +62,7 @@ pub fn map_friend(user: FriendUser, presence: Option<&Presence>) -> Friend {
         user,
         status,
         activity: presence
+            .filter(|_| !matches!(status, FriendStatus::Offline | FriendStatus::Unknown))
             .map(|value| value.last_location.clone())
             .unwrap_or_default(),
         place_id: presence
@@ -494,6 +495,35 @@ pub async fn fetch_groups(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn offline_and_unknown_presence_do_not_report_stale_activity() {
+        let user = FriendUser {
+            user_id: 1,
+            ..Default::default()
+        };
+        let mut presence = Presence {
+            last_location: "Website".into(),
+            place_id: Some(10),
+            game_id: Some("12345678-1234-4234-8234-123456789abc".into()),
+            ..Default::default()
+        };
+        for status in [0, 99] {
+            presence.user_presence_type = status;
+            let friend = map_friend(user.clone(), Some(&presence));
+            assert!(friend.activity.is_empty());
+            assert!(friend.place_id.is_none());
+            assert!(friend.job_id.is_none());
+        }
+        for status in [1, 2, 3] {
+            presence.user_presence_type = status;
+            assert_eq!(
+                map_friend(user.clone(), Some(&presence)).activity,
+                "Website"
+            );
+        }
+    }
+
     #[test]
     fn relationship_actions_require_a_successful_acknowledgement() {
         for body in [
