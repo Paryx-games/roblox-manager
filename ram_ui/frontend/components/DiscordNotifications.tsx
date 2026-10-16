@@ -10,6 +10,12 @@ const events: { key: DiscordEvent; label: string; info: string }[] = [
   { key: "sessionExpired", label: "Account session expired", info: "discord_expiry" },
   { key: "launchFailed", label: "Launch request failed", info: "discord_launch_failure" },
   { key: "clientExited", label: "Roblox client exited", info: "discord_client_exit" },
+  { key: "friendRequestReceived", label: "Friend request received", info: "discord_friend_received" },
+  { key: "friendRequestSent", label: "Friend request sent", info: "discord_friend_sent" },
+  { key: "friendAdded", label: "Friend added", info: "discord_friend_added" },
+  { key: "friendRemoved", label: "Friend removed", info: "discord_friend_removed" },
+  { key: "friendRequestDeclined", label: "Friend request declined", info: "discord_friend_declined" },
+  { key: "userBlocked", label: "User blocked", info: "discord_friend_blocked" },
 ];
 
 export function DiscordNotifications({ hasWebhook, onConfiguredChange, onBusyChange, infoCards }: {

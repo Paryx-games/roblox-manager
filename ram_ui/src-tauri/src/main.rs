@@ -2544,6 +2544,7 @@ async fn arrange_account_windows(state: tauri::State<'_, AppState>) -> Result<()
 
 #[tauri::command]
 async fn connection_action(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     user_id: u64,
     target_user_id: u64,
@@ -2565,24 +2566,55 @@ async fn connection_action(
         );
     }
     let worker = state.inner().clone();
-    let cookie = tauri::async_runtime::spawn_blocking(move || {
+    let (cookie, revision) = tauri::async_runtime::spawn_blocking(move || {
         let runtime = worker
             .runtime
             .lock()
             .map_err(|_| "Account state unavailable".to_string())?;
-        account_cookie(&runtime, user_id)
+        account_cookie(&runtime, user_id).map(|cookie| {
+            (
+                cookie,
+                *runtime.credential_revisions.get(&user_id).unwrap_or(&0),
+            )
+        })
     })
     .await
     .map_err(|_| "Connection credential task failed")??;
     let client = RobloxClient::new().map_err(|error| error.to_string())?;
-    match action.as_str() {
+    let friendship_action = matches!(action.as_str(), "friend" | "block");
+    if friendship_action {
+        state.friends.invalidate();
+    }
+    let result = match action.as_str() {
         "follow" => api::follow_user(&client, &cookie, target_user_id).await,
         "unfollow" => api::unfollow_user(&client, &cookie, target_user_id).await,
         "friend" => api::send_friend_request(&client, &cookie, target_user_id).await,
         "block" => api::block_user(&client, &cookie, target_user_id).await,
         _ => return Err("Unsupported connection action".to_string()),
+    };
+    if friendship_action {
+        state.friends.invalidate();
     }
-    .map_err(|_| "Roblox could not complete the connection action. Check the account, connection, and rate limits.".to_string())?;
+    result.map_err(|_| "Roblox could not complete the connection action. Check the account, connection, and rate limits.".to_string())?;
+    if friendship_action {
+        if !friends::current(&state, user_id, revision) {
+            return Err(
+                "The action may have completed, but this account changed. Refresh before retrying."
+                    .into(),
+            );
+        }
+        let event = if action == "block" {
+            state.friends.record_action(
+                (user_id, revision),
+                target_user_id,
+                ram_core::friends::FriendAction::Block,
+            );
+            discord::Event::UserBlocked
+        } else {
+            discord::Event::FriendRequestSent
+        };
+        discord::friendship(&app, event, user_id, target_user_id, false);
+    }
     if action == "unfollow" && cleanup_pending {
         join_user::finish_manual_unfollow(&state, user_id, target_user_id).await?;
     }

@@ -7,7 +7,7 @@ use tauri::{Emitter, Manager};
 static DELIVERY: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static SETTINGS_IO: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum Event {
     ModerationDetected,
@@ -15,6 +15,28 @@ pub enum Event {
     SessionExpired,
     LaunchFailed,
     ClientExited,
+    FriendRequestReceived,
+    FriendRequestSent,
+    FriendAdded,
+    FriendRemoved,
+    FriendRequestDeclined,
+    UserBlocked,
+}
+
+impl Event {
+    const ALL: [Self; 11] = [
+        Self::ModerationDetected,
+        Self::BatchLaunchFinished,
+        Self::SessionExpired,
+        Self::LaunchFailed,
+        Self::ClientExited,
+        Self::FriendRequestReceived,
+        Self::FriendRequestSent,
+        Self::FriendAdded,
+        Self::FriendRemoved,
+        Self::FriendRequestDeclined,
+        Self::UserBlocked,
+    ];
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
@@ -32,13 +54,7 @@ impl Destination {
             id,
             name,
             enabled: true,
-            events: vec![
-                Event::ModerationDetected,
-                Event::BatchLaunchFinished,
-                Event::SessionExpired,
-                Event::LaunchFailed,
-                Event::ClientExited,
-            ],
+            events: Event::ALL.to_vec(),
         }
     }
 }
@@ -52,6 +68,12 @@ pub struct NotificationSettings {
     session_expired: bool,
     launch_failed: bool,
     client_exited: bool,
+    friend_request_received: bool,
+    friend_request_sent: bool,
+    friend_added: bool,
+    friend_removed: bool,
+    friend_request_declined: bool,
+    user_blocked: bool,
     destinations: Vec<Destination>,
 }
 
@@ -64,12 +86,26 @@ impl Default for NotificationSettings {
             session_expired: false,
             launch_failed: false,
             client_exited: false,
+            friend_request_received: false,
+            friend_request_sent: false,
+            friend_added: false,
+            friend_removed: false,
+            friend_request_declined: false,
+            user_blocked: false,
             destinations: Vec::new(),
         }
     }
 }
 
 impl NotificationSettings {
+    fn friendship_sources(&self) -> (bool, bool) {
+        (
+            !self.routes(Event::FriendAdded).is_empty()
+                || !self.routes(Event::FriendRemoved).is_empty(),
+            !self.routes(Event::FriendRequestReceived).is_empty(),
+        )
+    }
+
     fn routes(&self, event: Event) -> Vec<&Destination> {
         let enabled = match event {
             Event::ModerationDetected => self.moderation_detected,
@@ -77,6 +113,12 @@ impl NotificationSettings {
             Event::SessionExpired => self.session_expired,
             Event::LaunchFailed => self.launch_failed,
             Event::ClientExited => self.client_exited,
+            Event::FriendRequestReceived => self.friend_request_received,
+            Event::FriendRequestSent => self.friend_request_sent,
+            Event::FriendAdded => self.friend_added,
+            Event::FriendRemoved => self.friend_removed,
+            Event::FriendRequestDeclined => self.friend_request_declined,
+            Event::UserBlocked => self.user_blocked,
         };
         self.destinations
             .iter()
@@ -100,7 +142,13 @@ impl NotificationSettings {
                 || destination.name.trim().is_empty()
                 || destination.name.chars().count() > 40
                 || destination.name.chars().any(char::is_control)
-                || destination.events.len() > 5
+                || destination.events.len() > Event::ALL.len()
+                || destination
+                    .events
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len()
+                    != destination.events.len()
             {
                 return Err("Discord destination settings are invalid".into());
             }
@@ -183,6 +231,17 @@ pub async fn get_discord_notifications(
         .map_err(|_| "Notification settings task failed")?
 }
 
+pub async fn friendship_watch(state: &AppState) -> Result<(bool, bool), String> {
+    let _settings = SETTINGS_IO.lock().await;
+    let state = state.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let settings = load_connected(&preference_path(&state)?)?;
+        Ok(settings.friendship_sources())
+    })
+    .await
+    .map_err(|_| "Friendship notification preferences could not be read")?
+}
+
 #[tauri::command]
 pub async fn save_discord_notifications(
     state: tauri::State<'_, AppState>,
@@ -206,7 +265,11 @@ pub async fn save_discord_notifications(
         if ids != next_ids {
             return Err("Discord destinations changed. Reload preferences before saving".into());
         }
-        save_preferences(&path, &settings)
+        save_preferences(&path, &settings)?;
+        if current.friendship_sources() != settings.friendship_sources() {
+            state.friends.reset_notifications();
+        }
+        Ok(())
     })
     .await
     .map_err(|_| "Notification settings task failed")?
@@ -242,6 +305,7 @@ pub async fn save_discord_destination(
     tauri::async_runtime::spawn_blocking(move || {
         let path = preference_path(&state)?;
         let mut settings = load_connected(&path)?;
+        let previous_sources = settings.friendship_sources();
         let id = match id {
             Some(id)
                 if settings
@@ -282,6 +346,9 @@ pub async fn save_discord_destination(
                 .map_err(|_| "Webhook recovery failed".into())
             },
         )?;
+        if previous_sources != settings.friendship_sources() {
+            state.friends.reset_notifications();
+        }
         Ok(settings)
     })
     .await
@@ -298,6 +365,7 @@ pub async fn remove_discord_destination(
     tauri::async_runtime::spawn_blocking(move || {
         let path = preference_path(&state)?;
         let mut settings = load_connected(&path)?;
+        let previous_sources = settings.friendship_sources();
         if !settings
             .destinations
             .iter()
@@ -324,6 +392,9 @@ pub async fn remove_discord_destination(
                 .map_err(|_| "Webhook recovery failed".into())
             },
         )?;
+        if previous_sources != settings.friendship_sources() {
+            state.friends.reset_notifications();
+        }
         Ok(settings)
     })
     .await
@@ -541,6 +612,51 @@ fn job_detail(job_id: Option<&str>) -> String {
         .unwrap_or_default()
 }
 
+fn friendship_payload(
+    event: Event,
+    account_id: u64,
+    label: &str,
+    target_id: u64,
+    observed: bool,
+) -> Option<serde_json::Value> {
+    let title = match event {
+        Event::FriendRequestReceived => "Friend request received",
+        Event::FriendRequestSent => "Friend request sent",
+        Event::FriendAdded => "Friend added",
+        Event::FriendRemoved => "Friend removed",
+        Event::FriendRequestDeclined => "Friend request declined",
+        Event::UserBlocked => "User blocked",
+        _ => return None,
+    };
+    Some(payload(title, &format!("**Account:** {}\n**Account ID:** {account_id}\n**Other user ID:** {target_id}\n**Profile:** https://www.roblox.com/users/{target_id}/profile\n\n{}", safe_label(label), if observed { "Observed in a complete background check. This does not identify who initiated a friendship change." } else { "Roblox accepted this action requested from RM." })))
+}
+
+pub fn friendship(
+    app: &tauri::AppHandle,
+    event: Event,
+    account_id: u64,
+    target_id: u64,
+    observed: bool,
+) {
+    let state = app.state::<AppState>();
+    let label = {
+        let Ok(runtime) = state.runtime.lock() else {
+            return;
+        };
+        let Some(account) = runtime.accounts.find_by_id(account_id) else {
+            return;
+        };
+        if runtime.config.anonymize_names {
+            format!("Account {account_id}")
+        } else {
+            account.label().to_string()
+        }
+    };
+    if let Some(message) = friendship_payload(event, account_id, &label, target_id, observed) {
+        dispatch(app, event, message);
+    }
+}
+
 fn account_server_detail(app: &tauri::AppHandle, user_id: u64) -> String {
     crate::instances::account_server(&app.state::<AppState>(), user_id)
         .map(|(place, job)| format!("\n**Place ID:** {place}{}", job_detail(Some(&job))))
@@ -607,6 +723,96 @@ pub fn batch_finished(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn friendship_routes_are_opt_in_and_require_an_active_destination() {
+        let mut settings: NotificationSettings = serde_json::from_str(r#"{"moderationDetected":false,"destinations":[{"id":"default","name":"Existing","enabled":true,"events":["moderationDetected","batchLaunchFinished"]}]}"#).unwrap();
+        assert!(
+            !settings.friend_request_received
+                && !settings.friend_request_sent
+                && !settings.friend_added
+                && !settings.friend_removed
+                && !settings.friend_request_declined
+                && !settings.user_blocked
+        );
+        assert_eq!(settings.friendship_sources(), (false, false));
+        settings.friend_added = true;
+        settings.friend_request_received = true;
+        assert_eq!(settings.friendship_sources(), (false, false));
+        settings.destinations[0]
+            .events
+            .extend([Event::FriendAdded, Event::FriendRequestReceived]);
+        assert_eq!(settings.friendship_sources(), (true, true));
+        settings.destinations[0].enabled = false;
+        assert_eq!(settings.friendship_sources(), (false, false));
+        settings.destinations[0].enabled = true;
+        settings.enabled = false;
+        assert_eq!(settings.friendship_sources(), (false, false));
+        settings.enabled = true;
+        assert!(settings.validate().is_ok());
+        let roundtrip: NotificationSettings =
+            serde_json::from_value(serde_json::to_value(&settings).unwrap()).unwrap();
+        assert_eq!(settings, roundtrip);
+        assert!(!settings.routes(Event::FriendAdded).is_empty());
+        assert!(settings.routes(Event::FriendRemoved).is_empty());
+    }
+
+    #[test]
+    fn all_friendship_events_can_be_routed_and_duplicate_routes_are_rejected() {
+        let mut settings = NotificationSettings {
+            friend_request_received: true,
+            friend_request_sent: true,
+            friend_added: true,
+            friend_removed: true,
+            friend_request_declined: true,
+            user_blocked: true,
+            destinations: vec![Destination::new("default".into(), "Synthetic".into())],
+            ..Default::default()
+        };
+        assert!(settings.validate().is_ok());
+        for event in [
+            Event::FriendRequestReceived,
+            Event::FriendRequestSent,
+            Event::FriendAdded,
+            Event::FriendRemoved,
+            Event::FriendRequestDeclined,
+            Event::UserBlocked,
+        ] {
+            assert_eq!(settings.routes(event).len(), 1);
+        }
+        settings.destinations[0].events = vec![Event::FriendAdded, Event::FriendAdded];
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn friendship_messages_use_public_identifiers_and_do_not_ping() {
+        for event in [
+            Event::FriendRequestReceived,
+            Event::FriendRequestSent,
+            Event::FriendAdded,
+            Event::FriendRemoved,
+            Event::FriendRequestDeclined,
+            Event::UserBlocked,
+        ] {
+            let message =
+                friendship_payload(event, 10, "@everyone **Synthetic**", 20, false).unwrap();
+            assert_eq!(message["allowed_mentions"]["parse"], serde_json::json!([]));
+            let text = message.to_string();
+            assert!(!text.contains("@everyone"));
+            assert!(text.contains("Account ID:** 10") && text.contains("Other user ID:** 20"));
+            assert!(text.contains("https://www.roblox.com/users/20/profile"));
+            assert!(text.contains("Roblox accepted this action"));
+        }
+        assert!(
+            friendship_payload(Event::FriendRemoved, 10, "Synthetic", 20, true)
+                .unwrap()
+                .to_string()
+                .contains("does not identify who initiated")
+        );
+        assert!(
+            friendship_payload(Event::ModerationDetected, 10, "Synthetic", 20, false).is_none()
+        );
+    }
     #[test]
     fn notification_job_details_include_only_normalized_public_server_ids() {
         let job = "12345678-ABCD-4234-8234-123456789ABC";

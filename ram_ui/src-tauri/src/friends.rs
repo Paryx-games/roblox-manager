@@ -8,7 +8,7 @@ use ram_core::{
 };
 use serde::{Deserialize, Serialize};
 use std::{future::Future, time::Duration};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 type AccountKey = (u64, u64);
 type DetailKey = (u64, u64, u64, String);
@@ -24,6 +24,8 @@ pub struct FriendsState {
     snapshots: ResponseCache<AccountKey, FriendsSnapshot>,
     requests: ResponseCache<(u64, u64, String), RequestsPage>,
     details: ResponseCache<DetailKey, Details>,
+    observers:
+        std::sync::Mutex<std::collections::HashMap<AccountKey, friends::RelationshipTracker>>,
 }
 impl Default for FriendsState {
     fn default() -> Self {
@@ -31,12 +33,35 @@ impl Default for FriendsState {
             snapshots: ResponseCache::new(Duration::from_secs(30), 32),
             requests: ResponseCache::new(Duration::from_secs(30), 64),
             details: ResponseCache::new(Duration::from_secs(300), 128),
+            observers: Default::default(),
         }
     }
 }
 impl FriendsState {
     pub fn clear(&self) -> usize {
+        if let Ok(mut observers) = self.observers.lock() {
+            observers.clear();
+        }
+        self.invalidate()
+    }
+
+    pub(crate) fn invalidate(&self) -> usize {
         self.snapshots.clear() + self.requests.clear() + self.details.clear()
+    }
+
+    pub(crate) fn reset_notifications(&self) {
+        if let Ok(mut observers) = self.observers.lock() {
+            observers.clear();
+        }
+        self.snapshots.clear();
+    }
+
+    pub(crate) fn record_action(&self, account: AccountKey, target: u64, action: FriendAction) {
+        if let Ok(mut observers) = self.observers.lock() {
+            if let Some(observer) = observers.get_mut(&account) {
+                observer.record_action(target, action);
+            }
+        }
     }
 }
 
@@ -74,7 +99,7 @@ fn current_revision(runtime: &crate::state::RuntimeState, viewer: u64, revision:
         && *runtime.credential_revisions.get(&viewer).unwrap_or(&0) == revision
 }
 
-fn current(state: &AppState, viewer: u64, revision: u64) -> bool {
+pub(crate) fn current(state: &AppState, viewer: u64, revision: u64) -> bool {
     !state
         .is_shutting_down
         .load(std::sync::atomic::Ordering::Acquire)
@@ -239,8 +264,158 @@ fn validate_target(viewer: u64, target: u64) -> Result<(), String> {
     Ok(())
 }
 
+async fn notification_sweep(
+    app: &tauri::AppHandle,
+    failures: &mut std::collections::HashSet<AccountKey>,
+) -> Result<(), String> {
+    let state = app.state::<AppState>().inner().clone();
+    let (watch_friends, watch_requests) = crate::discord::friendship_watch(&state).await?;
+    let accounts: std::collections::HashSet<_> = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Friendship account state unavailable")?;
+        runtime
+            .accounts
+            .accounts
+            .iter()
+            .filter(|account| runtime.unlocked && !account.cookie_expired)
+            .map(|account| {
+                (
+                    account.user_id,
+                    *runtime
+                        .credential_revisions
+                        .get(&account.user_id)
+                        .unwrap_or(&0),
+                )
+            })
+            .collect()
+    };
+    failures.retain(|key| accounts.contains(key));
+    {
+        let mut observers = state
+            .friends
+            .observers
+            .lock()
+            .map_err(|_| "Friendship notification state unavailable")?;
+        observers.retain(|key, _| accounts.contains(key) && (watch_friends || watch_requests));
+        for observer in observers.values_mut() {
+            observer.retain_sources(watch_friends, watch_requests);
+        }
+    }
+    if !watch_friends && !watch_requests {
+        failures.clear();
+        return Ok(());
+    }
+    let client = RobloxClient::new().map_err(|_| "Friendship notification client unavailable")?;
+    let mut accounts: Vec<_> = accounts.into_iter().collect();
+    accounts.sort_unstable();
+    for (user_id, revision) in accounts {
+        if state
+            .is_shutting_down
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Ok(());
+        }
+        let generation = state.friends.snapshots.generation();
+        let result = tokio::time::timeout(Duration::from_secs(60), async {
+            let (cookie, observed_revision) = credential(&state, user_id).await?;
+            if observed_revision != revision {
+                return Err("Account changed before friendship check".into());
+            }
+            let friends = if watch_friends {
+                Some(
+                    friends::fetch_users(&client, &cookie, user_id)
+                        .await
+                        .map_err(|error| friends::error_message(&error))?,
+                )
+            } else {
+                None
+            };
+            let requests = if watch_requests {
+                Some(
+                    friends::fetch_request_users(&client, &cookie)
+                        .await
+                        .map_err(|error| friends::error_message(&error))?,
+                )
+            } else {
+                None
+            };
+            Ok::<_, String>((friends, requests))
+        })
+        .await
+        .map_err(|_| "Roblox took too long to check friendships".to_string())
+        .and_then(|result| result);
+        if !current(&state, user_id, revision) {
+            continue;
+        }
+        let (friends, requests) = match result {
+            Ok(value) => {
+                failures.remove(&(user_id, revision));
+                value
+            }
+            Err(error) => {
+                if failures.insert((user_id, revision)) {
+                    let _ = app.emit("background-notice", format!("Friendship notifications could not check account {user_id}. {error} Previous data was kept; RM will check again in the background."));
+                }
+                continue;
+            }
+        };
+        // A social action can change either list while the network request is in flight.
+        let Ok(_actions) = state.joins.queue.try_lock() else {
+            continue;
+        };
+        if generation != state.friends.snapshots.generation() || !current(&state, user_id, revision)
+        {
+            continue;
+        }
+        let changes = {
+            let mut observers = state
+                .friends
+                .observers
+                .lock()
+                .map_err(|_| "Friendship notification state unavailable")?;
+            observers
+                .entry((user_id, revision))
+                .or_default()
+                .observe(friends.as_deref(), requests.as_deref())
+        };
+        for change in changes {
+            let (event, target) = match change {
+                friends::RelationshipChange::RequestReceived(id) => {
+                    (crate::discord::Event::FriendRequestReceived, id)
+                }
+                friends::RelationshipChange::Added(id) => (crate::discord::Event::FriendAdded, id),
+                friends::RelationshipChange::Removed(id) => {
+                    (crate::discord::Event::FriendRemoved, id)
+                }
+            };
+            crate::discord::friendship(app, event, user_id, target, true);
+        }
+    }
+    Ok(())
+}
+
+/// App-owned monitoring continues without loading the Friends workspace.
+pub async fn run_notifications(app: tauri::AppHandle) {
+    let mut failures = std::collections::HashSet::new();
+    let mut preferences_failed = false;
+    loop {
+        match notification_sweep(&app, &mut failures).await {
+            Ok(()) => preferences_failed = false,
+            Err(error) if !preferences_failed => {
+                preferences_failed = true;
+                let _ = app.emit("background-notice", error);
+            }
+            Err(_) => {}
+        }
+        tokio::time::sleep(Duration::from_secs(60)).await;
+    }
+}
+
 #[tauri::command]
 pub async fn friend_action(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     user_id: u64,
     target_id: u64,
@@ -250,9 +425,9 @@ pub async fn friend_action(
     let _guard = state.joins.queue.lock().await;
     let (cookie, revision) = credential(&state, user_id).await?;
     let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
-    state.friends.clear();
+    state.friends.invalidate();
     let result = friends::act(&client, &cookie, target_id, action).await;
-    state.friends.clear();
+    state.friends.invalidate();
     result.map_err(|error| {
         format!(
             "{} Refresh before retrying; the action may have completed.",
@@ -270,6 +445,16 @@ pub async fn friend_action(
             account.friends_cache.clear();
         }
     }
+    state
+        .friends
+        .record_action((user_id, revision), target_id, action);
+    let event = match action {
+        FriendAction::Accept => crate::discord::Event::FriendAdded,
+        FriendAction::Decline => crate::discord::Event::FriendRequestDeclined,
+        FriendAction::Remove => crate::discord::Event::FriendRemoved,
+        FriendAction::Block => crate::discord::Event::UserBlocked,
+    };
+    crate::discord::friendship(&app, event, user_id, target_id, false);
     Ok(())
 }
 
@@ -344,6 +529,48 @@ pub async fn join_friend_game(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn action_invalidation_preserves_notification_baselines_but_reset_is_silent() {
+        let state = FriendsState::default();
+        let users = |ids: &[u64]| {
+            ids.iter()
+                .map(|id| FriendUser {
+                    user_id: *id,
+                    ..Default::default()
+                })
+                .collect::<Vec<_>>()
+        };
+        state
+            .observers
+            .lock()
+            .unwrap()
+            .entry((1, 3))
+            .or_default()
+            .observe(Some(&users(&[10])), None);
+        state.invalidate();
+        assert_eq!(
+            state
+                .observers
+                .lock()
+                .unwrap()
+                .get_mut(&(1, 3))
+                .unwrap()
+                .observe(Some(&users(&[10, 20])), None),
+            [friends::RelationshipChange::Added(20)]
+        );
+        let old_generation = state.snapshots.generation();
+        state.reset_notifications();
+        assert_ne!(state.snapshots.generation(), old_generation);
+        assert!(state
+            .observers
+            .lock()
+            .unwrap()
+            .entry((1, 3))
+            .or_default()
+            .observe(Some(&users(&[10, 20, 30])), None)
+            .is_empty());
+    }
     #[test]
     fn cached_results_are_isolated_by_account_and_credential_revision() {
         let state = FriendsState::default();

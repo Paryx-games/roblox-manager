@@ -45,4 +45,8 @@ Previously loaded data stays visible during refresh failures with an error. Miss
 
 Backend caches are bounded, keyed by the viewing account and credential revision, cleared on unlock/cache clearing, and discarded on exit. Credentials and private invitation/access codes never enter the Friends responses.
 
+## Discord notifications
+
+Under **Settings > Integrations**, enable and route friendship events to saved Discord webhooks. RM can notify about incoming requests, added/removed friends, and successful request, decline and block actions made in RM. Incoming requests and friendship changes use complete background checks without opening Friends. Existing relationships form a silent baseline, and successful actions are reconciled so the next check does not repeat them. Each event starts disabled. See [Discord notification settings](settings.md#discord-notifications) for timing and routing.
+
 API contracts: [Roblox Friends API](https://create.roblox.com/docs/cloud/reference/domains/friends), [Presence API](https://create.roblox.com/docs/cloud/reference/domains/presence), [Users API](https://create.roblox.com/docs/cloud/reference/domains/users), [Games API](https://create.roblox.com/docs/cloud/reference/domains/games), and [Groups API](https://create.roblox.com/docs/cloud/reference/domains/groups). Friend mutations use the authenticated routes listed in Roblox's [cookie API update](https://devforum.roblox.com/t/roblox-data-stewardship-principles-cookie-based-api-update/4579220).

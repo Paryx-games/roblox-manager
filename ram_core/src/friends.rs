@@ -137,12 +137,33 @@ pub async fn fetch_users(
     user_id: u64,
 ) -> Result<Vec<FriendUser>, CoreError> {
     let base = format!("https://friends.roblox.com/v1/users/{user_id}/friends");
+    collect_users(client, cookie, &base).await
+}
+
+/// Complete request IDs for background change detection, without avatar or presence work.
+pub async fn fetch_request_users(
+    client: &RobloxClient,
+    cookie: &str,
+) -> Result<Vec<FriendUser>, CoreError> {
+    collect_users(
+        client,
+        cookie,
+        "https://friends.roblox.com/v1/my/friends/requests?limit=100",
+    )
+    .await
+}
+
+async fn collect_users(
+    client: &RobloxClient,
+    cookie: &str,
+    base: &str,
+) -> Result<Vec<FriendUser>, CoreError> {
     let mut cursor = None;
     let mut seen = HashSet::new();
     let mut users = Vec::new();
     for _ in 0..40 {
         let page: UsersPage = client
-            .get_json(&next_url(&base, cursor.as_deref())?, cookie)
+            .get_json(&next_url(base, cursor.as_deref())?, cookie)
             .await?;
         users.extend(page.data);
         if users.len() > 2000 {
@@ -369,6 +390,98 @@ pub enum FriendAction {
     Block,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RelationshipChange {
+    RequestReceived(u64),
+    Added(u64),
+    Removed(u64),
+}
+
+#[derive(Default)]
+pub struct RelationshipTracker {
+    friends: Option<HashSet<u64>>,
+    requests: Option<HashSet<u64>>,
+}
+
+impl RelationshipTracker {
+    /// Only complete, successful snapshots may advance a baseline.
+    pub fn observe(
+        &mut self,
+        friends: Option<&[FriendUser]>,
+        requests: Option<&[FriendUser]>,
+    ) -> Vec<RelationshipChange> {
+        let mut changes = Vec::new();
+        if let Some(users) = friends {
+            let next: HashSet<_> = users
+                .iter()
+                .map(|user| user.user_id)
+                .filter(|id| *id > 0)
+                .collect();
+            if let Some(previous) = &self.friends {
+                changes.extend(
+                    next.difference(previous)
+                        .copied()
+                        .map(RelationshipChange::Added),
+                );
+                changes.extend(
+                    previous
+                        .difference(&next)
+                        .copied()
+                        .map(RelationshipChange::Removed),
+                );
+            }
+            self.friends = Some(next);
+        }
+        if let Some(users) = requests {
+            let next: HashSet<_> = users
+                .iter()
+                .map(|user| user.user_id)
+                .filter(|id| *id > 0)
+                .collect();
+            if let Some(previous) = &self.requests {
+                changes.extend(
+                    next.difference(previous)
+                        .copied()
+                        .map(RelationshipChange::RequestReceived),
+                );
+            }
+            self.requests = Some(next);
+        }
+        changes.sort_by_key(|change| match change {
+            RelationshipChange::RequestReceived(id) => (0, *id),
+            RelationshipChange::Added(id) => (1, *id),
+            RelationshipChange::Removed(id) => (2, *id),
+        });
+        changes
+    }
+
+    pub fn retain_sources(&mut self, friends: bool, requests: bool) {
+        if !friends {
+            self.friends = None;
+        }
+        if !requests {
+            self.requests = None;
+        }
+    }
+
+    pub fn record_action(&mut self, target: u64, action: FriendAction) {
+        if let Some(requests) = &mut self.requests {
+            requests.remove(&target);
+        }
+        if let Some(friends) = &mut self.friends {
+            match action {
+                FriendAction::Accept => {
+                    friends.insert(target);
+                }
+                FriendAction::Remove | FriendAction::Block => {
+                    friends.remove(&target);
+                }
+                FriendAction::Decline => {}
+            }
+        }
+    }
+}
+
 pub async fn act(
     client: &RobloxClient,
     cookie: &str,
@@ -495,6 +608,68 @@ pub async fn fetch_groups(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn users(ids: &[u64]) -> Vec<FriendUser> {
+        ids.iter()
+            .map(|id| FriendUser {
+                user_id: *id,
+                ..Default::default()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn friendship_observation_is_silent_at_start_and_emits_each_change_once() {
+        let mut tracker = RelationshipTracker::default();
+        assert!(tracker
+            .observe(Some(&users(&[1, 2])), Some(&users(&[3])))
+            .is_empty());
+        assert_eq!(
+            tracker.observe(Some(&users(&[2, 4, 4, 0])), Some(&users(&[3, 5, 5, 0]))),
+            [
+                RelationshipChange::RequestReceived(5),
+                RelationshipChange::Added(4),
+                RelationshipChange::Removed(1)
+            ]
+        );
+        assert!(tracker
+            .observe(Some(&users(&[2, 4])), Some(&users(&[3, 5])))
+            .is_empty());
+        assert!(tracker.observe(None, None).is_empty());
+        assert!(tracker
+            .observe(Some(&users(&[2, 4])), Some(&users(&[5])))
+            .is_empty());
+    }
+
+    #[test]
+    fn successful_actions_reconcile_baselines_without_duplicate_notifications() {
+        let mut tracker = RelationshipTracker::default();
+        tracker.observe(Some(&users(&[1, 2])), Some(&users(&[3, 4])));
+        tracker.record_action(3, FriendAction::Accept);
+        tracker.record_action(4, FriendAction::Decline);
+        tracker.record_action(1, FriendAction::Remove);
+        tracker.record_action(2, FriendAction::Block);
+        assert!(tracker.observe(Some(&users(&[3])), Some(&[])).is_empty());
+        assert_eq!(
+            tracker.observe(Some(&users(&[3, 6])), None),
+            [RelationshipChange::Added(6)]
+        );
+    }
+
+    #[test]
+    fn reenabled_sources_establish_a_fresh_baseline_without_replaying_changes() {
+        let mut tracker = RelationshipTracker::default();
+        tracker.observe(Some(&users(&[1])), Some(&users(&[2])));
+        tracker.retain_sources(false, false);
+        assert!(tracker
+            .observe(Some(&users(&[3])), Some(&users(&[4])))
+            .is_empty());
+        tracker.retain_sources(true, false);
+        assert_eq!(
+            tracker.observe(Some(&users(&[3, 5])), Some(&users(&[6]))),
+            [RelationshipChange::Added(5)]
+        );
+    }
 
     #[test]
     fn offline_and_unknown_presence_do_not_report_stale_activity() {

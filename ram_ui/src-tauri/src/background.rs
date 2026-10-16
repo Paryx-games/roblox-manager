@@ -194,6 +194,7 @@ async fn refresh_avatars(app: &tauri::AppHandle, ids: &[u64]) -> Result<(), Stri
 }
 
 pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
+    let friends_app = app.clone();
     let private_servers_app = app.clone();
     let discord_app = app.clone();
     let validation_app = app.clone();
@@ -204,6 +205,7 @@ pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
     let startup_app = app.clone();
     let history_app = app.clone();
     BackgroundTasks(vec![
+        tauri::async_runtime::spawn(crate::friends::run_notifications(friends_app)),
         tauri::async_runtime::spawn(crate::private_servers::run_background(private_servers_app)),
         tauri::async_runtime::spawn(crate::discord::run(discord_app)),
         tauri::async_runtime::spawn(async move {

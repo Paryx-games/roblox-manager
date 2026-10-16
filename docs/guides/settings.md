@@ -69,6 +69,15 @@ Moderation and batch-launch events keep their existing defaults. **Account sessi
 
 Notifications include a **Job ID** when RM can confirm one. Launch failures include the requested public server ID; batches include it when every request targets that same server. Client exits include the Job ID from the last confirmed instance snapshot when available. Moderation and expiry events include server details when exactly one confirmed client is tracked for the account. Unknown values and private-server invitation/access codes are omitted.
 
+Friendship events start disabled and use the same global, event and destination switches:
+
+- **Friend request received** detects new incoming requests in background checks.
+- **Friend added** reports a request accepted in RM or a newly observed friendship.
+- **Friend removed** reports a removal in RM or a friendship missing from a complete check. It cannot tell who removed it.
+- **Friend request sent**, **Friend request declined** and **User blocked** report successful actions from RM. These actions outside RM cannot be reliably inferred.
+
+When an enabled event has an active destination, RM checks the relevant lists for unlocked accounts sequentially, with a one-minute pause between rounds. Friends does not need to be open. Each account's first complete check is silent; restarting RM, changing credentials, clearing caches or re-enabling monitoring establishes a new baseline. Failed, partial and rate-limited checks keep the previous baseline. Notifications identify both accounts by public user ID, include a Roblox profile link, and respect name anonymization. A block in RM emits **User blocked** rather than a duplicate **Friend removed** for that account.
+
 The existing webhook is retained as **Primary webhook**. Routing metadata is saved atomically alongside notification preferences, while every URL stays in its own credential entry. Older RM versions may reject the expanded preferences file and do not support extra destinations; retain the previous preferences backup before downgrading.
 
 ## Custom arguments and FastFlags

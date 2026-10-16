@@ -154,5 +154,29 @@
   "page_visibility": {
     "type": "info",
     "text": "Choose which workspaces appear in navigation. Settings remains available so hidden pages can be re-enabled."
+  },
+  "discord_friend_received": {
+    "type": "info",
+    "text": "Checks incoming requests for unlocked accounts in the background while enabled and routed. The first complete check establishes a baseline without sending existing requests. Later checks run sequentially, with a one-minute pause between rounds. Disabled by default."
+  },
+  "discord_friend_sent": {
+    "type": "info",
+    "text": "Roblox accepted a friend-request action from RM's Accounts page. Requests sent elsewhere cannot be tracked through the available API. Disabled by default."
+  },
+  "discord_friend_added": {
+    "type": "info",
+    "text": "A friend request was accepted in RM, or a complete background check found a new friend. The first check is silent. Background changes do not identify who accepted the request. Disabled by default."
+  },
+  "discord_friend_removed": {
+    "type": "info",
+    "text": "A friend was removed in RM, or a complete background check found a friendship missing. Background checks cannot tell who removed it. Blocking in RM sends User blocked instead. Failed or partial checks never imply removal. Disabled by default."
+  },
+  "discord_friend_declined": {
+    "type": "info",
+    "text": "Roblox accepted a decline action from RM's Friends page. Requests disappearing elsewhere do not prove they were declined and do not trigger this event. Disabled by default."
+  },
+  "discord_friend_blocked": {
+    "type": "info",
+    "text": "Roblox accepted a block action from RM's Friends or Accounts page. Includes account and target user IDs. Blocks made outside RM cannot be inferred from a removed friendship. Disabled by default."
   }
 }
