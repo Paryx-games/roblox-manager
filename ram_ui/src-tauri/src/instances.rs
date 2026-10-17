@@ -316,7 +316,9 @@ fn sweep(app: &tauri::AppHandle) -> Result<InstanceWorkspace, String> {
                         .and_then(|instance| labels.get(&instance.user_id))
                         .cloned()
                         .unwrap_or_else(|| "Unmatched client".into()),
-                    place_id: instance.map(|instance| instance.place_id),
+                    place_id: instance
+                        .map(|instance| instance.place_id)
+                        .filter(|id| *id > 0),
                     job_id: instance.and_then(|instance| {
                         instances.presence_checks.get(&instance.user_id).and_then(
                             |(presence, checked_at)| {

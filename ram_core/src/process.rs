@@ -511,6 +511,22 @@ pub fn launch_game_with_args(
     Ok(())
 }
 
+fn home_launch_uri(ticket: &str, launchtime: i64) -> String {
+    format!("roblox-player:1+launchmode:app+gameinfo:{ticket}+launchtime:{launchtime}")
+}
+
+/// Open the installed client's home screen using an account authentication ticket.
+pub fn launch_home_with_args(
+    ticket: &str,
+    launchtime: i64,
+    player_path: Option<&std::path::Path>,
+    args: &[String],
+) -> Result<(), CoreError> {
+    let executable = resolve_player_executable(player_path)?;
+    info!("Opening Roblox home screen");
+    open_player(&home_launch_uri(ticket, launchtime), &executable, args)
+}
+
 pub fn resolve_player_executable(
     player_path: Option<&std::path::Path>,
 ) -> Result<PathBuf, CoreError> {
@@ -2433,6 +2449,18 @@ mod tests {
             crate::instances::classify_cmdline(Some(&cmdline)),
             crate::instances::LaunchToken::Found(launchtime)
         );
+    }
+
+    #[test]
+    fn home_launch_uses_app_mode_without_a_game_destination_and_redacts_its_ticket() {
+        let token = 1700000000000;
+        let uri = home_launch_uri("SYNTHETIC-HOME-TICKET", token);
+        assert!(uri.starts_with("roblox-player:1+launchmode:app+gameinfo:"));
+        assert!(!uri.contains("placelauncherurl"));
+        assert_eq!(crate::instances::parse_launchtime(&uri), Some(token));
+        let scrubbed = crate::redact::scrub(&uri);
+        assert!(!scrubbed.contains("SYNTHETIC-HOME-TICKET"));
+        assert!(scrubbed.contains("gameinfo:<redacted>"));
     }
 
     /// The launch URI carries a live authentication ticket, and it reaches the

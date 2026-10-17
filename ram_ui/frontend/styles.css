@@ -6492,6 +6492,10 @@ button:focus-visible {
   margin-top: var(--space-3);
 }
 
+.account-launch-actions {
+  flex-wrap: wrap;
+}
+
 .account-button {
   display: inline-flex;
   min-height: 36px;

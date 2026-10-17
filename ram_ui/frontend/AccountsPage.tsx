@@ -37,6 +37,7 @@ import {
   addAccount,
   addAccountAnyway,
   browseAsAccount,
+  openAccountHome,
   loginAndAddAccount,
   listAccounts,
   listAccountGroupColors,
@@ -675,6 +676,8 @@ export function AccountsPage({
   const [password, setPassword] = useState("");
   const [alias, setAlias] = useState("");
   const [mutationLoading, setMutationLoading] = useState(false);
+  const [openingHome, setOpeningHome] = useState(false);
+  const homeLaunchPending = useRef(false);
   const connectionRequestPending = useRef(false);
   const [browserLoginLoading, setBrowserLoginLoading] = useState(false);
   const [browserLoginOverlayVisible, setBrowserLoginOverlayVisible] =
@@ -1897,6 +1900,28 @@ export function AccountsPage({
     }
   }
 
+  async function openHomeScreen() {
+    if (mutationLoading || homeLaunchPending.current || !selectedAccounts.length || restrictedSelection.length) return;
+    homeLaunchPending.current = true;
+    setOpeningHome(true);
+    setMutationLoading(true);
+    const ids = selectedAccounts.map((account) => account.userId);
+    let opened = 0;
+    try {
+      for (const userId of ids) {
+        await openAccountHome(userId);
+        opened += 1;
+      }
+      setNotice(`Opening Roblox home for ${ids.length === 1 ? "the selected account" : `${ids.length} accounts`}.`, "success");
+    } catch (error) {
+      setNotice(`${opened ? `Requested ${opened} of ${ids.length} home launches before stopping. ` : ""}${operationError(error, "Roblox home could not open.")} Check Instances before retrying.`, "error");
+    } finally {
+      homeLaunchPending.current = false;
+      setOpeningHome(false);
+      setMutationLoading(false);
+    }
+  }
+
   async function browseAs(inventory = false) {
     if (!selectedAccount) return;
     try {
@@ -2902,7 +2927,7 @@ export function AccountsPage({
                     return <button className="account-data-example" type="button" key={argument} disabled={present} aria-label={`Add ${argument} to Data`} data-tip={present ? "This argument is already in Data" : "Append this example to Data"} onClick={() => appendDataExample(argument)}>?{argument}</button>;
                   })}
                 </div>
-                <div className="account-action-row">
+                <div className="account-action-row account-launch-actions">
                   <button
                     className="account-button primary"
                     type="button"
@@ -2920,6 +2945,17 @@ export function AccountsPage({
                   >
                     <Icon name="browser" />
                     {isMultiSelection ? `Open browsers (${selectedAccounts.length})` : "Open browser"}
+                  </button>
+                  <button
+                    className="account-button"
+                    type="button"
+                    disabled={mutationLoading || restrictedSelection.length > 0}
+                    aria-busy={openingHome}
+                    data-tip={isMultiSelection ? "Open the installed Roblox app's home screen for each selected account" : "Open the installed Roblox app's home screen as the selected account"}
+                    onClick={() => void openHomeScreen()}
+                  >
+                    <Icon name="home" />
+                    {openingHome ? "Opening home..." : isMultiSelection ? `Open to home screen (${selectedAccounts.length})` : "Open to home screen"}
                   </button>
                   <button
                     className="icon-button bordered"

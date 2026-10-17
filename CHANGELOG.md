@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Roblox home launch:** Added an **Open to home screen** button beside **Open browser** with a home icon. Open the installed Roblox app as one or more selected accounts without a Place ID, using the shared launch safeguards and queue.
+
 - **Friendship notifications:** Added Discord routes for incoming/sent requests, added/removed friends, declined requests and blocked users. Optional background checks work without opening Friends, establish silent baselines and avoid repeating successful RM actions.
 
 - **Friends workspace:** Added account-specific friend browsing, distinct presence filters, local search/sorting, full Job ID copying, cached profile/mutual-friend/group details, safe single-account joins, confirmed remove/block actions and incoming request management. Account switching ignores stale responses and retains the selected account locally.

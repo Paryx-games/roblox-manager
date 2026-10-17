@@ -3728,6 +3728,7 @@ fn main() {
             add_account_anyway,
             login_and_add_account,
             browse_as_account,
+            launcher::open_account_home,
             list_launch_presets,
             save_launch_preset,
             update_launch_preset,
