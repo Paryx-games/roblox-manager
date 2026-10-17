@@ -220,8 +220,32 @@ fn apply_to_file(path: &Path, saved: &SavedSettings) -> Result<(), String> {
     if read_xml(path)? != xml {
         return Err("Roblox settings changed during launch. Try again.".into());
     }
-    storage::atomic_write(path, patched.as_bytes())
-        .map_err(|_| "Roblox settings could not be saved. Nothing was launched.".into())
+    write_preserving_readonly(path, patched.as_bytes())
+}
+
+fn write_preserving_readonly(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let permissions = std::fs::metadata(path)
+        .map_err(|_| "Roblox settings could not be inspected. Nothing was launched.")?
+        .permissions();
+    let readonly = permissions.readonly();
+    if readonly {
+        let mut writable = permissions.clone();
+        // RM is Windows-only; temporarily clear the attribute on this Roblox XML only.
+        #[expect(
+            clippy::permissions_set_readonly_false,
+            reason = "Windows-only attribute change; the original permissions are restored after the atomic write"
+        )]
+        writable.set_readonly(false);
+        std::fs::set_permissions(path, writable).map_err(|_| {
+            "Roblox settings are read-only and could not be unlocked. Nothing was launched."
+        })?;
+    }
+    let result = storage::atomic_write(path, bytes);
+    if readonly {
+        std::fs::set_permissions(path, permissions)
+            .map_err(|_| "Roblox settings could not have their read-only attribute restored. Nothing was launched; check the file permissions before retrying.")?;
+    }
+    result.map_err(|_| "Roblox settings could not be saved. Another Roblox client or tool may be locking the file. Nothing was launched.".into())
 }
 
 pub fn apply_before_launch(state: &AppState) -> Result<(), String> {
@@ -275,6 +299,77 @@ pub async fn save_client_launch_settings(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn clear_test_readonly(path: &Path) {
+        let mut permissions = std::fs::metadata(path).unwrap().permissions();
+        #[expect(
+            clippy::permissions_set_readonly_false,
+            reason = "Windows-only cleanup of a synthetic test file"
+        )]
+        permissions.set_readonly(false);
+        std::fs::set_permissions(path, permissions).unwrap();
+    }
+
+    #[test]
+    fn readonly_roblox_xml_is_updated_atomically_and_relocked() {
+        let directory =
+            std::env::temp_dir().join(format!("rm-readonly-settings-{}", uuid::Uuid::new_v4()));
+        let path = directory.join("settings.xml");
+        storage::atomic_write(&path, XML.as_bytes()).unwrap();
+        let mut permissions = std::fs::metadata(&path).unwrap().permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&path, permissions).unwrap();
+        let saved = SavedSettings {
+            settings: ClientLaunchSettings {
+                enabled: true,
+                fps: 120,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        apply_to_file(&path, &saved).unwrap();
+        assert!(std::fs::metadata(&path).unwrap().permissions().readonly());
+        assert!(std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("<int name=\"FramerateCap\">120</int>"));
+        assert_eq!(
+            std::fs::read(storage::backup_path(&path)).unwrap(),
+            XML.as_bytes()
+        );
+        clear_test_readonly(&path);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn locked_roblox_xml_keeps_original_content_and_readonly_after_failure() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let directory =
+            std::env::temp_dir().join(format!("rm-locked-settings-{}", uuid::Uuid::new_v4()));
+        let path = directory.join("settings.xml");
+        storage::atomic_write(&path, XML.as_bytes()).unwrap();
+        let mut permissions = std::fs::metadata(&path).unwrap().permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&path, permissions).unwrap();
+        let lock = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(3)
+            .open(&path)
+            .unwrap();
+        let saved = SavedSettings {
+            settings: ClientLaunchSettings {
+                enabled: true,
+                fps: 120,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(apply_to_file(&path, &saved).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), XML.as_bytes());
+        assert!(std::fs::metadata(&path).unwrap().permissions().readonly());
+        drop(lock);
+        clear_test_readonly(&path);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
     const XML: &str = "<roblox><Item class=\"Other\"><Properties><int name=\"FramerateCap\">1</int></Properties></Item><Item class=\"UserGameSettings\"><Properties><int name=\"FramerateCap\">60</int><float name=\"MasterVolume\">0.25</float><!--keep--><string name=\"Other\">unchanged</string></Properties></Item></roblox>";
 
     #[test]

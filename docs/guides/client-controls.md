@@ -33,6 +33,8 @@ Turn off **Apply on launch** and save. RM stops reapplying these overrides; Robl
 
 These preferences are stored separately from account credentials in `client-launch-settings.json` beside RM's configuration. When enabled, they are applied to Roblox's local `GlobalBasicSettings_13.xml` before launch. Other tools or Roblox may also edit that file.
 
+If Roblox's XML has the Windows read-only attribute, RM temporarily clears it for the atomic update and restores it afterward, including when the write fails. The usual `.bak` backup is retained. RM does not change Windows access-control lists or bypass locks held by another program; those failures still stop the launch.
+
 ## Retry a failure
 
 If the controls cannot load, use **Retry**. **Reset launch settings** restores RM's launch preferences to their defaults; it is not an account-store reset. If applying preferences fails before launch, correct the reported Roblox settings/file problem before retrying.
