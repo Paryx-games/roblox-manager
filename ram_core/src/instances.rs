@@ -441,7 +441,10 @@ impl InstanceRegistry {
         self.tracked
             .iter()
             .any(|instance| instance.user_id == user_id)
-            || self.pending.iter().any(|launch| launch.user_id == user_id)
+            || self
+                .pending
+                .iter()
+                .any(|launch| launch.user_id == user_id && !launch.fifo_expired)
     }
 
     /// PIDs believed to belong to `user_id`, exact and inferred alike. Callers
@@ -524,6 +527,27 @@ mod tests {
         assert!(registry.has_session(1));
         registry.sweep(&[], now);
         assert!(!registry.has_session(1));
+    }
+
+    #[test]
+    fn abandoned_launches_stop_blocking_joins_but_keep_exact_attribution() {
+        let mut registry = InstanceRegistry::new();
+        registry.note_launch(7, 606, 5_000, &[], t0());
+        assert!(registry.has_session(7));
+        let result = registry.sweep(&[], at(PENDING_TTL_SECS + 1));
+        assert_eq!(result.abandoned.len(), 1);
+        assert!(!registry.has_session(7));
+        assert_eq!(registry.matchable_count(), 1);
+        registry.sweep(
+            &[LiveClient {
+                pid: 10,
+                start_time: 1,
+                token: LaunchToken::Found(5_000),
+            }],
+            at(PENDING_TTL_SECS + 2),
+        );
+        assert!(registry.has_session(7));
+        assert_eq!(registry.user_for(10), Some(7));
     }
 
     #[test]

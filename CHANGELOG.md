@@ -36,6 +36,8 @@
 
 ### Fixed
 
+- **Join retries:** Abandoned pending launches stop blocking new-instance joins after their starting window expires, while remaining available for late exact attribution.
+
 - **Friend activity:** Offline and unavailable friends no longer display stale activity returned by Roblox.
 - **User blocking:** Reused Roblox-issued browser context for block actions so the current API accepts them. Browser context remains temporary and is scrubbed from logs.
 
