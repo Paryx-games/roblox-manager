@@ -80,6 +80,8 @@ When an enabled event has an active destination, RM checks the relevant lists fo
 
 The existing webhook is retained as **Primary webhook**. Routing metadata is saved atomically alongside notification preferences, while every URL stays in its own credential entry. Older RM versions may reject the expanded preferences file and do not support extra destinations; retain the previous preferences backup before downgrading.
 
+If notification preferences cannot load, try **Retry loading preferences**. **Reset notification preferences** offers a confirmed recovery when the saved file is invalid. RM preserves that file as a separate `discord-notifications.recovery-<id>.json` copy beside it and leaves the existing `.bak` unchanged before atomically writing defaults with delivery paused. The primary webhook is restored if saved; additional destinations must be added again. Webhook credentials are not deleted. Valid preferences cannot be reset through this recovery action.
+
 ## Custom arguments and FastFlags
 
 Custom arguments are parsed using Windows double-quote and backslash rules and passed directly to Roblox, without a command shell. Quote arguments containing spaces. RM reserves its launch URI, authentication and attribution parameters; invalid arguments stop the launch. Roblox determines which extra arguments it recognizes.

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { Popup } from "./Popup";
-import { getDiscordNotifications, saveDiscordNotifications, saveDiscordDestination, removeDiscordDestination, testDiscordDestination, testDiscordWebhook, operationError, type DiscordNotificationSettings, type DiscordEvent, type SettingsInfoCard } from "../lib/ipc";
+import { ConfirmModal } from "../ConfirmModal";
+import { getDiscordNotifications, resetDiscordNotifications, saveDiscordNotifications, saveDiscordDestination, removeDiscordDestination, testDiscordDestination, testDiscordWebhook, operationError, type DiscordNotificationSettings, type DiscordEvent, type SettingsInfoCard } from "../lib/ipc";
 import { InfoTip } from "./InfoTip";
 
 const events: { key: DiscordEvent; label: string; info: string }[] = [
@@ -29,6 +30,7 @@ export function DiscordNotifications({ hasWebhook, onConfiguredChange, onBusyCha
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -102,8 +104,9 @@ export function DiscordNotifications({ hasWebhook, onConfiguredChange, onBusyCha
     {!modalOpen && feedback && <p role="status">{feedback}</p>}
     {!settings && busy === null && <div className="settings-action-row">
       <button className="account-button" type="button" onClick={() => void run("load", async () => { setSettings(await getDiscordNotifications()); })}>Retry loading preferences</button>
-
+      <button className="account-button danger" type="button" onClick={() => setConfirmReset(true)}>Reset notification preferences</button>
     </div>}
+    {confirmReset && <ConfirmModal title="Reset notification preferences?" message={<><p>Delivery will be paused and routing reset. Your current preferences will be backed up. The primary webhook is kept if saved; additional destinations must be added again.</p>{error && <p role="alert">{error}</p>}</>} confirmLabel={busy ? "Resetting..." : "Reset preferences"} confirmIcon="refresh" busy={busy !== null} confirmDisabled={busy !== null} onCancel={() => { if (!busy) setConfirmReset(false); }} onConfirm={() => void run("preferences", async () => { const next = await resetDiscordNotifications(); setSettings(next); onConfiguredChange(next.destinations.length > 0); setConfirmReset(false); setFeedback("Notification preferences reset. Delivery is paused. Review routing before enabling notifications."); })} />}
     {modalOpen && <Popup className="confirm-modal settings-webhook-modal" backdropClassName="confirm-modal-backdrop" onClose={close} closeOnBackdrop labelledBy="settings-webhook-title" describedBy="settings-webhook-description" busy={busy !== null}>
       <div className="confirm-modal-header"><h2 id="settings-webhook-title">{editingId ? "Replace Discord webhook" : "Add Discord webhook"}</h2><button className="icon-button" type="button" aria-label="Close webhook dialog" disabled={busy !== null} onClick={close}><Icon name="close" /></button></div>
       <p id="settings-webhook-description">Create a webhook for a Discord text channel and paste its URL here. RM stores the URL in Windows Credential Manager. Replacing a destination preserves its routes and enabled state.</p>

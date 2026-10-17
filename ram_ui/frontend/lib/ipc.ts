@@ -59,6 +59,7 @@ export interface DiscordNotificationSettings {
   destinations: DiscordDestination[];
 }
 export function getDiscordNotifications(): Promise<DiscordNotificationSettings> { return invoke("get_discord_notifications"); }
+export function resetDiscordNotifications(): Promise<DiscordNotificationSettings> { return invoke("reset_discord_notifications"); }
 export function saveDiscordNotifications(settings: DiscordNotificationSettings): Promise<void> { return invoke("save_discord_notifications", { settings }); }
 export function saveDiscordDestination(id: string | null, name: string, url: string): Promise<DiscordNotificationSettings> { return invoke("save_discord_destination", { id, name, url }); }
 export function removeDiscordDestination(id: string): Promise<DiscordNotificationSettings> { return invoke("remove_discord_destination", { id }); }

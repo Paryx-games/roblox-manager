@@ -3641,6 +3641,7 @@ fn main() {
             roblox_settings::get_roblox_privacy,
             roblox_settings::change_roblox_privacy,
             discord::get_discord_notifications,
+            discord::reset_discord_notifications,
             discord::save_discord_notifications,
             launcher::launch_accounts,
             lifecycle::startup_status,

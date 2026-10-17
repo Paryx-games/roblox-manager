@@ -175,7 +175,7 @@ fn preference_path(state: &AppState) -> Result<PathBuf, String> {
 fn load(path: &std::path::Path) -> Result<NotificationSettings, String> {
     match std::fs::read(path) {
         Ok(data) => serde_json::from_slice(&data).map_err(|_| {
-            "Discord notification settings are invalid. Save them again to repair them".into()
+            "Discord notification settings are invalid. Use Reset notification preferences to recover".into()
         }),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             Ok(NotificationSettings::default())
@@ -218,6 +218,61 @@ fn save_preferences(path: &std::path::Path, settings: &NotificationSettings) -> 
         .map_err(|_| "Notification settings could not be encoded")?;
     storage::atomic_write(path, &data)
         .map_err(|_| "Notification settings could not be saved".into())
+}
+
+fn reset_preferences(
+    path: &std::path::Path,
+    primary_connected: bool,
+) -> Result<NotificationSettings, String> {
+    let original = std::fs::read(path)
+        .map_err(|_| "Saved notification preferences could not be backed up. Nothing was reset")?;
+    if serde_json::from_slice::<NotificationSettings>(&original)
+        .is_ok_and(|settings| settings.validate().is_ok())
+    {
+        return Err(
+            "Notification preferences are valid now. Reload them instead of resetting".into(),
+        );
+    }
+    let mut settings = NotificationSettings {
+        enabled: false,
+        ..Default::default()
+    };
+    if primary_connected {
+        settings
+            .destinations
+            .push(Destination::new("default".into(), "Primary webhook".into()));
+    }
+    let recovery = path.with_file_name(format!(
+        "discord-notifications.recovery-{}.json",
+        uuid::Uuid::new_v4()
+    ));
+    let encoded = serde_json::to_vec_pretty(&settings)
+        .map_err(|_| "Recovery preferences could not be encoded")?;
+    storage::atomic_swap(&recovery, &original)
+        .map_err(|_| "Saved notification preferences could not be backed up. Nothing was reset")?;
+    // The separate recovery copy is durable; leave an existing .bak untouched.
+    storage::atomic_swap(path, &encoded).map_err(|_| {
+        "Notification preferences could not be reset. The original and recovery copy were kept"
+    })?;
+    Ok(settings)
+}
+
+#[tauri::command]
+pub async fn reset_discord_notifications(
+    state: tauri::State<'_, AppState>,
+) -> Result<NotificationSettings, String> {
+    let _settings = SETTINGS_IO.lock().await;
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let primary_connected = crypto::discord_webhook()
+            .map_err(|_| "Saved primary webhook could not be checked. Nothing was reset")?
+            .is_some();
+        let settings = reset_preferences(&preference_path(&state)?, primary_connected)?;
+        state.friends.reset_notifications();
+        Ok(settings)
+    })
+    .await
+    .map_err(|_| "Notification recovery task failed")?
 }
 
 #[tauri::command]
@@ -723,6 +778,48 @@ pub fn batch_finished(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn invalid_preferences_recover_paused_with_original_and_existing_backup_preserved() {
+        let directory =
+            std::env::temp_dir().join(format!("rm-discord-recovery-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let backup = serde_json::to_vec(&NotificationSettings::default()).unwrap();
+        for (index, original) in [
+            b"{incomplete".as_slice(),
+            br#"{"destinations":[{"id":"default","name":"Synthetic","enabled":true,"events":["futureEvent"]}]}"#.as_slice(),
+            br#"{"destinations":[{"id":"default","name":"","enabled":true,"events":[]}]}"#.as_slice(),
+        ].into_iter().enumerate() {
+            let path = directory.join(format!("preferences-{index}.json"));
+            storage::atomic_swap(&path, original).unwrap();
+            storage::atomic_swap(&storage::backup_path(&path), &backup).unwrap();
+            let settings = reset_preferences(&path, true).unwrap();
+            assert!(!settings.enabled);
+            assert_eq!(settings.destinations.len(), 1);
+            assert_eq!(settings.destinations[0].id, "default");
+            assert!(settings.validate().is_ok());
+            assert_eq!(load(&path).unwrap(), settings);
+            assert_eq!(std::fs::read(storage::backup_path(&path)).unwrap(), backup);
+            assert!(std::fs::read_dir(&directory).unwrap().filter_map(Result::ok).filter(|entry| entry.file_name().to_string_lossy().starts_with("discord-notifications.recovery-")).any(|entry| std::fs::read(entry.path()).unwrap() == original));
+        }
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn recovery_refuses_valid_or_unreadable_preferences_without_writing() {
+        let directory =
+            std::env::temp_dir().join(format!("rm-discord-recovery-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("discord-notifications.json");
+        assert!(reset_preferences(&path, false).is_err());
+        assert!(!path.exists());
+        let original = serde_json::to_vec(&NotificationSettings::default()).unwrap();
+        storage::atomic_swap(&path, &original).unwrap();
+        assert!(reset_preferences(&path, false).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 1);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn friendship_routes_are_opt_in_and_require_an_active_destination() {
