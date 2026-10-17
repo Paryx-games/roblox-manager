@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { fetchInventorySnapshot, operationError, type AccountSummary, type InventoryItem } from "../lib/ipc";
-import { mergeAccountInventories } from "../lib/inventoryBrowsing";
+import { inventorySelectionKey, mergeAccountInventories } from "../lib/inventoryBrowsing";
 import { LoadingSkeleton } from "./LoadingSkeleton";
 import { Icon } from "./Icon";
 
@@ -9,7 +9,7 @@ export function AccountInventoryPreview({ accounts, onOpenInventories, inventori
   onOpenInventories: () => void;
   inventoriesAvailable: boolean;
 }) {
-  const selection = accounts.map(account => `${account.userId}:${account.cookieExpired}`).sort().join(",");
+  const selection = inventorySelectionKey(accounts);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

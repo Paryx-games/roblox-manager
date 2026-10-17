@@ -5,7 +5,7 @@ import { AccountAvatar } from "./components/AccountAvatar";
 import { allAccountsSelected, toggleAllAccounts } from "./lib/accountSelection";
 import { Icon } from "./components/Icon";
 import Select from "./components/Select";
-import { buildInventoryAccountGroups, buildInventoryBrowserTargets, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems, type OwnedInventoryItem, type InventoryComparison, type InventorySort, type InventorySortDirection } from "./lib/inventoryBrowsing";
+import { inventorySelectionKey, buildInventoryAccountGroups, buildInventoryBrowserTargets, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems, type OwnedInventoryItem, type InventoryComparison, type InventorySort, type InventorySortDirection } from "./lib/inventoryBrowsing";
 import { getSelectionRectangle, selectInventoryAsset, selectInventoryAssets, type SelectionRectangle } from "./lib/inventorySelection";
 import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
 import {
@@ -72,6 +72,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const groupIdPrefix = useId();
   const [accountIds, setAccountIds] = useState<Set<number>>(() => new Set(initialSelectedIds));
   const [accountsLoading, setAccountsLoading] = useState(true);
+  const selectedInventoryKey = inventorySelectionKey(accounts.filter(account => accountIds.has(account.userId)));
   const [items, setItems] = useState<OwnedInventoryItem[]>([]);
   const [loadedAccountCount, setLoadedAccountCount] = useState(0);
   const [cachedAccountCount, setCachedAccountCount] = useState(0);
@@ -234,7 +235,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
         }
       });
     return () => { isCurrent = false; };
-  }, [accountIds, accountsLoading, refreshCount]);
+  }, [accountIds, accountsLoading, refreshCount, selectedInventoryKey]);
 
   const isComparisonAvailable = accountIds.size > 1 && loadedAccountCount === accountIds.size && !itemsLoading;
   const effectiveComparison = isComparisonAvailable ? comparison : "all";

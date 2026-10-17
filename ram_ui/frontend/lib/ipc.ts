@@ -79,6 +79,7 @@ export type PresenceStatus = "online" | "warning" | "danger" | "neutral";
 
 export interface AccountSummary {
   userId: number;
+  credentialRevision: number;
   label: string;
   username: string;
   displayName: string;

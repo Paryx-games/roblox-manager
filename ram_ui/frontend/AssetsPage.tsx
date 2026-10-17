@@ -124,6 +124,9 @@ export function AssetsPage({
   const selectedAccount = accounts.find(
     (account) => account.userId === selectedUserId,
   );
+  const selectedAccountId = selectedAccount?.userId;
+  const selectedCredentialRevision = selectedAccount?.credentialRevision ?? 0;
+  const selectedCookieExpired = selectedAccount?.cookieExpired ?? false;
   function resolveCreator(value: string): AssetCreator {
     return value === "user" ? { kind: "user", id: selectedUserId ?? 0 } : { kind: "group", id: Number(value) };
   }
@@ -287,12 +290,12 @@ export function AssetsPage({
     setUniverseId("");
     setTypeFilter("all");
     setUniverseError(null);
-    if (!selectedAccount || selectedAccount.cookieExpired) {
+    if (!selectedAccountId || selectedCookieExpired) {
       setIsLoadingUniverses(false);
       return;
     }
     setIsLoadingUniverses(true);
-    void listAssetUniverses(selectedAccount.userId)
+    void listAssetUniverses(selectedAccountId)
       .then((nextUniverses) => {
         if (isActive) setUniverses(nextUniverses);
       })
@@ -308,7 +311,7 @@ export function AssetsPage({
     return () => {
       isActive = false;
     };
-  }, [selectedAccount]);
+  }, [selectedAccountId, selectedCookieExpired, selectedCredentialRevision]);
 
   const stageFiles = useCallback(
     async (paths: string[] = []) => {

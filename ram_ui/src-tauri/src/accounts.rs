@@ -157,6 +157,10 @@ pub fn summaries(state: &AppState) -> Result<Vec<AccountSummary>, String> {
                 account,
                 configured_player_path(&runtime, account.user_id),
                 &runtime.config,
+                *runtime
+                    .credential_revisions
+                    .get(&account.user_id)
+                    .unwrap_or(&0),
             )
         })
         .collect())
@@ -221,6 +225,10 @@ pub async fn stage_addition(
                 &account,
                 configured_player_path(&runtime, account.user_id),
                 &runtime.config,
+                *runtime
+                    .credential_revisions
+                    .get(&account.user_id)
+                    .unwrap_or(&0),
             );
             drop(runtime);
             let confirmation_id = uuid::Uuid::new_v4().to_string();
@@ -334,6 +342,7 @@ fn commit_addition(state: &AppState, confirmation_id: &str) -> Result<AccountSum
         account,
         configured_player_path(&runtime, user_id),
         &runtime.config,
+        *runtime.credential_revisions.get(&user_id).unwrap_or(&0),
     ))
 }
 
@@ -454,12 +463,34 @@ pub async fn refresh(
                     .is_some_and(|previous| !previous.cookie_expired);
             let moderation_notice = moderation_notice
                 .and_then(|id| runtime.accounts.find_by_id(id))
-                .map(|account| account_summary(account, None, &runtime.config).label);
+                .map(|account| {
+                    account_summary(
+                        account,
+                        None,
+                        &runtime.config,
+                        *runtime
+                            .credential_revisions
+                            .get(&account.user_id)
+                            .unwrap_or(&0),
+                    )
+                    .label
+                });
             let expired_notice = runtime
                 .accounts
                 .find_by_id(user_id)
                 .filter(|_| expired)
-                .map(|account| account_summary(account, None, &runtime.config).label);
+                .map(|account| {
+                    account_summary(
+                        account,
+                        None,
+                        &runtime.config,
+                        *runtime
+                            .credential_revisions
+                            .get(&account.user_id)
+                            .unwrap_or(&0),
+                    )
+                    .label
+                });
             let notices = Some((moderation_notice, expired_notice));
             if save_runtime(&runtime).is_err() {
                 runtime.accounts = previous;
@@ -559,7 +590,7 @@ mod tests {
                 2048,
             )),
         };
-        for identifier in ["first", "retry"] {
+        for (index, identifier) in ["first", "retry"].into_iter().enumerate() {
             state.pending_additions.lock().unwrap().insert(
                 identifier.into(),
                 PendingAddition {
@@ -568,6 +599,11 @@ mod tests {
                 },
             );
             let summary = commit_addition(&state, identifier).unwrap();
+            assert_eq!(summary.credential_revision, index as u64 + 1);
+            assert_eq!(
+                summaries(&state).unwrap()[0].credential_revision,
+                summary.credential_revision
+            );
             assert_eq!(summary.alias, "Main");
             assert_eq!(summary.group, "Farm");
             assert!(summary.is_pinned);

@@ -16,7 +16,7 @@ fn accounts() -> Vec<Value> {
         account.group = "Demo accounts".into();
         account.avatar_url = format!("/demo-avatars/{username}.png");
         account.sort_order = index as u32;
-        let mut summary = crate::account_summary(&account, None, &AppConfig::default());
+        let mut summary = crate::account_summary(&account, None, &AppConfig::default(), 0);
         summary.can_launch = false;
         summary.created_at = Some("2024-01-01T00:00:00Z".into());
         summary.presence_text = "Demo account".into();

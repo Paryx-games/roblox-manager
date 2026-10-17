@@ -249,6 +249,7 @@ fn init_logging(level: LogLevel, targets: &[String]) {
 #[serde(rename_all = "camelCase")]
 struct AccountSummary {
     user_id: u64,
+    credential_revision: u64,
     label: String,
     username: String,
     display_name: String,
@@ -887,10 +888,12 @@ fn account_summary(
     account: &Account,
     player_path: Option<String>,
     config: &AppConfig,
+    credential_revision: u64,
 ) -> AccountSummary {
     let anonymous_label = format!("Account {}", account.user_id);
     AccountSummary {
         user_id: account.user_id,
+        credential_revision,
         label: if config.anonymize_names {
             anonymous_label.clone()
         } else {
@@ -1134,7 +1137,15 @@ fn list_accounts(state: tauri::State<'_, AppState>) -> Result<Vec<AccountSummary
                 .custom_player_paths
                 .get(&account.user_id)
                 .map(|path| path.display().to_string());
-            account_summary(account, player_path, &runtime.config)
+            account_summary(
+                account,
+                player_path,
+                &runtime.config,
+                *runtime
+                    .credential_revisions
+                    .get(&account.user_id)
+                    .unwrap_or(&0),
+            )
         })
         .collect())
 }
@@ -1173,13 +1184,19 @@ async fn update_account_alias(
         }
         let player_path = configured_player_path(&runtime, user_id);
         let presentation_config = runtime.config.clone();
+        let credential_revision = *runtime.credential_revisions.get(&user_id).unwrap_or(&0);
         let summary = {
             let account = runtime
                 .accounts
                 .find_by_id_mut(user_id)
                 .ok_or_else(|| "Account not found".to_string())?;
             account.alias = alias.trim().to_string();
-            account_summary(account, player_path, &presentation_config)
+            account_summary(
+                account,
+                player_path,
+                &presentation_config,
+                credential_revision,
+            )
         };
         save_runtime(&runtime)?;
         Ok(summary)
@@ -1201,13 +1218,19 @@ async fn toggle_account_pin(
             .map_err(|_| "Account state unavailable".to_string())?;
         let player_path = configured_player_path(&runtime, user_id);
         let presentation_config = runtime.config.clone();
+        let credential_revision = *runtime.credential_revisions.get(&user_id).unwrap_or(&0);
         let summary = {
             let account = runtime
                 .accounts
                 .find_by_id_mut(user_id)
                 .ok_or_else(|| "Account not found".to_string())?;
             account.is_pinned = !account.is_pinned;
-            account_summary(account, player_path, &presentation_config)
+            account_summary(
+                account,
+                player_path,
+                &presentation_config,
+                credential_revision,
+            )
         };
         save_runtime(&runtime)?;
         Ok(summary)
@@ -1234,13 +1257,19 @@ async fn update_account_group(
         }
         let player_path = configured_player_path(&runtime, user_id);
         let presentation_config = runtime.config.clone();
+        let credential_revision = *runtime.credential_revisions.get(&user_id).unwrap_or(&0);
         let summary = {
             let account = runtime
                 .accounts
                 .find_by_id_mut(user_id)
                 .ok_or_else(|| "Account not found".to_string())?;
             account.group = group.to_string();
-            account_summary(account, player_path, &presentation_config)
+            account_summary(
+                account,
+                player_path,
+                &presentation_config,
+                credential_revision,
+            )
         };
         save_runtime(&runtime)?;
         Ok(summary)
@@ -1274,6 +1303,10 @@ async fn reorder_accounts(
                     account,
                     configured_player_path(&runtime, account.user_id),
                     &runtime.config,
+                    *runtime
+                        .credential_revisions
+                        .get(&account.user_id)
+                        .unwrap_or(&0),
                 )
             })
             .collect();
@@ -1319,7 +1352,12 @@ async fn update_player_path(
             .find_by_id(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
         let player_path = configured_player_path(&runtime, user_id);
-        Ok(account_summary(account, player_path, &runtime.config))
+        Ok(account_summary(
+            account,
+            player_path,
+            &runtime.config,
+            *runtime.credential_revisions.get(&user_id).unwrap_or(&0),
+        ))
     })
     .await
     .map_err(|_| "Player path task failed".to_string())?
@@ -2253,7 +2291,16 @@ async fn open_inventory_assets(
                     url,
                     format!(
                         "Roblox - {}",
-                        account_summary(account, None, &runtime.config).label
+                        account_summary(
+                            account,
+                            None,
+                            &runtime.config,
+                            *runtime
+                                .credential_revisions
+                                .get(&account.user_id)
+                                .unwrap_or(&0)
+                        )
+                        .label
                     ),
                 ))
             })
@@ -2752,7 +2799,16 @@ async fn browse_as_account(
             .ok_or_else(|| "Account not found".to_string())?;
         (
             account_cookie(&runtime, user_id)?,
-            account_summary(account, None, &runtime.config).label,
+            account_summary(
+                account,
+                None,
+                &runtime.config,
+                *runtime
+                    .credential_revisions
+                    .get(&account.user_id)
+                    .unwrap_or(&0),
+            )
+            .label,
         )
     };
     let profile_dir = std::env::var_os("APPDATA")
@@ -3225,7 +3281,16 @@ async fn open_group_challenge(
             .ok_or_else(|| "Account not found".to_string())?;
         (
             account_cookie(&runtime, user_id)?,
-            account_summary(account, None, &runtime.config).label,
+            account_summary(
+                account,
+                None,
+                &runtime.config,
+                *runtime
+                    .credential_revisions
+                    .get(&account.user_id)
+                    .unwrap_or(&0),
+            )
+            .label,
         )
     };
     let profile_dir = std::env::var_os("APPDATA")
@@ -3439,7 +3504,8 @@ mod account_presentation_tests {
             anonymize_names: true,
             ..AppConfig::default()
         };
-        let summary = account_summary(&account, None, &config);
+        let summary = account_summary(&account, None, &config, 3);
+        assert_eq!(summary.credential_revision, 3);
         assert_eq!(summary.user_id, 42);
         assert_eq!(summary.username, "Account 42");
         assert_eq!(summary.display_name, "Account 42");
