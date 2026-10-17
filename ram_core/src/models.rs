@@ -102,6 +102,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn older_configs_leave_capture_exclusion_disabled_and_preserve_other_preferences() {
+        let mut old = serde_json::to_value(AppConfig::default()).unwrap();
+        old.as_object_mut()
+            .unwrap()
+            .remove("hide_from_screen_capture");
+        old["anonymize_names"] = serde_json::json!(true);
+        let mut loaded: AppConfig = serde_json::from_value(old).unwrap();
+        assert!(!loaded.hide_from_screen_capture);
+        assert!(loaded.anonymize_names);
+        loaded.hide_from_screen_capture = true;
+        let saved: AppConfig =
+            serde_json::from_slice(&serde_json::to_vec(&loaded).unwrap()).unwrap();
+        assert!(saved.hide_from_screen_capture && saved.anonymize_names);
+    }
+
+    #[test]
     fn older_configs_get_quiet_dependency_logging_without_changing_saved_levels() {
         let config = AppConfig::default();
         let mut old = serde_json::to_value(&config).unwrap();
@@ -379,6 +395,9 @@ pub struct AppConfig {
     /// Replace usernames/display names with generic "Account 1", "Account 2", etc.
     #[serde(default)]
     pub anonymize_names: bool,
+    /// Request Windows capture exclusion for RM's main window.
+    #[serde(default)]
+    pub hide_from_screen_capture: bool,
     /// Last version the user has seen — used to detect first launch after update.
     #[serde(default)]
     pub last_seen_version: Option<String>,
@@ -647,6 +666,7 @@ impl Default for AppConfig {
             tiling_padding: 0,
             rename_roblox_windows: false,
             anonymize_names: false,
+            hide_from_screen_capture: false,
             last_seen_version: None,
             sort_mode: "Custom".to_string(),
             sort_direction: "Ascending".to_string(),

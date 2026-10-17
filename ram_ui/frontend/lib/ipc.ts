@@ -354,6 +354,7 @@ export interface SettingsConfig {
   tilingPadding: number;
   renameRobloxWindows: boolean;
   anonymizeNames: boolean;
+  hideFromScreenCapture: boolean;
   developerOptions: boolean;
   pageVisibility: PageVisibility;
   utilityEnabled: boolean;

@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Screen-capture privacy:** Added **Hide RM from screen captures** in Privacy settings. The saved choice requests Windows capture exclusion for the main window and is restored at startup and after interface recovery.
 - **Launch loading and Home notifications:** The title bar now shows loading while game and Home launches start. In-app notifications report Home launch requests and failures, including partial bulk launches.
 - **Roblox home launch:** Added an **Open to home screen** button beside **Open browser** with a home icon. Open the installed Roblox app as one or more selected accounts without a Place ID, using the shared launch safeguards and queue.
 - **Friendship notifications:** Added Discord routes for incoming/sent requests, added/removed friends, declined requests and blocked users. Optional background checks work without opening Friends, establish silent baselines and avoid repeating successful RM actions.
