@@ -136,8 +136,7 @@ pub async fn fetch_users(
     cookie: &str,
     user_id: u64,
 ) -> Result<Vec<FriendUser>, CoreError> {
-    let base =
-        format!("https://friends.roblox.com/v1/users/{user_id}/friends/find?limit=50&userSort=2");
+    let base = format!("https://friends.roblox.com/v1/users/{user_id}/friends");
     collect_users(client, cookie, &base).await
 }
 
@@ -609,12 +608,12 @@ pub async fn fetch_groups(
 #[cfg(test)]
 mod tests {
     #[test]
-    fn current_friend_pages_accept_id_only_users_and_preserve_pagination_parameters() {
+    fn friend_pages_accept_id_only_users_and_encode_pagination_cursors() {
         let page: super::UsersPage = serde_json::from_str(r#"{"data":[{"id":1,"hasVerifiedBadge":false},{"id":2}],"nextPageCursor":"next&cursor"}"#).unwrap();
         assert_eq!(page.data.len(), 2);
         assert!(page.data[0].username.is_empty());
         let url = super::next_url(
-            "https://friends.roblox.com/v1/users/9/friends/find?limit=50&userSort=2",
+            "https://friends.roblox.com/v1/users/9/friends?limit=50",
             page.next_page_cursor.as_deref(),
         )
         .unwrap();

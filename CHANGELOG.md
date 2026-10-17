@@ -4,7 +4,8 @@
 
 ### Fixed
 
-- **Friends workspace:** Compacted account/filter controls, added a draggable keyboard-accessible details divider, and opened profile actions in the selected account's isolated popup browser. Connection-list reads now use Roblox's paginated route, with temporary browser context and explicit access/verification recovery for mutual friends.
+- **Friends loading regression:** Restored the established friends-list route after the paginated `/friends/find` switch prevented account data from loading.
+- **Friends workspace:** Compacted account/filter controls, added a draggable keyboard-accessible details divider, and opened profile actions in the selected account's isolated popup browser. Mutual-friend checks use temporary browser context and provide explicit access/verification recovery.
 - **Home startup:** Native Home launches now pass the player's app, authentication and launch-time arguments directly instead of relying on a game-launch URI. Authentication arguments remain redacted and cannot be overridden by custom arguments.
 
 ## v2.3.0
