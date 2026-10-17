@@ -6,6 +6,7 @@ compile_error!("Demo mode is only available in debug builds");
 #[cfg(debug_assertions)]
 mod demo;
 
+mod account_export;
 mod accounts;
 mod asset_manager;
 mod background;
@@ -3737,6 +3738,7 @@ fn main() {
             lifecycle::check_release_update,
             lifecycle::open_release_page,
             list_accounts,
+            account_export::export_accounts,
             store_status,
             create_device_store,
             unlock_device,

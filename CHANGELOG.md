@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- **Account export options:** Added an Export to popup with JSON, CSV and TXT formats, account and field selection, AES-256-GCM/AES-128-GCM encryption, and password visibility controls. Cookie exports require recommended authenticated encryption and a valid password, enforced in Rust; unencrypted exports remain metadata-only.
+
 ### Fixed
 
 - **Read-only Roblox settings:** Launch overrides now temporarily clear the read-only attribute on Roblox's settings XML, update it atomically, and restore the attribute on success or failure. Genuine file locks still stop the launch with specific guidance.

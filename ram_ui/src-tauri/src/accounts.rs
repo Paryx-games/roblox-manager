@@ -580,6 +580,7 @@ mod tests {
             private_server_checks: Arc::new(Default::default()),
             friends: Arc::new(Default::default()),
             is_shutting_down: Arc::new(Default::default()),
+            export_in_progress: Arc::new(Default::default()),
             inventory_fetches: Arc::new(tokio::sync::Semaphore::new(4)),
             inventory_cache: Arc::new(ram_core::cache::ResponseCache::new(
                 std::time::Duration::from_secs(60),

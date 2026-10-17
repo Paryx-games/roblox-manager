@@ -97,7 +97,15 @@ Open **App actions > Session history** in the title bar to review observed activ
 
 ### Export account information
 
-**Export accounts** downloads a CSV of account metadata, including `account_age` and `last_used`. It does not export login cookies and is not a credential-store backup. Treat usernames and account organisation as private information when sharing the file.
+Choose **Export accounts** to open **Export to**, then select JSON, CSV or TXT, the accounts to include, and individual fields. Account names use each saved alias or username; display names and usernames are separate fields. Account age is exported in hours. Exports use original saved values even when RM's interface names are anonymized.
+
+Encryption is optional for metadata. **AES-256-GCM** and **AES-128-GCM** are recommended authenticated encryption options, both using Argon2id to derive a key from a separate export password. Use at least 12 characters and confirm it. The eye button shows or hides the password; RM does not save or recover it. **No encryption - unprotected** appears last in yellow and writes readable metadata.
+
+Selecting **Roblox cookies (.ROBLOSECURITY)** requires a recommended method and a valid export password. RM enforces that rule in the backend as well as the popup. Cookies stay out of the interface and are encrypted before any export bytes are written. Missing credentials, changed accounts or a locked store stop the export rather than silently omitting accounts or writing an unprotected file.
+
+Choose **Export** to select a destination in the Windows save dialog. Cancelling that dialog writes nothing. Encrypted files default to `roblox-accounts.<format>.rmexport`; they are RM containers, rather than ordinary password-protected spreadsheet or text files. The existing cookie-import flow does not open this new container yet. [The format and core decoder](../developers/account-exports.md) describe recovery with the export password. This is a field-selected export, not a complete account-store backup.
+
+CSV cells that could be interpreted as formulas are prefixed with an apostrophe. TXT values escape embedded newlines. Treat even metadata-only exports as private when sharing them.
 
 ### Remove an account
 

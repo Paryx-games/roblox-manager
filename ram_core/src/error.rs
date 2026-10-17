@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum CoreError {
+    #[error("{0}")]
+    Export(String),
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),
 

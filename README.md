@@ -144,7 +144,7 @@ No Rust, Node.js, or pnpm installation is required for either option. These are 
 - **Live Presence** - Real-time Online / In Game / In Studio / Offline indicators
 - **Instance Tracking** - Inspect exact, inferred and unmatched clients; focus windows and join supported server targets
 - **Saved Destinations** - Launch presets and private-server bookmarks
-- **Account Tools** - Browser login, bulk import, credential replacement preserving organisation, and metadata CSV export
+- **Account Tools** - Browser login, bulk import, credential replacement preserving organisation, and field-selectable JSON/CSV/TXT exports with optional encryption; cookie exports require AES-GCM protection
 - **Developer Workspaces** - Group membership tools, inventory comparisons, creation libraries and staged asset uploads
 
 Auto-launching games on startup, custom game arguments, FastFlags and automatic MAC rotation remain unfinished. Their settings are retained, but those behaviours are not applied automatically. Starting the manager with Windows and explicit manual MAC rotation are separate controls.

@@ -50,6 +50,7 @@ Keep the compact desktop layout and each page's existing composition:
 
 - Accounts combines a compact header, account selection and actions, and
   account details and recovery flows.
+  Export uses the shared modal, account picker, checkbox fields and radio-row patterns. Recommended encryption choices appear first; unprotected metadata export appears last with warning text. Password visibility is an explicit toggle, and cookie selection disables unprotected export.
 - Instances shows selectable client rows with attribution and process actions
   beside a client controls panel. The panel stacks below the list on narrower layouts;
   controls are saved shared launch defaults with an explicit notice that running clients are unchanged.

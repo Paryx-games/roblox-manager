@@ -729,6 +729,14 @@ export async function browseAsAccount(
   return invoke<void>("browse_as_account", { userId, inventory, profileUserId });
 }
 
+export type AccountExportFormat = "json" | "csv" | "txt";
+export type AccountExportEncryption = "none" | "aes256Gcm" | "aes128Gcm";
+export type AccountExportField = "username" | "accountName" | "displayName" | "userId" | "alias" | "group" | "createdAt" | "accountAge" | "lastUsed" | "cookie";
+export interface AccountExportOptions { accountIds: number[]; fields: AccountExportField[]; format: AccountExportFormat; encryption: AccountExportEncryption; password: string; }
+export function exportAccounts(options: AccountExportOptions): Promise<{count: number; encrypted: boolean} | null> {
+  return invoke("export_accounts", { options });
+}
+
 export async function openAccountHome(userId: number): Promise<void> {
   return invoke<void>("open_account_home", { userId });
 }

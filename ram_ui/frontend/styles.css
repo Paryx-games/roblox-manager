@@ -6514,6 +6514,25 @@ button:focus-visible {
   flex-wrap: wrap;
 }
 
+.account-export-dialog { width: min(100%, 600px); max-height: calc(100vh - var(--space-8)); gap: var(--space-3); overflow-y: auto; }
+.account-export-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.account-export-heading h2 { margin: 0; font-size: var(--text-lg); }
+.account-export-field { display: flex; min-width: 0; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); }
+.account-export-field .account-picker-trigger, .account-export-field .account-picker { width: 100%; max-width: none; }
+.account-export-fields, .account-export-encryption { display: grid; min-width: 0; gap: var(--space-2); margin: 0; padding: 0; border: 0; font-size: var(--text-sm); }
+.account-export-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.account-export-fields legend, .account-export-encryption legend { margin-bottom: var(--space-2); }
+.account-export-fields label { display: flex; align-items: center; gap: var(--space-2); }
+.account-export-fields input { accent-color: var(--action-primary); }
+.account-export-cookie { grid-column: 1 / -1; }
+.account-export-unprotected { display: grid; gap: var(--space-1); color: var(--notification-warning); }
+.account-export-unprotected .friends-radio-account { color: inherit; }
+.account-export-password { display: flex; align-items: center; gap: var(--space-2); }
+.account-export-password input { flex: 1; }
+.account-export-field > input, .account-export-password input { min-width: 0; min-height: 36px; padding: 0 var(--space-2); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--bg-raised); font: inherit; }
+.account-export-field > input:focus-visible, .account-export-password input:focus-visible, .account-export-fields input:focus-visible, .account-export-encryption input:focus-visible { outline: 2px solid var(--action-primary); outline-offset: 2px; }
+.account-export-field > input:disabled, .account-export-password input:disabled { color: var(--text-disabled); cursor: not-allowed; }
+
 .account-button {
   display: inline-flex;
   min-height: 36px;
