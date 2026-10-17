@@ -79,6 +79,7 @@ export function PrivateServersPage({
   const [checking, setChecking] = useState(false);
   const [checkFailed, setCheckFailed] = useState(false);
   const checkVersion = useRef(0);
+  const checkEvents = useRef(0);
   const mounted = useRef(true);
   const [showCreate, setShowCreate] = useState(false);
   const [openPicker, setOpenPicker] = useState<number | null>(null);
@@ -143,6 +144,7 @@ export function PrivateServersPage({
 
   async function reload() {
     const version = ++checkVersion.current;
+    const eventsBeforeLoad = checkEvents.current;
     setLoading(true);
     setChecking(false);
     try {
@@ -151,13 +153,15 @@ export function PrivateServersPage({
       setServers(loaded);
       const cached = await cachedPrivateServerChecks();
       if (!mounted.current || checkVersion.current !== version) return;
-      setChecks(cached.checks);
-      setChecking(cached.checking); setCheckFailed(cached.failed);
+      if (checkEvents.current === eventsBeforeLoad) {
+        setChecks(cached.checks);
+        setChecking(cached.checking); setCheckFailed(cached.failed);
+      }
       setError(null);
     } catch {
       if (mounted.current && checkVersion.current === version) setError("Saved private-server bookmarks could not be loaded. Use Refresh status to retry; saved bookmarks were not changed.");
     } finally {
-      if (mounted.current) setLoading(false);
+      if (mounted.current && checkVersion.current === version) setLoading(false);
     }
   }
   async function validateServers(targets: PrivateServerSummary[]) {
@@ -175,10 +179,16 @@ export function PrivateServersPage({
     mounted.current = true;
     let active = true;
     const subscription = listen<PrivateServerCheckSnapshot>("private-server-checks-updated", event => {
-      if (active) { setChecks(event.payload.checks); setChecking(event.payload.checking); setCheckFailed(event.payload.failed); }
+      if (active) { checkEvents.current += 1; setChecks(event.payload.checks); setChecking(event.payload.checking); setCheckFailed(event.payload.failed); }
     });
-    void subscription.catch(() => { if (active) setError("Live server updates disconnected. Restart RM to reconnect."); });
-    void reload();
+    async function load() {
+      let disconnected = false;
+      try { await subscription; } catch { disconnected = true; }
+      if (!active) return;
+      await reload();
+      if (active && disconnected) setError(current => [current, "Live server updates disconnected. Restart RM to reconnect."].filter(Boolean).join(" "));
+    }
+    void load();
     void listAccounts()
       .then(accounts => { if (active) setAccounts(accounts); })
       .catch(() => { if (active) { setAccounts([]); setError("Accounts could not be loaded. Open Accounts, refresh them, then reopen Private Servers."); } })
@@ -392,7 +402,7 @@ export function PrivateServersPage({
             <button
               className="account-button primary"
               type="button"
-                disabled={saving || checking || !name.trim() || !isValidPrivateServerUrl(url)}
+              disabled={saving || !name.trim() || !isValidPrivateServerUrl(url)}
               onClick={() => void addServer()}
             >
               <Icon name="add" />

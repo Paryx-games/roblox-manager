@@ -36,6 +36,8 @@
 
 ### Fixed
 
+- **Private-server updates:** Status listeners register before loading cached badges, newer events survive delayed snapshots, and bookmarks can be added while background checks are running.
+
 - **Account workspace updates:** Credential replacement now reloads mounted inventory views. Unrelated account updates preserve Asset Manager's selected experience instead of silently removing its access grant.
 
 - **Join retries:** Abandoned pending launches stop blocking new-instance joins after their starting window expires, while remaining available for late exact attribution.
