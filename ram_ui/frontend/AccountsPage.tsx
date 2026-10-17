@@ -1912,9 +1912,9 @@ export function AccountsPage({
         await openAccountHome(userId);
         opened += 1;
       }
-      setNotice(`Opening Roblox home for ${ids.length === 1 ? "the selected account" : `${ids.length} accounts`}.`, "success");
+      setNotice(`Opening Roblox home for ${ids.length === 1 ? "the selected account" : `${ids.length} accounts`}. Check Instances while the clients load.`, "success", "standard", "Roblox home launch requested");
     } catch (error) {
-      setNotice(`${opened ? `Requested ${opened} of ${ids.length} home launches before stopping. ` : ""}${operationError(error, "Roblox home could not open.")} Check Instances before retrying.`, "error");
+      setNotice(`${opened ? `Requested ${opened} of ${ids.length} home launches before stopping. ` : ""}${operationError(error, "Roblox home could not open.")} Check Instances before retrying.`, "error", "long", "Roblox home launch failed");
     } finally {
       homeLaunchPending.current = false;
       setOpeningHome(false);

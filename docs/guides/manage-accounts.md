@@ -39,6 +39,8 @@ Select one or more valid accounts, then choose **Open to home screen** beside **
 
 Home launches use the same player path, launch pacing, multi-instance setting and privacy safeguards as game launches. Enable Multi-instance to keep several clients open. Home clients are tracked in Instances without a launch Place ID or Job ID.
 
+In-app notifications report successful Home launch requests and failures, including how many accounts were requested before a bulk operation stopped. A success notification confirms the request, not that Roblox has finished loading.
+
 ### Organize your list
 
 Use these tools to find accounts quickly:

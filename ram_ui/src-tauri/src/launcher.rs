@@ -155,8 +155,6 @@ async fn launch_impl(
             request.place_id,
             request.job_id.as_deref(),
         );
-    } else if mode == LaunchMode::Home {
-        crate::discord::home_launch_requested(app, request.user_id);
     }
     progress(
         app,

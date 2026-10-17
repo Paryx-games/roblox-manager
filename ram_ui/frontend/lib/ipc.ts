@@ -41,13 +41,12 @@ export function changeRobloxPrivacy(userIds: number[], field: RobloxPrivacyField
   return invoke("change_roblox_privacy", { userIds, field, value });
 }
 
-export type DiscordEvent = "moderationDetected" | "batchLaunchFinished" | "homeLaunchRequested" | "sessionExpired" | "launchFailed" | "clientExited" | "friendRequestReceived" | "friendRequestSent" | "friendAdded" | "friendRemoved" | "friendRequestDeclined" | "userBlocked";
+export type DiscordEvent = "moderationDetected" | "batchLaunchFinished" | "sessionExpired" | "launchFailed" | "clientExited" | "friendRequestReceived" | "friendRequestSent" | "friendAdded" | "friendRemoved" | "friendRequestDeclined" | "userBlocked";
 export interface DiscordDestination { id: string; name: string; enabled: boolean; events: DiscordEvent[]; }
 export interface DiscordNotificationSettings {
   enabled: boolean;
   moderationDetected: boolean;
   batchLaunchFinished: boolean;
-  homeLaunchRequested: boolean;
   sessionExpired: boolean;
   launchFailed: boolean;
   clientExited: boolean;
