@@ -41,9 +41,29 @@ export function changeRobloxPrivacy(userIds: number[], field: RobloxPrivacyField
   return invoke("change_roblox_privacy", { userIds, field, value });
 }
 
-export interface DiscordNotificationSettings { moderationDetected: boolean; batchLaunchFinished: boolean; }
+export type DiscordEvent = "moderationDetected" | "batchLaunchFinished" | "sessionExpired" | "launchFailed" | "clientExited" | "friendRequestReceived" | "friendRequestSent" | "friendAdded" | "friendRemoved" | "friendRequestDeclined" | "userBlocked";
+export interface DiscordDestination { id: string; name: string; enabled: boolean; events: DiscordEvent[]; }
+export interface DiscordNotificationSettings {
+  enabled: boolean;
+  moderationDetected: boolean;
+  batchLaunchFinished: boolean;
+  sessionExpired: boolean;
+  launchFailed: boolean;
+  clientExited: boolean;
+  friendRequestReceived: boolean;
+  friendRequestSent: boolean;
+  friendAdded: boolean;
+  friendRemoved: boolean;
+  friendRequestDeclined: boolean;
+  userBlocked: boolean;
+  destinations: DiscordDestination[];
+}
 export function getDiscordNotifications(): Promise<DiscordNotificationSettings> { return invoke("get_discord_notifications"); }
+export function resetDiscordNotifications(): Promise<DiscordNotificationSettings> { return invoke("reset_discord_notifications"); }
 export function saveDiscordNotifications(settings: DiscordNotificationSettings): Promise<void> { return invoke("save_discord_notifications", { settings }); }
+export function saveDiscordDestination(id: string | null, name: string, url: string): Promise<DiscordNotificationSettings> { return invoke("save_discord_destination", { id, name, url }); }
+export function removeDiscordDestination(id: string): Promise<DiscordNotificationSettings> { return invoke("remove_discord_destination", { id }); }
+export function testDiscordDestination(id: string): Promise<void> { return invoke("test_discord_destination", { id }); }
 export function launchAccounts(userIds: number[], placeId: number, jobId: string, data: string): Promise<void> {
   return invoke("launch_accounts", { userIds, placeId, jobId: jobId.trim() || null, data: data.trim() || null });
 }
@@ -60,6 +80,7 @@ export type PresenceStatus = "online" | "warning" | "danger" | "neutral";
 
 export interface AccountSummary {
   userId: number;
+  credentialRevision: number;
   label: string;
   username: string;
   displayName: string;
@@ -129,6 +150,19 @@ export interface PrivateServerSummary {
   url: string;
   ownerUsername?: string;
   ownerProfileUrl?: string;
+}
+
+export interface PrivateServerCheck {
+  status: "valid" | "invalid" | "unknown";
+  ownership: "owned" | "unknown" | "not-owned";
+  ownerId: number | null;
+  ownerUsername: string | null;
+  message: string;
+  ownerLookup: "notChecked" | "found" | "notListed" | "rateLimited" | "unavailable" | "incomplete";
+}
+
+export async function checkPrivateServer(index: number): Promise<PrivateServerCheck> {
+  return invoke<PrivateServerCheck>("check_private_server", { index });
 }
 
 export interface LaunchPresetSummary {
@@ -265,6 +299,7 @@ export interface PageVisibility {
   accounts: boolean;
   instances: boolean;
   groups: boolean;
+  friends: boolean;
   privateServers: boolean;
   presets: boolean;
   inventories: boolean;
@@ -272,7 +307,7 @@ export interface PageVisibility {
 }
 
 export const defaultPageVisibility: PageVisibility = {
-  accounts: true, instances: true, groups: true, privateServers: true,
+  accounts: true, instances: true, groups: true, friends: true, privateServers: true,
   presets: true, inventories: false, assetManager: false,
 };
 
@@ -280,6 +315,7 @@ export const workspacePages = [
   { key: "accounts", label: "Accounts" },
   { key: "instances", label: "Instances" },
   { key: "groups", label: "Groups" },
+  { key: "friends", label: "Friends" },
   { key: "privateServers", label: "Private Servers" },
   { key: "presets", label: "Presets" },
   { key: "inventories", label: "Inventories" },
@@ -322,6 +358,7 @@ export interface SettingsConfig {
   pageVisibility: PageVisibility;
   utilityEnabled: boolean;
   logLevel: LogLevel;
+  logTargets: string[];
 }
 
 export type SettingsUpdate = Omit<
@@ -606,7 +643,16 @@ export async function fetchAccountInventory(
   userId: number,
   forceRefresh = false,
 ): Promise<InventoryItem[]> {
-  return invoke<InventoryItem[]>("fetch_account_inventory", { userId, forceRefresh });
+  return (await fetchInventorySnapshot(userId, forceRefresh)).items;
+}
+
+export interface InventorySnapshot {
+  items: InventoryItem[];
+  cached: boolean;
+}
+
+export async function fetchInventorySnapshot(userId: number, forceRefresh = false): Promise<InventorySnapshot> {
+  return invoke<InventorySnapshot>("fetch_account_inventory", { userId, forceRefresh });
 }
 
 export type InventoryBrowserTarget = {
@@ -829,6 +875,7 @@ export interface InstanceSummary {
   userId: number | null;
   label: string;
   placeId: number | null;
+  jobId: string | null;
   attribution: "exact" | "inferred" | "unmatched";
   launchedAt: string | null;
 }
@@ -889,3 +936,22 @@ export async function migrateLegacyData(): Promise<void> { return invoke("migrat
 export async function resetAccountStore(confirmation: string): Promise<StoreStatus> { return invoke("reset_account_store", { confirmation }); }
 export async function checkReleaseUpdate(): Promise<[string, string] | null> { return invoke("check_release_update"); }
 export async function openReleasePage(url: string): Promise<void> { return invoke("open_release_page", { url }); }
+
+export async function loggingTargets(): Promise<string[]> { return invoke<string[]>("logging_targets"); }
+
+export interface PrivateServerCheckSnapshot { failed: boolean; checks: Record<number, PrivateServerCheck>; checking: boolean; }
+export async function cachedPrivateServerChecks(): Promise<PrivateServerCheckSnapshot> { return invoke<PrivateServerCheckSnapshot>("cached_private_server_checks"); }
+
+export interface FriendUser { userId: number; username: string; displayName: string; avatarUrl: string; }
+export type FriendStatus = "playing" | "studio" | "online" | "offline" | "unknown";
+export interface Friend extends FriendUser { status: FriendStatus; activity: string; placeId: number | null; jobId: string | null; gameName: string | null; placeName: string | null; gameIcon: string | null; }
+export interface FriendsSnapshot { friends: Friend[]; refreshedAt: string | null; warnings: string[]; }
+export interface FriendRequestsPage { users: FriendUser[]; nextCursor: string | null; warnings: string[]; }
+export type FriendDetailTab = "details" | "mutual" | "groups";
+export interface FriendDetails { profile: {description: string; created: string | null} | null; mutual: FriendUser[]; groups: {id: number; name: string; role: string}[]; }
+export type FriendAction = "accept" | "decline" | "remove" | "block";
+export function getFriends(userId: number, refresh = false): Promise<FriendsSnapshot> { return invoke("get_friends", {userId, refresh}); }
+export function getFriendRequests(userId: number, cursor: string | null = null, refresh = false): Promise<FriendRequestsPage> { return invoke("get_friend_requests", {userId, cursor, refresh}); }
+export function getFriendDetails(userId: number, targetId: number, section: FriendDetailTab): Promise<FriendDetails> { return invoke("get_friend_details", {userId, targetId, section}); }
+export function friendAction(userId: number, targetId: number, action: FriendAction): Promise<void> { return invoke("friend_action", {userId, targetId, action}); }
+export function joinFriendGame(userId: number, targetId: number, expectedJobId: string | null, reuseConfirmed: boolean, requireNewInstance = false): Promise<void> { return invoke("join_friend_game", {userId, targetId, expectedJobId, reuseConfirmed, requireNewInstance}); }

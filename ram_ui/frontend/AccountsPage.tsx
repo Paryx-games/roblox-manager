@@ -22,7 +22,6 @@ import {
   operationError,
   resetAccountStore,
   getStoreStatus,
-  fetchAccountInventory,
   launchAccount as launchAccountIpc,
   launchAccounts,
   removeAccount,
@@ -54,7 +53,6 @@ import {
   unlockPassword,
   updateAccountAlias,
   type AccountSummary,
-  type InventoryItem,
   type UserSearchResult,
   type StoreStatus,
 } from "./lib/ipc";
@@ -71,6 +69,8 @@ import { RobloxSettings } from "./components/RobloxSettings";
 import { TimedNotice } from "./components/TimedNotice";
 import { TagPicker } from "./components/TagPicker";
 import { TagSigns } from "./components/TagSigns";
+import { AccountInventoryPreview } from "./components/AccountInventoryPreview";
+import { AccountSections, AccountSection } from "./components/AccountSections";
 import { commonTags, matchesTags } from "./lib/accountTags";
 import { listAccountTags, saveAccountTag, deleteAccountTag, assignAccountTags, type AccountTag, type TagSnapshot } from "./lib/ipc";
 import {
@@ -591,10 +591,14 @@ export function AccountsPage({
   setSelectedIds,
   prefilledPlaceId,
   onJoinUser,
+  onOpenInventories,
+  inventoriesAvailable,
 }: {
   selectedIds: Set<number>;
   setSelectedIds: Dispatch<SetStateAction<Set<number>>>;
   prefilledPlaceId?: number;
+  onOpenInventories: () => void;
+  inventoriesAvailable: boolean;
   onJoinUser: (targetUserId: number, accountIds: number[]) => void;
 }) {
   const [showRecovery, setShowRecovery] = useState(false);
@@ -689,8 +693,6 @@ export function AccountsPage({
   const [bulkResults, setBulkResults] = useState<BulkImportResult[]>([]);
   const [forceAddUsername, setForceAddUsername] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [inventoryLoading, setInventoryLoading] = useState(false);
   const [isConnectionSearchLoading, setIsConnectionSearchLoading] = useState(false);
   const [connectionResults, setConnectionResults] = useState<
     UserSearchResult[]
@@ -890,10 +892,6 @@ export function AccountsPage({
     };
   }, []);
 
-  const [commonInventory, setCommonInventory] = useState<InventoryItem[]>([]);
-  const [commonInventoryLoading, setCommonInventoryLoading] = useState(false);
-  const [commonInventoryLoaded, setCommonInventoryLoaded] = useState(false);
-  const inventoryComparisonVersion = useRef(0);
 
   useEffect(() => {
     let mounted = true;
@@ -1066,13 +1064,6 @@ export function AccountsPage({
   const selectionKey = selectedAccounts.map((account) => account.userId).sort((a, b) => a - b).join(",");
   const restrictedSelection = selectedAccounts.filter((account) => !account.canLaunch);
 
-  useLayoutEffect(() => {
-    inventoryComparisonVersion.current += 1;
-    setCommonInventory([]);
-    setCommonInventoryLoaded(false);
-    setCommonInventoryLoading(false);
-  }, [selectionKey]);
-
   function clearSelection() {
     setSelectedIds(new Set());
     setSelectedId(null);
@@ -1107,7 +1098,6 @@ export function AccountsPage({
   useEffect(() => {
     setPlayerPath(selectedAccount?.playerPath ?? "");
     setAccountNotices([]);
-    setInventory([]);
     setConnectionResults([]);
   }, [selectedAccount?.userId]);
 
@@ -1611,18 +1601,6 @@ export function AccountsPage({
     }
   }
 
-  async function loadInventory() {
-    if (!selectedAccount) return;
-    setInventoryLoading(true);
-    try {
-      setInventory(await fetchAccountInventory(selectedAccount.userId));
-    } catch {
-      setNotice("Roblox inventory could not be loaded for the selected account. Check its session and connection, then use Refresh inventory to retry.");
-    } finally {
-      setInventoryLoading(false);
-    }
-  }
-
   async function searchConnections() {
     if (!connectionQuery.trim()) {
       setNotice("Enter a Roblox username or numeric user ID in Connections, then select Search Roblox.");
@@ -1728,37 +1706,6 @@ export function AccountsPage({
       setNotice("The Roblox player path could not be updated for every selected account. Earlier updates may have succeeded; review the account paths before retrying.");
     } finally {
       setMutationLoading(false);
-    }
-  }
-
-  async function loadCommonInventory() {
-    const ids = [...selectedIds];
-    if (!ids.length) return;
-    const version = ++inventoryComparisonVersion.current;
-    setCommonInventoryLoading(true);
-    try {
-      const inventories = await Promise.all(
-        ids.map((userId) => fetchAccountInventory(userId)),
-      );
-      const counts = new Map<number, { item: InventoryItem; count: number }>();
-      for (const item of inventories[0] ?? [])
-        counts.set(item.assetId, { item, count: 1 });
-      for (const inventoryItems of inventories.slice(1)) {
-        const present = new Set(inventoryItems.map((item) => item.assetId));
-        for (const [assetId, entry] of counts) {
-          if (present.has(assetId)) entry.count += 1;
-          else counts.delete(assetId);
-        }
-      }
-      if (inventoryComparisonVersion.current !== version) return;
-      setCommonInventory([...counts.values()].map(({ item }) => item));
-      setCommonInventoryLoaded(true);
-      setNotice(`Found ${counts.size} inventory items shared by all ${ids.length} selected accounts. Review the comparison results before opening or copying asset IDs.`);
-    } catch {
-      if (inventoryComparisonVersion.current !== version) return;
-      setNotice("Shared inventory items could not be compared across the selected accounts. Refresh their inventories and retry the comparison.");
-    } finally {
-      if (inventoryComparisonVersion.current === version) setCommonInventoryLoading(false);
     }
   }
 
@@ -2015,7 +1962,6 @@ export function AccountsPage({
               >
                 <Icon name="groups" />
               </button>
-              <TagPicker tags={tags} selected={tagFilter} onChange={setTagFilter} signs label="account filter" emptyLabel="Filter tags" clearLabel="Show all accounts" disabled={loading || !!error || tagBusy} onManage={() => setTagManagerOpen(true)} matchAll={matchAllTags} onMatchAllChange={setMatchAllTags} onSelectMatching={() => { setSelectedIds(new Set(visibleAccounts.map(account => account.userId))); setSelectedId(visibleAccounts[0]?.userId ?? null); }} canSelectMatching={visibleAccounts.length > 0} />
             </div>
             <div className="accounts-sort-row">
               <span>Sort:</span>
@@ -2049,7 +1995,10 @@ export function AccountsPage({
                 </button>
               </div>
             )}
-            <button className="account-button account-select-all" type="button" disabled={loading || mutationLoading || !accounts.length} aria-pressed={allAccountsSelected(selectedIds, accounts.map(account => account.userId))} onClick={() => setSelectedIds(toggleAllAccounts(selectedIds, accounts.map(account => account.userId)))}><Icon name="accounts" />All accounts</button>
+            <div className="accounts-selection-row">
+              <button className="account-button account-select-all" type="button" disabled={loading || mutationLoading || !accounts.length} aria-pressed={allAccountsSelected(selectedIds, accounts.map(account => account.userId))} onClick={() => setSelectedIds(toggleAllAccounts(selectedIds, accounts.map(account => account.userId)))}><Icon name="accounts" />All accounts</button>
+              <TagPicker tags={tags} selected={tagFilter} onChange={setTagFilter} signs label="account filter" emptyLabel="Filter tags" clearLabel="Show all accounts" disabled={loading || !!error || tagBusy} onManage={() => setTagManagerOpen(true)} matchAll={matchAllTags} onMatchAllChange={setMatchAllTags} onSelectMatching={() => { setSelectedIds(new Set(visibleAccounts.map(account => account.userId))); setSelectedId(visibleAccounts[0]?.userId ?? null); }} canSelectMatching={visibleAccounts.length > 0} />
+            </div>
           </div>
           <div className="accounts-groups">
             {loading && (
@@ -2902,6 +2851,9 @@ export function AccountsPage({
                 </section>
               )}
 
+              {tagError && <p className="accounts-error" role="alert">{tagError}</p>}
+              <AccountSections>
+              <AccountSection id="launch" label="launch controls">
               <section
                 data-walkthrough="launch"
                 className={`account-card launch-card ${
@@ -2988,11 +2940,15 @@ export function AccountsPage({
                 ))}
               </section>
 
+              </AccountSection>
+              <AccountSection id="roblox-settings" label="Roblox settings">
               <RobloxSettings
                 key={isMultiSelection ? selectionKey : selectedAccount.userId}
                 accounts={isMultiSelection ? selectedAccounts : [selectedAccount]}
               />
 
+              </AccountSection>
+              <AccountSection id="connections" label="connections">
               <section className="account-card connections-card">
                 <h3>Connections</h3>
                 <p>
@@ -3098,64 +3054,11 @@ export function AccountsPage({
                 )}
               </section>
 
-              <section className="account-card">
-                <div className="account-card-header">
-                  <h3>{isMultiSelection ? "Shared Roblox inventory" : "Roblox inventory"}</h3>
-                  <div className="account-card-actions">
-                    <button
-                      className="icon-button bordered"
-                      type="button"
-                      aria-label={isMultiSelection ? "Compare selected inventories" : "Refresh inventory"}
-                      disabled={inventoryLoading || commonInventoryLoading}
-                      data-tip="Refresh"
-                      onClick={() => isMultiSelection ? void loadCommonInventory() : void loadInventory()}
-                    >
-                      <Icon name="refresh" />
-                    </button>
-                    <button
-                      className="account-button"
-                      type="button"
-                      disabled={mutationLoading}
-                      onClick={() => isMultiSelection ? void openSelectedBrowsers(true) : void browseAs(true)}
-                    >
-                      <Icon name="inventory" />
-                      {isMultiSelection ? "Open inventories" : "Open inventory"}
-                    </button>
-                  </div>
-                </div>
-                {(isMultiSelection ? commonInventoryLoading : inventoryLoading) ? (
-                  <LoadingSkeleton layout="inventory" label="Loading inventory" />
-                ) : (isMultiSelection ? commonInventory : inventory).length === 0 ? (
-                  <div className="account-empty-inline">
-                    <Icon name="inventory" />
-                    <strong>{isMultiSelection ? commonInventoryLoaded ? "No shared items found" : "Compare selected inventories" : "No user inventory loaded yet"}</strong>
-                    <span>
-                      {isMultiSelection ? "Refresh to find items owned by every selected account. Changing the selection clears the comparison." : "Refresh to fetch hats, accessories, clothing, gear, and emotes."}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="inventory-list">
-                    {(isMultiSelection ? commonInventory : inventory).map((item) => (
-                      <div className="inventory-row" key={item.assetId}>
-                        <span className="inventory-item-icon">
-                          {item.iconUrl ? <img src={item.iconUrl} alt="" /> : <Icon name="inventory" />}
-                        </span>
-                        <span className="inventory-item-name">
-                          <strong>{item.name}</strong>
-                          <small>{item.assetType}</small>
-                        </span>
-                        <span className="inventory-item-details">
-                          <span>{item.priceRobux === null ? "Price unavailable" : `${item.priceRobux.toLocaleString()} Robux`}</span>
-                          <span className="data-value">ID: {item.assetId}</span>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              {tagError && <p className="accounts-error" role="alert">{tagError}</p>}
-              {!isMultiSelection && <section className="account-card account-info-grid">
+              </AccountSection>
+              <AccountSection id="inventory" label="inventory">
+                <AccountInventoryPreview accounts={isMultiSelection ? selectedAccounts : [selectedAccount]} onOpenInventories={onOpenInventories} inventoriesAvailable={inventoriesAvailable} />
+              </AccountSection>
+              {!isMultiSelection && <AccountSection id="details" label="account details"><section className="account-card account-info-grid">
                 <div>
                   <label htmlFor="account-alias">Alias</label>
                   <input
@@ -3229,7 +3132,8 @@ export function AccountsPage({
                     </button>
                   </div>
                 </div>
-              </section>}
+              </section></AccountSection>}
+              </AccountSections>
 
 
             </>

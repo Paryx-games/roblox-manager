@@ -5,6 +5,8 @@ icon: bookmark
 
 # Save launch presets
 
+Saved presets appear first. Choose **New preset** in the header to open the compact two-column creation form, or **Refresh** to reload saved files. The info card beside **Target tags** explains how tags choose accounts at launch time. Saved rows show compact tag signs and a matching-account count; use **Edit** to change their targets.
+
 ### Target accounts by tag
 
 When creating or editing a preset, choose **Target tags** to launch every current account matching any of those tags. These saved targets take precedence over the manual account picker and are resolved again each time you launch. Leave the tag selection empty to keep the manual picker behavior. Normal credential and moderation checks still apply.

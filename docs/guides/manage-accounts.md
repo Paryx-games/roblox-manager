@@ -65,17 +65,19 @@ Use `Ctrl`-click to add or remove individual accounts, or `Shift`-click for a ra
 
 ### Account tags
 
-Tags appear as small horizontal colored signposts on the actual account rows. Click an account's signs to check or uncheck its tags directly. One tag also shows its name beside the profile name; two or more tags show stacked horizontal color strips. Hover over the signs to see the names. Untagged accounts reveal the tag control on hover or keyboard focus.
+Tags appear as small colored signposts arranged horizontally on account rows. Click an account's signs to check or uncheck its tags directly. One tag also shows its name beside the profile name. Up to three signs appear side by side, followed by **+N** for any additional tags. Hover over the signs to see all names. Untagged accounts reveal the tag control on hover or keyboard focus.
 
 Choose **Manage tags...** from a tag menu to create or edit a name and color, using the same color controls as groups. Names are unique without regard to case, limited to 40 characters, and you can keep up to 128 tags. Renaming or recoloring preserves assignments and preset references; deleting a tag removes it from every account, and presets using it must be edited before launching. Existing tags without a saved color start with a neutral color.
 
-The small tag action beside **Add group** filters the sidebar. Its menu can match any selected tag or **Match all selected tags**. **Select matching accounts** replaces the current selection with visible matches for batch actions. **Show all accounts** clears the filter; **All accounts** still selects every managed account, including hidden accounts.
+The small tag action beside **All accounts** filters the sidebar. Its menu can match any selected tag or **Match all selected tags**. **Select matching accounts** replaces the current selection with visible matches for batch actions. **Show all accounts** clears the filter; **All accounts** still selects every managed account, including hidden accounts.
 
 With several accounts selected, the profile tag menu shows shared tags and marks partially assigned tags as **Some selected**. Checking a partial tag applies it to every selected account. Unchecking a shared tag removes it from the selection while preserving other assignments. Tag edits never change account groups.
 
 Tags are saved with the encrypted account store and retained during credential replacement. Existing stores load with no tags. Older RM versions ignore tag fields and can discard them if they save the store, so retain a backup before downgrading.
 
 ### Change Roblox account settings
+
+Drag the six-dot handle on Launch, Roblox settings, Connections, Inventory, or Account details to rearrange these sections. With a handle focused, **Alt + Up/Down** moves the section using the keyboard. The layout saves automatically on this installation and applies to every account and multi-account selection. Account identity and recovery warnings stay at the top.
 
 The **Roblox Settings** section changes display names and online/in-game visibility on Roblox. It is separate from local RM preferences. For validation, per-account restrictions, batch results and recovery, see [Roblox account settings](roblox-account-settings.md).
 

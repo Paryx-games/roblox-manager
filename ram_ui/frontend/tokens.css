@@ -58,20 +58,22 @@
   /* status (RESERVED - see DESIGN.md rule 1. Never used on
      buttons/links/decoration - only to represent live account,
      instance, or process state.) */
+  --status-studio: var(--action-primary);
   --status-online: #4fbf7a;
   --status-warning: #e0a93e;
   --status-danger: #e0555a;
   --status-neutral: #6b7080; /* offline / idle */
 
   /* private-server ownership status */
-  --ownership-owned: #03fc49;
-  --ownership-unverified: #fcba03;
-  --ownership-not-owned: #e02626;
+  --ownership-owned: #34eb64;
+  --ownership-unverified: #ebc934;
+  --ownership-not-owned: #e61515;
 
   /* =========================================================
      TYPE
      ========================================================= */
   --font-sans: "Roboto", sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, monospace;
 
   /* type scale - do not introduce sizes outside this list */
   --text-xs: 11px; /* compact labels, timestamps, badges */

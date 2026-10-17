@@ -12,6 +12,7 @@ mod background;
 mod benchmark;
 mod client_settings;
 mod discord;
+mod friends;
 mod history;
 mod instances;
 mod join_user;
@@ -19,6 +20,7 @@ mod launcher;
 mod lifecycle;
 mod login;
 mod page_visibility;
+mod private_servers;
 mod roblox_settings;
 mod startup_actions;
 mod state;
@@ -124,10 +126,34 @@ impl<W: Write> Write for LevelColorWriter<W> {
     }
 }
 
-fn logging_filter(level: LogLevel, override_filter: Option<&str>) -> EnvFilter {
+#[tauri::command]
+fn logging_targets() -> Vec<String> {
+    include_str!("../../../Cargo.lock")
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("name = \"")
+                .and_then(|value| value.strip_suffix('"'))
+        })
+        .map(|name| name.replace('-', "_"))
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn target_filter(level: LogLevel, targets: &[String], override_filter: Option<&str>) -> EnvFilter {
+    let available = logging_targets();
+    let directives = std::iter::once("warn".to_string())
+        .chain(
+            targets
+                .iter()
+                .filter(|target| available.contains(target))
+                .map(|target| format!("{target}={}", level.clamp_for_profile().filter_string())),
+        )
+        .collect::<Vec<_>>()
+        .join(",");
     override_filter
         .and_then(|value| EnvFilter::try_new(value).ok())
-        .unwrap_or_else(|| EnvFilter::new(level.clamp_for_profile().filter_string()))
+        .unwrap_or_else(|| EnvFilter::new(directives))
 }
 
 impl<'a, M: MakeWriter<'a>> MakeWriter<'a> for Scrubbed<M> {
@@ -180,9 +206,9 @@ impl<W: Write> Drop for ScrubbingWriter<W> {
     }
 }
 
-fn init_logging(level: LogLevel) {
+fn init_logging(level: LogLevel, targets: &[String]) {
     let override_filter = std::env::var("RUST_LOG").ok();
-    let filter = || logging_filter(level, override_filter.as_deref());
+    let filter = || target_filter(level, targets, override_filter.as_deref());
     let color_enabled = std::env::var_os("NO_COLOR").is_none()
         && std::env::var("FORCE_COLOR").map_or(cfg!(debug_assertions), |value| value != "0");
     let console = || ColoredConsole {
@@ -223,6 +249,7 @@ fn init_logging(level: LogLevel) {
 #[serde(rename_all = "camelCase")]
 struct AccountSummary {
     user_id: u64,
+    credential_revision: u64,
     label: String,
     username: String,
     display_name: String,
@@ -265,6 +292,13 @@ struct InventoryItem {
     asset_type: String,
     icon_url: Option<String>,
     price_robux: Option<u64>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InventorySnapshot {
+    items: Vec<InventoryItem>,
+    cached: bool,
 }
 
 #[derive(Deserialize)]
@@ -377,6 +411,7 @@ struct SettingsUpdate {
     page_visibility: page_visibility::PageVisibility,
     utility_enabled: bool,
     log_level: LogLevel,
+    log_targets: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -419,6 +454,7 @@ struct SettingsConfig {
     page_visibility: page_visibility::PageVisibility,
     utility_enabled: bool,
     log_level: LogLevel,
+    log_targets: Vec<String>,
 }
 
 impl SettingsConfig {
@@ -462,6 +498,7 @@ impl SettingsConfig {
             page_visibility: page_visibility::PageVisibility::default(),
             utility_enabled: config.utility_enabled,
             log_level: config.log_level,
+            log_targets: config.log_targets.clone(),
         }
     }
 }
@@ -493,6 +530,15 @@ impl SettingsUpdate {
         }
         if self.tiling_padding > 50 {
             return Err("Window padding must be between 0 and 50 pixels".to_string());
+        }
+        let known_targets = logging_targets();
+        if self.log_targets.len() > known_targets.len()
+            || self
+                .log_targets
+                .iter()
+                .any(|target| !known_targets.contains(target))
+        {
+            return Err("Choose logging targets from the available crates".into());
         }
         if !self.log_level.allowed_in_profile() {
             return Err("That log level is unavailable in this build".to_string());
@@ -542,6 +588,7 @@ impl SettingsUpdate {
         config.developer_options = self.developer_options;
         config.utility_enabled = self.utility_enabled;
         config.log_level = self.log_level;
+        config.log_targets = self.log_targets;
         Ok(())
     }
 }
@@ -841,10 +888,12 @@ fn account_summary(
     account: &Account,
     player_path: Option<String>,
     config: &AppConfig,
+    credential_revision: u64,
 ) -> AccountSummary {
     let anonymous_label = format!("Account {}", account.user_id);
     AccountSummary {
         user_id: account.user_id,
+        credential_revision,
         label: if config.anonymize_names {
             anonymous_label.clone()
         } else {
@@ -968,6 +1017,8 @@ async fn unlock_device(
     .await
     .map_err(|_| "Device unlock task failed".to_string())??;
     app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().friends.clear();
+    app.state::<AppState>().private_server_checks.clear();
     app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(status)
@@ -1007,6 +1058,8 @@ async fn create_device_store(
     .await
     .map_err(|_| "Device store task failed".to_string())??;
     app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().friends.clear();
+    app.state::<AppState>().private_server_checks.clear();
     app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(status)
@@ -1052,6 +1105,8 @@ async fn unlock_password(
     runtime.session = Some(session);
     runtime.unlocked = true;
     app.state::<AppState>().inventory_cache.clear();
+    app.state::<AppState>().friends.clear();
+    app.state::<AppState>().private_server_checks.clear();
     app.state::<AppState>().presence_cache.clear();
     let _ = app.emit("store-unlocked", ());
     Ok(StoreStatus {
@@ -1082,7 +1137,15 @@ fn list_accounts(state: tauri::State<'_, AppState>) -> Result<Vec<AccountSummary
                 .custom_player_paths
                 .get(&account.user_id)
                 .map(|path| path.display().to_string());
-            account_summary(account, player_path, &runtime.config)
+            account_summary(
+                account,
+                player_path,
+                &runtime.config,
+                *runtime
+                    .credential_revisions
+                    .get(&account.user_id)
+                    .unwrap_or(&0),
+            )
         })
         .collect())
 }
@@ -1121,13 +1184,19 @@ async fn update_account_alias(
         }
         let player_path = configured_player_path(&runtime, user_id);
         let presentation_config = runtime.config.clone();
+        let credential_revision = *runtime.credential_revisions.get(&user_id).unwrap_or(&0);
         let summary = {
             let account = runtime
                 .accounts
                 .find_by_id_mut(user_id)
                 .ok_or_else(|| "Account not found".to_string())?;
             account.alias = alias.trim().to_string();
-            account_summary(account, player_path, &presentation_config)
+            account_summary(
+                account,
+                player_path,
+                &presentation_config,
+                credential_revision,
+            )
         };
         save_runtime(&runtime)?;
         Ok(summary)
@@ -1149,13 +1218,19 @@ async fn toggle_account_pin(
             .map_err(|_| "Account state unavailable".to_string())?;
         let player_path = configured_player_path(&runtime, user_id);
         let presentation_config = runtime.config.clone();
+        let credential_revision = *runtime.credential_revisions.get(&user_id).unwrap_or(&0);
         let summary = {
             let account = runtime
                 .accounts
                 .find_by_id_mut(user_id)
                 .ok_or_else(|| "Account not found".to_string())?;
             account.is_pinned = !account.is_pinned;
-            account_summary(account, player_path, &presentation_config)
+            account_summary(
+                account,
+                player_path,
+                &presentation_config,
+                credential_revision,
+            )
         };
         save_runtime(&runtime)?;
         Ok(summary)
@@ -1182,13 +1257,19 @@ async fn update_account_group(
         }
         let player_path = configured_player_path(&runtime, user_id);
         let presentation_config = runtime.config.clone();
+        let credential_revision = *runtime.credential_revisions.get(&user_id).unwrap_or(&0);
         let summary = {
             let account = runtime
                 .accounts
                 .find_by_id_mut(user_id)
                 .ok_or_else(|| "Account not found".to_string())?;
             account.group = group.to_string();
-            account_summary(account, player_path, &presentation_config)
+            account_summary(
+                account,
+                player_path,
+                &presentation_config,
+                credential_revision,
+            )
         };
         save_runtime(&runtime)?;
         Ok(summary)
@@ -1222,6 +1303,10 @@ async fn reorder_accounts(
                     account,
                     configured_player_path(&runtime, account.user_id),
                     &runtime.config,
+                    *runtime
+                        .credential_revisions
+                        .get(&account.user_id)
+                        .unwrap_or(&0),
                 )
             })
             .collect();
@@ -1267,7 +1352,12 @@ async fn update_player_path(
             .find_by_id(user_id)
             .ok_or_else(|| "Account not found".to_string())?;
         let player_path = configured_player_path(&runtime, user_id);
-        Ok(account_summary(account, player_path, &runtime.config))
+        Ok(account_summary(
+            account,
+            player_path,
+            &runtime.config,
+            *runtime.credential_revisions.get(&user_id).unwrap_or(&0),
+        ))
     })
     .await
     .map_err(|_| "Player path task failed".to_string())?
@@ -1431,9 +1521,7 @@ async fn get_settings(state: tauri::State<'_, AppState>) -> Result<SettingsSnaps
             .session
             .as_ref()
             .is_some_and(|session| session.needs_password());
-        let has_discord_webhook = crypto::discord_webhook()
-            .map_err(|error| error.to_string())?
-            .is_some();
+        let has_discord_webhook = discord::configured(&runtime.config_path)?;
         let mut settings_config = SettingsConfig::from_config(&runtime.config);
         settings_config.page_visibility = page_visibility::load(&runtime.config_path);
         Ok(SettingsSnapshot {
@@ -1515,6 +1603,18 @@ async fn save_settings(
 #[cfg(test)]
 mod settings_validation_tests {
     use super::*;
+
+    #[test]
+    fn unknown_logging_targets_cannot_partially_change_preferences() {
+        let mut config = AppConfig::default();
+        let original = serde_json::to_value(&config).unwrap();
+        let mut payload = serde_json::to_value(SettingsConfig::from_config(&config)).unwrap();
+        payload["logTargets"] = serde_json::json!(["h2=trace,synthetic-invalid"]);
+        payload["utilityEnabled"] = serde_json::json!(!config.utility_enabled);
+        let update: SettingsUpdate = serde_json::from_value(payload).unwrap();
+        assert!(update.apply_to_config(&mut config).is_err());
+        assert_eq!(serde_json::to_value(&config).unwrap(), original);
+    }
 
     #[test]
     fn startup_launch_requires_both_targets_and_does_not_partially_apply_invalid_settings() {
@@ -1688,11 +1788,11 @@ async fn clean_orphaned_data(state: tauri::State<'_, AppState>) -> Result<usize,
 
 #[tauri::command]
 fn clear_application_caches(state: tauri::State<'_, AppState>) -> Result<usize, String> {
-    Ok(
-        ram_core::cached_api::clear()
-            + state.inventory_cache.clear()
-            + state.presence_cache.clear(),
-    )
+    Ok(ram_core::cached_api::clear()
+        + state.friends.clear()
+        + state.private_server_checks.clear()
+        + state.inventory_cache.clear()
+        + state.presence_cache.clear())
 }
 
 #[tauri::command]
@@ -1809,33 +1909,38 @@ async fn list_private_servers(
     for server in &mut servers {
         icon_urls.push(enrich_private_server(server).await);
     }
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    if runtime.config.private_servers != original_servers {
-        return Ok(runtime
-            .config
-            .private_servers
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        if runtime.config.private_servers != original_servers {
+            return Ok(runtime
+                .config
+                .private_servers
+                .iter()
+                .enumerate()
+                .map(|(index, server)| private_server_summary(index, server, String::new()))
+                .collect());
+        }
+        if original_servers != servers {
+            let mut candidate = runtime.config.clone();
+            candidate.private_servers = servers.clone();
+            candidate
+                .save(&runtime.config_path)
+                .map_err(|_| "Private server details could not be saved".to_string())?;
+            runtime.config = candidate;
+        }
+        Ok(servers
             .iter()
             .enumerate()
-            .map(|(index, server)| private_server_summary(index, server, String::new()))
-            .collect());
-    }
-    if original_servers != servers {
-        let mut candidate = runtime.config.clone();
-        candidate.private_servers = servers.clone();
-        candidate
-            .save(&runtime.config_path)
-            .map_err(|_| "Private server details could not be saved".to_string())?;
-        runtime.config = candidate;
-    }
-    Ok(servers
-        .iter()
-        .enumerate()
-        .zip(icon_urls)
-        .map(|((index, server), icon_url)| private_server_summary(index, server, icon_url))
-        .collect())
+            .zip(icon_urls)
+            .map(|((index, server), icon_url)| private_server_summary(index, server, icon_url))
+            .collect())
+    })
+    .await
+    .map_err(|_| "Private server list task failed".to_string())?
 }
 
 async fn build_private_server(
@@ -1856,22 +1961,14 @@ async fn build_private_server(
             place_name: String::new(),
         },
         ParsedPrivateServerUrl::Share { share_code } => {
-            let (cookie, client) = {
-                let runtime = state
-                    .runtime
-                    .lock()
-                    .map_err(|_| "Application state unavailable".to_string())?;
-                let user_id = runtime
-                    .accounts
-                    .accounts
-                    .first()
-                    .map(|account| account.user_id)
-                    .ok_or_else(|| "Add an account before using a share link".to_string())?;
-                (
-                    account_cookie(&runtime, user_id)?,
-                    RobloxClient::new().map_err(|error| error.to_string())?,
-                )
-            };
+            let credential_state = state.clone();
+            let cookie = tauri::async_runtime::spawn_blocking(move || {
+                let runtime = credential_state.runtime.lock().map_err(|_| "Application state unavailable")?;
+                let user_id = runtime.accounts.accounts.iter().find(|account| !account.cookie_expired)
+                    .map(|account| account.user_id).ok_or("Refresh a working account before using a share link")?;
+                account_cookie(&runtime, user_id).map_err(|_| "A working account credential is unavailable. Unlock or refresh accounts and retry")
+            }).await.map_err(|_| "Private server credential task failed")??;
+            let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
             let (place_id, universe_id, link_code, access_code) =
                 api::resolve_share_link(&client, &cookie, &share_code)
                     .await
@@ -1903,18 +2000,27 @@ async fn add_private_server(
         return Err("Server name must be between 1 and 64 characters".to_string());
     }
     let (server, icon_url) = build_private_server(&state, name, &url).await?;
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    let index = runtime.config.private_servers.len();
-    runtime.config.private_servers.push(server);
-    save_config(&runtime)?;
-    Ok(private_server_summary(
-        index,
-        &runtime.config.private_servers[index],
-        icon_url,
-    ))
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable")?;
+        let mut candidate = runtime.config.clone();
+        let index = candidate.private_servers.len();
+        candidate.private_servers.push(server);
+        candidate
+            .save(&runtime.config_path)
+            .map_err(|_| "Private server could not be saved")?;
+        runtime.config = candidate;
+        Ok(private_server_summary(
+            index,
+            &runtime.config.private_servers[index],
+            icon_url,
+        ))
+    })
+    .await
+    .map_err(|_| "Private server save task failed")?
 }
 
 #[tauri::command]
@@ -1928,21 +2034,39 @@ async fn update_private_server(
     if name.is_empty() || name.chars().count() > 64 {
         return Err("Server name must be between 1 and 64 characters".to_string());
     }
-    let (server, icon_url) = build_private_server(&state, name, &url).await?;
-    let mut runtime = state
+    let original = state
         .runtime
         .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    if index >= runtime.config.private_servers.len() {
-        return Err("Private server not found".to_string());
-    }
-    runtime.config.private_servers[index] = server;
-    save_config(&runtime)?;
-    Ok(private_server_summary(
-        index,
-        &runtime.config.private_servers[index],
-        icon_url,
-    ))
+        .map_err(|_| "Application state unavailable")?
+        .config
+        .private_servers
+        .get(index)
+        .cloned()
+        .ok_or("Private server not found")?;
+    let (server, icon_url) = build_private_server(&state, name, &url).await?;
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable")?;
+        if runtime.config.private_servers.get(index) != Some(&original) {
+            return Err("Private servers changed. Refresh the list before editing again".into());
+        }
+        let mut candidate = runtime.config.clone();
+        candidate.private_servers[index] = server;
+        candidate
+            .save(&runtime.config_path)
+            .map_err(|_| "Private server edits could not be saved")?;
+        runtime.config = candidate;
+        Ok(private_server_summary(
+            index,
+            &runtime.config.private_servers[index],
+            icon_url,
+        ))
+    })
+    .await
+    .map_err(|_| "Private server save task failed")?
 }
 
 #[tauri::command]
@@ -1959,8 +2083,13 @@ async fn remove_private_server(
         if index >= runtime.config.private_servers.len() {
             return Err("Private server not found".to_string());
         }
-        runtime.config.private_servers.remove(index);
-        save_config(&runtime)
+        let mut candidate = runtime.config.clone();
+        candidate.private_servers.remove(index);
+        candidate
+            .save(&runtime.config_path)
+            .map_err(|_| "Private server removal could not be saved".to_string())?;
+        runtime.config = candidate;
+        Ok(())
     })
     .await
     .map_err(|_| "Private server removal task failed".to_string())?
@@ -2162,7 +2291,16 @@ async fn open_inventory_assets(
                     url,
                     format!(
                         "Roblox - {}",
-                        account_summary(account, None, &runtime.config).label
+                        account_summary(
+                            account,
+                            None,
+                            &runtime.config,
+                            *runtime
+                                .credential_revisions
+                                .get(&account.user_id)
+                                .unwrap_or(&0)
+                        )
+                        .label
                     ),
                 ))
             })
@@ -2283,7 +2421,7 @@ async fn fetch_account_inventory(
     state: tauri::State<'_, AppState>,
     user_id: u64,
     force_refresh: Option<bool>,
-) -> Result<Vec<InventoryItem>, String> {
+) -> Result<InventorySnapshot, String> {
     let revision = {
         let runtime = state
             .runtime
@@ -2318,7 +2456,10 @@ async fn fetch_account_inventory(
         }
         if !force_refresh.unwrap_or(false) {
             if let Some(items) = state.inventory_cache.get(&key) {
-                return Ok(items);
+                return Ok(InventorySnapshot {
+                    items,
+                    cached: true,
+                });
             }
         }
     }
@@ -2379,7 +2520,10 @@ async fn fetch_account_inventory(
         }
         state.inventory_cache.insert(generation, key, items.clone());
     }
-    Ok(items)
+    Ok(InventorySnapshot {
+        items,
+        cached: false,
+    })
 }
 
 #[tauri::command]
@@ -2447,6 +2591,7 @@ async fn arrange_account_windows(state: tauri::State<'_, AppState>) -> Result<()
 
 #[tauri::command]
 async fn connection_action(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     user_id: u64,
     target_user_id: u64,
@@ -2468,24 +2613,55 @@ async fn connection_action(
         );
     }
     let worker = state.inner().clone();
-    let cookie = tauri::async_runtime::spawn_blocking(move || {
+    let (cookie, revision) = tauri::async_runtime::spawn_blocking(move || {
         let runtime = worker
             .runtime
             .lock()
             .map_err(|_| "Account state unavailable".to_string())?;
-        account_cookie(&runtime, user_id)
+        account_cookie(&runtime, user_id).map(|cookie| {
+            (
+                cookie,
+                *runtime.credential_revisions.get(&user_id).unwrap_or(&0),
+            )
+        })
     })
     .await
     .map_err(|_| "Connection credential task failed")??;
     let client = RobloxClient::new().map_err(|error| error.to_string())?;
-    match action.as_str() {
+    let friendship_action = matches!(action.as_str(), "friend" | "block");
+    if friendship_action {
+        state.friends.invalidate();
+    }
+    let result = match action.as_str() {
         "follow" => api::follow_user(&client, &cookie, target_user_id).await,
         "unfollow" => api::unfollow_user(&client, &cookie, target_user_id).await,
         "friend" => api::send_friend_request(&client, &cookie, target_user_id).await,
         "block" => api::block_user(&client, &cookie, target_user_id).await,
         _ => return Err("Unsupported connection action".to_string()),
+    };
+    if friendship_action {
+        state.friends.invalidate();
     }
-    .map_err(|_| "Roblox could not complete the connection action. Check the account, connection, and rate limits.".to_string())?;
+    result.map_err(|_| "Roblox could not complete the connection action. Check the account, connection, and rate limits.".to_string())?;
+    if friendship_action {
+        if !friends::current(&state, user_id, revision) {
+            return Err(
+                "The action may have completed, but this account changed. Refresh before retrying."
+                    .into(),
+            );
+        }
+        let event = if action == "block" {
+            state.friends.record_action(
+                (user_id, revision),
+                target_user_id,
+                ram_core::friends::FriendAction::Block,
+            );
+            discord::Event::UserBlocked
+        } else {
+            discord::Event::FriendRequestSent
+        };
+        discord::friendship(&app, event, user_id, target_user_id, false);
+    }
     if action == "unfollow" && cleanup_pending {
         join_user::finish_manual_unfollow(&state, user_id, target_user_id).await?;
     }
@@ -2623,7 +2799,16 @@ async fn browse_as_account(
             .ok_or_else(|| "Account not found".to_string())?;
         (
             account_cookie(&runtime, user_id)?,
-            account_summary(account, None, &runtime.config).label,
+            account_summary(
+                account,
+                None,
+                &runtime.config,
+                *runtime
+                    .credential_revisions
+                    .get(&account.user_id)
+                    .unwrap_or(&0),
+            )
+            .label,
         )
     };
     let profile_dir = std::env::var_os("APPDATA")
@@ -3096,7 +3281,16 @@ async fn open_group_challenge(
             .ok_or_else(|| "Account not found".to_string())?;
         (
             account_cookie(&runtime, user_id)?,
-            account_summary(account, None, &runtime.config).label,
+            account_summary(
+                account,
+                None,
+                &runtime.config,
+                *runtime
+                    .credential_revisions
+                    .get(&account.user_id)
+                    .unwrap_or(&0),
+            )
+            .label,
         )
     };
     let profile_dir = std::env::var_os("APPDATA")
@@ -3190,7 +3384,11 @@ mod logging_tests {
         let subscriber = tracing_subscriber::fmt()
             .without_time()
             .with_ansi(false)
-            .with_env_filter(logging_filter(level, override_filter))
+            .with_env_filter(target_filter(
+                level,
+                &ram_core::models::default_log_targets(),
+                override_filter,
+            ))
             .with_writer(Scrubbed(writer))
             .finish();
         tracing::subscriber::with_default(subscriber, || {
@@ -3203,6 +3401,36 @@ mod logging_tests {
         let console_text = String::from_utf8(console.lock().unwrap().clone()).unwrap();
         let file_text = String::from_utf8(file.lock().unwrap().clone()).unwrap();
         (console_text, file_text)
+    }
+
+    #[test]
+    fn selected_crates_keep_dependency_debug_noise_out() {
+        let output = Arc::new(Mutex::new(Vec::new()));
+        let writer = output.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .without_time()
+            .with_ansi(false)
+            .with_env_filter(target_filter(
+                LogLevel::Debug,
+                &ram_core::models::default_log_targets(),
+                None,
+            ))
+            .with_writer(move || SharedOutput(writer.clone()))
+            .finish();
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::debug!(target: "ram_core::api", "app diagnostic");
+            tracing::debug!(target: "h2::codec", "dependency debug");
+            tracing::warn!(target: "h2::codec", "dependency warning");
+        });
+        let text = String::from_utf8(output.lock().unwrap().clone()).unwrap();
+        assert_eq!(text.contains("app diagnostic"), cfg!(debug_assertions));
+        assert!(!text.contains("dependency debug"));
+        assert!(text.contains("dependency warning"));
+        let targets = logging_targets();
+        assert!(targets.contains(&"ram_core".into()));
+        assert!(targets.contains(&"rm_tauri".into()));
+        assert!(targets.contains(&"h2".into()));
+        assert!(targets.windows(2).all(|pair| pair[0] < pair[1]));
     }
 
     #[test]
@@ -3276,7 +3504,8 @@ mod account_presentation_tests {
             anonymize_names: true,
             ..AppConfig::default()
         };
-        let summary = account_summary(&account, None, &config);
+        let summary = account_summary(&account, None, &config, 3);
+        assert_eq!(summary.credential_revision, 3);
         assert_eq!(summary.user_id, 42);
         assert_eq!(summary.username, "Account 42");
         assert_eq!(summary.display_name, "Account 42");
@@ -3301,9 +3530,9 @@ fn main() {
     let log_level = app_state
         .runtime
         .lock()
-        .map(|runtime| runtime.config.log_level)
+        .map(|runtime| (runtime.config.log_level, runtime.config.log_targets.clone()))
         .unwrap_or_default();
-    init_logging(log_level);
+    init_logging(log_level.0, &log_level.1);
     tracing::info!(
         event = "startup",
         version = env!("CARGO_PKG_VERSION"),
@@ -3375,6 +3604,12 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            logging_targets,
+            friends::get_friends,
+            friends::get_friend_requests,
+            friends::get_friend_details,
+            friends::friend_action,
+            friends::join_friend_game,
             join_user::join_user_accounts,
             join_user::cancel_user_join,
             join_user::get_join_cleanups,
@@ -3406,6 +3641,7 @@ fn main() {
             roblox_settings::get_roblox_privacy,
             roblox_settings::change_roblox_privacy,
             discord::get_discord_notifications,
+            discord::reset_discord_notifications,
             discord::save_discord_notifications,
             launcher::launch_accounts,
             lifecycle::startup_status,
@@ -3434,6 +3670,9 @@ fn main() {
             save_discord_webhook,
             remove_discord_webhook,
             test_discord_webhook,
+            discord::save_discord_destination,
+            discord::remove_discord_destination,
+            discord::test_discord_destination,
             change_password,
             clear_password,
             update_account_alias,
@@ -3454,6 +3693,8 @@ fn main() {
             remove_account,
             launch_account,
             list_private_servers,
+            private_servers::check_private_server,
+            private_servers::cached_private_server_checks,
             add_private_server,
             remove_private_server,
             rename_private_server,

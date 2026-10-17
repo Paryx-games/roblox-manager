@@ -8,6 +8,7 @@ pub struct PageVisibility {
     pub accounts: bool,
     pub instances: bool,
     pub groups: bool,
+    pub friends: bool,
     pub private_servers: bool,
     pub presets: bool,
     pub inventories: bool,
@@ -20,6 +21,7 @@ impl Default for PageVisibility {
             accounts: true,
             instances: true,
             groups: true,
+            friends: true,
             private_servers: true,
             presets: true,
             inventories: false,
@@ -76,10 +78,19 @@ pub fn save_settings(
 mod tests {
     use super::*;
     #[test]
+    fn existing_page_preferences_enable_friends_without_changing_saved_choices() {
+        let old = r#"{"accounts":false,"groups":false,"inventories":true}"#;
+        let pages: PageVisibility = serde_json::from_str(old).unwrap();
+        assert!(pages.friends && pages.inventories);
+        assert!(!pages.accounts && !pages.groups);
+    }
+
+    #[test]
     fn defaults_hide_only_optional_workspaces() {
         let pages = PageVisibility::default();
         assert!(
             pages.accounts
+                && pages.friends
                 && pages.instances
                 && pages.groups
                 && pages.private_servers

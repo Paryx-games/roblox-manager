@@ -95,6 +95,7 @@ pub async fn refresh_presence(
             missing.push(id);
         }
     }
+    let checked_at = chrono::Utc::now();
     for batch in missing.chunks(50) {
         presences.extend(
             api::fetch_presences(&client, &cookie, batch)
@@ -112,6 +113,7 @@ pub async fn refresh_presence(
             location: presence.last_location.clone(),
         })
         .collect();
+    let mut checked_presences = Vec::new();
     {
         let mut runtime = state
             .runtime
@@ -135,6 +137,9 @@ pub async fn refresh_presence(
                 );
             }
             if let Some(account) = runtime.accounts.find_by_id_mut(user_id) {
+                if missing.contains(&user_id) {
+                    checked_presences.push((user_id, presence.clone()));
+                }
                 if let Ok(mut history) = state.history.lock() {
                     if history.loaded {
                         history.observe_presence(user_id, &presence, chrono::Utc::now());
@@ -144,6 +149,7 @@ pub async fn refresh_presence(
             }
         }
     }
+    crate::instances::record_presence_check(&state, &checked_presences, checked_at)?;
     accounts::publish(app);
     crate::history::publish(app);
     Ok(updates)
@@ -188,6 +194,9 @@ async fn refresh_avatars(app: &tauri::AppHandle, ids: &[u64]) -> Result<(), Stri
 }
 
 pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
+    let friends_app = app.clone();
+    let private_servers_app = app.clone();
+    let discord_app = app.clone();
     let validation_app = app.clone();
     let presence_app = app.clone();
     let avatar_app = app.clone();
@@ -196,6 +205,9 @@ pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
     let startup_app = app.clone();
     let history_app = app.clone();
     BackgroundTasks(vec![
+        tauri::async_runtime::spawn(crate::friends::run_notifications(friends_app)),
+        tauri::async_runtime::spawn(crate::private_servers::run_background(private_servers_app)),
+        tauri::async_runtime::spawn(crate::discord::run(discord_app)),
         tauri::async_runtime::spawn(async move {
             loop {
                 let state = history_app.state::<AppState>().inner().clone();

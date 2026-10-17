@@ -54,6 +54,12 @@ use std::collections::{HashSet, VecDeque};
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 
+/// Normalize a public Job ID supplied by a server-specific source.
+pub fn normalize_job_id(value: Option<&str>) -> Option<String> {
+    let parsed = uuid::Uuid::parse_str(value?.trim()).ok()?;
+    (!parsed.is_nil()).then(|| parsed.hyphenated().to_string())
+}
+
 /// How long a launch stays eligible for the appearance-order *fallback*.
 ///
 /// Generous on purpose. A cold Roblox start on a slow disk, with the
@@ -430,6 +436,17 @@ impl InstanceRegistry {
             .collect()
     }
 
+    /// Whether a client is tracked or still starting for this account.
+    pub fn has_session(&self, user_id: u64) -> bool {
+        self.tracked
+            .iter()
+            .any(|instance| instance.user_id == user_id)
+            || self
+                .pending
+                .iter()
+                .any(|launch| launch.user_id == user_id && !launch.fifo_expired)
+    }
+
     /// PIDs believed to belong to `user_id`, exact and inferred alike. Callers
     /// that care about the difference want [`Self::instances_for`].
     pub fn pids_for(&self, user_id: u64) -> Vec<u32> {
@@ -491,6 +508,65 @@ mod tests {
     }
 
     /// A client whose command line RM could read and which carries `token`.
+    #[test]
+    fn session_checks_include_pending_clients_before_a_process_appears() {
+        let mut registry = InstanceRegistry::new();
+        let now = Utc::now();
+        assert!(!registry.has_session(1));
+        registry.note_launch(1, 2, 100, &[], now);
+        assert!(registry.has_session(1));
+        assert!(!registry.has_session(2));
+        registry.sweep(
+            &[LiveClient {
+                pid: 10,
+                start_time: 1,
+                token: LaunchToken::Found(100),
+            }],
+            now,
+        );
+        assert!(registry.has_session(1));
+        registry.sweep(&[], now);
+        assert!(!registry.has_session(1));
+    }
+
+    #[test]
+    fn abandoned_launches_stop_blocking_joins_but_keep_exact_attribution() {
+        let mut registry = InstanceRegistry::new();
+        registry.note_launch(7, 606, 5_000, &[], t0());
+        assert!(registry.has_session(7));
+        let result = registry.sweep(&[], at(PENDING_TTL_SECS + 1));
+        assert_eq!(result.abandoned.len(), 1);
+        assert!(!registry.has_session(7));
+        assert_eq!(registry.matchable_count(), 1);
+        registry.sweep(
+            &[LiveClient {
+                pid: 10,
+                start_time: 1,
+                token: LaunchToken::Found(5_000),
+            }],
+            at(PENDING_TTL_SECS + 2),
+        );
+        assert!(registry.has_session(7));
+        assert_eq!(registry.user_for(10), Some(7));
+    }
+
+    #[test]
+    fn job_ids_are_normalized_and_invalid_values_are_omitted() {
+        assert_eq!(
+            normalize_job_id(Some(" 12345678-ABCD-4234-8234-123456789ABC ")).as_deref(),
+            Some("12345678-abcd-4234-8234-123456789abc")
+        );
+        for value in [
+            None,
+            Some(""),
+            Some("not-a-job"),
+            Some("00000000-0000-0000-0000-000000000000"),
+            Some("@everyone\nprivateServerLinkCode=synthetic"),
+        ] {
+            assert!(normalize_job_id(value).is_none());
+        }
+    }
+
     fn tagged(pid: u32, token: i64) -> LiveClient {
         LiveClient {
             pid,

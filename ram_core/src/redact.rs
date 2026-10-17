@@ -97,6 +97,11 @@ fn rules() -> &'static [Rule] {
                 r#"(?i)(x-csrf-token\s*[=:]\s*"?)([^\s;,"'\)\]}]+)"#,
                 keep_label,
             ),
+            mk(
+                r#"(?i)(RBXEventTrackerV2\s*[=:]\s*"?)([^\s;,"'\)\]}]+)"#,
+                keep_label,
+            ),
+            mk(r#"(?i)(browserid\s*=\s*)(\d+)"#, keep_label),
             // The Windows account name embedded in every local path we log.
             mk(r#"(?i)([a-z]:[\\/]users[\\/])([^\\/\s"']+)"#, user_path),
             // Discord webhook URLs: https://discord.com/api/webhooks/{id}/{token}
@@ -140,6 +145,24 @@ mod tests {
     /// A realistically shaped cookie: the banner, then base64-ish payload.
     const COOKIE: &str = "_|WARNING:-DO-NOT-SHARE-THIS!--.ABCDEF0123456789abcdef_-";
     const TICKET: &str = "T1cKeT-abcDEF0123456789_ghijk";
+
+    #[test]
+    fn removes_browser_context_without_losing_other_cookie_labels() {
+        for line in [
+            "Cookie: RBXEventTrackerV2=CreateDate=synthetic&rbxid=42&browserid=123456; path=/",
+            "RBXEventTrackerV2=browserid=123456",
+            "browserid=123456",
+        ] {
+            let scrubbed = scrub(line);
+            assert!(!scrubbed.contains("123456"));
+            assert!(!scrubbed.contains("rbxid=42"));
+            assert!(scrubbed.contains(REDACTED));
+        }
+        assert_eq!(
+            scrub("Cookie: RBXEventTrackerV2=browserid=123456; path=/"),
+            "Cookie: RBXEventTrackerV2=<redacted>; path=/"
+        );
+    }
 
     #[test]
     fn leaves_an_ordinary_line_alone_without_allocating() {

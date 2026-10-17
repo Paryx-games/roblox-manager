@@ -1,5 +1,9 @@
 import type { AccountSummary, InventoryItem, InventoryBrowserTarget } from "./ipc";
 
+export function inventorySelectionKey(accounts: readonly Pick<AccountSummary, "userId" | "credentialRevision" | "cookieExpired">[]): string {
+  return accounts.map(account => `${account.userId}:${account.credentialRevision ?? 0}:${account.cookieExpired}`).sort().join(",");
+}
+
 export function buildInventoryAccountGroups(accounts: readonly AccountSummary[], groupOrder: readonly string[]): [string, AccountSummary[]][] {
   const grouped = new Map<string, AccountSummary[]>(groupOrder.map((name) => [name, []]));
   const sortedAccounts = [...accounts].sort((left, right) => Number(right.isPinned) - Number(left.isPinned) || left.sortOrder - right.sortOrder);

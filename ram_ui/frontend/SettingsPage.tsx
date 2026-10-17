@@ -9,6 +9,7 @@ import {
 } from "react";
 import { ConfirmModal } from "./ConfirmModal";
 import { Icon } from "./components/Icon";
+import { LogTargetPicker } from "./components/LogTargetPicker";
 import { DiscordNotifications } from "./components/DiscordNotifications";
 import Select from "./components/Select";
 import { Toast, ToastStack, type ToastItem, type ToastKind } from "./Toast";
@@ -534,7 +535,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
   const handleSave = useCallback(async () => {
     if (!draft || !snapshot || isSaving || busyAction === "roblox-directory") return false;
     if (!isDirty) return true;
-    const shouldRestart = draft.logLevel !== snapshot.config.logLevel;
+    const shouldRestart = draft.logLevel !== snapshot.config.logLevel || JSON.stringify([...draft.logTargets].sort()) !== JSON.stringify([...snapshot.config.logTargets].sort());
     const { startupWithWindows, ...settingsUpdate } = draft;
     setIsSaving(true);
     try {
@@ -798,7 +799,6 @@ export function SettingsPage({ onNavigationGuardChange }: {
                 label="Auto-launch on startup"
                 onChange={(autoLaunchOnStartup) => updateDraft({ autoLaunchOnStartup })}
               />
-              <p className="settings-muted">Launches this account and place once after RM starts and the account store unlocks. Applies on the next restart.</p>
               {draft.autoLaunchOnStartup && (
                 <div className="settings-stack">
                   <label className="settings-inline-field">
@@ -1133,7 +1133,6 @@ export function SettingsPage({ onNavigationGuardChange }: {
               onChange={(macRotationEnabled) => updateDraft({ macRotationEnabled })}
             />
           </SettingRow>
-          <p className="settings-muted">Rotates once per RM session before launching Roblox. Close existing Roblox clients first. Windows may request administrator permission.</p>
           {draft.macRotationEnabled && (
             <div className="settings-indent">
               <SettingRow referenceId="mac_preserve_oui" infoCards={infoCards}>
@@ -1194,11 +1193,10 @@ export function SettingsPage({ onNavigationGuardChange }: {
         >
           {draft.pageVisibility.assetManager && (
             <WarningText>
-              Uploads are permanent and public. Every asset is moderated under the account that uploaded it.
+              Asset Manager uploads are permanent and public. Every asset is moderated under the account that uploaded it.
             </WarningText>
           )}
-          <SubsectionHeading id="page-visibility">Visible pages</SubsectionHeading>
-          <p className="settings-muted">Choose which workspaces appear in navigation. Settings remains available so you can re-enable hidden pages.</p>
+          <SubsectionHeading id="page-visibility"><span className="settings-row"><span>Visible pages</span><InfoButton referenceId="page_visibility" infoCards={infoCards} /></span></SubsectionHeading>
           {workspacePages.map(({ key, label }) => <div className="settings-row" key={key}><Toggle checked={draft.pageVisibility[key]} label={`Show ${label}`} onChange={(visible) => updateDraft({ pageVisibility: { ...draft.pageVisibility, [key]: visible } })} /></div>)}
           <SettingRow referenceId="utility_enabled" infoCards={infoCards}>
             <Toggle
@@ -1208,7 +1206,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
             />
           </SettingRow>
           <SubsectionHeading id="logging">Logging</SubsectionHeading>
-          <SettingRow referenceId="session_history" infoCards={infoCards}><p className="settings-muted">Open App actions &gt; Session history to choose memory-only recording or a saved history file, filter activity, and export it.</p></SettingRow>
+          <SettingRow referenceId="session_history" infoCards={infoCards}><span>Open App actions &gt; Session history</span></SettingRow>
           <SettingRow referenceId="log_level" infoCards={infoCards}>
             <div className="settings-field-row">
               <span>Log level</span>
@@ -1230,6 +1228,9 @@ export function SettingsPage({ onNavigationGuardChange }: {
                 }}
               />
             </div>
+          </SettingRow>
+          <SettingRow referenceId="log_targets" infoCards={infoCards}>
+            <div className="settings-field-row"><span>Logging crates</span><LogTargetPicker disabled={isSaving} selected={draft.logTargets} onChange={logTargets => updateDraft({ logTargets })} /></div>
           </SettingRow>
           <button
             className="account-button"
@@ -1309,7 +1310,6 @@ export function SettingsPage({ onNavigationGuardChange }: {
               />
             </label>
           </SettingRow>
-          <p className="settings-muted">Passed as extra arguments to Roblox on future RM launches. Use double quotes around values with spaces. Launch URI parameters and credentials are reserved.</p>
           <SubsectionHeading id="fast-flags">Fast flags</SubsectionHeading>
           <SettingRow referenceId="roblox_fast_flags" infoCards={infoCards}>
             {Object.keys(draft.robloxFastFlags).length === 0 ? (
@@ -1327,7 +1327,6 @@ export function SettingsPage({ onNavigationGuardChange }: {
               </div>
             )}
           </SettingRow>
-          <p className="settings-muted">Written to the selected installation before each launch. Roblox only honors flags on its current allowlist. Removing a flag restores its original value on the next launch.</p>
           {isAddingFlag ? (
             <div className="settings-flag-editor">
               <input aria-label="Flag name" placeholder="Flag name" value={newFlagName} onChange={(event) => setNewFlagName(event.target.value)} />
@@ -1350,6 +1349,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
           <SettingRow referenceId="discord_webhook" infoCards={infoCards}>
             <DiscordNotifications
               hasWebhook={snapshot.hasDiscordWebhook}
+              infoCards={infoCards}
               onConfiguredChange={(hasDiscordWebhook) => setSnapshot((current) => current ? { ...current, hasDiscordWebhook } : current)}
               onBusyChange={setWebhookBusy}
             />

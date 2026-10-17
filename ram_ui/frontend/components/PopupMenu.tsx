@@ -4,13 +4,14 @@ import { useOverlayDismiss } from "../hooks/useOverlayDismiss";
 type PopupMenuProps = {
   children: ReactNode;
   className: string;
+  ariaLabel?: string;
   style?: CSSProperties;
   menuRef?: (element: HTMLDivElement | null) => void;
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   onClose: () => void;
 };
 
-export function PopupMenu({ children, className, style, menuRef, onKeyDown, onClose }: PopupMenuProps) {
+export function PopupMenu({ children, className, ariaLabel, style, menuRef, onKeyDown, onClose }: PopupMenuProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const previousFocus = useRef<Element | null>(null);
   useOverlayDismiss(ref, () => {
@@ -38,10 +39,12 @@ export function PopupMenu({ children, className, style, menuRef, onKeyDown, onCl
       data-rm-overlay
       style={style}
       role="menu"
+      aria-label={ariaLabel}
       onPointerDown={(event) => event.stopPropagation()}
       onKeyDown={(event) => {
         onKeyDown?.(event);
         if (event.defaultPrevented) return;
+        if (event.target instanceof HTMLInputElement && ["Home", "End", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
         if (event.key === "Tab") {
           onClose();
           return;

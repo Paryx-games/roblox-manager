@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildInventoryAccountGroups, buildInventoryBrowserTargets, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems } from "../frontend/lib/inventoryBrowsing.ts";
+import { inventorySelectionKey, buildInventoryAccountGroups, buildInventoryBrowserTargets, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems } from "../frontend/lib/inventoryBrowsing.ts";
+
+test("inventory reload keys follow credential changes but ignore account presentation updates", () => {
+  const original = [{userId:1,credentialRevision:2,cookieExpired:false,label:"Original"},{userId:2,credentialRevision:1,cookieExpired:false,label:"Other"}];
+  const key = inventorySelectionKey(original);
+  assert.equal(inventorySelectionKey(original.map(account=>({...account,label:"Renamed",presence:"online"})).reverse()), key);
+  assert.notEqual(inventorySelectionKey(original.map(account=>account.userId===1?{...account,credentialRevision:3}:account)), key);
+  assert.notEqual(inventorySelectionKey(original.map(account=>account.userId===1?{...account,cookieExpired:true}:account)), key);
+  assert.equal(inventorySelectionKey([]), "");
+});
 
 test("browser destinations always use the marketplace regardless of account ownership", () => {
   const items = [

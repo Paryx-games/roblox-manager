@@ -8,7 +8,7 @@ export function useOverlayDismiss(ref: RefObject<HTMLElement | null>, onClose?: 
     if (!enabled) return;
     function dismiss(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
-      const overlays = document.querySelectorAll<HTMLElement>("[data-rm-overlay]");
+      const overlays = Array.from(document.querySelectorAll<HTMLElement>("[data-rm-overlay]")).filter(overlay => overlay.getClientRects().length > 0);
       const dialogs = Array.from(overlays).filter((overlay) => overlay.getAttribute("aria-modal") === "true");
       const dialog = dialogs[dialogs.length - 1];
       const foreground = Array.from(overlays).filter((overlay) => !dialog || dialog.contains(overlay));

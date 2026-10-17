@@ -60,6 +60,22 @@ fn cookie_key(cookie: &str) -> u64 {
     hasher.finish()
 }
 
+fn browser_tracker(header: &str) -> Option<&str> {
+    let (name, value) = header.split(';').next()?.split_once('=')?;
+    if name.trim() != "RBXEventTrackerV2" {
+        return None;
+    }
+    value.split('&').find_map(|part| {
+        let (key, id) = part.split_once('=')?;
+        (key.eq_ignore_ascii_case("browserid")
+            && !id.is_empty()
+            && id.len() <= 20
+            && id.bytes().all(|byte| byte.is_ascii_digit())
+            && id.parse::<u64>().is_ok_and(|id| id > 0))
+        .then_some(id)
+    })
+}
+
 /// Exponential backoff for a 429, capped, with jitter.
 ///
 /// The jitter is not decoration. Concurrent uploads share one limiter, so
@@ -131,6 +147,28 @@ impl RobloxClient {
             inner: client,
             csrf_tokens: Arc::new(RwLock::new(HashMap::new())),
         })
+    }
+
+    /// Append only Roblox's validated browser ID for one operation, without persisting it.
+    pub async fn add_browser_context(&self, cookie: &mut String) -> Result<(), CoreError> {
+        let response = self
+            .request(Method::GET, "https://www.roblox.com/home", cookie, None)
+            .await?;
+        if !response.status().is_success() {
+            return Err(CoreError::RobloxApi {
+                status: response.status().as_u16(),
+                message: "Roblox browser context could not be loaded".into(),
+            });
+        }
+        let tracker = response
+            .headers()
+            .get_all(reqwest::header::SET_COOKIE)
+            .iter()
+            .find_map(|header| header.to_str().ok().and_then(browser_tracker))
+            .ok_or_else(|| CoreError::AuthFailed("Roblox did not issue browser context".into()))?;
+        cookie.push_str("; RBXEventTrackerV2=browserid=");
+        cookie.push_str(tracker);
+        Ok(())
     }
 
     // ------------------------------------------------------------------
@@ -431,6 +469,27 @@ impl Default for RobloxClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn browser_context_accepts_only_roblox_tracker_with_numeric_browser_id() {
+        assert_eq!(browser_tracker("RBXEventTrackerV2=CreateDate=synthetic&rbxid=42&browserid=123456; Domain=roblox.com; Secure"), Some("123456"));
+        assert_eq!(
+            browser_tracker("RBXEventTrackerV2=BrowserID=42"),
+            Some("42")
+        );
+        for header in [
+            "OtherCookie=browserid=42",
+            "RBXEventTrackerV2=rbxid=42",
+            "RBXEventTrackerV2=browserid=",
+            "RBXEventTrackerV2=browserid=0",
+            "RBXEventTrackerV2=browserid=-1",
+            "RBXEventTrackerV2=browserid=42\r\nInjected: value",
+            "RBXEventTrackerV2=browserid=42%3bsecret=value",
+            "RBXEventTrackerV2=browserid=18446744073709551616",
+        ] {
+            assert!(browser_tracker(header).is_none());
+        }
+    }
 
     #[test]
     fn backoff_grows_and_is_capped() {

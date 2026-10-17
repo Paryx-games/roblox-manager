@@ -4,6 +4,15 @@
 
 ### Added
 
+- **Friendship notifications:** Added Discord routes for incoming/sent requests, added/removed friends, declined requests and blocked users. Optional background checks work without opening Friends, establish silent baselines and avoid repeating successful RM actions.
+
+- **Friends workspace:** Added account-specific friend browsing, distinct presence filters, local search/sorting, full Job ID copying, cached profile/mutual-friend/group details, safe single-account joins, confirmed remove/block actions and incoming request management. Account switching ignores stale responses and retains the selected account locally.
+
+- **Server IDs:** Added a Job ID column to Instances and included confirmed public Job IDs in applicable Discord notifications. Unknown, stale and ambiguous server IDs are omitted from notifications.
+
+- **Discord routing:** Save multiple named webhooks, pause delivery globally or per destination, and route each event to any combination of channels. Added optional session-expiry, launch-failure and client-exit notifications, with two-column controls and info cards.
+- **Private-server checks:** Added live link checks, owner profile details, ownership badges, background refresh controls, and status sorting. Profile availability, ownership and invitation availability remain separate.
+- **Account layouts:** Rearrange account sections using six-dot drag handles or Alt + Up/Down. Layouts save automatically across all accounts.
 - **Account tags:** Stack colored tags independently of groups, edit them from horizontal signposts on account rows and beside profile names, filter through the sidebar tag action, and save preset tag targets that resolve matching accounts at launch time.
 - **Multi-account selection:** Added an **All accounts** action, with consistent select/clear controls across Accounts and Inventories.
 - **Session history:** Added session history across every workspace, featuring a **resizable right panel**, colour-coded events, account filtering, memory-only or JSON file storage, and **CSV/JSON exports**.
@@ -11,15 +20,40 @@
 
 ### Changed
 
+- **Quieter logging:** Added a searchable crate checkbox menu. Selected crates use the saved log level and dependencies default to warnings; new debug configurations enable RM diagnostics without HTTP frame noise.
+- **Cached workspaces:** Visited pages retain loaded state, and private-server ownership/link badges refresh from a shared five-minute background cache with matching colors and shorter labels.
+- **Compact controls:** Reduced account drag-handle spacing, overlapped tag signs, and preserved primary-button text and icon contrast while launching.
+
+- **Presets and Private Servers:** Saved entries now lead both workspaces, with compact add forms opened from the header and preset tag guidance moved into an info card. Private-server ownership uses green, yellow, and red badges.
+- **Inventory previews:** Accounts now loads a compact two-row inventory grid with a link to the full Inventories workspace. Both pages show cache use and share inventories for 15 minutes, with Refresh fetching current ownership.
+- **Account tag layout:** Moved the tag filter beside All accounts, tightened sort spacing, and arranged up to three tag signs horizontally with a +N overflow count.
 - **Consistent formatting:** App copy and notifications now use hyphens or layout spacing instead of middle-dot separators.
 - **Session history and navigation:** Session history now slides open and closed, exports trigger notifications, and account filters use the shared multi-account picker. App actions have moved to the **title bar menu**, while Join user now uses a wider, more compact dialog with account selection.
 - **Startup and privacy controls:** Startup launch now runs once after unlock using a saved account and Place ID. Startup account checks respect their toggle, and clipboard privacy clears the clipboard after a successful launch. **Automatic MAC rotation** runs before the first launch in each RM session, coordinates with manual rotation, requests elevation, and attempts to restore adapter availability if rotation fails.
 - **Roblox launch configuration:** Custom Roblox arguments now reach the player with proper **Windows argument quoting** and reserved-parameter validation. **FastFlags** apply to the selected installation before launching, removed flags restore their original values, and unrelated ClientSettings keys remain untouched.
-- **Caching and performance:** Public Roblox metadata and thumbnails now use **bounded shared memory caches**. Inventories cache for one minute with an explicit refresh bypass, while overlapping presence refreshes reuse recent results. **Clear application caches** now removes these cached responses.
+- **Caching and performance:** Public Roblox metadata and thumbnails now use **bounded shared memory caches**. Inventories cache for 15 minutes with an explicit refresh bypass, while overlapping presence refreshes reuse recent results. **Clear application caches** now removes these cached responses.
 - **Interface clarity:** Simplified app messages, buttons, and hints, with clearer browser and launch notifications, account login guidance, client controls, and recovery instructions.
 
 ### Fixed
 
+- **Private-server form validation:** Invalid links now show feedback beside the URL field and an accessible invalid state explaining why Add Server is disabled.
+
+- **Discord preference recovery:** Invalid notification preferences can be reset from Settings with confirmation. Recovery backs up the original, preserves existing backups and webhook credentials, and pauses delivery before restoring defaults.
+
+- **Private-server updates:** Status listeners register before loading cached badges, newer events survive delayed snapshots, and bookmarks can be added while background checks are running.
+
+- **Account workspace updates:** Credential replacement now reloads mounted inventory views. Unrelated account updates preserve Asset Manager's selected experience instead of silently removing its access grant.
+
+- **Join retries:** Abandoned pending launches stop blocking new-instance joins after their starting window expires, while remaining available for late exact attribution.
+
+- **Friend activity:** Offline and unavailable friends no longer display stale activity returned by Roblox.
+- **User blocking:** Reused Roblox-issued browser context for block actions so the current API accepts them. Browser context remains temporary and is scrubbed from logs.
+
+- **Private-server indicators:** The left shield now shows ownership across saved accounts, and the right icon independently shows invitation availability. Incomplete account checks stay yellow rather than claiming no saved account owns the server.
+- **Private-server profile checks:** Every working account now checks its accessible-server metadata, reusing the resolved invitation. Owner lookup errors retain the resolved link status and show specific failure, rate-limit, incomplete, or not-listed states. Failed bookmarks no longer stop the remaining checks.
+- **Private-server resolution:** Share links support universe-only responses and use the same validated invitation parser as status checks. Share imports skip expired accounts, and launches resolve a fresh UUID access code instead of relying on an empty or stale saved code.
+- **Settings info alignment:** The Visible pages info card now aligns with the info cards at the far right of other settings rows.
+- **Shared private-server ownership:** Shared links can now show a red badge after complete owned-server checks find no match among all saved accounts, even when the owner's profile is unavailable. Failed or incomplete checks stay unknown and report retry guidance.
 - **Secure random failures:** Key, salt and nonce generation now returns a safe error if Windows cannot provide secure randomness, instead of terminating the operation with a panic.
 - **Installer compatibility:** Updated Windows setup for Tauri 2.12, using Restart Manager to check the installed executable before upgrade or uninstall.
 - **Visibility authentication errors:** Accounts with a known rejected login no longer send visibility requests. Visibility failures now distinguish login rejection, permissions, rate limits and service outages, with explicit recovery guidance rather than repeated generic warnings.

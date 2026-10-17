@@ -35,17 +35,21 @@ Choose the cleanup scope before launch and whether to clean on exit. Exit cleanu
 
 ## App and data
 
-**Visible pages** provides a separate **Show** switch for each workspace, including **Show Inventories** and **Show Asset Manager**. Save the draft to update the navigation rail. Settings stays accessible even when other pages are hidden. **Show Clear Cache in navigation** adds the separate cache shortcut; it does not control either workspace.
+**Visible pages** provides a separate **Show** switch for each workspace, including **Show Friends**, **Show Inventories** and **Show Asset Manager**. Save the draft to update the navigation rail. Settings stays accessible even when other pages are hidden. **Show Clear Cache in navigation** adds the separate cache shortcut; it does not control either workspace.
 
 Public avatar URLs are cached for five minutes, game and asset thumbnails for 30 minutes, group details for one minute and announcements for 30 seconds.
 
-Account inventories are cached in memory for one minute and invalidated when RM accepts an asset upload; requests for the same account share work, with up to four accounts fetched at once. **Refresh selected** bypasses that cache.
+Accounts and Inventories share up to 64 inventories cached in memory for 15 minutes, invalidated when RM accepts an asset upload. Requests for the same account share work, with up to four accounts fetched at once. **Refresh selected** and the Accounts preview's refresh action bypass that cache.
 
 Presence requests arriving together share a result for up to two seconds.
 
 **Clear application caches** removes these memory caches and rejects cache writes from requests already in flight; account stores and browser profiles are retained. Account caches are also cleared when the store unlocks. Caches expire automatically and are discarded when RM exits.
 
-Logging controls the diagnostic level, and data-location controls show the active paths. Use the Roblox installation section to inspect the selected installation rather than assuming the default installation is always correct.
+**Logging crates** is a searchable checkbox menu of Rust crates from the current Cargo lockfile. Selected crates use **Log level**; everything else shows warnings and errors. New debug-build settings default to Debug for `ram_core` and `rm_tauri`, equivalent to `warn,ram_core=debug,rm_tauri=debug`. Release builds retain the Info ceiling and default to Info for those crates. Existing saved levels are preserved. Save logging changes to restart RM. An explicit valid `RUST_LOG` overrides the saved selection. This controls runtime tracing, not Cargo compiler output.
+
+Visited workspaces retain their loaded data, filters and selection during navigation, while shared background tasks update live data. Inactive workspaces are not repeatedly reloaded. Private-server ownership and link badges use a five-minute memory cache refreshed independently of page loading.
+
+Data-location controls show the active paths. Use the Roblox installation section to inspect the selected installation rather than assuming the default installation is always correct.
 
 The tray keeps the manager available in the background when its main window is closed. Use the tray's exit action to finish the process rather than assuming closing the window stops background work.
 
@@ -55,7 +59,28 @@ Device mode unlocks through Windows Credential Manager. Password mode requires a
 
 ## Discord notifications
 
-Configure the webhook through the integration controls, then use the explicit test action to send a test notification. The webhook URL is a credential stored in Windows Credential Manager, not ordinary configuration text. Never include it in screenshots or bug reports.
+Choose **Add webhook** under **Integrations > Discord notifications**, give the destination a name, and enter its URL. Up to 16 destinations can be saved. The URL is a credential stored in Windows Credential Manager, not ordinary configuration text. Saved URLs are never returned to the interface. Never include them in screenshots or bug reports.
+
+**Enable Discord notifications** pauses or resumes all delivery without removing saved URLs. Each destination also has its own **Enabled** switch, plus **Test**, **Replace** and **Remove** actions. Replacing a URL preserves that destination's routing and enabled state. Test actions explicitly send a test even when automatic delivery is paused.
+
+Event controls and destinations use two columns where space permits. Enable an event, then check every destination that should receive it. Moderation can go to several channels while batch launches go to a different channel. An event needs its own switch, the global switch, and at least one enabled destination checked before it will be sent. These preferences save immediately, independently of the main Settings draft.
+
+Moderation and batch-launch events keep their existing defaults. **Account session expired**, **Launch request failed** and **Roblox client exited** start disabled. Expiry only fires on a new rejection during account verification. Client exits require exact attribution and include manually closed clients; they do not prove a crash. Info cards beside each option explain when it fires. RM must be running. Delivery uses a bounded in-memory queue and does not retry lost events after restart.
+
+Notifications include a **Job ID** when RM can confirm one. Launch failures include the requested public server ID; batches include it when every request targets that same server. Client exits include the Job ID from the last confirmed instance snapshot when available. Moderation and expiry events include server details when exactly one confirmed client is tracked for the account. Unknown values and private-server invitation/access codes are omitted.
+
+Friendship events start disabled and use the same global, event and destination switches:
+
+- **Friend request received** detects new incoming requests in background checks.
+- **Friend added** reports a request accepted in RM or a newly observed friendship.
+- **Friend removed** reports a removal in RM or a friendship missing from a complete check. It cannot tell who removed it.
+- **Friend request sent**, **Friend request declined** and **User blocked** report successful actions from RM. These actions outside RM cannot be reliably inferred.
+
+When an enabled event has an active destination, RM checks the relevant lists for unlocked accounts sequentially, with a one-minute pause between rounds. Friends does not need to be open. Each account's first complete check is silent; restarting RM, changing credentials, clearing caches or re-enabling monitoring establishes a new baseline. Failed, partial and rate-limited checks keep the previous baseline. Notifications identify both accounts by public user ID, include a Roblox profile link, and respect name anonymization. A block in RM emits **User blocked** rather than a duplicate **Friend removed** for that account.
+
+The existing webhook is retained as **Primary webhook**. Routing metadata is saved atomically alongside notification preferences, while every URL stays in its own credential entry. Older RM versions may reject the expanded preferences file and do not support extra destinations; retain the previous preferences backup before downgrading.
+
+If notification preferences cannot load, try **Retry loading preferences**. **Reset notification preferences** offers a confirmed recovery when the saved file is invalid. RM preserves that file as a separate `discord-notifications.recovery-<id>.json` copy beside it and leaves the existing `.bak` unchanged before atomically writing defaults with delivery paused. The primary webhook is restored if saved; additional destinations must be added again. Webhook credentials are not deleted. Valid preferences cannot be reset through this recovery action.
 
 ## Custom arguments and FastFlags
 

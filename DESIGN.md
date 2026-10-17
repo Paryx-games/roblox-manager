@@ -53,12 +53,23 @@ Keep the compact desktop layout and each page's existing composition:
 - Instances shows selectable client rows with attribution and process actions
   beside a client controls panel. The panel stacks below the list on narrower layouts;
   controls are saved shared launch defaults with an explicit notice that running clients are unchanged.
+- Friends uses a compact table and profile sidebar, with a single Refresh header action, shared account picker, status filters, anchored menus and the standard join/confirmation dialogs. Job IDs use `--font-mono`, truncate visually and retain full tooltip/copy values. Playing, Studio, online, offline and unavailable states remain distinct.
 - Groups uses account/group selection and detail sections for group content.
-- Private Servers and Presets use their existing lists, filters, and editing flows.
+- Private Servers and Presets lead with saved lists, filters, and editing flows.
+  Header actions open compact add forms; preset creation uses two columns.
+  Private-server rows place the ownership shield first, using ownership tokens
+  for owned, unknown/checking, and not-owned results. The next icon independently
+  reports invitation availability, with access and notification tokens.
 - Inventories uses a 220px account sidebar, a grid/list workspace, and a
   resizable, collapsible filter panel on the right.
 - Asset Manager uses creation/upload controls and tabular results.
 - Settings uses a 200px internal sidebar and section navigation.
+
+Discord integration controls reuse existing cards, toggles, and info cards.
+Named destinations and event routing form two columns when space permits,
+with a single-column fallback. Global and per-destination switches pause
+delivery while retaining saved routes. Routine explanations belong in info
+cards; immediate warnings, errors, and pending feedback remain visible.
 
 Use `min-width: 0` and `min-height: 0` where flexible panes need to shrink.
 Session history is a shared, collapsible right panel across all workspaces.
@@ -91,10 +102,10 @@ changes.
 | Surfaces | `--bg-canvas`, `--bg-surface`, `--bg-raised` |
 | Text | `--text-primary`, `--text-muted`, `--text-disabled` |
 | Borders and actions | `--border-default`, `--action-primary`, `--action-danger`, `--action-muted` |
-| Live status | `--status-online`, `--status-warning`, `--status-danger`, `--status-neutral` |
+| Live status | `--status-online`, `--status-studio`, `--status-warning`, `--status-danger`, `--status-neutral` |
 | Other semantic states | `--notification-*`, `--access-*`, `--ownership-*` |
 | Guided tour | `--walkthrough-outline`, `--walkthrough-dim`, `--walkthrough-dock` |
-| Typography | `--font-sans`, `--text-xs`, `--text-sm`, `--text-base`, `--text-lg`, `--text-xl` |
+| Typography | `--font-sans`, `--font-mono`, `--text-xs`, `--text-sm`, `--text-base`, `--text-lg`, `--text-xl` |
 | Spacing | `--space-1`, `--space-2`, `--space-3`, `--space-4`, `--space-6`, `--space-8`, `--space-12` |
 | Shape and motion | `--radius`, `--border-width`, `--duration-*`, `--ease-standard` |
 
@@ -105,11 +116,16 @@ permissions, notification severity, and private-server ownership.
 
 Account tags use user-selected RGB colors, separate from live-status tokens.
 Their compact horizontal signposts sit on account rows and beside profile
-names. A single profile tag includes its name; multiple tags show overlapping
-color signs, with names available through the accessible label and tooltip.
+names. A single profile tag includes its name; multiple tags show up to three
+slightly overlapping signs with a +N overflow count. All names remain available through the accessible label and tooltip.
 Clicking the signs opens the existing checkbox-menu pattern. The tag editor
 reuses the group color picker and palette; untagged row controls appear on hover
 or keyboard focus.
+
+Account detail sections reuse the existing cards with a six-dot drag handle.
+Drag or Alt + Up/Down rearranges the actual DOM order, preserving keyboard
+reading order. A local saved layout applies across accounts; identity and
+recovery notices remain above the movable sections.
 
 ### Color, shape, and typography
 
@@ -272,3 +288,5 @@ This document was checked against the current source. It does not certify
 that every existing page satisfies every accessibility or interaction
 requirement. For new visual patterns not covered here, discuss the approach
 before implementation as required by AGENTS.md.
+
+Visited workspaces keep their mounted state when hidden. Hidden overlays and page shortcuts must not intercept input. Primary buttons keep `--text-on-action` contrast for text and icons, including pending/disabled states. Both private-server indicators use the ownership palette consistently: green for confirmed, yellow for unknown, and red for negative results.

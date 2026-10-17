@@ -1,3 +1,4 @@
+import { WorkspaceActiveContext } from "./hooks/useWorkspaceActive";
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { InstancesPage } from "./InstancesPage";
@@ -12,6 +13,7 @@ import { benchmarkReady, acknowledgeStartup, checkReleaseUpdate, clearPassword, 
 import { defaultPageVisibility, workspacePages, listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
+import { FriendsPage } from "./FriendsPage";
 import { GroupsPage } from "./GroupsPage";
 import { PrivateServersPage } from "./PrivateServersPage";
 import { PresetsPage } from "./PresetsPage";
@@ -32,6 +34,7 @@ type PageName =
   | "Accounts"
   | "Instances"
   | "Groups"
+  | "Friends"
   | "Private Servers"
   | "Presets"
   | "Inventories"
@@ -42,6 +45,7 @@ const navItems: NavItem[] = [
   { label: "Accounts", icon: "id-card", page: "Accounts" },
   { label: "Instances", icon: "app-window", page: "Instances" },
   { label: "Groups", icon: "users", page: "Groups" },
+  { label: "Friends", icon: "friends", page: "Friends" },
   { label: "Private Servers", icon: "game", page: "Private Servers" },
   { label: "Presets", icon: "star", page: "Presets" },
   { label: "Inventories", icon: "inventory", page: "Inventories" },
@@ -126,6 +130,8 @@ export function App() {
   }, [actionsOpen]);
   const [activeNav, setActiveNav] = useState<PageName>("Accounts");
   const displayedNav = activeNav;
+  const [visitedPages, setVisitedPages] = useState<PageName[]>(["Accounts"]);
+  useEffect(() => { setVisitedPages(pages => pages.includes(activeNav) ? pages : [...pages, activeNav]); }, [activeNav]);
   const settingsGuardRef = useRef<SettingsNavigationGuard | null>(null);
   const [pendingNavigation, setPendingNavigation] = useState<PageName | null>(null);
   const [isNavigationSaving, setIsNavigationSaving] = useState(false);
@@ -135,6 +141,8 @@ export function App() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [workspace, setWorkspace] = useState<InstanceWorkspace>({ instances: [], runningCount: 0 });
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  const [accountsReady, setAccountsReady] = useState(false);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
   const [launches, setLaunches] = useState<Record<string, LaunchProgress>>({});
   const [isInstancesLoading, setIsInstancesLoading] = useState(true);
   const benchmarkDataReady = useRef(false);
@@ -262,6 +270,7 @@ export function App() {
           if (!isActive) return;
           hasAccountEvent = true;
           setAccounts(event.payload);
+          setAccountsReady(true); setAccountsError(null);
           if (event.payload.length > 0) void refreshStartup();
         }),
         listen<LaunchProgress>("launch-progress", (event) => {
@@ -291,7 +300,9 @@ export function App() {
       if (!isActive) return;
       if (instanceResult.status === "fulfilled" && !hasInstanceEvent) setWorkspace(instanceResult.value);
       if (instanceResult.status === "rejected" && !hasInstanceEvent) setInstancesError("Running instances could not be loaded. Retry to reconnect.");
-      if (accountResult.status === "fulfilled" && !hasAccountEvent) setAccounts(accountResult.value);
+      if (accountResult.status === "fulfilled" && !hasAccountEvent) { setAccounts(accountResult.value); setAccountsError(null); }
+      if (accountResult.status === "rejected" && !hasAccountEvent) setAccountsError("Managed accounts could not be loaded. Retry or open Accounts to check the store.");
+      setAccountsReady(true);
       if (window.__RM_BENCHMARK__) {
         benchmarkDataReady.current = (instanceResult.status === "fulfilled" || hasInstanceEvent)
           && (accountResult.status === "fulfilled" || hasAccountEvent);
@@ -379,6 +390,8 @@ export function App() {
           selectedIds={selectedIds}
           setSelectedIds={setSelectedIds}
           prefilledPlaceId={prefilledPlaceId}
+          inventoriesAvailable={visibility.inventories}
+          onOpenInventories={() => navigateTo(visibility.inventories ? "Inventories" : "Settings")}
           onJoinUser={(target, ids) => { setJoinSelection(new Set(ids)); setJoinTarget(target); }}
         />
       );
@@ -387,6 +400,8 @@ export function App() {
     if (page === "Instances") {
       return <InstancesPage workspace={workspace} accounts={accounts} selectedIds={selectedIds} onSelectedIdsChange={setSelectedIds} launches={Object.values(launches)} isLoading={isInstancesLoading} error={instancesError} onRefresh={refreshInstances} />;
     }
+
+    if (page === "Friends") return <FriendsPage accounts={accounts} accountsReady={accountsReady} accountsError={accountsError} onRetryAccounts={async()=>{try{setAccounts(await listAccounts());setAccountsError(null);}catch{setAccountsError("Managed accounts could not be loaded. Open Accounts to check the store, then retry.");}finally{setAccountsReady(true);}}} multiInstanceEnabled={settings?.multiInstanceEnabled ?? false} />;
 
     if (page === "Groups") {
       return (
@@ -533,12 +548,11 @@ export function App() {
 
         <div className="main-col" data-walkthrough="workspace">
           <div className="page-transition-viewport">
-            <div
-              key={displayedNav}
-              className="page-transition-layer"
-            >
-              {renderPage(displayedNav)}
-            </div>
+            {[...new Set([...visitedPages, displayedNav])].map(page => (
+              <WorkspaceActiveContext.Provider key={page} value={page === displayedNav}><div className="page-transition-layer" hidden={page !== displayedNav}>
+                {renderPage(page)}
+              </div></WorkspaceActiveContext.Provider>
+            ))}
             <span className="sr-only" aria-live="polite">{displayedNav} page</span>
           </div>
         </div>

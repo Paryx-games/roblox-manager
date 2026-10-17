@@ -28,6 +28,7 @@ export function InstanceRow({ instance, account, selected, onSelect, actions }: 
       <InstanceIdentity instance={instance} account={account} />
       <span className="instance-details" id={detailsId}>
         <span><span>Place ID</span><span className="selectable-text">{instance.placeId ?? "Unknown"}</span></span>
+        <span className="instance-job"><span>Job ID</span><span className="selectable-text" data-tip={instance.jobId ?? "Server ID could not be confirmed for this client"}>{instance.jobId ?? "Unknown"}</span></span>
         <span><span>Match</span><span className="instances-attribution" data-attribution={instance.attribution} data-tip={matchDescription}>{instance.attribution === "exact" ? "Verified" : instance.attribution === "inferred" ? "Estimated" : "Unknown"}</span></span>
         <span><span>Launched</span><span>{instance.launchedAt ? new Date(instance.launchedAt).toLocaleString() : "Unknown"}</span></span>
       </span>

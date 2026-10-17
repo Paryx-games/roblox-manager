@@ -68,22 +68,55 @@ fn validate_request(request: &LaunchRequest) -> Result<(), String> {
 }
 
 pub async fn launch(app: &tauri::AppHandle, request: LaunchRequest) -> Result<(), String> {
-    launch_impl(app, request, false).await
+    launch_impl(app, request, false, false, false).await
 }
 
 pub async fn launch_startup(app: &tauri::AppHandle, request: LaunchRequest) -> Result<(), String> {
-    launch_impl(app, request, true).await
+    launch_impl(app, request, true, false, false).await
+}
+
+pub async fn launch_new_instance(
+    app: &tauri::AppHandle,
+    request: LaunchRequest,
+    session_confirmed: bool,
+) -> Result<(), String> {
+    launch_impl(app, request, false, true, !session_confirmed).await
+}
+
+fn validate_instance_policy(required: bool, enabled: bool) -> Result<(), String> {
+    if required && !enabled {
+        return Err("Multi-instance was disabled before this launch. Enable it in Settings or confirm the saved launch policy before retrying.".into());
+    }
+    Ok(())
 }
 
 async fn launch_impl(
     app: &tauri::AppHandle,
     request: LaunchRequest,
     startup: bool,
+    require_multi_instance: bool,
+    check_account_session: bool,
 ) -> Result<(), String> {
     validate_request(&request)?;
     let request_id = uuid::Uuid::new_v4().to_string();
     progress(app, &request_id, request.user_id, "waiting");
-    let result = launch_queued(app, &request_id, &request, startup).await;
+    let result = launch_queued(
+        app,
+        &request_id,
+        &request,
+        startup,
+        require_multi_instance,
+        check_account_session,
+    )
+    .await;
+    if result.is_err() {
+        crate::discord::launch_failed(
+            app,
+            request.user_id,
+            request.place_id,
+            request.job_id.as_deref(),
+        );
+    }
     progress(
         app,
         &request_id,
@@ -97,19 +130,33 @@ async fn launch_impl(
     result
 }
 
+fn common_job_id(requests: &[LaunchRequest]) -> Option<String> {
+    let first = requests.first()?;
+    let job = ram_core::instances::normalize_job_id(first.job_id.as_deref())?;
+    requests
+        .iter()
+        .all(|request| {
+            request.place_id == first.place_id
+                && ram_core::instances::normalize_job_id(request.job_id.as_deref()).as_ref()
+                    == Some(&job)
+        })
+        .then_some(job)
+}
+
 pub async fn batch(app: &tauri::AppHandle, requests: Vec<LaunchRequest>) -> Result<(), String> {
     let total = requests.len();
     let place_id = requests
         .first()
         .map(|request| request.place_id)
         .unwrap_or(0);
+    let job_id = common_job_id(&requests);
     for (completed, request) in requests.into_iter().enumerate() {
         if let Err(error) = launch(app, request).await {
-            crate::discord::batch_finished(app, total, completed, place_id);
+            crate::discord::batch_finished(app, total, completed, place_id, job_id.as_deref());
             return Err(error);
         }
     }
-    crate::discord::batch_finished(app, total, total, place_id);
+    crate::discord::batch_finished(app, total, total, place_id, job_id.as_deref());
     Ok(())
 }
 
@@ -146,11 +193,16 @@ async fn launch_queued(
     request_id: &str,
     request: &LaunchRequest,
     startup: bool,
+    require_multi_instance: bool,
+    check_account_session: bool,
 ) -> Result<(), String> {
     let state = app.state::<AppState>().inner().clone();
     let mut next_launch = state.launch_queue.lock().await;
     if let Some(deadline) = *next_launch {
         tokio::time::sleep(deadline.saturating_duration_since(Instant::now())).await;
+    }
+    if check_account_session {
+        instances::require_no_account_session(&state, request.user_id)?;
     }
     let credential_state = state.clone();
     let user_id = request.user_id;
@@ -165,6 +217,7 @@ async fn launch_queued(
         let player_path = runtime.config.custom_player_paths.get(&user_id).cloned().or_else(|| runtime.config.roblox_player_path.clone());
         Ok((cookie, runtime.config.clone(), player_path, *runtime.credential_revisions.get(&user_id).unwrap_or(&0)))
     }).await.map_err(|_| "Launch credential task failed")??;
+    validate_instance_policy(require_multi_instance, config.multi_instance_enabled)?;
     let options_state = state.clone();
     let options_config = config.clone();
     let (executable, custom_args) = tauri::async_runtime::spawn_blocking(move || {
@@ -195,6 +248,11 @@ async fn launch_queued(
     let needs_tray_cleanup = config.kill_background_roblox || multi_instance;
     progress(app, request_id, request.user_id, "authenticating");
     let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
+    let resolved_access_code = match request.link_code.as_deref() {
+        Some(link_code) => Some(ram_core::api::resolve_private_server_access(&client, &cookie, request.place_id, link_code).await
+            .map_err(|_| "This private-server invitation could not be resolved. Check its link and this account's access before trying again.")?),
+        None => request.access_code.clone(),
+    };
     let ticket = client
         .generate_auth_ticket(&cookie)
         .await
@@ -223,7 +281,7 @@ async fn launch_queued(
     let job_id = request.job_id.clone();
     let data = request.data.clone();
     let link_code = request.link_code.clone();
-    let access_code = request.access_code.clone();
+    let access_code = resolved_access_code;
     progress(app, request_id, request.user_id, "launching");
     let clear_clipboard = config.privacy_mode && config.privacy_clear_clipboard;
     let launch_state = state.clone();
@@ -324,6 +382,41 @@ async fn launch_queued(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_new_instance_requests_cannot_reuse_a_client_after_policy_changes() {
+        assert!(validate_instance_policy(true, false).is_err());
+        assert!(validate_instance_policy(true, true).is_ok());
+        assert!(validate_instance_policy(false, false).is_ok());
+    }
+
+    #[test]
+    fn batch_job_ids_are_included_only_for_a_shared_explicit_destination() {
+        let request = |job: Option<&str>| LaunchRequest {
+            user_id: 1,
+            place_id: 2,
+            job_id: job.map(str::to_owned),
+            data: None,
+            link_code: None,
+            access_code: None,
+        };
+        let job = "12345678-1234-4234-8234-123456789abc";
+        assert_eq!(
+            common_job_id(&[request(Some(job)), request(Some(job))]).as_deref(),
+            Some(job)
+        );
+        assert!(common_job_id(&[]).is_none());
+        assert!(common_job_id(&[request(Some(job)), request(None)]).is_none());
+        assert!(common_job_id(&[
+            request(Some(job)),
+            request(Some("87654321-1234-4234-8234-123456789abc"))
+        ])
+        .is_none());
+        let mut private = request(None);
+        private.access_code = Some(job.into());
+        private.link_code = Some("synthetic-invitation".into());
+        assert!(common_job_id(&[private]).is_none());
+    }
 
     #[test]
     fn spacing_preserves_the_tray_cleanup_window() {

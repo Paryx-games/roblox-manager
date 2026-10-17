@@ -662,62 +662,21 @@ pub async fn get_roblox_privacy(
     Ok(results)
 }
 
-fn visibility_tracker(header: &str) -> Option<&str> {
-    let (name, value) = header.split(';').next()?.split_once('=')?;
-    if name.trim() != "RBXEventTrackerV2" {
-        return None;
-    }
-    value.split('&').find_map(|part| {
-        let (key, id) = part.split_once('=')?;
-        (key.eq_ignore_ascii_case("browserid")
-            && !id.is_empty()
-            && id.len() <= 20
-            && id.bytes().all(|byte| byte.is_ascii_digit())
-            && id.parse::<u64>().is_ok_and(|id| id > 0))
-        .then_some(id)
-    })
-}
-
 async fn add_visibility_context(
     client: &RobloxClient,
     cookie: &mut String,
     user_id: u64,
     request_id: &str,
 ) -> Result<(), String> {
-    // roblox requires its issued browser context for settings writes, in addition to csrf.
-    // retain only the validated browser id, scoped to this account's save; never persist it.
-    let response = client
-        .request(
-            reqwest::Method::GET,
-            "https://www.roblox.com/home",
-            cookie,
-            None,
-        )
-        .await
-        .map_err(|_| "Roblox save context could not be loaded. Try again")?;
-    let tracker = response
-        .status()
-        .is_success()
-        .then(|| {
-            response
-                .headers()
-                .get_all(reqwest::header::SET_COOKIE)
-                .iter()
-                .find_map(|header| header.to_str().ok().and_then(visibility_tracker))
-        })
-        .flatten();
-    let Some(tracker) = tracker else {
+    if client.add_browser_context(cookie).await.is_err() {
         tracing::warn!(
             event = "roblox_visibility_context_failed",
             request_id,
             user_id,
-            status = response.status().as_u16(),
             "Roblox did not issue visibility save context"
         );
         return Err(format!("Roblox did not provide the context needed to save visibility. Refresh the account and retry. Diagnostic ID: {request_id}"));
-    };
-    cookie.push_str("; RBXEventTrackerV2=browserid=");
-    cookie.push_str(tracker);
+    }
     tracing::debug!(
         event = "roblox_visibility_context_ready",
         request_id,
@@ -887,27 +846,6 @@ mod privacy_tests {
         assert!(!message.contains(synthetic));
         assert!(!warning);
     }
-    #[test]
-    fn visibility_context_accepts_only_roblox_tracker_with_numeric_browser_id() {
-        assert_eq!(visibility_tracker("RBXEventTrackerV2=CreateDate=synthetic&rbxid=42&browserid=123456; Domain=roblox.com; Secure"), Some("123456"));
-        assert_eq!(
-            visibility_tracker("RBXEventTrackerV2=BrowserID=42"),
-            Some("42")
-        );
-        for header in [
-            "OtherCookie=browserid=42",
-            "RBXEventTrackerV2=rbxid=42",
-            "RBXEventTrackerV2=browserid=",
-            "RBXEventTrackerV2=browserid=0",
-            "RBXEventTrackerV2=browserid=-1",
-            "RBXEventTrackerV2=browserid=42\r\nInjected: value",
-            "RBXEventTrackerV2=browserid=42%3bsecret=value",
-            "RBXEventTrackerV2=browserid=18446744073709551616",
-        ] {
-            assert!(visibility_tracker(header).is_none());
-        }
-    }
-
     #[test]
     fn missing_or_unrecognised_privacy_does_not_invent_choices() {
         assert!(parse_privacy(&serde_json::json!({})).is_err());

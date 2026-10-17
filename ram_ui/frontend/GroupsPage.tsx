@@ -1,3 +1,4 @@
+import { useAccountUpdates } from "./hooks/useAccountUpdates";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useState } from "react";
 import {
@@ -165,6 +166,8 @@ export function GroupsPage({
   const [error, setError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  useAccountUpdates(setAccounts, () => setError("Live account updates disconnected. Restart RM to reconnect."));
 
   useEffect(() => {
     void listAccounts()

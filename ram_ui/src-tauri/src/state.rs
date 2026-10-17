@@ -30,6 +30,9 @@ pub struct AppState {
     pub history: Arc<Mutex<ram_core::session_history::History>>,
     pub history_io: Arc<tokio::sync::Mutex<()>>,
     pub joins: Arc<crate::join_user::JoinState>,
+    pub discord: Arc<crate::discord::NotificationQueue>,
+    pub friends: Arc<crate::friends::FriendsState>,
+    pub private_server_checks: Arc<crate::private_servers::CheckCache>,
     pub is_shutting_down: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -77,8 +80,8 @@ impl Default for AppState {
             })),
             inventory_fetches: Arc::new(tokio::sync::Semaphore::new(4)),
             inventory_cache: Arc::new(ram_core::cache::ResponseCache::new(
-                std::time::Duration::from_secs(60),
-                32,
+                std::time::Duration::from_secs(15 * 60),
+                64,
             )),
             presence_cache: Arc::new(ram_core::cache::ResponseCache::new(
                 std::time::Duration::from_secs(2),
@@ -92,6 +95,9 @@ impl Default for AppState {
             history: Arc::new(Mutex::new(Default::default())),
             history_io: Arc::new(tokio::sync::Mutex::new(())),
             joins: Arc::new(Default::default()),
+            discord: Arc::new(Default::default()),
+            private_server_checks: Arc::new(Default::default()),
+            friends: Arc::new(Default::default()),
             is_shutting_down: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }

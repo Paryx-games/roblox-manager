@@ -1,15 +1,16 @@
+import { useAccountUpdates } from "./hooks/useAccountUpdates";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { AccountAvatar } from "./components/AccountAvatar";
 import { allAccountsSelected, toggleAllAccounts } from "./lib/accountSelection";
 import { Icon } from "./components/Icon";
 import Select from "./components/Select";
-import { buildInventoryAccountGroups, buildInventoryBrowserTargets, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems, type OwnedInventoryItem, type InventoryComparison, type InventorySort, type InventorySortDirection } from "./lib/inventoryBrowsing";
+import { inventorySelectionKey, buildInventoryAccountGroups, buildInventoryBrowserTargets, mergeAccountInventories, matchesInventoryComparison, sortInventoryItems, type OwnedInventoryItem, type InventoryComparison, type InventorySort, type InventorySortDirection } from "./lib/inventoryBrowsing";
 import { getSelectionRectangle, selectInventoryAsset, selectInventoryAssets, type SelectionRectangle } from "./lib/inventorySelection";
 import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
 import {
   browseAsAccount,
-  fetchAccountInventory,
+  fetchInventorySnapshot,
   listAccounts,
   listAccountGroups,
   openInventoryAssets,
@@ -71,8 +72,10 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const groupIdPrefix = useId();
   const [accountIds, setAccountIds] = useState<Set<number>>(() => new Set(initialSelectedIds));
   const [accountsLoading, setAccountsLoading] = useState(true);
+  const selectedInventoryKey = inventorySelectionKey(accounts.filter(account => accountIds.has(account.userId)));
   const [items, setItems] = useState<OwnedInventoryItem[]>([]);
   const [loadedAccountCount, setLoadedAccountCount] = useState(0);
+  const [cachedAccountCount, setCachedAccountCount] = useState(0);
   const [comparison, setComparison] = useState<InventoryComparison>("all");
   const [sort, setSort] = useState<InventorySort>("name");
   const [sortDirection, setSortDirection] = useState<InventorySortDirection>("ascending");
@@ -109,6 +112,15 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
   const animationFrameRef = useRef<number | null>(null);
   const suppressClickRef = useRef(false);
   const copyTimeoutRef = useRef<number | null>(null);
+
+  useAccountUpdates(updated => {
+    setAccounts(updated);
+    setAccountIds(current => {
+      const available = new Set(updated.map(account => account.userId));
+      const retained = [...current].filter(id => available.has(id));
+      return retained.length === current.size ? current : new Set(retained);
+    });
+  }, () => setError("Live account updates disconnected. Restart RM to reconnect."));
 
   useEffect(() => {
     if (!isFilterSidebarCollapsed && shouldFocusSidebarSearch) {
@@ -200,15 +212,17 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
     let isCurrent = true;
     setItemsLoading(true);
     setLoadedAccountCount(0);
+    setCachedAccountCount(0);
     setError(null);
     setSelectedItemIds(new Set());
     const forceRefresh = lastInventoryRefresh.current !== refreshCount;
-    void Promise.allSettled([...accountIds].map(async (userId) => ({ userId, items: await fetchAccountInventory(userId, forceRefresh) })))
+    void Promise.allSettled([...accountIds].map(async (userId) => ({ userId, ...await fetchInventorySnapshot(userId, forceRefresh) })))
       .then((results) => {
         if (!isCurrent) return;
         const loaded = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
         setItems(mergeAccountInventories(loaded));
         setLoadedAccountCount(loaded.length);
+        setCachedAccountCount(loaded.filter(inventory => inventory.cached).length);
         const failures = results.filter((result) => result.status === "rejected").length;
         if (failures) {
           setError(`${failures} ${failures === 1 ? "account inventory" : "account inventories"} could not be loaded. Refresh selected to retry.`);
@@ -221,7 +235,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
         }
       });
     return () => { isCurrent = false; };
-  }, [accountIds, accountsLoading, refreshCount]);
+  }, [accountIds, accountsLoading, refreshCount, selectedInventoryKey]);
 
   const isComparisonAvailable = accountIds.size > 1 && loadedAccountCount === accountIds.size && !itemsLoading;
   const effectiveComparison = isComparisonAvailable ? comparison : "all";
@@ -602,6 +616,7 @@ export function InventoriesPage({ initialSelectedIds }: { initialSelectedIds: Se
             <button className="account-button" type="button" disabled={visibleItems.length === 0 || itemsLoading} onClick={() => setSelectedItemIds((current) => new Set([...current, ...visibleItems.map((item) => item.assetId)]))}>Select all</button>
             <button className="account-button" type="button" disabled={selectedItemIds.size === 0} onClick={() => setSelectedItemIds(new Set())}>Clear selection</button>
             <span>{visibleItems.length} {visibleItems.length === 1 ? "item" : "items"}</span>
+              {!itemsLoading && loadedAccountCount > 0 && <span className="inventory-cache-summary" data-tip="Inventories are cached in memory for 15 minutes. Refresh selected fetches current ownership.">{cachedAccountCount ? `${cachedAccountCount} / ${loadedAccountCount} cached` : "Updated from Roblox"}</span>}
             <div className="inventories-view-controls">
               <div className="inventories-view-switch" role="group" aria-label="Inventory view">
                 <button type="button" aria-pressed={view === "grid"} onClick={() => setView("grid")}><Icon name="grid" />Grid</button>

@@ -1,7 +1,13 @@
+import { useAccountUpdates } from "./hooks/useAccountUpdates";
+import { listen } from "@tauri-apps/api/event";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   addPrivateServer,
+  checkPrivateServer,
+  cachedPrivateServerChecks,
+  type PrivateServerCheckSnapshot,
+  type PrivateServerCheck,
   listAccounts,
   launchPrivateServer,
   listPrivateServers,
@@ -16,34 +22,37 @@ import { Icon } from "./components/Icon";
 import { Popup } from "./components/Popup";
 import { PopupMenu } from "./components/PopupMenu";
 import Select from "./components/Select";
+import { InfoTip } from "./components/InfoTip";
+import { privateServerAvailabilityLabel, privateServerOwnershipLabel, privateServerOwnerLabel } from "./lib/privateServerChecks";
 
 type OwnershipStatus = "owned" | "unknown" | "not-owned";
-
-const ownershipStatus: OwnershipStatus = "unknown";
 
 function OwnershipBadge({
   status,
   accountName,
+  description,
 }: {
   status: OwnershipStatus;
   accountName?: string;
+  description?: string;
 }) {
   const content = {
     owned: {
       icon: "shield-check",
       label: `Owned by ${accountName ?? "one of your accounts"}`,
     },
-    unknown: { icon: "shield-question-mark", label: "Ownership unverified" },
-    "not-owned": { icon: "shield-x", label: "Not owned by any account" },
+    unknown: { icon: "shield-question-mark", label: "Owner unknown" },
+    "not-owned": { icon: "shield-x", label: "Not owned by your accounts" },
   }[status];
 
   return (
     <span
       className={`private-server-ownership private-server-ownership-${status}`}
-      data-tip={content.label}
-      aria-label={content.label}
+      role="img"
+      data-tip={status === "owned" ? content.label : description ?? content.label}
+      aria-label={status === "owned" ? content.label : description ?? content.label}
     >
-      <Icon name={content.icon} />
+      <Icon name={content.icon} tone="current-color" />
     </span>
   );
 }
@@ -58,6 +67,8 @@ export function PrivateServersPage({
   const [servers, setServers] = useState<PrivateServerSummary[]>([]);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const urlLabelId = useId();
+  const urlErrorId = useId();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,7 +77,13 @@ export function PrivateServersPage({
     "custom",
   );
   const [descending, setDescending] = useState(false);
-  const [showBanner, setShowBanner] = useState(true);
+  const [checks, setChecks] = useState<Record<number, PrivateServerCheck>>({});
+  const [checking, setChecking] = useState(false);
+  const [checkFailed, setCheckFailed] = useState(false);
+  const checkVersion = useRef(0);
+  const checkEvents = useRef(0);
+  const mounted = useRef(true);
+  const [showCreate, setShowCreate] = useState(false);
   const [openPicker, setOpenPicker] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
@@ -90,6 +107,8 @@ export function PrivateServersPage({
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuPlacement, setMenuPlacement] = useState("");
   const addSectionRef = useRef<HTMLElement>(null);
+
+  useAccountUpdates(setAccounts, () => setError("Live account updates disconnected. Restart RM to reconnect."));
 
   useEffect(() => {
     if (openMenu === null) return;
@@ -126,22 +145,57 @@ export function PrivateServersPage({
   }, [openMenu]);
 
   async function reload() {
+    const version = ++checkVersion.current;
+    const eventsBeforeLoad = checkEvents.current;
     setLoading(true);
+    setChecking(false);
     try {
-      setServers(await listPrivateServers());
+      const loaded = await listPrivateServers();
+      if (!mounted.current || checkVersion.current !== version) return;
+      setServers(loaded);
+      const cached = await cachedPrivateServerChecks();
+      if (!mounted.current || checkVersion.current !== version) return;
+      if (checkEvents.current === eventsBeforeLoad) {
+        setChecks(cached.checks);
+        setChecking(cached.checking); setCheckFailed(cached.failed);
+      }
       setError(null);
     } catch {
-      setError("Saved private-server bookmarks could not be loaded. Reopen the workspace to retry; saved bookmarks were not changed.");
+      if (mounted.current && checkVersion.current === version) setError("Saved private-server bookmarks could not be loaded. Use Refresh status to retry; saved bookmarks were not changed.");
     } finally {
-      setLoading(false);
+      if (mounted.current && checkVersion.current === version) setLoading(false);
+    }
+  }
+  async function validateServers(targets: PrivateServerSummary[]) {
+    setChecking(true);
+    setError(null);
+    try {
+      for (const target of targets) await checkPrivateServer(target.index);
+      const cached = await cachedPrivateServerChecks();
+      if (mounted.current) { setChecks(cached.checks); setChecking(cached.checking); setCheckFailed(cached.failed); }
+    } catch {
+      if (mounted.current) { setError("Status refresh could not start. Try again."); setChecking(false); }
     }
   }
   useEffect(() => {
-    void reload();
+    mounted.current = true;
+    let active = true;
+    const subscription = listen<PrivateServerCheckSnapshot>("private-server-checks-updated", event => {
+      if (active) { checkEvents.current += 1; setChecks(event.payload.checks); setChecking(event.payload.checking); setCheckFailed(event.payload.failed); }
+    });
+    async function load() {
+      let disconnected = false;
+      try { await subscription; } catch { disconnected = true; }
+      if (!active) return;
+      await reload();
+      if (active && disconnected) setError(current => [current, "Live server updates disconnected. Restart RM to reconnect."].filter(Boolean).join(" "));
+    }
+    void load();
     void listAccounts()
-      .then(setAccounts)
-      .catch(() => setAccounts([]))
-      .finally(() => setIsAccountsLoading(false));
+      .then(accounts => { if (active) setAccounts(accounts); })
+      .catch(() => { if (active) { setAccounts([]); setError("Accounts could not be loaded. Open Accounts, refresh them, then reopen Private Servers."); } })
+      .finally(() => { if (active) setIsAccountsLoading(false); });
+    return () => { active = false; mounted.current = false; checkVersion.current += 1; void subscription.then(unlisten => unlisten()).catch(() => {}); };
   }, []);
   const groups = useMemo(() => {
     const map = new Map<number, PrivateServerSummary[]>();
@@ -158,13 +212,18 @@ export function PrivateServersPage({
         [
           placeId,
           [...group].sort((left, right) => {
-            if (sort === "name") return left.name.localeCompare(right.name);
-            if (sort === "status") return left.name.localeCompare(right.name);
-            return 0;
+            let result = left.index - right.index;
+            if (sort === "name") result = left.name.localeCompare(right.name);
+            if (sort === "recent") result = right.index - left.index;
+            if (sort === "status") {
+              const rank = { valid: 0, unknown: 1, invalid: 2 };
+              result = rank[checks[left.index]?.status ?? "unknown"] - rank[checks[right.index]?.status ?? "unknown"] || left.name.localeCompare(right.name);
+            }
+            return result * (descending ? -1 : 1);
           }),
         ] as [number, PrivateServerSummary[]],
     );
-  }, [search, servers, sort]);
+  }, [search, servers, sort, checks, descending]);
 
   const orderedGroups = descending ? [...groups].reverse() : groups;
   async function addServer() {
@@ -175,6 +234,8 @@ export function PrivateServersPage({
       setServers((current) => [...current, server]);
       setName("");
       setUrl("");
+      setShowCreate(false);
+      void validateServers([server]);
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -277,6 +338,7 @@ export function PrivateServersPage({
         ),
       );
       setEditTarget(null);
+      void validateServers([updated]);
     } catch (reason) {
       setError(
         reason instanceof Error
@@ -288,38 +350,22 @@ export function PrivateServersPage({
     }
   }
   function addUnderGame(placeName: string) {
+    setShowCreate(true);
     setName(`${placeName} Server`);
-    addSectionRef.current?.scrollIntoView({
+    requestAnimationFrame(() => addSectionRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "start",
-    });
-    setError("Paste this game's Roblox private-server link into the add-server form and give the bookmark a name before saving it.");
+    }));
   }
+  const urlInvalid = url.trim().length > 0 && !isValidPrivateServerUrl(url);
   return (
     <>
-      <div className="header-row">
+      <div className="header-row saved-workspace-header">
         <h1 className="header-title">Private Servers</h1>
+        <button className="account-button" type="button" aria-expanded={showCreate} disabled={saving} onClick={() => setShowCreate(current => !current)}><Icon name="add" />{showCreate ? "Close form" : "Add server"}</button>
       </div>
-      {showBanner && (
-        <aside className="private-server-banner" role="status">
-          <Icon name="warning" />
-          <span>
-            <strong>Coming soon:</strong> live private-server link and ownership
-            validation are reserved for a later update. Other server management
-            controls are available now.
-          </span>
-          <button
-            className="private-server-banner-dismiss"
-            type="button"
-            aria-label="Dismiss"
-            onClick={() => setShowBanner(false)}
-          >
-            <Icon name="close" />
-          </button>
-        </aside>
-      )}
       <main className="private-servers-page">
-        <section
+        {showCreate && <section
           ref={addSectionRef}
           className="private-server-card"
           aria-labelledby="add-private-server"
@@ -332,13 +378,18 @@ export function PrivateServersPage({
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="e.g. Grinding Server"
+                maxLength={64}
+                disabled={saving}
               />
             </label>
             <label>
-              URL
+              <span id={urlLabelId}>URL</span>
               <div className="private-server-input-action">
                 <input
                   value={url}
+                  aria-labelledby={urlLabelId}
+                  aria-invalid={urlInvalid}
+                  aria-describedby={urlInvalid ? urlErrorId : undefined}
                   onChange={(event) => setUrl(event.target.value)}
                   placeholder="Paste private server link"
                 />
@@ -351,25 +402,31 @@ export function PrivateServersPage({
                   <Icon name="clipboard" />
                 </button>
               </div>
+              {urlInvalid && <span id={urlErrorId} className="private-server-error" role="alert">Use a full Roblox private-server invitation link starting with https://.</span>}
             </label>
           </div>
           <div className="private-server-form-actions">
             <button
               className="account-button primary"
               type="button"
-              disabled={saving || !name.trim() || !url.trim()}
+              disabled={saving || !name.trim() || !url.trim() || urlInvalid}
               onClick={() => void addServer()}
             >
               <Icon name="add" />
               {saving ? "Adding..." : "Add Server"}
             </button>
           </div>
-        </section>
+        </section>}
         <section
           className="private-server-card"
           aria-labelledby="saved-private-servers"
         >
-          <h2 id="saved-private-servers">Saved Private Servers</h2>
+          <div className="preset-card-head">
+            <h2 id="saved-private-servers">Saved private servers ({servers.length}) <InfoTip text="Left shield: green if any saved account owns the server, red if none do after complete checks, and yellow while checking or if ownership is unknown. Right icon: green if the invitation resolves, red if it is inactive or invalid, and yellow if availability is unknown. Roblox checks each selected account's join access when launching." /></h2>
+            <button className="account-button" type="button" disabled={checking || loading || saving || deleting || editSaving} onClick={() => { if (!servers.length) void reload(); else void validateServers(servers); }}><Icon name="refresh" />Refresh status</button>
+          </div>
+          {checking && <p className="common-inventory-summary" role="status">Refreshing server status...</p>}
+          {checkFailed && <p className="private-server-error" role="alert">Some checks failed. Last known results are shown. Refresh to retry.</p>}
           {error && (
             <p className="private-server-error" role="alert">
               {error}
@@ -414,7 +471,7 @@ export function PrivateServersPage({
             <div className="account-empty-inline">
               <Icon name="game" />
               <strong>{search.trim() ? "No search results found" : "No private servers saved yet"}</strong>
-              <span>{search.trim() ? "Try another search term." : "Add one above to start launching straight into it."}</span>
+              <span>{search.trim() ? "Try another search term." : "Choose Add server to save a private-server link."}</span>
             </div>
           ) : (
             orderedGroups.map(([placeId, group]) => (
@@ -447,34 +504,28 @@ export function PrivateServersPage({
                 </div>
                 {group.map((server) => (
                   <div className="private-server-row" key={server.index}>
+                    <OwnershipBadge status={checks[server.index]?.ownership ?? "unknown"} accountName={checks[server.index]?.ownerUsername ?? undefined} description={privateServerOwnershipLabel(checks[server.index], checking)} />
                     <span
-                      className="private-server-status"
-                      data-tip="Not yet checked"
-                      aria-label="Not yet checked"
+                      className={`private-server-status private-server-status-${checks[server.index]?.status ?? "unknown"}`}
+                      role="img"
+                      data-tip={privateServerAvailabilityLabel(checks[server.index], checking)}
+                      aria-label={privateServerAvailabilityLabel(checks[server.index], checking)}
                     >
-                      <Icon name="warning" />
+                      <Icon name={checks[server.index]?.status === "valid" ? "check" : checks[server.index]?.status === "invalid" ? "close" : "warning"} tone="current-color" />
                     </span>
-                    <OwnershipBadge status={ownershipStatus} />
                     <span className="private-server-name-block">
                       <span className="private-server-name">{server.name}</span>
-                      <a
+                      {checks[server.index]?.ownerId ? <a
                         className="private-server-owner-link"
-                        href={server.ownerProfileUrl ?? "#"}
+                        href={`https://www.roblox.com/users/${checks[server.index].ownerId}/profile`}
                         target="_blank"
                         rel="noreferrer"
-                        aria-label={`Open ${server.ownerUsername ?? "user"}'s Roblox profile`}
-                        data-tip={
-                          server.ownerProfileUrl
-                            ? "Open owner profile"
-                            : "Owner profile link will be available after ownership checking"
-                        }
-                        onClick={(event) => {
-                          if (!server.ownerProfileUrl) event.preventDefault();
-                        }}
+                        aria-label="Open server owner's Roblox profile"
+                        data-tip="Open owner profile"
                       >
-                        @{server.ownerUsername ?? "user"}
+                        @{checks[server.index].ownerUsername ?? checks[server.index].ownerId}
                         <Icon name="square-arrow-out-up-right" />
-                      </a>
+                      </a> : <span className="private-server-owner-link" data-tip={checks[server.index]?.message}>{privateServerOwnerLabel(checks[server.index], checking)}</span>}
                     </span>
                     <AccountPicker
                       accounts={accounts}
@@ -504,7 +555,7 @@ export function PrivateServersPage({
                         }`}
                         type="button"
                         disabled={
-                          launchingIndex !== null ||
+                          launchingIndex !== null || loading || deleting || editSaving ||
                           !(serverAccounts[server.index] ?? selectedIds).size
                         }
                         onClick={() => void launch(server.index)}
@@ -566,6 +617,7 @@ export function PrivateServersPage({
                               <Icon name="edit" />
                               Edit
                             </button>
+                            <button type="button" role="menuitem" disabled={checking} onClick={() => { void validateServers([server]); setOpenMenu(null); }}><Icon name="refresh" />Check link and ownership</button>
                             <div
                               className="private-server-menu-separator"
                               role="separator"
@@ -638,6 +690,7 @@ export function PrivateServersPage({
               </button>
             </div>
             <div className="add-account-modal-body">
+              {error && <p className="private-server-error" role="alert">{error}</p>}
               <label htmlFor="private-server-edit-name">Name</label>
               <input
                 id="private-server-edit-name"

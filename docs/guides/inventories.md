@@ -20,6 +20,12 @@ Enable **Show Inventories** under **Settings > App and data > Visible pages**, s
 
 Comparison results depend on the inventories that loaded successfully. An unavailable or restricted inventory is not proof that an account owns no items.
 
+## Cached inventories and account previews
+
+Accounts and Inventories share a bounded memory cache of up to 64 inventories for 15 minutes. Reopening either page reuses recent results, including item names, categories, thumbnails and available prices. Each cache entry belongs to one account and credential revision. Refresh bypasses it; accepted asset uploads, unlocking the account store and **Clear application caches** invalidate it. Cached ownership can be out of date until refreshed, and the cache is cleared when RM closes.
+
+The Accounts page loads a compact preview automatically after selection settles. It shows up to two rows, or shared items when multiple accounts are selected. Additional items appear as skeleton frames with **Load more in inventories tab**. Open Inventories for the full grid, filters and comparisons. If the workspace is hidden, **Enable Inventories** opens Settings so you can enable it under **App and data > Visible pages**.
+
 ## Select and inspect
 
 Select individual items, use the selection shortcuts, or drag a selection rectangle in the grid. The selection area lets you find selected items. Copy an item ID or open supported item pages through the browser controls.

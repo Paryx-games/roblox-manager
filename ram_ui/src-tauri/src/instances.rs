@@ -19,6 +19,7 @@ pub struct InstanceState {
     last_launch: Option<Instant>,
     arrange_after: Option<Instant>,
     snapshot: InstanceWorkspace,
+    presence_checks: HashMap<u64, (ram_core::models::Presence, chrono::DateTime<chrono::Utc>)>,
 }
 
 #[derive(Clone, Default, PartialEq, Serialize)]
@@ -36,8 +37,79 @@ pub struct InstanceSummary {
     user_id: Option<u64>,
     label: String,
     place_id: Option<u64>,
+    job_id: Option<String>,
     attribution: &'static str,
     launched_at: Option<String>,
+}
+
+fn instance_job_id(
+    instance: &TrackedInstance,
+    tracked: &[TrackedInstance],
+    presence: Option<&ram_core::models::Presence>,
+    checked_at: Option<chrono::DateTime<chrono::Utc>>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<String> {
+    if !instance.attribution.is_exact()
+        || tracked
+            .iter()
+            .filter(|other| other.user_id == instance.user_id)
+            .count()
+            != 1
+    {
+        return None;
+    }
+    let checked_at = checked_at?;
+    if checked_at < instance.launched_at || now.signed_duration_since(checked_at).num_seconds() > 30
+    {
+        return None;
+    }
+    let presence = presence?;
+    if presence.user_presence_type != 2 || presence.place_id != Some(instance.place_id) {
+        return None;
+    }
+    ram_core::instances::normalize_job_id(presence.game_id.as_deref())
+}
+
+pub fn record_presence_check(
+    state: &AppState,
+    presences: &[(u64, ram_core::models::Presence)],
+    checked_at: chrono::DateTime<chrono::Utc>,
+) -> Result<(), String> {
+    let mut instances = state
+        .instances
+        .lock()
+        .map_err(|_| "Instance presence tracking unavailable")?;
+    for (id, presence) in presences {
+        instances
+            .presence_checks
+            .insert(*id, (presence.clone(), checked_at));
+    }
+    Ok(())
+}
+
+pub fn require_no_account_session(state: &AppState, user_id: u64) -> Result<(), String> {
+    let instances = state
+        .instances
+        .lock()
+        .map_err(|_| "Instance tracking unavailable")?;
+    if instances.registry.has_session(user_id) {
+        return Err("An instance for this account is running or still starting. Confirm possible session replacement before joining.".into());
+    }
+    Ok(())
+}
+
+pub fn account_server(state: &AppState, user_id: u64) -> Option<(u64, String)> {
+    let instances = state.instances.lock().ok()?;
+    let mut matches = instances
+        .snapshot
+        .instances
+        .iter()
+        .filter(|instance| instance.user_id == Some(user_id));
+    let instance = matches.next()?;
+    if matches.next().is_some() || instance.attribution != "exact" {
+        return None;
+    }
+    Some((instance.place_id?, instance.job_id.clone()?))
 }
 
 fn exact_instance(
@@ -148,8 +220,24 @@ fn sweep(app: &tauri::AppHandle) -> Result<InstanceWorkspace, String> {
     {
         return Ok(instances.snapshot.clone());
     }
+    instances
+        .presence_checks
+        .retain(|id, _| labels.contains_key(id));
     let live = instances.tokens.scan();
     let outcome = instances.registry.sweep(&live, chrono::Utc::now());
+    for instance in &outcome.exited {
+        if instance.attribution.is_exact() {
+            let job_id = instances
+                .snapshot
+                .instances
+                .iter()
+                .find(|previous| {
+                    previous.pid == instance.pid && previous.start_time == instance.start_time
+                })
+                .and_then(|previous| previous.job_id.as_deref());
+            crate::discord::client_exited(app, instance.user_id, instance.place_id, job_id);
+        }
+    }
     if !outcome.abandoned.is_empty() {
         let _ = app.emit(
             "background-notice",
@@ -229,6 +317,19 @@ fn sweep(app: &tauri::AppHandle) -> Result<InstanceWorkspace, String> {
                         .cloned()
                         .unwrap_or_else(|| "Unmatched client".into()),
                     place_id: instance.map(|instance| instance.place_id),
+                    job_id: instance.and_then(|instance| {
+                        instances.presence_checks.get(&instance.user_id).and_then(
+                            |(presence, checked_at)| {
+                                instance_job_id(
+                                    instance,
+                                    &tracked,
+                                    Some(presence),
+                                    Some(*checked_at),
+                                    chrono::Utc::now(),
+                                )
+                            },
+                        )
+                    }),
                     attribution: match instance.map(|instance| instance.attribution) {
                         Some(Attribution::Exact) => "exact",
                         Some(Attribution::Inferred) => "inferred",
@@ -341,6 +442,67 @@ mod tests {
             launched_at: chrono::Utc::now(),
             attribution,
         }
+    }
+
+    #[test]
+    fn job_ids_require_fresh_unambiguous_exact_presence_for_the_same_place() {
+        let exact = instance(Attribution::Exact);
+        let job = "12345678-1234-4234-8234-123456789abc";
+        let mut presence = ram_core::models::Presence {
+            user_presence_type: 2,
+            place_id: Some(2),
+            game_id: Some(job.into()),
+            ..Default::default()
+        };
+        let now = exact.launched_at + chrono::Duration::seconds(10);
+        let checked = Some(exact.launched_at + chrono::Duration::seconds(1));
+        let tracked = vec![exact.clone()];
+        assert_eq!(
+            instance_job_id(&exact, &tracked, Some(&presence), checked, now).as_deref(),
+            Some(job)
+        );
+        assert!(instance_job_id(&exact, &tracked, Some(&presence), None, now).is_none());
+        assert!(instance_job_id(
+            &exact,
+            &tracked,
+            Some(&presence),
+            Some(exact.launched_at - chrono::Duration::seconds(1)),
+            now
+        )
+        .is_none());
+        assert!(instance_job_id(
+            &exact,
+            &tracked,
+            Some(&presence),
+            checked,
+            now + chrono::Duration::seconds(31)
+        )
+        .is_none());
+        let inferred = instance(Attribution::Inferred);
+        assert!(instance_job_id(
+            &inferred,
+            std::slice::from_ref(&inferred),
+            Some(&presence),
+            checked,
+            now
+        )
+        .is_none());
+        assert!(instance_job_id(
+            &exact,
+            &[exact.clone(), exact.clone()],
+            Some(&presence),
+            checked,
+            now
+        )
+        .is_none());
+        presence.place_id = Some(3);
+        assert!(instance_job_id(&exact, &tracked, Some(&presence), checked, now).is_none());
+        presence.place_id = Some(2);
+        presence.game_id = Some("synthetic-invalid-or-invitation".into());
+        assert!(instance_job_id(&exact, &tracked, Some(&presence), checked, now).is_none());
+        presence.game_id = Some(job.into());
+        presence.user_presence_type = 0;
+        assert!(instance_job_id(&exact, &tracked, Some(&presence), checked, now).is_none());
     }
 
     #[test]
