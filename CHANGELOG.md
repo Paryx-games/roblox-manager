@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.2.0
+## v2.3.0
 
 ### Added
 
@@ -14,9 +14,6 @@
 - **Private-server checks:** Added live link checks, owner profile details, ownership badges, background refresh controls, and status sorting. Profile availability, ownership and invitation availability remain separate.
 - **Account layouts:** Rearrange account sections using six-dot drag handles or Alt + Up/Down. Layouts save automatically across all accounts.
 - **Account tags:** Stack colored tags independently of groups, edit them from horizontal signposts on account rows and beside profile names, filter through the sidebar tag action, and save preset tag targets that resolve matching accounts at launch time.
-- **Multi-account selection:** Added an **All accounts** action, with consistent select/clear controls across Accounts and Inventories.
-- **Session history:** Added session history across every workspace, featuring a **resizable right panel**, colour-coded events, account filtering, memory-only or JSON file storage, and **CSV/JSON exports**.
-- **Queued game joins:** Added the ability to join games by **exact username or user ID** across multiple accounts, using a server visible to any selected account or temporary follow/unfollow with cleanup recovery and cancellation support.
 
 ### Changed
 
@@ -26,12 +23,7 @@
 - **Presets and Private Servers:** Saved entries now lead both workspaces, with compact add forms opened from the header and preset tag guidance moved into an info card. Private-server ownership uses green, yellow, and red badges.
 - **Inventory previews:** Accounts now loads a compact two-row inventory grid with a link to the full Inventories workspace. Both pages show cache use and share inventories for 15 minutes, with Refresh fetching current ownership.
 - **Account tag layout:** Moved the tag filter beside All accounts, tightened sort spacing, and arranged up to three tag signs horizontally with a +N overflow count.
-- **Consistent formatting:** App copy and notifications now use hyphens or layout spacing instead of middle-dot separators.
-- **Session history and navigation:** Session history now slides open and closed, exports trigger notifications, and account filters use the shared multi-account picker. App actions have moved to the **title bar menu**, while Join user now uses a wider, more compact dialog with account selection.
-- **Startup and privacy controls:** Startup launch now runs once after unlock using a saved account and Place ID. Startup account checks respect their toggle, and clipboard privacy clears the clipboard after a successful launch. **Automatic MAC rotation** runs before the first launch in each RM session, coordinates with manual rotation, requests elevation, and attempts to restore adapter availability if rotation fails.
-- **Roblox launch configuration:** Custom Roblox arguments now reach the player with proper **Windows argument quoting** and reserved-parameter validation. **FastFlags** apply to the selected installation before launching, removed flags restore their original values, and unrelated ClientSettings keys remain untouched.
-- **Caching and performance:** Public Roblox metadata and thumbnails now use **bounded shared memory caches**. Inventories cache for 15 minutes with an explicit refresh bypass, while overlapping presence refreshes reuse recent results. **Clear application caches** now removes these cached responses.
-- **Interface clarity:** Simplified app messages, buttons, and hints, with clearer browser and launch notifications, account login guidance, client controls, and recovery instructions.
+- **Inventory caching:** Extended the inventory cache duration from one minute to 15 minutes, retaining the explicit refresh bypass.
 
 ### Fixed
 
@@ -51,9 +43,30 @@
 - **Shared private-server ownership:** Shared links can now show a red badge after complete owned-server checks find no match among all saved accounts, even when the owner's profile is unavailable. Failed or incomplete checks stay unknown and report retry guidance.
 - **Secure random failures:** Key, salt and nonce generation now returns a safe error if Windows cannot provide secure randomness, instead of terminating the operation with a panic.
 - **Installer compatibility:** Updated Windows setup for Tauri 2.12, using Restart Manager to check the installed executable before upgrade or uninstall.
+
+## v2.2.0
+
+### Added
+
+- **Multi-account selection:** Added an **All accounts** action, with consistent select/clear controls across Accounts and Inventories.
+- **Session history:** Added session history across every workspace, featuring a **resizable right panel**, colour-coded events, account filtering, memory-only or JSON file storage, and **CSV/JSON exports**.
+- **Queued game joins:** Added the ability to join games by **exact username or user ID** across multiple accounts, using a server visible to any selected account or temporary follow/unfollow with cleanup recovery and cancellation support.
+
+### Changed
+
+- **Consistent formatting:** App copy and notifications now use hyphens or layout spacing instead of middle-dot separators.
+- **Session history and navigation:** Session history now slides open and closed, exports trigger notifications, and account filters use the shared multi-account picker. App actions have moved to the **title bar menu**, while Join user now uses a wider, more compact dialog with account selection.
+- **Startup and privacy controls:** Startup launch now runs once after unlock using a saved account and Place ID. Startup account checks respect their toggle, and clipboard privacy clears the clipboard after a successful launch. **Automatic MAC rotation** runs before the first launch in each RM session, coordinates with manual rotation, requests elevation, and attempts to restore adapter availability if rotation fails.
+- **Roblox launch configuration:** Custom Roblox arguments now reach the player with proper **Windows argument quoting** and reserved-parameter validation. **FastFlags** apply to the selected installation before launching, removed flags restore their original values, and unrelated ClientSettings keys remain untouched.
+- **Caching and performance:** Public Roblox metadata and thumbnails now use **bounded shared memory caches**. Inventories cache for one minute with an explicit refresh bypass, while overlapping presence refreshes reuse recent results. **Clear application caches** now removes these cached responses.
+- **Interface clarity:** Simplified app messages, buttons, and hints, with clearer browser and launch notifications, account login guidance, client controls, and recovery instructions.
+
+### Fixed
+
 - **Visibility authentication errors:** Accounts with a known rejected login no longer send visibility requests. Visibility failures now distinguish login rejection, permissions, rate limits and service outages, with explicit recovery guidance rather than repeated generic warnings.
 - **Multi-instance settings:** Enabling multi-instance now handles an existing legacy Roblox singleton event without treating it as a mutex. Failed setup releases partial acquisitions and can be retried without restarting RM.
 - **Launch safeguard warning:** The tray-process warning now appears below automatic background-process cleanup instead of the kill-all confirmation checkbox.
+
 - **Inventory selection:** Changing account selection during an inventory refresh now keeps the refresh pending until the current selection finishes loading, ensuring newly selected inventories bypass their cache.
 - **Display-name editing:** Editing a display name now clears errors from previous submissions and resets the input's invalid state without removing successful account notices.
 - **Group metadata requests:** Group icons, announcements, and account creation dates now coordinate requests **per ID**, allowing unrelated requests to complete independently. Missing values and oversized images remain uncached.
