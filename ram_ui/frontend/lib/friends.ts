@@ -24,5 +24,9 @@ export function reconcileFriendsSelection(selected: ReadonlySet<number>, friends
   const ids = new Set(friends.map(friend => friend.userId));
   return new Set([...selected].filter(id => ids.has(id)));
 }
+export function clampFriendsSidebar(width: number, workspaceWidth: number): number {
+  return Math.max(240, Math.min(520, workspaceWidth - 428, width));
+}
+
 export function canJoinFriend(friend: Friend): boolean { return friend.status === "playing"; }
 export function friendLabel(friend: {userId:number; displayName:string; username:string}): string { return friend.displayName || friend.username || `User ${friend.userId}`; }

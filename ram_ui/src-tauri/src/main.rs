@@ -1624,6 +1624,18 @@ mod settings_validation_tests {
     use super::*;
 
     #[test]
+    fn popup_profile_destinations_only_accept_valid_numeric_targets() {
+        assert_eq!(
+            browse_destination(1, false, Some(2)).unwrap().as_deref(),
+            Some("https://www.roblox.com/users/2/profile")
+        );
+        assert!(browse_destination(1, false, None).unwrap().is_none());
+        assert!(browse_destination(0, false, Some(2)).is_err());
+        assert!(browse_destination(1, false, Some(0)).is_err());
+        assert!(browse_destination(1, true, Some(2)).is_err());
+    }
+
+    #[test]
     fn capture_exclusion_round_trips_through_the_settings_draft() {
         let mut config = AppConfig::default();
         for enabled in [true, false] {
@@ -2833,47 +2845,62 @@ async fn login_and_add_account(
         .map(Some)
 }
 
+fn browse_destination(
+    user_id: u64,
+    inventory: bool,
+    profile_user_id: Option<u64>,
+) -> Result<Option<String>, String> {
+    if user_id == 0 || profile_user_id == Some(0) || (inventory && profile_user_id.is_some()) {
+        return Err("Choose a valid account and one browser destination".into());
+    }
+    Ok(if let Some(target) = profile_user_id {
+        Some(format!("https://www.roblox.com/users/{target}/profile"))
+    } else if inventory {
+        Some(format!("https://www.roblox.com/users/{user_id}/inventory"))
+    } else {
+        None
+    })
+}
+
 #[tauri::command]
 async fn browse_as_account(
     state: tauri::State<'_, AppState>,
     user_id: u64,
     inventory: bool,
+    profile_user_id: Option<u64>,
 ) -> Result<(), String> {
-    let (cookie, label) = {
-        let runtime = state
-            .runtime
-            .lock()
-            .map_err(|_| "Account state unavailable".to_string())?;
-        let account = runtime
-            .accounts
-            .find_by_id(user_id)
-            .ok_or_else(|| "Account not found".to_string())?;
-        (
-            account_cookie(&runtime, user_id)?,
-            account_summary(
-                account,
-                None,
-                &runtime.config,
-                *runtime
-                    .credential_revisions
-                    .get(&account.user_id)
-                    .unwrap_or(&0),
-            )
-            .label,
-        )
-    };
-    let profile_dir = std::env::var_os("APPDATA")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("RM")
-        .join("webview_browse_as")
-        .join(user_id.to_string());
-    let destination = if inventory {
-        Some(format!("https://www.roblox.com/users/{user_id}/inventory"))
-    } else {
-        None
-    };
+    let destination = browse_destination(user_id, inventory, profile_user_id)?;
+    let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let (cookie, label) = {
+            let runtime = state
+                .runtime
+                .lock()
+                .map_err(|_| "Account state unavailable".to_string())?;
+            let account = runtime
+                .accounts
+                .find_by_id(user_id)
+                .ok_or_else(|| "Account not found".to_string())?;
+            (
+                account_cookie(&runtime, user_id)?,
+                account_summary(
+                    account,
+                    None,
+                    &runtime.config,
+                    *runtime
+                        .credential_revisions
+                        .get(&account.user_id)
+                        .unwrap_or(&0),
+                )
+                .label,
+            )
+        };
+        let profile_dir = std::env::var_os("APPDATA")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+            .join("RM")
+            .join("webview_browse_as")
+            .join(user_id.to_string());
         browser_login::spawn_browse_as_to(profile_dir, cookie, label, destination)
     })
     .await

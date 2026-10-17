@@ -724,8 +724,9 @@ export async function loginAndAddAccount(): Promise<AccountAddition | null> {
 export async function browseAsAccount(
   userId: number,
   inventory = false,
+  profileUserId: number | null = null,
 ): Promise<void> {
-  return invoke<void>("browse_as_account", { userId, inventory });
+  return invoke<void>("browse_as_account", { userId, inventory, profileUserId });
 }
 
 export async function openAccountHome(userId: number): Promise<void> {

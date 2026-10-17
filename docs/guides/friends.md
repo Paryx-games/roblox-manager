@@ -5,6 +5,10 @@ icon: user-group
 
 # Friends
 
+The account picker, friend total and refresh time share a compact header; category counts stay in the filter buttons. Drag the divider beside the friend details sidebar to resize it, or focus the divider and use Left/Right and Home/End. Its width is limited to keep the list usable, and the details stack below the list when space is narrow.
+
+**Open profile in browser**, including from the Groups tab, opens an isolated popup signed in as the selected managed account. Mutual friends uses Roblox's paginated connection lists and temporary browser context. If Roblox requires verification or hides a connection list, use **Open profile to check access** and retry. RM cannot override those access restrictions.
+
 Open **Friends** in the navigation rail and choose a managed account. RM remembers the selection on this installation. The header offers **Refresh**, the complete loaded friend count, distinct presence counts and the last successful presence refresh time.
 
 ## Browse and select

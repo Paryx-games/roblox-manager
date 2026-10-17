@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {canJoinFriend, friendCounts, reconcileFriendsSelection, visibleFriends} from "../frontend/lib/friends.ts";
+import {clampFriendsSidebar, canJoinFriend, friendCounts, reconcileFriendsSelection, visibleFriends} from "../frontend/lib/friends.ts";
+
+test("friend details resizing keeps a useful list width and clamps both limits",()=>{
+  assert.equal(clampFriendsSidebar(100,1200),240);
+  assert.equal(clampFriendsSidebar(900,1200),520);
+  assert.equal(clampFriendsSidebar(500,800),372);
+  assert.equal(clampFriendsSidebar(320,1000),320);
+});
 const friend=(userId,name,status,jobId=null)=>({userId,displayName:name,username:`user${userId}`,status,jobId,avatarUrl:"",activity:"",placeId:null,gameName:null,gameIcon:null});
 const friends=[friend(1,"Zed","playing","12345678-1234-4234-8234-123456789abc"),friend(2,"Beta","studio"),friend(3,"Alpha","online"),friend(4,"Delta","offline"),friend(5,"Echo","unknown")];
 test("friend counts classify every friend exactly once",()=>{
