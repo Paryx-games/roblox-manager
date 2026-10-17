@@ -59,7 +59,7 @@ import {
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
-import { allAccountsSelected, toggleAllAccounts } from "./lib/accountSelection";
+import { accountActionTargets, allAccountsSelected, toggleAllAccounts } from "./lib/accountSelection";
 import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
 import { isTextSelectionTarget } from "./lib/selectAllShortcut";
 import Select from "./components/Select";
@@ -1050,6 +1050,8 @@ export function AccountsPage({
     accounts.find((account) => account.userId === selectedId) ?? null;
   const selectedAccounts = accounts.filter((account) => selectedIds.has(account.userId));
   const isMultiSelection = selectedAccounts.length > 1;
+  const homeAccounts = accountActionTargets(selectedAccount, selectedAccounts);
+  const canOpenHome = homeAccounts.length > 0 && homeAccounts.every((account) => account.canLaunch);
   const tagAccounts = isMultiSelection ? selectedAccounts : selectedAccount ? [selectedAccount] : [];
   const selectedTagIds = commonTags(tagAccounts);
   const mixedTagIds = [...new Set(tagAccounts.flatMap(account => account.tagIds))].filter(id => !selectedTagIds.includes(id));
@@ -1901,11 +1903,11 @@ export function AccountsPage({
   }
 
   async function openHomeScreen() {
-    if (mutationLoading || homeLaunchPending.current || !selectedAccounts.length || restrictedSelection.length) return;
+    if (mutationLoading || homeLaunchPending.current || !canOpenHome) return;
     homeLaunchPending.current = true;
     setOpeningHome(true);
     setMutationLoading(true);
-    const ids = selectedAccounts.map((account) => account.userId);
+    const ids = homeAccounts.map((account) => account.userId);
     let opened = 0;
     try {
       for (const userId of ids) {
@@ -2949,7 +2951,7 @@ export function AccountsPage({
                   <button
                     className="account-button"
                     type="button"
-                    disabled={mutationLoading || restrictedSelection.length > 0}
+                    disabled={mutationLoading || !canOpenHome}
                     aria-busy={openingHome}
                     data-tip={isMultiSelection ? "Open the installed Roblox app's home screen for each selected account" : "Open the installed Roblox app's home screen as the selected account"}
                     onClick={() => void openHomeScreen()}

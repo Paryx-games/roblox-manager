@@ -317,13 +317,13 @@ async fn launch_queued(
     let cleanup_options = config.privacy_cleanup_options();
     let cleanup = tauri::async_runtime::spawn_blocking(move || {
         if multi_instance {
-            process::enable_multi_instance().map_err(|_| "Multi-instance setup failed")?;
+            process::enable_multi_instance().map_err(|error| error.to_string())?;
         }
         if needs_tray_cleanup {
             process::kill_tray_roblox();
         }
         process::prepare_privacy_cleanup(cleanup_options)
-            .map_err(|_| "Privacy cleanup failed. Roblox was not launched.")
+            .map_err(|_| "Privacy cleanup failed. Roblox was not launched.".to_string())
     })
     .await
     .map_err(|_| "Launch preparation task failed")??;

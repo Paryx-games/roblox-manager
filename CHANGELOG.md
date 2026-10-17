@@ -27,6 +27,8 @@
 
 ### Fixed
 
+- **Home account selection:** Opening Home now follows the displayed account in single-account mode, including after startup or selection changes in another workspace, and respects that account's launch restrictions.
+- **Multi-instance launch guidance:** Launch failures now preserve the singleton setup error and its close-and-retry guidance instead of showing only a generic failure.
 - **Saved-account server lookup:** Presence refresh and instance server joins now check saved targets using their own credentials, instead of relying on another account's view. Missing or hidden presence no longer produces a definitive claim that the target is not playing.
 - **Multi-instance ownership:** Roblox singleton mutexes now stay owned by a dedicated thread instead of a temporary worker, preventing ownership from being abandoned while RM remains open. Setup rejects mutexes already owned by another thread and remains retryable after partial failure.
 - **Private-server form validation:** Invalid links now show feedback beside the URL field and an accessible invalid state explaining why Add Server is disabled.
