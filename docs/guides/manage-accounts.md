@@ -35,6 +35,8 @@ The account appears in your list and is ready to launch.
 
 ### Open Roblox home
 
+RM starts Home using the installed player's native app-mode arguments and a short-lived account authentication ticket. Home launch timestamps remain available for exact instance attribution; custom arguments cannot override authentication or launch mode.
+
 Select one or more valid accounts, then choose **Open to home screen** beside **Open browser** in the launch controls. This opens the installed Roblox app signed in as each selected account, without joining a game or requiring a Place ID. **Open browser** continues to open the Roblox website.
 
 Home launches use the same player path, launch pacing, multi-instance setting and privacy safeguards as game launches. Enable Multi-instance to keep several clients open. Home clients are tracked in Instances without a launch Place ID or Job ID.

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Home startup:** Native Home launches now pass the player's app, authentication and launch-time arguments directly instead of relying on a game-launch URI. Authentication arguments remain redacted and cannot be overridden by custom arguments.
+
 ## v2.3.0
 
 ### Added
