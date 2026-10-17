@@ -145,6 +145,9 @@ async fn launch_impl(
         mode,
     )
     .await;
+    if result.is_ok() && instances::list_instances(app.clone()).await.is_err() {
+        let _ = app.emit("background-notice", "Roblox launch was requested, but its starting status could not be refreshed. Check Instances before launching again.");
+    }
     if result.is_err() {
         crate::discord::launch_failed(
             app,
@@ -152,6 +155,8 @@ async fn launch_impl(
             request.place_id,
             request.job_id.as_deref(),
         );
+    } else if mode == LaunchMode::Home {
+        crate::discord::home_launch_requested(app, request.user_id);
     }
     progress(
         app,

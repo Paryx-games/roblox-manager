@@ -61,6 +61,8 @@ Device mode unlocks through Windows Credential Manager. Password mode requires a
 
 ## Discord notifications
 
+**Roblox home launch requested** sends a notification for each successful **Open to home screen** request. It is disabled by default; enable it and select the destinations that should receive it. It reports the launch request, not confirmation that Roblox finished loading. Failed Home requests use **Launch request failed** when enabled.
+
 Choose **Add webhook** under **Integrations > Discord notifications**, give the destination a name, and enter its URL. Up to 16 destinations can be saved. The URL is a credential stored in Windows Credential Manager, not ordinary configuration text. Saved URLs are never returned to the interface. Never include them in screenshots or bug reports.
 
 **Enable Discord notifications** pauses or resumes all delivery without removing saved URLs. Each destination also has its own **Enabled** switch, plus **Test**, **Replace** and **Remove** actions. Replacing a URL preserves that destination's routing and enabled state. Test actions explicitly send a test even when automatic delivery is paused.

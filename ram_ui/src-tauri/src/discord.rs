@@ -12,6 +12,7 @@ static SETTINGS_IO: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 pub enum Event {
     ModerationDetected,
     BatchLaunchFinished,
+    HomeLaunchRequested,
     SessionExpired,
     LaunchFailed,
     ClientExited,
@@ -24,9 +25,10 @@ pub enum Event {
 }
 
 impl Event {
-    const ALL: [Self; 11] = [
+    const ALL: [Self; 12] = [
         Self::ModerationDetected,
         Self::BatchLaunchFinished,
+        Self::HomeLaunchRequested,
         Self::SessionExpired,
         Self::LaunchFailed,
         Self::ClientExited,
@@ -65,6 +67,7 @@ pub struct NotificationSettings {
     enabled: bool,
     moderation_detected: bool,
     batch_launch_finished: bool,
+    home_launch_requested: bool,
     session_expired: bool,
     launch_failed: bool,
     client_exited: bool,
@@ -83,6 +86,7 @@ impl Default for NotificationSettings {
             enabled: true,
             moderation_detected: true,
             batch_launch_finished: true,
+            home_launch_requested: false,
             session_expired: false,
             launch_failed: false,
             client_exited: false,
@@ -110,6 +114,7 @@ impl NotificationSettings {
         let enabled = match event {
             Event::ModerationDetected => self.moderation_detected,
             Event::BatchLaunchFinished => self.batch_launch_finished,
+            Event::HomeLaunchRequested => self.home_launch_requested,
             Event::SessionExpired => self.session_expired,
             Event::LaunchFailed => self.launch_failed,
             Event::ClientExited => self.client_exited,
@@ -730,6 +735,10 @@ fn place_detail(place_id: u64) -> String {
     }
 }
 
+pub fn home_launch_requested(app: &tauri::AppHandle, user_id: u64) {
+    dispatch(app, Event::HomeLaunchRequested, payload("Roblox home launch requested", &format!("**Account ID:** {user_id}\n\nRM requested the installed Roblox app's home screen. The client may still be loading; check Instances.")));
+}
+
 pub fn launch_failed(app: &tauri::AppHandle, user_id: u64, place_id: u64, job_id: Option<&str>) {
     dispatch(app, Event::LaunchFailed, payload("Launch request failed", &format!("**Account ID:** {user_id}{}{}\n\nRM could not complete this launch request. Check Accounts and Instances before retrying.", place_detail(place_id), job_detail(job_id))));
 }
@@ -785,6 +794,31 @@ pub fn batch_finished(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn home_notification_defaults_are_compatible_and_routes_are_explicit() {
+        let mut settings: super::NotificationSettings =
+            serde_json::from_str(r#"{"batchLaunchFinished":true}"#).unwrap();
+        assert!(!settings.home_launch_requested);
+        settings
+            .destinations
+            .push(super::Destination::new("test".into(), "Test".into()));
+        assert!(settings
+            .routes(super::Event::HomeLaunchRequested)
+            .is_empty());
+        settings.home_launch_requested = true;
+        assert_eq!(settings.routes(super::Event::HomeLaunchRequested).len(), 1);
+        settings.destinations[0].events.clear();
+        assert!(settings
+            .routes(super::Event::HomeLaunchRequested)
+            .is_empty());
+        settings.destinations[0]
+            .events
+            .push(super::Event::HomeLaunchRequested);
+        let round_trip: super::NotificationSettings =
+            serde_json::from_slice(&serde_json::to_vec(&settings).unwrap()).unwrap();
+        assert_eq!(round_trip, settings);
+    }
+
     #[test]
     fn home_notifications_omit_a_missing_game_destination() {
         assert!(super::place_detail(0).is_empty());

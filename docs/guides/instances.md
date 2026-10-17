@@ -5,6 +5,8 @@ icon: window-maximize
 
 # Running instances
 
+The title bar shows a loading indicator while launch requests are queued or starting. After a client appears, RM uses a presence check started after launch to confirm the requested game, or online/in-game presence for a Home launch. This is a best-effort indication, not confirmation from Roblox's loading screen. Unconfirmed clients stop showing as loading after 90 seconds; launches that never produce a client use the existing launch timeout and warning.
+
 Open **Instances** to see running Roblox clients, including clients that Roblox Manager did not launch. The toolbar shows the running count and offers **Refresh**, **Arrange windows** and **Close all Roblox**.
 
 ## Understand the rows

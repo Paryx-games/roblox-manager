@@ -139,11 +139,12 @@ export function App() {
     settingsGuardRef.current = guard;
   }, []);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [workspace, setWorkspace] = useState<InstanceWorkspace>({ instances: [], runningCount: 0 });
+  const [workspace, setWorkspace] = useState<InstanceWorkspace>({ instances: [], runningCount: 0, startingCount: 0 });
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [accountsReady, setAccountsReady] = useState(false);
   const [accountsError, setAccountsError] = useState<string | null>(null);
   const [launches, setLaunches] = useState<Record<string, LaunchProgress>>({});
+  const isRobloxStarting = Object.keys(launches).length > 0 || workspace.startingCount > 0;
   const [isInstancesLoading, setIsInstancesLoading] = useState(true);
   const benchmarkDataReady = useRef(false);
   const [instancesError, setInstancesError] = useState<string | null>(null);
@@ -489,7 +490,10 @@ export function App() {
         <span className="titlebar-logo" aria-label="Roblox Manager">
           <Icon name="feather" />
         </span>
-        <span className="titlebar-runtime-status" role="status">{workspace.runningCount} Roblox running{Object.keys(launches).length ? ` | ${Object.keys(launches).length} launches pending` : ""}</span>
+        <span className="titlebar-runtime-status" role="status" aria-busy={isRobloxStarting}>
+          {isRobloxStarting && <span className="titlebar-runtime-spinner" aria-hidden="true" />}
+          {workspace.runningCount} Roblox running{isRobloxStarting ? " | Loading Roblox..." : ""}
+        </span>
         <span className="titlebar-version">
           {import.meta.env.VITE_RM_VERSION}
         </span>

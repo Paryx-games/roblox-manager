@@ -8,6 +8,7 @@ import { InfoTip } from "./InfoTip";
 const events: { key: DiscordEvent; label: string; info: string }[] = [
   { key: "moderationDetected", label: "Moderation detected", info: "discord_moderation" },
   { key: "batchLaunchFinished", label: "Batch launch finished", info: "discord_batch" },
+  { key: "homeLaunchRequested", label: "Roblox home launch requested", info: "discord_home" },
   { key: "sessionExpired", label: "Account session expired", info: "discord_expiry" },
   { key: "launchFailed", label: "Launch request failed", info: "discord_launch_failure" },
   { key: "clientExited", label: "Roblox client exited", info: "discord_client_exit" },

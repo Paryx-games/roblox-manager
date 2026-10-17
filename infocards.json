@@ -139,6 +139,10 @@
     "type": "info",
     "text": "Completed or stopped batches from Accounts, Presets and Private Servers. Reports launch requests; clients may still be connecting."
   },
+  "discord_home": {
+    "type": "info",
+    "text": "Sent for each successful Open to home screen request. The client may still be loading; this does not confirm that home finished loading. Disabled by default. Enable the event and choose its destinations."
+  },
   "discord_expiry": {
     "type": "info",
     "text": "Sent once when verification changes an account from a working saved login to an expired session. Network failures alone do not trigger this event. Disabled by default."
