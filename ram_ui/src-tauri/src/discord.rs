@@ -145,7 +145,7 @@ impl NotificationSettings {
                 || destination.name.trim().is_empty()
                 || destination.name.chars().count() > 40
                 || destination.name.chars().any(char::is_control)
-                || destination.events.len() > Event::ALL.len()
+                || destination.events.len() > Event::ALL.len() + 1
                 || destination
                     .events
                     .iter()
@@ -794,7 +794,7 @@ mod tests {
             serde_json::from_str(r#"{"batchLaunchFinished":true}"#).unwrap();
         settings
             .destinations
-            .push(super::Destination::new("test".into(), "Test".into()));
+            .push(super::Destination::new("default".into(), "Test".into()));
         assert!(settings
             .routes(super::Event::HomeLaunchRequested)
             .is_empty());
@@ -802,9 +802,11 @@ mod tests {
         assert!(settings
             .routes(super::Event::HomeLaunchRequested)
             .is_empty());
+        settings.destinations[0].events = super::Event::ALL.to_vec();
         settings.destinations[0]
             .events
             .push(super::Event::HomeLaunchRequested);
+        settings.validate().unwrap();
         assert!(settings
             .routes(super::Event::HomeLaunchRequested)
             .is_empty());
