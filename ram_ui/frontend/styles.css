@@ -2589,6 +2589,7 @@ button:focus-visible {
 .private-server-error {
   color: var(--status-danger);
   font-size: var(--text-sm);
+  text-transform: none;
 }
 .private-server-toolbar {
   display: flex;

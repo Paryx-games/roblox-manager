@@ -36,6 +36,8 @@
 
 ### Fixed
 
+- **Private-server form validation:** Invalid links now show feedback beside the URL field and an accessible invalid state explaining why Add Server is disabled.
+
 - **Discord preference recovery:** Invalid notification preferences can be reset from Settings with confirmation. Recovery backs up the original, preserves existing backups and webhook credentials, and pauses delivery before restoring defaults.
 
 - **Private-server updates:** Status listeners register before loading cached badges, newer events survive delayed snapshots, and bookmarks can be added while background checks are running.

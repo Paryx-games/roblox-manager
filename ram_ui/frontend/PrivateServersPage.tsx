@@ -1,7 +1,7 @@
 import { useAccountUpdates } from "./hooks/useAccountUpdates";
 import { listen } from "@tauri-apps/api/event";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   addPrivateServer,
   checkPrivateServer,
@@ -67,6 +67,8 @@ export function PrivateServersPage({
   const [servers, setServers] = useState<PrivateServerSummary[]>([]);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const urlLabelId = useId();
+  const urlErrorId = useId();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -355,6 +357,7 @@ export function PrivateServersPage({
       block: "start",
     }));
   }
+  const urlInvalid = url.trim().length > 0 && !isValidPrivateServerUrl(url);
   return (
     <>
       <div className="header-row saved-workspace-header">
@@ -380,10 +383,13 @@ export function PrivateServersPage({
               />
             </label>
             <label>
-              URL
+              <span id={urlLabelId}>URL</span>
               <div className="private-server-input-action">
                 <input
                   value={url}
+                  aria-labelledby={urlLabelId}
+                  aria-invalid={urlInvalid}
+                  aria-describedby={urlInvalid ? urlErrorId : undefined}
                   onChange={(event) => setUrl(event.target.value)}
                   placeholder="Paste private server link"
                 />
@@ -396,13 +402,14 @@ export function PrivateServersPage({
                   <Icon name="clipboard" />
                 </button>
               </div>
+              {urlInvalid && <span id={urlErrorId} className="private-server-error" role="alert">Use a full Roblox private-server invitation link starting with https://.</span>}
             </label>
           </div>
           <div className="private-server-form-actions">
             <button
               className="account-button primary"
               type="button"
-              disabled={saving || !name.trim() || !isValidPrivateServerUrl(url)}
+              disabled={saving || !name.trim() || !url.trim() || urlInvalid}
               onClick={() => void addServer()}
             >
               <Icon name="add" />
