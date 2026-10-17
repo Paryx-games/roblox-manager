@@ -17,7 +17,7 @@ Each row shows the account, process ID (PID), Place ID, Job ID, match type, laun
 | Inferred | Estimated from launch order rather than a verified token. | Disabled. |
 | Unmatched | The client's account could not be identified. | Disabled. |
 
-The **Job ID** column shows the public server ID from a recent presence response. It requires an exact account match, one tracked client for that account, the same Place ID, and a presence check started after launch. Presence older than 30 seconds is treated as stale. Unknown, stale or ambiguous server IDs stay **Unknown**. No extra Roblox requests are made for this column.
+The **Job ID** column shows the public server ID from a recent presence response. Saved accounts with usable credentials are checked using their own login, so another account's limited view does not hide their server details. These checks run sequentially in the existing background refresh. It requires an exact account match, one tracked client for that account, the same Place ID, and a presence check started after launch. Presence older than 30 seconds is treated as stale. Unknown, stale or ambiguous server IDs stay **Unknown**.
 
 An inferred match is a guess. An unmatched row is not evidence that the account's credentials are invalid.
 
@@ -32,6 +32,8 @@ Use **Focus** to bring a client's window forward. Use **Arrange windows** to app
 3. Wait for RM to resolve the destination and launch the selected accounts.
 
 Server join requires an identified account and usable destination information. It is unavailable for unmatched clients. The running account is excluded from the accounts being launched. Private-server permissions and server availability still apply.
+
+When the target is a saved account with usable credentials, **Join server** checks its live presence using that account's login before launching the selected accounts. External players are checked using the joining account's login. Missing or hidden presence does not prove that the player has stopped playing, and RM cannot join until Roblox returns a valid place and Job ID.
 
 ## Close clients
 

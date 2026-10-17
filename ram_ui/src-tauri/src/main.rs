@@ -2680,12 +2680,25 @@ async fn join_user_game(
     let state = app.state::<AppState>().inner().clone();
     let _queue = state.joins.queue.lock().await;
     let credential_state = state.clone();
-    let cookie = tauri::async_runtime::spawn_blocking(move || {
+    let (cookie, viewer, revision) = tauri::async_runtime::spawn_blocking(move || {
         let runtime = credential_state
             .runtime
             .lock()
             .map_err(|_| "Account state unavailable")?;
-        account_cookie(&runtime, user_id)
+        let viewers: Vec<_> = runtime
+            .accounts
+            .accounts
+            .iter()
+            .filter(|account| !account.cookie_expired)
+            .map(|account| account.user_id)
+            .collect();
+        let viewer = background::presence_viewer(target_user_id, &viewers, user_id);
+        let cookie = account_cookie(&runtime, viewer)?;
+        Ok::<_, String>((
+            cookie,
+            viewer,
+            *runtime.credential_revisions.get(&viewer).unwrap_or(&0),
+        ))
     })
     .await
     .map_err(|_| "Join credential task failed")??;
@@ -2698,8 +2711,11 @@ async fn join_user_game(
         .map(|(_, presence)| presence)
         .ok_or("The target player is not reporting a live presence")?;
     drop(cookie);
+    if !friends::current(&state, viewer, revision) {
+        return Err("Presence account changed. Refresh before joining.".into());
+    }
     if presence.user_presence_type != 2 {
-        return Err("The target player is not in a game currently".into());
+        return Err("Roblox is not reporting a joinable game for this player. They may have left or hidden their presence.".into());
     }
     let (place_id, job_id) = ram_core::session_history::server(&presence).ok_or(
         "Roblox is not reporting a valid target server. Their join privacy may be hiding it.",
