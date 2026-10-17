@@ -36,6 +36,8 @@
 
 ### Fixed
 
+- **Multi-instance ownership:** Roblox singleton mutexes now stay owned by a dedicated thread instead of a temporary worker, preventing ownership from being abandoned while RM remains open. Setup rejects mutexes already owned by another thread and remains retryable after partial failure.
+
 - **Private-server form validation:** Invalid links now show feedback beside the URL field and an accessible invalid state explaining why Add Server is disabled.
 
 - **Discord preference recovery:** Invalid notification preferences can be reset from Settings with confirmation. Recovery backs up the original, preserves existing backups and webhook credentials, and pauses delivery before restoring defaults.

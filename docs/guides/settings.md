@@ -21,6 +21,8 @@ Use the section navigation to find preferences. Most edits form a draft: choose 
 
   RM retains both Roblox singleton names for its session, including legacy versions that use an event instead of a mutex. It does not change an existing event's state or close handles inside Roblox. If setup fails, RM releases its partial acquisitions; correct the reported problem and retry saving the draft without restarting RM. An RM session that encountered this error before upgrading needs one restart to load the fix.
 
+  Mutexes stay owned by a dedicated RM thread until RM exits. If another Roblox client or multi-instance tool already owns a mutex, close it and retry. After upgrading, close Roblox and restart RM before launching multiple accounts.
+
 - **Close Roblox tray and background processes automatically** clears leftover background clients. **Confirm before killing all Roblox instances** controls confirmation for the separate close-all action; it does not enable automatic cleanup.
 - Auto-arrange, target monitor, grid layout, sizing and spacing control Roblox window placement.
 - Window naming identifies clients by account. Launch pacing spaces successive launches rather than starting every selected account together.
