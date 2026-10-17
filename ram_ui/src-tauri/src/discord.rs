@@ -12,6 +12,7 @@ static SETTINGS_IO: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 pub enum Event {
     ModerationDetected,
     BatchLaunchFinished,
+    HomeLaunchRequested,
     SessionExpired,
     LaunchFailed,
     ClientExited,
@@ -110,6 +111,8 @@ impl NotificationSettings {
         let enabled = match event {
             Event::ModerationDetected => self.moderation_detected,
             Event::BatchLaunchFinished => self.batch_launch_finished,
+            // Keep older preference files readable without delivering this retired event.
+            Event::HomeLaunchRequested => false,
             Event::SessionExpired => self.session_expired,
             Event::LaunchFailed => self.launch_failed,
             Event::ClientExited => self.client_exited,
@@ -142,7 +145,7 @@ impl NotificationSettings {
                 || destination.name.trim().is_empty()
                 || destination.name.chars().count() > 40
                 || destination.name.chars().any(char::is_control)
-                || destination.events.len() > Event::ALL.len()
+                || destination.events.len() > Event::ALL.len() + 1
                 || destination
                     .events
                     .iter()
@@ -722,12 +725,20 @@ pub fn session_expired(app: &tauri::AppHandle, user_id: u64, label: &str) {
     dispatch(app, Event::SessionExpired, payload("Account session expired", &format!("**Account:** {}{}\n\nRoblox rejected this account's saved login during verification. Log in again from Accounts.", safe_label(label), account_server_detail(app, user_id))));
 }
 
+fn place_detail(place_id: u64) -> String {
+    if place_id > 0 {
+        format!("\n**Place ID:** {place_id}")
+    } else {
+        String::new()
+    }
+}
+
 pub fn launch_failed(app: &tauri::AppHandle, user_id: u64, place_id: u64, job_id: Option<&str>) {
-    dispatch(app, Event::LaunchFailed, payload("Launch request failed", &format!("**Account ID:** {user_id}\n**Place ID:** {place_id}{}\n\nRM could not complete this launch request. Check Accounts and Instances before retrying.", job_detail(job_id))));
+    dispatch(app, Event::LaunchFailed, payload("Launch request failed", &format!("**Account ID:** {user_id}{}{}\n\nRM could not complete this launch request. Check Accounts and Instances before retrying.", place_detail(place_id), job_detail(job_id))));
 }
 
 pub fn client_exited(app: &tauri::AppHandle, user_id: u64, place_id: u64, job_id: Option<&str>) {
-    dispatch(app, Event::ClientExited, payload("Roblox client exited", &format!("**Account ID:** {user_id}\n**Place ID:** {place_id}{}\n\nAn exactly attributed Roblox client has exited. This includes clients closed manually; it does not confirm a crash.", job_detail(job_id))));
+    dispatch(app, Event::ClientExited, payload("Roblox client exited", &format!("**Account ID:** {user_id}{}{}\n\nAn exactly attributed Roblox client has exited. This includes clients closed manually; it does not confirm a crash.", place_detail(place_id), job_detail(job_id))));
 }
 
 pub fn moderation_changed(
@@ -777,6 +788,39 @@ pub fn batch_finished(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn retired_home_routes_remain_readable_without_delivery() {
+        let mut settings: super::NotificationSettings =
+            serde_json::from_str(r#"{"batchLaunchFinished":true}"#).unwrap();
+        settings
+            .destinations
+            .push(super::Destination::new("default".into(), "Test".into()));
+        assert!(settings
+            .routes(super::Event::HomeLaunchRequested)
+            .is_empty());
+        settings.destinations[0].events.clear();
+        assert!(settings
+            .routes(super::Event::HomeLaunchRequested)
+            .is_empty());
+        settings.destinations[0].events = super::Event::ALL.to_vec();
+        settings.destinations[0]
+            .events
+            .push(super::Event::HomeLaunchRequested);
+        settings.validate().unwrap();
+        assert!(settings
+            .routes(super::Event::HomeLaunchRequested)
+            .is_empty());
+        let round_trip: super::NotificationSettings =
+            serde_json::from_slice(&serde_json::to_vec(&settings).unwrap()).unwrap();
+        assert_eq!(round_trip, settings);
+    }
+
+    #[test]
+    fn home_notifications_omit_a_missing_game_destination() {
+        assert!(super::place_detail(0).is_empty());
+        assert_eq!(super::place_detail(123), "\n**Place ID:** 123");
+    }
+
     use super::*;
 
     #[test]

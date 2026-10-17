@@ -1,6 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { allAccountsSelected, toggleAllAccounts } from "../frontend/lib/accountSelection.ts";
+import { accountActionTargets, allAccountsSelected, toggleAllAccounts } from "../frontend/lib/accountSelection.ts";
+
+test("single-account actions use the displayed account despite empty or stale shared selection", () => {
+  const displayed = { userId: 1, canLaunch: true };
+  const other = { userId: 2, canLaunch: true };
+  assert.deepEqual(accountActionTargets(displayed, []), [displayed]);
+  assert.deepEqual(accountActionTargets(displayed, [other]), [displayed]);
+  assert.deepEqual(accountActionTargets(null, [other]), []);
+});
+
+test("bulk actions preserve all selected accounts and single-account restrictions follow the displayed account", () => {
+  const restricted = { userId: 1, canLaunch: false };
+  const other = { userId: 2, canLaunch: true };
+  assert.deepEqual(accountActionTargets(other, [restricted, other]), [restricted, other]);
+  assert.equal(accountActionTargets(restricted, [other]).every(account => account.canLaunch), false);
+  assert.equal(accountActionTargets(other, [restricted]).every(account => account.canLaunch), true);
+});
 
 test("all accounts selects eligible rows and toggles them off without changing other selections", () => {
   const original = new Set([1, 99]);

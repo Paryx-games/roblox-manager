@@ -37,6 +37,7 @@ import {
   addAccount,
   addAccountAnyway,
   browseAsAccount,
+  openAccountHome,
   loginAndAddAccount,
   listAccounts,
   listAccountGroupColors,
@@ -58,7 +59,7 @@ import {
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
 import { AccountPicker } from "./components/AccountPicker";
-import { allAccountsSelected, toggleAllAccounts } from "./lib/accountSelection";
+import { accountActionTargets, allAccountsSelected, toggleAllAccounts } from "./lib/accountSelection";
 import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
 import { isTextSelectionTarget } from "./lib/selectAllShortcut";
 import Select from "./components/Select";
@@ -675,6 +676,8 @@ export function AccountsPage({
   const [password, setPassword] = useState("");
   const [alias, setAlias] = useState("");
   const [mutationLoading, setMutationLoading] = useState(false);
+  const [openingHome, setOpeningHome] = useState(false);
+  const homeLaunchPending = useRef(false);
   const connectionRequestPending = useRef(false);
   const [browserLoginLoading, setBrowserLoginLoading] = useState(false);
   const [browserLoginOverlayVisible, setBrowserLoginOverlayVisible] =
@@ -1047,6 +1050,8 @@ export function AccountsPage({
     accounts.find((account) => account.userId === selectedId) ?? null;
   const selectedAccounts = accounts.filter((account) => selectedIds.has(account.userId));
   const isMultiSelection = selectedAccounts.length > 1;
+  const homeAccounts = accountActionTargets(selectedAccount, selectedAccounts);
+  const canOpenHome = homeAccounts.length > 0 && homeAccounts.every((account) => account.canLaunch);
   const tagAccounts = isMultiSelection ? selectedAccounts : selectedAccount ? [selectedAccount] : [];
   const selectedTagIds = commonTags(tagAccounts);
   const mixedTagIds = [...new Set(tagAccounts.flatMap(account => account.tagIds))].filter(id => !selectedTagIds.includes(id));
@@ -1893,6 +1898,28 @@ export function AccountsPage({
         setBrowserLoginOverlayVisible(false);
         browserLoginOverlayTimer.current = null;
       }, 160);
+      setMutationLoading(false);
+    }
+  }
+
+  async function openHomeScreen() {
+    if (mutationLoading || homeLaunchPending.current || !canOpenHome) return;
+    homeLaunchPending.current = true;
+    setOpeningHome(true);
+    setMutationLoading(true);
+    const ids = homeAccounts.map((account) => account.userId);
+    let opened = 0;
+    try {
+      for (const userId of ids) {
+        await openAccountHome(userId);
+        opened += 1;
+      }
+      setNotice(`Opening Roblox home for ${ids.length === 1 ? "the selected account" : `${ids.length} accounts`}. Check Instances while the clients load.`, "success", "standard", "Roblox home launch requested");
+    } catch (error) {
+      setNotice(`${opened ? `Requested ${opened} of ${ids.length} home launches before stopping. ` : ""}${operationError(error, "Roblox home could not open.")} Check Instances before retrying.`, "error", "long", "Roblox home launch failed");
+    } finally {
+      homeLaunchPending.current = false;
+      setOpeningHome(false);
       setMutationLoading(false);
     }
   }
@@ -2902,7 +2929,7 @@ export function AccountsPage({
                     return <button className="account-data-example" type="button" key={argument} disabled={present} aria-label={`Add ${argument} to Data`} data-tip={present ? "This argument is already in Data" : "Append this example to Data"} onClick={() => appendDataExample(argument)}>?{argument}</button>;
                   })}
                 </div>
-                <div className="account-action-row">
+                <div className="account-action-row account-launch-actions">
                   <button
                     className="account-button primary"
                     type="button"
@@ -2920,6 +2947,17 @@ export function AccountsPage({
                   >
                     <Icon name="browser" />
                     {isMultiSelection ? `Open browsers (${selectedAccounts.length})` : "Open browser"}
+                  </button>
+                  <button
+                    className="account-button"
+                    type="button"
+                    disabled={mutationLoading || !canOpenHome}
+                    aria-busy={openingHome}
+                    data-tip={isMultiSelection ? "Open the installed Roblox app's home screen for each selected account" : "Open the installed Roblox app's home screen as the selected account"}
+                    onClick={() => void openHomeScreen()}
+                  >
+                    <Icon name="home" />
+                    {openingHome ? "Opening home..." : isMultiSelection ? `Open to home screen (${selectedAccounts.length})` : "Open to home screen"}
                   </button>
                   <button
                     className="icon-button bordered"

@@ -354,6 +354,7 @@ export interface SettingsConfig {
   tilingPadding: number;
   renameRobloxWindows: boolean;
   anonymizeNames: boolean;
+  hideFromScreenCapture: boolean;
   developerOptions: boolean;
   pageVisibility: PageVisibility;
   utilityEnabled: boolean;
@@ -727,6 +728,10 @@ export async function browseAsAccount(
   return invoke<void>("browse_as_account", { userId, inventory });
 }
 
+export async function openAccountHome(userId: number): Promise<void> {
+  return invoke<void>("open_account_home", { userId });
+}
+
 export async function saveLaunchPreset(
   name: string,
   placeId: number,
@@ -883,6 +888,7 @@ export interface InstanceSummary {
 export interface InstanceWorkspace {
   instances: InstanceSummary[];
   runningCount: number;
+  startingCount: number;
 }
 
 export interface ClientLaunchSettings {

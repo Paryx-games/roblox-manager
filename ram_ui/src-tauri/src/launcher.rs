@@ -13,6 +13,32 @@ pub struct LaunchRequest {
     pub access_code: Option<String>,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum LaunchMode {
+    Game,
+    Home,
+}
+
+#[tauri::command]
+pub async fn open_account_home(app: tauri::AppHandle, user_id: u64) -> Result<(), String> {
+    launch_impl(
+        &app,
+        LaunchRequest {
+            user_id,
+            place_id: 0,
+            job_id: None,
+            data: None,
+            link_code: None,
+            access_code: None,
+        },
+        false,
+        false,
+        false,
+        LaunchMode::Home,
+    )
+    .await
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LaunchProgress {
@@ -68,11 +94,11 @@ fn validate_request(request: &LaunchRequest) -> Result<(), String> {
 }
 
 pub async fn launch(app: &tauri::AppHandle, request: LaunchRequest) -> Result<(), String> {
-    launch_impl(app, request, false, false, false).await
+    launch_impl(app, request, false, false, false, LaunchMode::Game).await
 }
 
 pub async fn launch_startup(app: &tauri::AppHandle, request: LaunchRequest) -> Result<(), String> {
-    launch_impl(app, request, true, false, false).await
+    launch_impl(app, request, true, false, false, LaunchMode::Game).await
 }
 
 pub async fn launch_new_instance(
@@ -80,7 +106,15 @@ pub async fn launch_new_instance(
     request: LaunchRequest,
     session_confirmed: bool,
 ) -> Result<(), String> {
-    launch_impl(app, request, false, true, !session_confirmed).await
+    launch_impl(
+        app,
+        request,
+        false,
+        true,
+        !session_confirmed,
+        LaunchMode::Game,
+    )
+    .await
 }
 
 fn validate_instance_policy(required: bool, enabled: bool) -> Result<(), String> {
@@ -96,8 +130,9 @@ async fn launch_impl(
     startup: bool,
     require_multi_instance: bool,
     check_account_session: bool,
+    mode: LaunchMode,
 ) -> Result<(), String> {
-    validate_request(&request)?;
+    validate_launch_mode(&request, mode)?;
     let request_id = uuid::Uuid::new_v4().to_string();
     progress(app, &request_id, request.user_id, "waiting");
     let result = launch_queued(
@@ -107,8 +142,12 @@ async fn launch_impl(
         startup,
         require_multi_instance,
         check_account_session,
+        mode,
     )
     .await;
+    if result.is_ok() && instances::list_instances(app.clone()).await.is_err() {
+        let _ = app.emit("background-notice", "Roblox launch was requested, but its starting status could not be refreshed. Check Instances before launching again.");
+    }
     if result.is_err() {
         crate::discord::launch_failed(
             app,
@@ -128,6 +167,22 @@ async fn launch_impl(
         },
     );
     result
+}
+
+fn validate_launch_mode(request: &LaunchRequest, mode: LaunchMode) -> Result<(), String> {
+    if mode == LaunchMode::Game {
+        return validate_request(request);
+    }
+    if request.user_id == 0
+        || request.place_id != 0
+        || request.job_id.is_some()
+        || request.data.is_some()
+        || request.link_code.is_some()
+        || request.access_code.is_some()
+    {
+        return Err("Choose a valid account to open Roblox home".into());
+    }
+    Ok(())
 }
 
 fn common_job_id(requests: &[LaunchRequest]) -> Option<String> {
@@ -195,6 +250,7 @@ async fn launch_queued(
     startup: bool,
     require_multi_instance: bool,
     check_account_session: bool,
+    mode: LaunchMode,
 ) -> Result<(), String> {
     let state = app.state::<AppState>().inner().clone();
     let mut next_launch = state.launch_queue.lock().await;
@@ -261,13 +317,13 @@ async fn launch_queued(
     let cleanup_options = config.privacy_cleanup_options();
     let cleanup = tauri::async_runtime::spawn_blocking(move || {
         if multi_instance {
-            process::enable_multi_instance().map_err(|_| "Multi-instance setup failed")?;
+            process::enable_multi_instance().map_err(|error| error.to_string())?;
         }
         if needs_tray_cleanup {
             process::kill_tray_roblox();
         }
         process::prepare_privacy_cleanup(cleanup_options)
-            .map_err(|_| "Privacy cleanup failed. Roblox was not launched.")
+            .map_err(|_| "Privacy cleanup failed. Roblox was not launched.".to_string())
     })
     .await
     .map_err(|_| "Launch preparation task failed")??;
@@ -304,17 +360,22 @@ async fn launch_queued(
                 return Err("The account changed or RM is closing. Launch cancelled.");
             }
         }
-        process::launch_game_with_args(
-            &ticket,
-            place_id,
-            job_id.as_deref(),
-            link_code.as_deref(),
-            access_code.as_deref(),
-            data.as_deref(),
-            token,
-            Some(&executable),
-            &custom_args,
-        )
+        match mode {
+            LaunchMode::Home => {
+                process::launch_home_with_args(&ticket, token, Some(&executable), &custom_args)
+            }
+            LaunchMode::Game => process::launch_game_with_args(
+                &ticket,
+                place_id,
+                job_id.as_deref(),
+                link_code.as_deref(),
+                access_code.as_deref(),
+                data.as_deref(),
+                token,
+                Some(&executable),
+                &custom_args,
+            ),
+        }
         .map_err(|_| "Roblox could not be launched. Check the configured player path.")?;
         let privacy_backup_cleaned = cleanup.commit().is_ok();
         let mut clipboard_cleared = true;
@@ -382,6 +443,38 @@ async fn launch_queued(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn home_mode_needs_an_account_but_rejects_game_destinations() {
+        let mut request = LaunchRequest {
+            user_id: 1,
+            place_id: 0,
+            job_id: None,
+            data: None,
+            link_code: None,
+            access_code: None,
+        };
+        assert!(validate_launch_mode(&request, LaunchMode::Home).is_ok());
+        assert!(validate_launch_mode(&request, LaunchMode::Game).is_err());
+        request.user_id = 0;
+        assert!(validate_launch_mode(&request, LaunchMode::Home).is_err());
+        request.user_id = 1;
+        request.place_id = 2;
+        assert!(validate_launch_mode(&request, LaunchMode::Home).is_err());
+        assert!(validate_launch_mode(&request, LaunchMode::Game).is_ok());
+        request.place_id = 0;
+        request.job_id = Some("synthetic-job".into());
+        assert!(validate_launch_mode(&request, LaunchMode::Home).is_err());
+        request.job_id = None;
+        request.data = Some("synthetic-data".into());
+        assert!(validate_launch_mode(&request, LaunchMode::Home).is_err());
+        request.data = None;
+        request.link_code = Some("synthetic-link".into());
+        assert!(validate_launch_mode(&request, LaunchMode::Home).is_err());
+        request.link_code = None;
+        request.access_code = Some("synthetic-access".into());
+        assert!(validate_launch_mode(&request, LaunchMode::Home).is_err());
+    }
 
     #[test]
     fn explicit_new_instance_requests_cannot_reuse_a_client_after_policy_changes() {

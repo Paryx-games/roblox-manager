@@ -1185,6 +1185,13 @@ export function SettingsPage({ onNavigationGuardChange }: {
               onChange={(anonymizeNames) => updateDraft({ anonymizeNames })}
             />
           </SettingRow>
+          <SettingRow referenceId="hide_from_screen_capture" infoCards={infoCards}>
+            <Toggle
+              checked={draft.hideFromScreenCapture}
+              label="Hide RM from screen captures"
+              onChange={(hideFromScreenCapture) => updateDraft({ hideFromScreenCapture })}
+            />
+          </SettingRow>
         </Section>
 
         <Section

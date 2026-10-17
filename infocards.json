@@ -135,6 +135,10 @@
     "type": "info",
     "text": "New or changed account restrictions detected during account refreshes. Repeated checks of the same restriction do not repeat the alert."
   },
+  "hide_from_screen_capture": {
+    "type": "info",
+    "text": "Requests Windows capture exclusion for RM's main window after saving. Off by default. Windows 10 version 2004 or newer can omit the window from supported captures; older versions may show a blank window. Capture tools can behave differently. Roblox, browser login and other windows are not covered."
+  },
   "discord_batch": {
     "type": "info",
     "text": "Completed or stopped batches from Accounts, Presets and Private Servers. Reports launch requests; clients may still be connecting."

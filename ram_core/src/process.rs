@@ -511,6 +511,22 @@ pub fn launch_game_with_args(
     Ok(())
 }
 
+fn home_launch_uri(ticket: &str, launchtime: i64) -> String {
+    format!("roblox-player:1+launchmode:app+gameinfo:{ticket}+launchtime:{launchtime}")
+}
+
+/// Open the installed client's home screen using an account authentication ticket.
+pub fn launch_home_with_args(
+    ticket: &str,
+    launchtime: i64,
+    player_path: Option<&std::path::Path>,
+    args: &[String],
+) -> Result<(), CoreError> {
+    let executable = resolve_player_executable(player_path)?;
+    info!("Opening Roblox home screen");
+    open_player(&home_launch_uri(ticket, launchtime), &executable, args)
+}
+
 pub fn resolve_player_executable(
     player_path: Option<&std::path::Path>,
 ) -> Result<PathBuf, CoreError> {
@@ -1349,25 +1365,29 @@ pub fn roblox_singleton_names() -> Vec<&'static str> {
 /// It is gated behind `AppConfig::multi_instance_enabled` (default: off).
 #[cfg(windows)]
 mod multi_instance {
-    use std::sync::Mutex;
+    use std::sync::{mpsc, Mutex};
     use tracing::info;
-    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_INVALID_HANDLE, HANDLE};
+    use windows_sys::Win32::Foundation::{
+        CloseHandle, GetLastError, ERROR_INVALID_HANDLE, HANDLE, WAIT_ABANDONED, WAIT_OBJECT_0,
+        WAIT_TIMEOUT,
+    };
     use windows_sys::Win32::System::Threading::{
-        CreateMutexW, OpenEventW, SYNCHRONIZATION_SYNCHRONIZE,
+        CreateMutexW, OpenEventW, ReleaseMutex, WaitForSingleObject, SYNCHRONIZATION_SYNCHRONIZE,
     };
 
     use crate::error::CoreError;
 
-    /// Hold singleton object handles for the lifetime of the program.
-    static HELD_OBJECTS: Mutex<Option<Vec<SingletonHandle>>> = Mutex::new(None);
+    /// Keep the owning thread alive for the lifetime of the program.
+    static HELD_OBJECTS: Mutex<Option<SingletonOwner>> = Mutex::new(None);
 
-    /// Wrapper so we can store a HANDLE in a static (HANDLE is *mut c_void, not
-    /// Send by default, but we never dereference it across threads).
-    struct SingletonHandle(HANDLE);
-    unsafe impl Send for SingletonHandle {}
+    // Mutex ownership must be released on the thread that acquired it.
+    struct SingletonHandle(HANDLE, bool);
 
     impl Drop for SingletonHandle {
         fn drop(&mut self) {
+            if self.1 {
+                unsafe { ReleaseMutex(self.0) };
+            }
             // rollback only releases our own references, never another process's handles
             unsafe { CloseHandle(self.0) };
         }
@@ -1383,7 +1403,8 @@ mod multi_instance {
         let mut candidate = Vec::with_capacity(names.len());
         for &(name, allow_event) in names {
             let raw_name: Vec<u16> = format!("{name}\0").encode_utf16().collect();
-            let mut handle = unsafe { CreateMutexW(std::ptr::null(), 1, raw_name.as_ptr()) };
+            let mut handle = unsafe { CreateMutexW(std::ptr::null(), 0, raw_name.as_ptr()) };
+            let mut owns_mutex = !handle.is_null();
             let mut error = if handle.is_null() {
                 unsafe { GetLastError() }
             } else {
@@ -1406,9 +1427,83 @@ mod multi_instance {
                     "failed to acquire Roblox singleton object {name} (Windows error {error}); close Roblox and retry"
                 )));
             }
-            candidate.push(SingletonHandle(handle));
+            let mut handle = SingletonHandle(handle, false);
+            if owns_mutex {
+                let wait = unsafe { WaitForSingleObject(handle.0, 0) };
+                owns_mutex = matches!(wait, WAIT_OBJECT_0 | WAIT_ABANDONED);
+                if !owns_mutex {
+                    let reason = if wait == WAIT_TIMEOUT {
+                        "is already owned; close Roblox and other multi-instance tools, then retry"
+                            .to_string()
+                    } else {
+                        format!("could not be locked (Windows error {})", unsafe {
+                            GetLastError()
+                        })
+                    };
+                    return Err(CoreError::Process(format!(
+                        "Roblox singleton object {name} {reason}"
+                    )));
+                }
+            }
+            handle.1 = owns_mutex;
+            candidate.push(handle);
         }
         *held = Some(candidate);
+        Ok(())
+    }
+
+    struct SingletonOwner {
+        stop: Option<mpsc::Sender<()>>,
+        thread: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl Drop for SingletonOwner {
+        fn drop(&mut self) {
+            self.stop.take();
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
+            }
+        }
+    }
+
+    fn acquire_owner(
+        held: &mut Option<SingletonOwner>,
+        names: &[(&str, bool)],
+    ) -> Result<(), CoreError> {
+        if held.is_some() {
+            return Ok(());
+        }
+        let names: Vec<_> = names
+            .iter()
+            .map(|(name, event)| (name.to_string(), *event))
+            .collect();
+        let (ready_tx, ready_rx) = mpsc::sync_channel(1);
+        let (stop_tx, stop_rx) = mpsc::channel();
+        let thread = std::thread::Builder::new()
+            .name("roblox-singleton-owner".into())
+            .spawn(move || {
+                let names: Vec<_> = names
+                    .iter()
+                    .map(|(name, event)| (name.as_str(), *event))
+                    .collect();
+                let mut objects = None;
+                let result = acquire_named_objects(&mut objects, &names);
+                let acquired = result.is_ok();
+                if ready_tx.send(result).is_ok() && acquired {
+                    // Windows abandons owned mutexes when their thread exits, even if handles remain.
+                    let _ = stop_rx.recv();
+                }
+                drop(objects);
+            })
+            .map_err(|_| CoreError::Process("Could not start Roblox singleton owner".into()))?;
+        let owner = SingletonOwner {
+            stop: Some(stop_tx),
+            thread: Some(thread),
+        };
+        ready_rx.recv().map_err(|_| {
+            CoreError::Process("Roblox singleton owner stopped during setup".into())
+        })??;
+        *held = Some(owner);
         Ok(())
     }
 
@@ -1423,7 +1518,7 @@ mod multi_instance {
             .into_iter()
             .map(|name| (name, name == "ROBLOX_singletonEvent"))
             .collect();
-        acquire_named_objects(&mut held, &names)?;
+        acquire_owner(&mut held, &names)?;
         if !already_held {
             info!("Acquired Roblox singleton objects - multi-instance enabled");
         }
@@ -1454,9 +1549,12 @@ mod multi_instance {
         fn existing_legacy_events_are_held_without_changing_their_state() {
             for initial_state in [0, 1] {
                 let (legacy, current) = names();
-                let event = SingletonHandle(unsafe {
-                    CreateEventW(std::ptr::null(), 1, initial_state, wide(&legacy).as_ptr())
-                });
+                let event = SingletonHandle(
+                    unsafe {
+                        CreateEventW(std::ptr::null(), 1, initial_state, wide(&legacy).as_ptr())
+                    },
+                    false,
+                );
                 assert!(!event.0.is_null());
                 let mut held = None;
                 acquire_named_objects(&mut held, &[(&legacy, true), (&current, false)]).unwrap();
@@ -1471,9 +1569,10 @@ mod multi_instance {
                 assert_eq!(unsafe { WaitForSingleObject(event.0, 0) }, expected);
                 // our handle keeps the same event alive after the original owner closes its handle
                 drop(event);
-                let reopened = SingletonHandle(unsafe {
-                    OpenEventW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(&legacy).as_ptr())
-                });
+                let reopened = SingletonHandle(
+                    unsafe { OpenEventW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(&legacy).as_ptr()) },
+                    false,
+                );
                 assert!(!reopened.0.is_null());
                 assert_eq!(unsafe { WaitForSingleObject(reopened.0, 0) }, expected);
             }
@@ -1500,9 +1599,10 @@ mod multi_instance {
                 original
             );
             for name in [&legacy, &current] {
-                let handle = SingletonHandle(unsafe {
-                    OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(name).as_ptr())
-                });
+                let handle = SingletonHandle(
+                    unsafe { OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(name).as_ptr()) },
+                    false,
+                );
                 assert!(!handle.0.is_null());
             }
         }
@@ -1510,9 +1610,10 @@ mod multi_instance {
         #[test]
         fn partial_failure_closes_our_handles_and_can_be_retried() {
             let (legacy, current) = names();
-            let blocker = SingletonHandle(unsafe {
-                CreateSemaphoreW(std::ptr::null(), 0, 1, wide(&current).as_ptr())
-            });
+            let blocker = SingletonHandle(
+                unsafe { CreateSemaphoreW(std::ptr::null(), 0, 1, wide(&current).as_ptr()) },
+                false,
+            );
             assert!(!blocker.0.is_null());
             let mut held = None;
             assert!(
@@ -1531,9 +1632,10 @@ mod multi_instance {
         #[test]
         fn other_legacy_object_types_are_rejected_without_closing_their_handles() {
             let (legacy, current) = names();
-            let blocker = SingletonHandle(unsafe {
-                CreateSemaphoreW(std::ptr::null(), 0, 1, wide(&legacy).as_ptr())
-            });
+            let blocker = SingletonHandle(
+                unsafe { CreateSemaphoreW(std::ptr::null(), 0, 1, wide(&legacy).as_ptr()) },
+                false,
+            );
             assert!(!blocker.0.is_null());
             let mut held = None;
             assert!(
@@ -1553,14 +1655,15 @@ mod multi_instance {
                     let held = held.clone();
                     std::thread::spawn(move || {
                         let mut guard = held.lock().unwrap();
-                        acquire_named_objects(&mut guard, &[(&names.0, true), (&names.1, false)])
-                            .unwrap();
+                        acquire_owner(&mut guard, &[(&names.0, true), (&names.1, false)]).unwrap();
                         guard
                             .as_ref()
                             .unwrap()
-                            .iter()
-                            .map(|handle| handle.0 as usize)
-                            .collect::<Vec<_>>()
+                            .thread
+                            .as_ref()
+                            .unwrap()
+                            .thread()
+                            .id()
                     })
                 })
                 .collect();
@@ -1569,7 +1672,50 @@ mod multi_instance {
                 .map(|thread| thread.join().unwrap())
                 .collect();
             assert!(acquired.windows(2).all(|pair| pair[0] == pair[1]));
-            assert_eq!(held.lock().unwrap().as_ref().unwrap().len(), 2);
+            let handles: Vec<_> = [&names.0, &names.1]
+                .into_iter()
+                .map(|name| {
+                    SingletonHandle(
+                        unsafe { OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(name).as_ptr()) },
+                        false,
+                    )
+                })
+                .collect();
+            for handle in &handles {
+                assert!(!handle.0.is_null());
+                assert_eq!(unsafe { WaitForSingleObject(handle.0, 0) }, WAIT_TIMEOUT);
+            }
+            drop(held.lock().unwrap().take());
+            for handle in &handles {
+                assert_eq!(unsafe { WaitForSingleObject(handle.0, 0) }, WAIT_OBJECT_0);
+                unsafe { ReleaseMutex(handle.0) };
+            }
+        }
+
+        #[test]
+        fn occupied_mutex_rejects_setup_then_retry_acquires_existing_mutex() {
+            let (legacy, current) = names();
+            let blocker = SingletonHandle(
+                unsafe { CreateMutexW(std::ptr::null(), 1, wide(&current).as_ptr()) },
+                true,
+            );
+            assert!(!blocker.0.is_null());
+            let mut held = None;
+            let error = acquire_owner(&mut held, &[(&legacy, true), (&current, false)])
+                .expect_err("another thread owns the mutex");
+            assert!(error.to_string().contains("already owned"));
+            assert!(held.is_none());
+            let released =
+                unsafe { OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(&legacy).as_ptr()) };
+            assert!(released.is_null());
+            assert_eq!(unsafe { GetLastError() }, ERROR_FILE_NOT_FOUND);
+
+            // Keep the original handle alive to exercise opening and locking an existing mutex.
+            assert_ne!(unsafe { ReleaseMutex(blocker.0) }, 0);
+            acquire_owner(&mut held, &[(&legacy, true), (&current, false)]).unwrap();
+            assert_eq!(unsafe { WaitForSingleObject(blocker.0, 0) }, WAIT_TIMEOUT);
+            drop(held);
+            assert_eq!(unsafe { WaitForSingleObject(blocker.0, 0) }, WAIT_OBJECT_0);
         }
     }
 }
@@ -2303,6 +2449,18 @@ mod tests {
             crate::instances::classify_cmdline(Some(&cmdline)),
             crate::instances::LaunchToken::Found(launchtime)
         );
+    }
+
+    #[test]
+    fn home_launch_uses_app_mode_without_a_game_destination_and_redacts_its_ticket() {
+        let token = 1700000000000;
+        let uri = home_launch_uri("SYNTHETIC-HOME-TICKET", token);
+        assert!(uri.starts_with("roblox-player:1+launchmode:app+gameinfo:"));
+        assert!(!uri.contains("placelauncherurl"));
+        assert_eq!(crate::instances::parse_launchtime(&uri), Some(token));
+        let scrubbed = crate::redact::scrub(&uri);
+        assert!(!scrubbed.contains("SYNTHETIC-HOME-TICKET"));
+        assert!(scrubbed.contains("gameinfo:<redacted>"));
     }
 
     /// The launch URI carries a live authentication ticket, and it reaches the

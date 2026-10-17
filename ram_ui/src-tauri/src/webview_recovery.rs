@@ -139,8 +139,16 @@ async fn restore_window(app: &AppHandle, attempt: usize) -> Result<(), String> {
         .map_err(|_| "Browser data directory unavailable")?
         .join("recovery-webviews")
         .join(uuid::Uuid::new_v4().to_string());
+    let capture_protected = app
+        .state::<crate::state::AppState>()
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable")?
+        .config
+        .hide_from_screen_capture;
     let window = WebviewWindowBuilder::from_config(app, configuration)
         .map_err(|_| "Main window configuration invalid")?
+        .content_protected(capture_protected)
         .data_directory(profile)
         .build()
         .map_err(|_| "Replacement browser unavailable")?;

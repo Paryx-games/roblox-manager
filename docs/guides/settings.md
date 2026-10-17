@@ -21,6 +21,8 @@ Use the section navigation to find preferences. Most edits form a draft: choose 
 
   RM retains both Roblox singleton names for its session, including legacy versions that use an event instead of a mutex. It does not change an existing event's state or close handles inside Roblox. If setup fails, RM releases its partial acquisitions; correct the reported problem and retry saving the draft without restarting RM. An RM session that encountered this error before upgrading needs one restart to load the fix.
 
+  Mutexes stay owned by a dedicated RM thread until RM exits. If another Roblox client or multi-instance tool already owns a mutex, close it and retry. After upgrading, close Roblox and restart RM before launching multiple accounts.
+
 - **Close Roblox tray and background processes automatically** clears leftover background clients. **Confirm before killing all Roblox instances** controls confirmation for the separate close-all action; it does not enable automatic cleanup.
 - Auto-arrange, target monitor, grid layout, sizing and spacing control Roblox window placement.
 - Window naming identifies clients by account. Launch pacing spaces successive launches rather than starting every selected account together.
@@ -28,6 +30,8 @@ Use the section navigation to find preferences. Most edits form a draft: choose 
 **Auto-launch on startup** launches the configured Account ID into the configured Place ID once after the store unlocks. Password mode waits for you to unlock. Startup launch verifies that account and uses the normal launch queue, privacy cleanup, custom arguments, FastFlags and window arrangement. Invalid or missing targets stop with a notice; failures are not retried automatically. Changes apply on the next RM restart. Existing configurations without a Place ID must be completed before startup launch can run. Turning off **Check accounts on startup** skips the initial roster check; the normal five-minute checks continue, and startup launch still checks its own account.
 
 ## Privacy and displayed identity
+
+**Hide RM from screen captures** requests Windows capture exclusion for RM's main window. It is off by default. Save the draft to apply it; the choice also applies at startup and after interface recovery. Supported capture tools can omit the window on Windows 10 version 2004 or newer; older versions may show a blank window. This does not cover Roblox clients, login/browser windows, or capture tools that ignore Windows display affinity. See [Microsoft's display-affinity documentation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity).
 
 Choose the cleanup scope before launch and whether to clean on exit. Exit cleanup runs only when no Roblox client remains open. Clipboard clearing is optional and runs only after a successful RM launch while privacy cleanup is enabled. RM empties the clipboard without reading its contents; a busy clipboard produces a notice. Anonymisation changes managed account names and avatars in the interface; it does not change Roblox identities or what other players see.
 

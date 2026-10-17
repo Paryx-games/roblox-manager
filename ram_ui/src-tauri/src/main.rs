@@ -406,6 +406,8 @@ struct SettingsUpdate {
     tiling_padding: u32,
     rename_roblox_windows: bool,
     anonymize_names: bool,
+    #[serde(default)]
+    hide_from_screen_capture: bool,
     developer_options: bool,
     #[serde(default)]
     page_visibility: page_visibility::PageVisibility,
@@ -449,6 +451,7 @@ struct SettingsConfig {
     tiling_padding: u32,
     rename_roblox_windows: bool,
     anonymize_names: bool,
+    hide_from_screen_capture: bool,
     developer_options: bool,
     #[serde(default)]
     page_visibility: page_visibility::PageVisibility,
@@ -494,6 +497,7 @@ impl SettingsConfig {
             tiling_padding: config.tiling_padding,
             rename_roblox_windows: config.rename_roblox_windows,
             anonymize_names: config.anonymize_names,
+            hide_from_screen_capture: config.hide_from_screen_capture,
             developer_options: config.developer_options,
             page_visibility: page_visibility::PageVisibility::default(),
             utility_enabled: config.utility_enabled,
@@ -585,6 +589,7 @@ impl SettingsUpdate {
         config.tiling_padding = self.tiling_padding;
         config.rename_roblox_windows = self.rename_roblox_windows;
         config.anonymize_names = self.anonymize_names;
+        config.hide_from_screen_capture = self.hide_from_screen_capture;
         config.developer_options = self.developer_options;
         config.utility_enabled = self.utility_enabled;
         config.log_level = self.log_level;
@@ -1579,6 +1584,7 @@ async fn save_settings(
     settings: SettingsUpdate,
 ) -> Result<SettingsConfig, String> {
     let state = state.inner().clone();
+    let settings_app = app.clone();
     let settings = tauri::async_runtime::spawn_blocking(move || {
         let mut runtime = state
             .runtime
@@ -1587,7 +1593,20 @@ async fn save_settings(
         let mut candidate = runtime.config.clone();
         let pages = settings.page_visibility.clone();
         settings.apply_to_config(&mut candidate)?;
-        page_visibility::save_settings(&runtime.config_path, &candidate, &pages)?;
+        let capture_changed = candidate.hide_from_screen_capture != runtime.config.hide_from_screen_capture;
+        let window = if capture_changed {
+            let window = settings_app.get_webview_window("main").ok_or("RM's main window is unavailable. Try saving again.")?;
+            window.set_content_protected(candidate.hide_from_screen_capture)
+                .map_err(|_| "Windows capture protection could not be updated. Settings were not saved.")?;
+            Some(window)
+        } else { None };
+        if let Err(error) = page_visibility::save_settings(&runtime.config_path, &candidate, &pages) {
+            if let Some(window) = window {
+                window.set_content_protected(runtime.config.hide_from_screen_capture)
+                    .map_err(|_| "Settings could not be saved and capture protection could not be restored. Restart RM before relying on this setting.")?;
+            }
+            return Err(error);
+        }
         runtime.config = candidate;
         let mut config = SettingsConfig::from_config(&runtime.config);
         config.page_visibility = pages;
@@ -1603,6 +1622,22 @@ async fn save_settings(
 #[cfg(test)]
 mod settings_validation_tests {
     use super::*;
+
+    #[test]
+    fn capture_exclusion_round_trips_through_the_settings_draft() {
+        let mut config = AppConfig::default();
+        for enabled in [true, false] {
+            let mut payload = serde_json::to_value(SettingsConfig::from_config(&config)).unwrap();
+            payload["hideFromScreenCapture"] = serde_json::json!(enabled);
+            let update: SettingsUpdate = serde_json::from_value(payload).unwrap();
+            update.apply_to_config(&mut config).unwrap();
+            assert_eq!(config.hide_from_screen_capture, enabled);
+            assert_eq!(
+                SettingsConfig::from_config(&config).hide_from_screen_capture,
+                enabled
+            );
+        }
+    }
 
     #[test]
     fn unknown_logging_targets_cannot_partially_change_preferences() {
@@ -2680,12 +2715,25 @@ async fn join_user_game(
     let state = app.state::<AppState>().inner().clone();
     let _queue = state.joins.queue.lock().await;
     let credential_state = state.clone();
-    let cookie = tauri::async_runtime::spawn_blocking(move || {
+    let (cookie, viewer, revision) = tauri::async_runtime::spawn_blocking(move || {
         let runtime = credential_state
             .runtime
             .lock()
             .map_err(|_| "Account state unavailable")?;
-        account_cookie(&runtime, user_id)
+        let viewers: Vec<_> = runtime
+            .accounts
+            .accounts
+            .iter()
+            .filter(|account| !account.cookie_expired)
+            .map(|account| account.user_id)
+            .collect();
+        let viewer = background::presence_viewer(target_user_id, &viewers, user_id);
+        let cookie = account_cookie(&runtime, viewer)?;
+        Ok::<_, String>((
+            cookie,
+            viewer,
+            *runtime.credential_revisions.get(&viewer).unwrap_or(&0),
+        ))
     })
     .await
     .map_err(|_| "Join credential task failed")??;
@@ -2698,8 +2746,11 @@ async fn join_user_game(
         .map(|(_, presence)| presence)
         .ok_or("The target player is not reporting a live presence")?;
     drop(cookie);
+    if !friends::current(&state, viewer, revision) {
+        return Err("Presence account changed. Refresh before joining.".into());
+    }
     if presence.user_presence_type != 2 {
-        return Err("The target player is not in a game currently".into());
+        return Err("Roblox is not reporting a joinable game for this player. They may have left or hidden their presence.".into());
     }
     let (place_id, job_id) = ram_core::session_history::server(&presence).ok_or(
         "Roblox is not reporting a valid target server. Their join privacy may be hiding it.",
@@ -3592,8 +3643,16 @@ fn main() {
                 .find(|window| window.label == "main")
                 .ok_or("Main window configuration unavailable")?;
             let profile = app.path().app_local_data_dir()?.join("interface-webview");
+            let capture_protected = app
+                .state::<AppState>()
+                .runtime
+                .lock()
+                .map_err(|_| "Application state unavailable")?
+                .config
+                .hide_from_screen_capture;
             let mut builder =
                 tauri::WebviewWindowBuilder::from_config(app.handle(), configuration)?
+                    .content_protected(capture_protected)
                     .data_directory(profile);
             if benchmark::event_name().is_some() {
                 builder = builder.initialization_script("window.__RM_BENCHMARK__ = true;");
@@ -3712,6 +3771,7 @@ fn main() {
             add_account_anyway,
             login_and_add_account,
             browse_as_account,
+            launcher::open_account_home,
             list_launch_presets,
             save_launch_preset,
             update_launch_preset,

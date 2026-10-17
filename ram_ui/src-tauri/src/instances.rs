@@ -27,6 +27,32 @@ pub struct InstanceState {
 pub struct InstanceWorkspace {
     instances: Vec<InstanceSummary>,
     running_count: usize,
+    starting_count: usize,
+}
+
+fn instance_is_starting(
+    instance: &TrackedInstance,
+    presence: Option<&(ram_core::models::Presence, chrono::DateTime<chrono::Utc>)>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> bool {
+    if now
+        .signed_duration_since(instance.launched_at)
+        .num_seconds()
+        >= 90
+    {
+        return false;
+    }
+    let Some((presence, checked_at)) = presence else {
+        return true;
+    };
+    if *checked_at < instance.launched_at {
+        return true;
+    }
+    if instance.place_id == 0 {
+        !matches!(presence.user_presence_type, 1 | 2)
+    } else {
+        presence.user_presence_type != 2 || presence.place_id != Some(instance.place_id)
+    }
 }
 
 #[derive(Clone, PartialEq, Serialize)]
@@ -302,6 +328,17 @@ fn sweep(app: &tauri::AppHandle) -> Result<InstanceWorkspace, String> {
     }
     let snapshot = InstanceWorkspace {
         running_count: live.len(),
+        starting_count: instances.registry.pending_count()
+            + tracked
+                .iter()
+                .filter(|instance| {
+                    instance_is_starting(
+                        instance,
+                        instances.presence_checks.get(&instance.user_id),
+                        chrono::Utc::now(),
+                    )
+                })
+                .count(),
         instances: live
             .iter()
             .map(|client| {
@@ -316,7 +353,9 @@ fn sweep(app: &tauri::AppHandle) -> Result<InstanceWorkspace, String> {
                         .and_then(|instance| labels.get(&instance.user_id))
                         .cloned()
                         .unwrap_or_else(|| "Unmatched client".into()),
-                    place_id: instance.map(|instance| instance.place_id),
+                    place_id: instance
+                        .map(|instance| instance.place_id)
+                        .filter(|id| *id > 0),
                     job_id: instance.and_then(|instance| {
                         instances.presence_checks.get(&instance.user_id).and_then(
                             |(presence, checked_at)| {
@@ -431,6 +470,40 @@ pub fn shutdown(state: &AppState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn loading_waits_for_post_launch_presence_and_expires_without_confirmation() {
+        let mut client = instance(Attribution::Exact);
+        let now = client.launched_at + chrono::Duration::seconds(10);
+        assert!(instance_is_starting(&client, None, now));
+        let mut presence = (
+            ram_core::models::Presence {
+                user_presence_type: 2,
+                place_id: Some(client.place_id),
+                ..Default::default()
+            },
+            client.launched_at - chrono::Duration::seconds(1),
+        );
+        assert!(instance_is_starting(&client, Some(&presence), now));
+        presence.1 = now;
+        assert!(!instance_is_starting(&client, Some(&presence), now));
+        presence.0.place_id = Some(999);
+        assert!(instance_is_starting(&client, Some(&presence), now));
+        assert!(!instance_is_starting(
+            &client,
+            None,
+            client.launched_at + chrono::Duration::seconds(90)
+        ));
+        client.place_id = 0;
+        presence.0.user_presence_type = 0;
+        assert!(instance_is_starting(&client, Some(&presence), now));
+        presence.0.user_presence_type = 1;
+        assert!(!instance_is_starting(&client, Some(&presence), now));
+        presence.0.user_presence_type = 2;
+        assert!(!instance_is_starting(&client, Some(&presence), now));
+        presence.0.user_presence_type = 99;
+        assert!(instance_is_starting(&client, Some(&presence), now));
+    }
 
     fn instance(attribution: Attribution) -> TrackedInstance {
         TrackedInstance {

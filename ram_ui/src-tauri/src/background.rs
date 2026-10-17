@@ -51,9 +51,80 @@ pub async fn refresh_presence(
     if ids.is_empty() {
         return Ok(Vec::new());
     }
+    let viewers = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Account state unavailable")?;
+        if !runtime.unlocked {
+            return Err("Account store is locked".into());
+        }
+        runtime
+            .accounts
+            .accounts
+            .iter()
+            .filter(|account| !account.cookie_expired)
+            .map(|account| account.user_id)
+            .collect::<Vec<_>>()
+    };
+    let groups = presence_groups(&ids, &viewers);
+    if groups.is_empty() {
+        return Err("No authenticated account is available to refresh presence".into());
+    }
+    let mut updates = Vec::new();
+    let mut failure = None;
+    for (viewer, ids) in groups {
+        match refresh_presence_as(app, ids, viewer).await {
+            Ok(batch) => updates.extend(batch),
+            Err(error) => {
+                failure.get_or_insert(error);
+            }
+        }
+    }
+    accounts::publish(app);
+    crate::history::publish(app);
+    match failure {
+        Some(error) => Err(error),
+        None => Ok(updates),
+    }
+}
+
+pub(crate) fn presence_viewer(target: u64, viewers: &[u64], fallback: u64) -> u64 {
+    // Another account's view may hide the saved target's game and server.
+    if viewers.contains(&target) {
+        target
+    } else {
+        fallback
+    }
+}
+
+fn presence_groups(ids: &[u64], viewers: &[u64]) -> Vec<(u64, Vec<u64>)> {
+    let Some(&fallback) = viewers.first() else {
+        return Vec::new();
+    };
+    let mut groups: Vec<(u64, Vec<u64>)> = Vec::new();
+    for &id in ids {
+        let viewer = presence_viewer(id, viewers, fallback);
+        if let Some((_, targets)) = groups.iter_mut().find(|(owner, _)| *owner == viewer) {
+            if !targets.contains(&id) {
+                targets.push(id);
+            }
+        } else {
+            groups.push((viewer, vec![id]));
+        }
+    }
+    groups
+}
+
+async fn refresh_presence_as(
+    app: &tauri::AppHandle,
+    ids: Vec<u64>,
+    viewer: u64,
+) -> Result<Vec<PresenceUpdate>, String> {
+    let state = app.state::<AppState>().inner().clone();
     let _gate = state.presence_cache.gate.lock().await;
     let credential_state = state.clone();
-    let (cookie, viewer, revision) = tauri::async_runtime::spawn_blocking(move || {
+    let (cookie, revision) = tauri::async_runtime::spawn_blocking(move || {
         let runtime = credential_state
             .runtime
             .lock()
@@ -61,26 +132,16 @@ pub async fn refresh_presence(
         if !runtime.unlocked {
             return Err("Account store is locked".to_string());
         }
-        runtime
+        let account = runtime
             .accounts
-            .accounts
-            .iter()
+            .find_by_id(viewer)
             .filter(|account| !account.cookie_expired)
-            .find_map(|account| {
-                crate::account_cookie(&runtime, account.user_id)
-                    .ok()
-                    .map(|cookie| {
-                        (
-                            cookie,
-                            account.user_id,
-                            *runtime
-                                .credential_revisions
-                                .get(&account.user_id)
-                                .unwrap_or(&0),
-                        )
-                    })
-            })
-            .ok_or_else(|| "No authenticated account is available to refresh presence".to_string())
+            .ok_or_else(|| "Presence account changed. Refresh again.".to_string())?;
+        let cookie = crate::account_cookie(&runtime, account.user_id)?;
+        Ok((
+            cookie,
+            *runtime.credential_revisions.get(&viewer).unwrap_or(&0),
+        ))
     })
     .await
     .map_err(|_| "Presence credential task failed")??;
@@ -104,6 +165,16 @@ pub async fn refresh_presence(
         );
     }
     drop(cookie);
+    for (target, presence) in &presences {
+        tracing::debug!(
+            viewer_id = viewer,
+            target_id = target,
+            presence_type = presence.user_presence_type,
+            has_place = presence.place_id.is_some_and(|id| id > 0),
+            has_job = ram_core::instances::normalize_job_id(presence.game_id.as_deref()).is_some(),
+            "Presence visibility checked"
+        );
+    }
     let updates = presences
         .iter()
         .map(|(user_id, presence)| PresenceUpdate {
@@ -150,8 +221,6 @@ pub async fn refresh_presence(
         }
     }
     crate::instances::record_presence_check(&state, &checked_presences, checked_at)?;
-    accounts::publish(app);
-    crate::history::publish(app);
     Ok(updates)
 }
 
@@ -319,5 +388,29 @@ pub fn start(app: &tauri::AppHandle) -> BackgroundTasks {
 async fn flush_history(app: &tauri::AppHandle, state: &AppState) {
     if crate::history::flush(state).await.is_err() {
         crate::history::publish(app);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn saved_targets_use_their_own_presence_view_even_when_another_viewer_is_first() {
+        assert_eq!(presence_viewer(2, &[1, 2, 3], 1), 2);
+        assert_eq!(
+            presence_groups(&[3, 2, 1], &[1, 2, 3]),
+            vec![(3, vec![3]), (2, vec![2]), (1, vec![1])]
+        );
+    }
+
+    #[test]
+    fn external_or_unavailable_targets_keep_the_fallback_view_and_are_batched_once() {
+        assert_eq!(presence_viewer(9, &[1, 2], 2), 2);
+        assert_eq!(
+            presence_groups(&[2, 9, 1, 9, 8, 2], &[1, 2]),
+            vec![(2, vec![2]), (1, vec![9, 1, 8])]
+        );
+        assert!(presence_groups(&[1, 2], &[]).is_empty());
     }
 }
