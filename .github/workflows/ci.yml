@@ -87,7 +87,7 @@ jobs:
         run: pnpm build
 
       - name: Upload frontend dist
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ram_ui-dist
           path: ram_ui/dist
@@ -260,7 +260,7 @@ jobs:
         run: pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked
 
       - name: Upload tauri build
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tauri-windows-build
           path: |
