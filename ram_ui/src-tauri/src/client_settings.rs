@@ -11,16 +11,23 @@ const MAX_XML_BYTES: u64 = 1024 * 1024;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ClientLaunchSettings {
     pub enabled: bool,
+    #[serde(default = "default_rm_only")]
+    pub rm_only: bool,
     pub fps: u32,
     pub graphics: u8,
     pub fullscreen: bool,
     pub muted: bool,
 }
 
+fn default_rm_only() -> bool {
+    true
+}
+
 impl Default for ClientLaunchSettings {
     fn default() -> Self {
         Self {
             enabled: false,
+            rm_only: true,
             fps: 60,
             graphics: 5,
             fullscreen: false,
@@ -248,12 +255,36 @@ fn write_preserving_readonly(path: &Path, bytes: &[u8]) -> Result<(), String> {
     result.map_err(|_| "Roblox settings could not be saved. Another Roblox client or tool may be locking the file. Nothing was launched.".into())
 }
 
-pub fn apply_before_launch(state: &AppState) -> Result<(), String> {
-    let saved = load(&preference_path(state)?)?;
+fn prepare_launch_settings(
+    source: &Path,
+    isolated: &Path,
+    saved: &SavedSettings,
+) -> Result<Vec<String>, String> {
     if !saved.settings.enabled {
-        return Ok(());
+        return Ok(Vec::new());
     }
-    apply_to_file(&roblox_settings_path()?, &saved)
+    if !saved.settings.rm_only {
+        apply_to_file(source, saved)?;
+        return Ok(Vec::new());
+    }
+    let xml = read_xml(source)?;
+    let patched = patch_xml(&xml, &saved.settings, saved.unmuted_volume)?;
+    let path = isolated
+        .to_str()
+        .ok_or("The isolated Roblox settings path is invalid.")?;
+    storage::atomic_write(isolated, patched.as_bytes())
+        .map_err(|_| "RM's isolated Roblox settings could not be saved. Nothing was launched.")?;
+    Ok(vec!["--globalBasicSettingsPath".into(), path.into()])
+}
+
+pub fn apply_before_launch(state: &AppState) -> Result<Vec<String>, String> {
+    let preference = preference_path(state)?;
+    let saved = load(&preference)?;
+    if !saved.settings.enabled {
+        return Ok(Vec::new());
+    }
+    let isolated = preference.with_file_name("roblox-client-settings.xml");
+    prepare_launch_settings(&roblox_settings_path()?, &isolated, &saved)
 }
 
 #[tauri::command]
@@ -373,6 +404,99 @@ mod tests {
     const XML: &str = "<roblox><Item class=\"Other\"><Properties><int name=\"FramerateCap\">1</int></Properties></Item><Item class=\"UserGameSettings\"><Properties><int name=\"FramerateCap\">60</int><float name=\"MasterVolume\">0.25</float><!--keep--><string name=\"Other\">unchanged</string></Properties></Item></roblox>";
 
     #[test]
+    fn older_preferences_default_to_rm_only_and_explicit_choice_round_trips() {
+        let old = r#"{"settings":{"enabled":true,"fps":120,"graphics":7,"fullscreen":true,"muted":true},"unmutedVolume":0.25}"#;
+        let mut saved: SavedSettings = serde_json::from_str(old).unwrap();
+        assert!(saved.settings.rm_only);
+        assert_eq!(saved.settings.fps, 120);
+        assert_eq!(saved.settings.graphics, 7);
+        assert!(saved.settings.fullscreen && saved.settings.muted);
+        assert_eq!(saved.unmuted_volume, 0.25);
+        saved.settings.rm_only = false;
+        let round_trip: SavedSettings =
+            serde_json::from_slice(&serde_json::to_vec(&saved).unwrap()).unwrap();
+        assert!(!round_trip.settings.rm_only);
+        assert!(ClientLaunchSettings::default().rm_only);
+    }
+
+    #[test]
+    fn rm_only_uses_separate_xml_and_leaves_shared_settings_and_backup_untouched() {
+        let directory =
+            std::env::temp_dir().join(format!("rm-isolated-settings-{}", uuid::Uuid::new_v4()));
+        let source = directory.join("Roblox settings.xml");
+        let isolated = directory.join("RM settings.xml");
+        let saved = SavedSettings {
+            settings: ClientLaunchSettings {
+                enabled: true,
+                fps: 144,
+                muted: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(
+            prepare_launch_settings(&source, &isolated, &SavedSettings::default())
+                .unwrap()
+                .is_empty()
+        );
+        assert!(!isolated.exists());
+        assert!(prepare_launch_settings(&source, &isolated, &saved).is_err());
+        storage::atomic_write(&source, XML.as_bytes()).unwrap();
+        storage::atomic_write(&storage::backup_path(&source), b"original backup").unwrap();
+        let mut permissions = std::fs::metadata(&source).unwrap().permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&source, permissions).unwrap();
+        let args = prepare_launch_settings(&source, &isolated, &saved).unwrap();
+        assert_eq!(
+            args,
+            vec!["--globalBasicSettingsPath", isolated.to_str().unwrap()]
+        );
+        assert_eq!(
+            std::fs::read_to_string(&isolated).unwrap(),
+            patch_xml(XML, &saved.settings, saved.unmuted_volume).unwrap()
+        );
+        assert_eq!(std::fs::read(&source).unwrap(), XML.as_bytes());
+        assert_eq!(
+            std::fs::read(storage::backup_path(&source)).unwrap(),
+            b"original backup"
+        );
+        assert!(std::fs::metadata(&source).unwrap().permissions().readonly());
+        clear_test_readonly(&source);
+        storage::atomic_write(&source, b"invalid XML").unwrap();
+        let previous = std::fs::read(&isolated).unwrap();
+        assert!(prepare_launch_settings(&source, &isolated, &saved).is_err());
+        assert_eq!(std::fs::read(&isolated).unwrap(), previous);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn shared_mode_updates_normal_settings_without_redirecting_the_player() {
+        let directory =
+            std::env::temp_dir().join(format!("rm-shared-settings-{}", uuid::Uuid::new_v4()));
+        let source = directory.join("settings.xml");
+        let isolated = directory.join("isolated.xml");
+        storage::atomic_write(&source, XML.as_bytes()).unwrap();
+        let saved = SavedSettings {
+            settings: ClientLaunchSettings {
+                enabled: true,
+                rm_only: false,
+                fps: 120,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert!(prepare_launch_settings(&source, &isolated, &saved)
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            std::fs::read_to_string(&source).unwrap(),
+            patch_xml(XML, &saved.settings, saved.unmuted_volume).unwrap()
+        );
+        assert!(!isolated.exists());
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn overrides_change_only_user_settings_and_preserve_unknown_content() {
         let settings = ClientLaunchSettings {
             enabled: true,
@@ -380,6 +504,7 @@ mod tests {
             graphics: 7,
             fullscreen: true,
             muted: true,
+            ..Default::default()
         };
         let result = patch_xml(XML, &settings, 0.25).unwrap();
         assert!(result.contains("<int name=\"FramerateCap\">1</int>"));

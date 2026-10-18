@@ -902,6 +902,7 @@ export interface InstanceWorkspace {
 
 export interface ClientLaunchSettings {
   enabled: boolean;
+  rmOnly: boolean;
   fps: number;
   graphics: number;
   fullscreen: boolean;

@@ -11,7 +11,7 @@ import { arrangeAccountWindows, focusInstance, getSettings, getClientLaunchSetti
 
 const phaseLabels = { waiting: "Waiting to launch", authenticating: "Logging in", launching: "Starting Roblox", requested: "Waiting for Roblox", failed: "Launch failed" };
 
-const defaultSettings: ClientLaunchSettings = { enabled: false, fps: 60, graphics: 5, fullscreen: false, muted: false };
+const defaultSettings: ClientLaunchSettings = { enabled: false, rmOnly: true, fps: 60, graphics: 5, fullscreen: false, muted: false };
 const fpsOptions = ["30", "60", "120", "144", "240"].map((value) => ({ value, label: `${value} FPS` }));
 
 export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsChange, launches, isLoading, error, onRefresh }: {
@@ -70,7 +70,7 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
       const saved = await saveClientLaunchSettings(draft);
       setDraft(saved);
       setSavedSettings(saved);
-    }, draft.enabled ? "Settings saved for future Roblox launches" : "Launch overrides disabled", draft.enabled ? `${draft.fps} FPS, graphics quality ${draft.graphics}, fullscreen ${draft.fullscreen ? "on" : "off"} and audio mute ${draft.muted ? "on" : "off"} were saved as shared defaults. Existing clients are unchanged.` : "RM will stop reapplying shared overrides before launch. Roblox keeps its last saved settings; existing clients are unchanged.");
+    }, draft.enabled ? "Settings saved for future Roblox launches" : "Launch overrides disabled", draft.enabled ? `${draft.fps} FPS, graphics quality ${draft.graphics}, fullscreen ${draft.fullscreen ? "on" : "off"} and audio mute ${draft.muted ? "on" : "off"} were saved. ${draft.rmOnly ? "Only RM launches will use these overrides." : "RM launches will update Roblox's shared settings, which also affect launches outside RM."} Existing clients are unchanged.` : "RM will stop reapplying overrides before launch. Roblox keeps its last saved settings; existing clients are unchanged.");
   }
 
   async function resetControls() {
@@ -164,9 +164,10 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
             <p className="instances-description">Shared settings for new Roblox clients.</p>
             {selectedInstance && <InstanceIdentity instance={selectedInstance} account={accounts.find((account) => account.userId === selectedInstance.userId)} />}
             {settingsLoading ? <LoadingSkeleton layout="status" label="Loading client launch settings" /> : settingsError ? <div className="instances-empty" role="alert"><p className="selectable-text">{settingsError}</p><button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => setSettingsRevision((current) => current + 1)}>Retry</button><button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => void resetControls()}>{pendingAction === "reset-controls" ? "Resetting..." : "Reset launch settings"}</button></div> : <>
-              <div className="instances-controls-notice" id="client-controls-notice" role="note"><Icon name="info-mark" tone="current-color" /><p><strong>Applies to new launches.</strong> Running clients won’t change. Turn off Apply on launch to use Roblox’s saved settings.</p></div>
+              <div className="instances-controls-notice" id="client-controls-notice" role="note"><Icon name="info-mark" tone="current-color" /><p><strong>Applies to new launches.</strong> Running clients won't change. {draft.rmOnly ? "Only launches through RM use these overrides." : "RM updates Roblox's shared settings, which also affect launches outside RM."}</p></div>
               <div role="group" aria-label="Shared client launch settings" aria-describedby="client-controls-notice">
                 <SettingRow label="Apply on launch" description="Use these overrides for new clients.">{(labelId, descriptionId) => <ToggleField checked={draft.enabled} onChange={(enabled) => updateSettings({ enabled })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
+                {draft.enabled && <SettingRow label="Only RM launches" description="Leave website and Roblox app launches on Roblox's saved settings.">{(labelId, descriptionId) => <ToggleField checked={draft.rmOnly} onChange={(rmOnly) => updateSettings({ rmOnly })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>}
                 <SettingRow label="FPS limit" description="Choose a maximum frame rate.">{() => <Select value={String(draft.fps)} options={fpsOptions} onChange={(fps) => updateSettings({ fps: Number(fps) })} ariaLabel="FPS limit for future launches" disabled={controlsDisabled} />}</SettingRow>
                 <SettingRow label="Graphics quality" description="Choose a quality level from 1 to 10.">{(labelId, descriptionId) => <RangeField min={1} max={10} value={draft.graphics} onChange={(graphics) => updateSettings({ graphics })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>
                 <SettingRow label="Fullscreen" description="Start new clients in fullscreen.">{(labelId, descriptionId) => <ToggleField checked={draft.fullscreen} onChange={(fullscreen) => updateSettings({ fullscreen })} labelId={labelId} descriptionId={descriptionId} disabled={controlsDisabled} />}</SettingRow>

@@ -55,6 +55,9 @@ pub fn parse_arguments(input: &str) -> Result<Vec<String>, CoreError> {
             return Err(invalid());
         }
         let lower = arg.to_ascii_lowercase();
+        if lower.starts_with("-g") && !lower.starts_with("--") {
+            return Err(invalid());
+        }
         if lower.starts_with('-')
             && [
                 "app",
@@ -65,6 +68,8 @@ pub fn parse_arguments(input: &str) -> Result<Vec<String>, CoreError> {
                 "launchtime",
                 "authenticationticket",
                 "authenticationurl",
+                "g",
+                "globalbasicsettingspath",
             ]
             .contains(
                 &lower
@@ -193,6 +198,11 @@ mod tests {
             "-a https://example.invalid",
             "-j synthetic",
             "--launchtime=123",
+            "-g synthetic.xml",
+            "-gsynthetic.xml",
+            "--globalBasicSettingsPath synthetic.xml",
+            "--globalBasicSettingsPath=synthetic.xml",
+            "--GLOBALBASICSETTINGSPATH:synthetic.xml",
         ] {
             assert!(super::parse_arguments(value).is_err());
         }
