@@ -682,6 +682,27 @@ struct ServerListResponse {
     next_page_cursor: Option<String>,
 }
 
+/// Fetch public game icons directly by place ID, independent of game metadata access.
+pub async fn fetch_place_icons(
+    client: &RobloxClient,
+    place_ids: &[u64],
+) -> Result<Vec<(u64, String)>, CoreError> {
+    let mut icons = Vec::new();
+    for batch in place_ids.chunks(50) {
+        let ids = batch
+            .iter()
+            .map(u64::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        let response: ThumbnailResponse = client.get_json(
+            &format!("https://thumbnails.roblox.com/v1/places/gameicons?placeIds={ids}&returnPolicy=PlaceHolder&size=150x150&format=Png&isCircular=false"),
+            "",
+        ).await?;
+        icons.extend(pair_thumbnails(batch, response.data));
+    }
+    Ok(icons)
+}
+
 /// Fetch one page of public servers for a place.
 pub async fn fetch_servers(
     client: &RobloxClient,

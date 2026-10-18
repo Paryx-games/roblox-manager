@@ -15,6 +15,8 @@ Open **Friends** in the navigation rail and choose a managed account. RM remembe
 
 Search by display name or username without making network requests. Filter by **All**, **Playing**, **In Studio**, **Online**, **Offline** or **Requests**. Online means online without playing or using Studio. Missing or unfamiliar presence values show **Unavailable** and are counted separately, never as offline.
 
+Presence uses Roblox's color scheme: green for Playing, orange for In Studio, blue for Online and gray for Offline. Game/place rows show the game's icon when Roblox provides one, even when the game-name lookup is unavailable. Studio and online activity use the Roblox Studio and Roblox application logos. Missing or failed game thumbnails fall back to the Roblox logo.
+
 Sort by online status first, display name or username in either direction. The compact list shows avatars, visible activity, game/place information and any public Job ID Roblox provides. Job IDs use a truncated monospace field; hover for the full value or use the copy button. A missing server ID is not filled from another friend or an invitation code.
 
 Click a name or row to open its details. Check friends individually or use the header checkbox to select all visible friends. Selection survives filtering; account changes clear it and refreshed lists remove selections for former friends. The selection toolbar copies usernames or user IDs. It never launches clients or changes friendships in bulk.

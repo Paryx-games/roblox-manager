@@ -137,7 +137,7 @@ export function Icon({ name, tone = "image" }: IconProps) {
   return (
     <img
       className="account-icon"
-      src={`/icons/${name}.svg`}
+      src={`/icons/${name}.${name === "roblox" || name === "roblox-studio" ? "png" : "svg"}`}
       alt=""
       aria-hidden="true"
     />

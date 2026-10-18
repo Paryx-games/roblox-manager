@@ -12,6 +12,7 @@ macro_rules! cache {
 }
 cache!(avatars, String, 300, 2048);
 cache!(game_icons, String, 1800, 1024);
+cache!(place_icons, String, 1800, 1024);
 cache!(asset_thumbnails, Vec<u8>, 1800, 64);
 cache!(groups, group_api::GroupInfo, 60, 256);
 cache!(group_icons, Vec<u8>, 1800, 64);
@@ -28,6 +29,7 @@ pub fn invalidate_group(id: u64) {
 pub fn clear() -> usize {
     avatars().clear()
         + game_icons().clear()
+        + place_icons().clear()
         + asset_thumbnails().clear()
         + groups().clear()
         + group_icons().clear()
@@ -129,6 +131,19 @@ pub async fn fetch_game_icons(
         game_icons(),
         ids,
         |missing| async move { api::fetch_game_icons(client, "", &missing).await },
+        |url| !url.is_empty(),
+    )
+    .await
+}
+
+pub async fn fetch_place_icons(
+    client: &RobloxClient,
+    ids: &[u64],
+) -> Result<Vec<(u64, String)>, CoreError> {
+    batch(
+        place_icons(),
+        ids,
+        |missing| async move { api::fetch_place_icons(client, &missing).await },
         |url| !url.is_empty(),
     )
     .await

@@ -60,6 +60,11 @@
      instance, or process state.) */
   --status-studio: var(--action-primary);
   --status-online: #4fbf7a;
+  /* Roblox dark-theme presence colors; separate from generic process state. */
+  --presence-playing: #39c582;
+  --presence-studio: #f57630;
+  --presence-online: #70a0ff;
+  --presence-offline: #bcbec8;
   --status-warning: #e0a93e;
   --status-danger: #e0555a;
   --status-neutral: #6b7080; /* offline / idle */

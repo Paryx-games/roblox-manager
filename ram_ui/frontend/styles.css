@@ -7898,14 +7898,16 @@ button:focus-visible {
 .friend-identity strong, .friend-game strong { font-size: var(--text-sm); }
 .friend-presence { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-xs); white-space: nowrap; }
 .friend-presence > span { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: currentcolor; }
-.friend-presence-playing { color: var(--status-online); }
-.friend-presence-studio { color: var(--status-studio); }
-.friend-presence-online { color: var(--text-primary); }
-.friend-presence-offline, .friend-presence-unknown { color: var(--text-muted); }
+.friend-presence-playing { color: var(--presence-playing); }
+.friend-presence-studio { color: var(--presence-studio); }
+.friend-presence-online { color: var(--presence-online); }
+.friend-presence-offline { color: var(--presence-offline); }
+.friend-presence-unknown { color: var(--text-muted); }
 .friend-game { display: flex; min-width: 0; align-items: center; gap: var(--space-2); }
 .friend-game > span:last-child { display: grid; min-width: 0; gap: var(--space-1); }
 .friend-game-icon { display: flex; width: 32px; height: 32px; flex: 0 0 32px; align-items: center; justify-content: center; overflow: hidden; border: var(--border-width) solid var(--border-default); border-radius: var(--radius); background: var(--bg-raised); }
 .friend-game-icon > img:not(.account-icon) { width: 100%; height: 100%; object-fit: cover; }
+.friend-game-icon > .account-icon { width: var(--space-6); height: var(--space-6); }
 .friend-id { display: flex; min-width: 0; align-items: center; gap: var(--space-1); }
 .friend-id code { display: block; min-width: 0; flex: 1; overflow: hidden; padding: var(--space-1); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); color: var(--text-primary); background: var(--bg-canvas); font-family: var(--font-mono); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; user-select: text; }
 .friend-id .icon-button { width: 26px; height: 28px; flex: 0 0 26px; }

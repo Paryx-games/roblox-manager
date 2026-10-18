@@ -28,6 +28,8 @@ should be a transparent square SVG with a simple monochrome mark and a
 
 ## Active Tauri frontend
 
+`roblox.png` and `roblox-studio.png` are the official application icons extracted from the installed Roblox Player and Roblox Studio executables. Their copies in `ram_ui/frontend/public/icons/` are used by `Icon` for friend activity branding. Game artwork comes from Roblox's public thumbnail service; missing or failed game images fall back to the Roblox logo.
+
 React loads the icon set from `ram_ui/frontend/public/icons/` using shared icon controls. Keep the set consistent with `assets/icons/`; use semantic names, accessible button labels and no emoji substitutes. See `DESIGN.md` for the active design rules.
 
 Application, installer and uninstaller icons are separate Windows ICO files selected by `ram_ui/scripts/tauri.mjs`: Development for debug/dev, Alpha or Beta for those pre-release versions, and Live for stable or release candidates. The installer sidebar is the 164 x 314 bitmap under `ram_ui/src-tauri/installer/`, generated from `assets/branding/LogoThumbVertical.png`.

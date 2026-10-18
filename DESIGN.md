@@ -104,6 +104,7 @@ changes.
 | Text | `--text-primary`, `--text-muted`, `--text-disabled` |
 | Borders and actions | `--border-default`, `--action-primary`, `--action-danger`, `--action-muted` |
 | Live status | `--status-online`, `--status-studio`, `--status-warning`, `--status-danger`, `--status-neutral` |
+| Roblox friend presence | `--presence-playing`, `--presence-studio`, `--presence-online`, `--presence-offline` |
 | Other semantic states | `--notification-*`, `--access-*`, `--ownership-*` |
 | Guided tour | `--walkthrough-outline`, `--walkthrough-dim`, `--walkthrough-dock` |
 | Typography | `--font-sans`, `--font-mono`, `--text-xs`, `--text-sm`, `--text-base`, `--text-lg`, `--text-xl` |
@@ -164,6 +165,8 @@ technology and name their containing controls. Do not add emoji or another
 icon library.
 
 ## Existing shared components
+
+Friends uses dedicated `--presence-*` tokens for Roblox's dark-theme presence scheme: playing green (`#39c582`), Studio orange (`#f57630`), online blue (`#70a0ff`), and offline gray (`#bcbec8`). Unavailable presence stays muted and has its own text label. These values come from Roblox's FoundationCss and ReactStyleGuide styles; generic process/status tokens retain their existing meanings. Activity tiles use game thumbnails or the local Roblox/Studio application logos.
 
 Reuse a component when it already covers the needed behavior:
 

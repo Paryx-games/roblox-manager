@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- **Friend activity icons and colors:** Game icons now load directly by Place ID, independently of game-name access. Added the Roblox and Studio application logos, a logo fallback for failed thumbnails, and Roblox's green playing, orange Studio, blue online and gray offline presence colors.
 - **Read-only Roblox settings:** Launch overrides now temporarily clear the read-only attribute on Roblox's settings XML, update it atomically, and restore the attribute on success or failure. Genuine file locks still stop the launch with specific guidance.
 - **Friends loading regression:** Restored the established friends-list route after the paginated `/friends/find` switch prevented account data from loading.
 - **Friends workspace:** Compacted account/filter controls, added a draggable keyboard-accessible details divider, and opened profile actions in the selected account's isolated popup browser. Mutual-friend checks use temporary browser context and provide explicit access/verification recovery.

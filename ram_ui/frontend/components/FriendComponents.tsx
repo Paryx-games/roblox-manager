@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AccountAvatar } from "./AccountAvatar";
 import { Icon } from "./Icon";
 import { FriendContextMenu } from "./FriendContextMenu";
@@ -13,7 +14,9 @@ export function FriendPresence({ friend }: {friend: Friend}) {
 export function FriendGameInfo({friend}: {friend: Friend}) {
   const inGame = friend.status === "playing";
   const studio = friend.status === "studio";
-  return <span className="friend-game">{(inGame || studio) && <span className="friend-game-icon">{friend.gameIcon ? <img src={friend.gameIcon} alt="" loading="lazy" decoding="async" /> : <Icon name={studio ? "edit" : "game"} />}</span>}<span><strong>{studio ? "Roblox Studio" : inGame ? friend.gameName || friend.placeName || friend.activity || "In game" : friendStatusLabels[friend.status]}</strong><small>{friend.placeName || (friend.placeId ? `Place ${friend.placeId}` : friend.activity || (inGame ? "Game details unavailable" : studio ? "Editing details unavailable" : ""))}</small></span></span>;
+  const [failedIcon, setFailedIcon] = useState<string | null>(null);
+  const gameIcon = inGame && friend.gameIcon && friend.gameIcon !== failedIcon ? friend.gameIcon : null;
+  return <span className="friend-game">{(inGame || studio || friend.status === "online") && <span className="friend-game-icon">{gameIcon ? <img src={gameIcon} alt="" loading="lazy" decoding="async" onError={() => setFailedIcon(gameIcon)} /> : <Icon name={studio ? "roblox-studio" : "roblox"} />}</span>}<span><strong>{studio ? "Roblox Studio" : inGame ? friend.gameName || friend.placeName || friend.activity || "In game" : friendStatusLabels[friend.status]}</strong><small>{friend.placeName || (friend.placeId ? `Place ${friend.placeId}` : friend.activity || (inGame ? "Game details unavailable" : studio ? "Editing details unavailable" : ""))}</small></span></span>;
 }
 export function FriendId({value, label, onCopy}: {value: string | number | null; label: string; onCopy: (value:string, label:string)=>void}) {
   return <span className="friend-id">{value !== null ? <><code data-tip={String(value)}>{value}</code><button type="button" className="icon-button" aria-label={`Copy ${label}`} data-tip={`Copy ${label}`} onClick={() => onCopy(String(value), label)}><Icon name="copy" /></button></> : <span className="friends-muted">Unavailable</span>}</span>;
