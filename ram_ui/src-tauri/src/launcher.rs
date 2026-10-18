@@ -279,11 +279,11 @@ async fn launch_queued(
     let (executable, custom_args) = tauri::async_runtime::spawn_blocking(move || {
         let executable = process::resolve_player_executable(player_path.as_deref())
             .map_err(|_| "RobloxPlayerBeta.exe was not found. Check the player path in Settings.")?;
-        let args = ram_core::launch_options::parse_arguments(&options_config.custom_game_args)
+        let mut args = ram_core::launch_options::parse_arguments(&options_config.custom_game_args)
             .map_err(|_| "Custom Roblox arguments are invalid. Check quoting and reserved launch parameters in Settings.")?;
         ram_core::launch_options::apply_fast_flags(&executable, &options_config.roblox_fast_flags)
             .map_err(|_| "Fast flags could not be applied. Check the selected installation and its ClientSettings files.")?;
-        crate::client_settings::apply_before_launch(&options_state)?;
+        args.extend(crate::client_settings::apply_before_launch(&options_state)?);
         Ok::<_, String>((executable, args))
     }).await.map_err(|_| "Launch options task failed")??;
     if config.mac_rotation_enabled && !state.mac_rotated.load(std::sync::atomic::Ordering::Acquire)

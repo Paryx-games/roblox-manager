@@ -1,6 +1,7 @@
 import { useAccountUpdates } from "./hooks/useAccountUpdates";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useWorkspaceActive } from "./hooks/useWorkspaceActive";
 import {
   changeGroupMembership,
   listAccounts,
@@ -20,6 +21,7 @@ import { Icon } from "./components/Icon";
 type GroupMode = "name" | "id";
 
 type GroupsPageProps = {
+  requestedGroup?: {id:number;name:string;request:number}|null;
   selectedIds: Set<number>;
   setSelectedIds: (ids: Set<number>) => void;
   onNavigateAccounts: () => void;
@@ -149,6 +151,7 @@ export function GroupsPage({
   selectedIds,
   setSelectedIds,
   onNavigateAccounts,
+  requestedGroup,
 }: GroupsPageProps) {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
@@ -166,6 +169,20 @@ export function GroupsPage({
   const [error, setError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const active = useWorkspaceActive();
+  const handledRequest = useRef<number | null>(null);
+  const groupLoadRequest = useRef(0);
+
+  useEffect(() => () => { groupLoadRequest.current += 1; }, []);
+  useEffect(() => {
+    if (!active || isAccountsLoading || !requestedGroup || handledRequest.current === requestedGroup.request) return;
+    handledRequest.current = requestedGroup.request;
+    setMode("id");
+    setInput(String(requestedGroup.id));
+    setSearchResults([]);
+    setWorkspace(null);
+    void openGroup(requestedGroup.id, {name:requestedGroup.name,hasVerifiedBadge:false});
+  }, [active, isAccountsLoading, requestedGroup]);
 
   useAccountUpdates(setAccounts, () => setError("Live account updates disconnected. Restart RM to reconnect."));
 
@@ -255,6 +272,7 @@ export function GroupsPage({
     requestedGroup?: Pick<GroupSearchResult, "name" | "hasVerifiedBadge">,
     preserveActionFeedback = false,
   ) {
+    const request = ++groupLoadRequest.current;
     setLoading(true);
     setPendingGroup(requestedGroup ?? null);
     if (!preserveActionFeedback) {
@@ -262,18 +280,20 @@ export function GroupsPage({
       setActionNotice(null);
     }
     try {
-      setWorkspace(
-        await loadGroup(
+      const result = await loadGroup(
           groupId,
           selectedAccounts.map((account) => account.userId),
-        ),
-      );
+        );
+      if (request === groupLoadRequest.current) setWorkspace(result);
     } catch {
+      if (request !== groupLoadRequest.current) return;
       const refreshError = "The Roblox group details and account memberships could not be loaded. Check the group ID and connection, then select the group again.";
       setError((current) => preserveActionFeedback && current ? `${current} ${refreshError}` : refreshError);
     } finally {
-      setLoading(false);
-      setPendingGroup(null);
+      if (request === groupLoadRequest.current) {
+        setLoading(false);
+        setPendingGroup(null);
+      }
     }
   }
 

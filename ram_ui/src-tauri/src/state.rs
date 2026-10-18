@@ -34,6 +34,7 @@ pub struct AppState {
     pub friends: Arc<crate::friends::FriendsState>,
     pub private_server_checks: Arc<crate::private_servers::CheckCache>,
     pub is_shutting_down: Arc<std::sync::atomic::AtomicBool>,
+    pub export_in_progress: Arc<std::sync::atomic::AtomicBool>,
 }
 
 fn is_legacy_directory(directory: &Path) -> bool {
@@ -99,6 +100,7 @@ impl Default for AppState {
             private_server_checks: Arc::new(Default::default()),
             friends: Arc::new(Default::default()),
             is_shutting_down: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            export_in_progress: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 }

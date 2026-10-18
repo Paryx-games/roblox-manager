@@ -58,6 +58,7 @@ import {
   type StoreStatus,
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
+import { AccountExportDialog } from "./components/AccountExportDialog";
 import { AccountPicker } from "./components/AccountPicker";
 import { accountActionTargets, allAccountsSelected, toggleAllAccounts } from "./lib/accountSelection";
 import { useSelectAllShortcut } from "./hooks/useSelectAllShortcut";
@@ -676,6 +677,7 @@ export function AccountsPage({
   const [password, setPassword] = useState("");
   const [alias, setAlias] = useState("");
   const [mutationLoading, setMutationLoading] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [openingHome, setOpeningHome] = useState(false);
   const homeLaunchPending = useRef(false);
   const connectionRequestPending = useRef(false);
@@ -1714,41 +1716,6 @@ export function AccountsPage({
     }
   }
 
-  function formatExportAge(createdAt: string | null) {
-    if (!createdAt) return "Unknown";
-    const hours = Math.max(0, Math.floor((Date.now() - Date.parse(createdAt)) / 3600000));
-    return `${Math.floor(hours / (24 * 365))} years, ${Math.floor((hours % (24 * 365)) / (24 * 30))} months, ${Math.floor((hours % (24 * 30)) / 24)} days, ${hours % 24} hours`;
-  }
-
-  function exportAccountsCsv() {
-    const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
-    const rows = [
-      "username,display_name,user_id,alias,group,account_age,last_used",
-      ...accounts.map((account) =>
-        [
-          account.username,
-          account.displayName,
-          String(account.userId),
-          account.alias,
-          account.group,
-          formatExportAge(account.createdAt),
-          account.lastUsed ?? "",
-        ]
-          .map(escape)
-          .join(","),
-      ),
-    ];
-    const url = URL.createObjectURL(
-      new Blob([rows.join("\n")], { type: "text/csv" }),
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "roblox-accounts.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-    setNotice(`Exported ${accounts.length} managed accounts to roblox-accounts.csv with usernames and metadata. Authentication cookies were excluded.`);
-  }
-
   async function addManagedAccount() {
     setMutationLoading(true);
     setAddError(null);
@@ -1947,7 +1914,8 @@ export function AccountsPage({
             className="account-button"
             type="button"
             aria-label="Export accounts"
-            onClick={exportAccountsCsv}
+            disabled={mutationLoading || !accounts.length}
+            onClick={() => setExportOpen(true)}
           >
             <Icon name="copy" />
             Export accounts
@@ -3178,6 +3146,7 @@ export function AccountsPage({
           )}
         </section>
       </main>
+      {exportOpen && <AccountExportDialog accounts={accounts} initialIds={selectedIds} onClose={() => setExportOpen(false)} onExported={(count, encrypted) => setNotice(`Exported ${count} account${count===1?"":"s"}${encrypted?" to an encrypted RM export":""}.`, "success", "standard", "Account export saved")} />}
       <ToastStack>
         {notices.map((notice) => (
           <Toast

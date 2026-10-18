@@ -55,6 +55,32 @@ pub fn parse_arguments(input: &str) -> Result<Vec<String>, CoreError> {
             return Err(invalid());
         }
         let lower = arg.to_ascii_lowercase();
+        if lower.starts_with("-g") && !lower.starts_with("--") {
+            return Err(invalid());
+        }
+        if lower.starts_with('-')
+            && [
+                "app",
+                "play",
+                "t",
+                "a",
+                "j",
+                "launchtime",
+                "authenticationticket",
+                "authenticationurl",
+                "g",
+                "globalbasicsettingspath",
+            ]
+            .contains(
+                &lower
+                    .trim_start_matches('-')
+                    .split(['=', ':'])
+                    .next()
+                    .unwrap_or_default(),
+            )
+        {
+            return Err(invalid());
+        }
         if [
             "roblox-player:",
             "gameinfo:",
@@ -163,6 +189,24 @@ pub fn apply_fast_flags(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_authentication_and_launch_mode_arguments_are_reserved() {
+        for value in [
+            "--app",
+            "--play",
+            "-t synthetic",
+            "-a https://example.invalid",
+            "-j synthetic",
+            "--launchtime=123",
+            "-g synthetic.xml",
+            "-gsynthetic.xml",
+            "--globalBasicSettingsPath synthetic.xml",
+            "--globalBasicSettingsPath=synthetic.xml",
+            "--GLOBALBASICSETTINGSPATH:synthetic.xml",
+        ] {
+            assert!(super::parse_arguments(value).is_err());
+        }
+    }
     use super::*;
     #[test]
     fn windows_arguments_preserve_quotes_backslashes_and_literal_shell_text() {

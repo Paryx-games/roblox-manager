@@ -34,6 +34,8 @@ You do not need a working exploit to report something - a credible theoretical i
 
 Stored credentials must remain on the Rust side. Account summaries, Tauri events, user-facing errors and logs must not return raw cookies, tickets, CSRF tokens or protected integration credentials. Explicit cookie entry is an input flow, not permission to expose saved credentials back to React. The main interface, isolated login window and account browsers are separate trust boundaries.
 
+Explicit account exports may include saved Roblox cookies only when the Rust backend validates a recommended authenticated encryption method and an export password. Unencrypted exports must exclude cookies. Export fields and account selection are validated independently of frontend controls, and encryption completes before any export file or temporary output is written. Export commands return only safe completion metadata, never credential contents.
+
 Installer interface-data reset and optional uninstall browser/log cleanup preserve encrypted accounts, configuration, presets, recovery copies and Credential Manager keys. Removing an account from the active store does not revoke the Roblox session; encrypted backups may retain previous entries. Reports about cleanup should distinguish browser data, the active store, backup copies and platform session revocation.
 
 Do not attach live stores, browser profiles or memory dumps to a report. Use synthetic reproduction data and describe the affected boundary. See [the user privacy guide](docs/security/privacy-and-security.md) for data locations and backup limitations.

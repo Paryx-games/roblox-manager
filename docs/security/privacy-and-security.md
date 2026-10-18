@@ -97,6 +97,8 @@ If Windows cannot provide secure randomness for a new key, salt or nonce, RM sto
 
 The default store, configuration and presets live in `%APPDATA%\RM`, unless a custom store path is configured. Atomic writes create encrypted store backups; recovery/start-over flows preserve encrypted copies. These are not plaintext credential exports.
 
+The explicit **Export accounts** action can include selected Roblox cookies only in password-encrypted RM export containers. AES-256-GCM and AES-128-GCM with Argon2id are the allowed methods. Raw cookies never return through IPC to the export popup, logs or error messages, and are encrypted before the file write. Unencrypted JSON/CSV/TXT exports are limited to selected metadata. Keep the export password separately; the export does not store it and RM cannot recover it.
+
 A device-mode backup depends on its Windows Credential Manager key. Copying `accounts.dat` to another PC does not copy that key. If you need to move the store, change to password mode while it can still be unlocked, retain the password, and verify a backed-up copy before removing the original. Forgotten passwords or missing device keys cannot be bypassed by reinstalling.
 
 ### Installer cleanup and account removal

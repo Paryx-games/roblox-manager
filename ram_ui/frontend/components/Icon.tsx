@@ -5,6 +5,10 @@ type IconProps = {
 
 function getCurrentColorIconContent(name: string) {
   switch (name) {
+    case "remove-group":
+      return <><path d="M2 21a8 8 0 0 1 13.292-6"/><circle cx="10" cy="8" r="5"/><path d="M22 19h-6"/></>;
+    case "lock":
+      return <><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>;
     case "info-mark":
       return <><path d="M12 11v7" /><path d="M12 6h.01" /></>;
     case "exclamation":
@@ -137,7 +141,7 @@ export function Icon({ name, tone = "image" }: IconProps) {
   return (
     <img
       className="account-icon"
-      src={`/icons/${name}.svg`}
+      src={`/icons/${name}.${name === "roblox" || name === "roblox-studio" ? "png" : "svg"}`}
       alt=""
       aria-hidden="true"
     />

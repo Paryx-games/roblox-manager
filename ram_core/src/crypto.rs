@@ -58,6 +58,8 @@ use std::path::Path;
 use crate::error::CoreError;
 use crate::models::AccountStore;
 
+pub mod export;
+
 // ---------------------------------------------------------------------------
 // Format constants
 // ---------------------------------------------------------------------------
@@ -72,6 +74,9 @@ const KEY_LEN: usize = 32;
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
 const TAG_LEN: usize = 16;
+const ARGON_MEMORY_KIB: u32 = 19 * 1024;
+const ARGON_ITERATIONS: u32 = 3;
+const ARGON_PARALLELISM: u32 = 1;
 const WRAPPED_KEY_LEN: usize = KEY_LEN + TAG_LEN;
 
 const OFF_VERSION: usize = 8;
@@ -191,8 +196,13 @@ fn derive_wrapping_key(password: &str, salt: &[u8]) -> Result<StoreKey, CoreErro
 
     // OWASP's second-choice profile: 19 MiB, t=3, p=1. Comfortably sub-second
     // on the low-end Windows laptops this app targets.
-    let params = Params::new(19 * 1024, 3, 1, Some(KEY_LEN))
-        .map_err(|e| CoreError::Crypto(format!("argon2 params: {e}")))?;
+    let params = Params::new(
+        ARGON_MEMORY_KIB,
+        ARGON_ITERATIONS,
+        ARGON_PARALLELISM,
+        Some(KEY_LEN),
+    )
+    .map_err(|e| CoreError::Crypto(format!("argon2 params: {e}")))?;
     let argon = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
     let mut out = [0u8; KEY_LEN];

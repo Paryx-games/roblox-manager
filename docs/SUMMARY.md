@@ -34,4 +34,5 @@
 ## Developers
 
 * [Contributing](developers/contributing.md)
+* [Account export format](developers/account-exports.md)
 * [Releasing RM](developers/releasing.md)

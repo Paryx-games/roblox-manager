@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.4.0
+
+### Added
+
+- **Friend group shortcuts:** Friends profile groups now show group thumbnails and an Open in Groups action that loads the selected group directly. Friend action menus include icons, larger text and wider spacing.
+- **RM-only launch settings:** Added a default-on **Only RM launches** option under Instances client controls. RM launches use a separate Roblox settings file so website and standalone Roblox app launches retain their normal settings. Turn it off to keep applying overrides to Roblox's shared settings file.
+- **Account export options:** Added an Export to popup with JSON, CSV and TXT formats, account and field selection, AES-256-GCM/AES-128-GCM encryption, and password visibility controls. Cookie exports require recommended authenticated encryption and a valid password, enforced in Rust; unencrypted exports remain metadata-only.
+
+### Fixed
+
+- **Friend profile actions:** Increased the bottom action buttons' text size and added reusable browser, remove-friend and lock icons. Destructive icons now match the red labels, confirmation actions use a red button, and confirmation names are bold.
+- **Friend activity icons and colors:** Game icons now load directly by Place ID, independently of game-name access. Added the Roblox and Studio application logos, a logo fallback for failed thumbnails, and Roblox's green playing, orange Studio, blue online and gray offline presence colors.
+- **Read-only Roblox settings:** Launch overrides now temporarily clear the read-only attribute on Roblox's settings XML, update it atomically, and restore the attribute on success or failure. Genuine file locks still stop the launch with specific guidance.
+- **Friends loading regression:** Restored the established friends-list route after the paginated `/friends/find` switch prevented account data from loading.
+- **Friends workspace:** Compacted account/filter controls, added a draggable keyboard-accessible details divider, and opened profile actions in the selected account's isolated popup browser. Mutual-friend checks use temporary browser context and provide explicit access/verification recovery.
+- **Home startup:** Native Home launches now pass the player's app, authentication and launch-time arguments directly instead of relying on a game-launch URI. Authentication arguments remain redacted and cannot be overridden by custom arguments.
+
 ## v2.3.0
 
 ### Added

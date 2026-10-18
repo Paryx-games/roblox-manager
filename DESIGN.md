@@ -50,10 +50,11 @@ Keep the compact desktop layout and each page's existing composition:
 
 - Accounts combines a compact header, account selection and actions, and
   account details and recovery flows.
+  Export uses the shared modal, account picker, checkbox fields and radio-row patterns. Recommended encryption choices appear first; unprotected metadata export appears last with warning text. Password visibility is an explicit toggle, and cookie selection disables unprotected export.
 - Instances shows selectable client rows with attribution and process actions
   beside a client controls panel. The panel stacks below the list on narrower layouts;
   controls are saved shared launch defaults with an explicit notice that running clients are unchanged.
-- Friends uses a compact table and profile sidebar, with a single Refresh header action, shared account picker, status filters, anchored menus and the standard join/confirmation dialogs. Job IDs use `--font-mono`, truncate visually and retain full tooltip/copy values. Playing, Studio, online, offline and unavailable states remain distinct.
+- Friends uses a compact table and profile sidebar, with a single Refresh header action, inline account picker/summary, status filters, anchored menus and the standard join/confirmation dialogs. The 8px divider reuses the history resize pattern, with pointer dragging and Left/Right/Home/End keyboard controls. Details resize between 240px and 520px while preserving list space and stack below it on narrow workspaces. Job IDs use `--font-mono`, truncate visually and retain full tooltip/copy values. Playing, Studio, online, offline and unavailable states remain distinct.
 - Groups uses account/group selection and detail sections for group content.
 - Private Servers and Presets lead with saved lists, filters, and editing flows.
   Header actions open compact add forms; preset creation uses two columns.
@@ -103,6 +104,7 @@ changes.
 | Text | `--text-primary`, `--text-muted`, `--text-disabled` |
 | Borders and actions | `--border-default`, `--action-primary`, `--action-danger`, `--action-muted` |
 | Live status | `--status-online`, `--status-studio`, `--status-warning`, `--status-danger`, `--status-neutral` |
+| Roblox friend presence | `--presence-playing`, `--presence-studio`, `--presence-online`, `--presence-offline` |
 | Other semantic states | `--notification-*`, `--access-*`, `--ownership-*` |
 | Guided tour | `--walkthrough-outline`, `--walkthrough-dim`, `--walkthrough-dock` |
 | Typography | `--font-sans`, `--font-mono`, `--text-xs`, `--text-sm`, `--text-base`, `--text-lg`, `--text-xl` |
@@ -163,6 +165,8 @@ technology and name their containing controls. Do not add emoji or another
 icon library.
 
 ## Existing shared components
+
+Friends uses dedicated `--presence-*` tokens for Roblox's dark-theme presence scheme: playing green (`#39c582`), Studio orange (`#f57630`), online blue (`#70a0ff`), and offline gray (`#bcbec8`). Unavailable presence stays muted and has its own text label. These values come from Roblox's FoundationCss and ReactStyleGuide styles; generic process/status tokens retain their existing meanings. Activity tiles use game thumbnails or the local Roblox/Studio application logos.
 
 Reuse a component when it already covers the needed behavior:
 

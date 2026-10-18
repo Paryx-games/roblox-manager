@@ -29,12 +29,10 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "publisher": "Paryx Games",
-    "homepage": "https://roblox-manager.gitbook.io/docs",
-    "shortDescription": "Secure Roblox account and instance management",
-    "icon": [
-      "../../assets/logos/Live.ico"
-    ],
+    "publisher": "Paryx Labs",
+    "homepage": "https://rm.paryx.uk",
+    "shortDescription": "Lightweight Roblox multi-account manager with many features",
+    "icon": ["../../assets/logos/Live.ico"],
     "windows": {
       "allowDowngrades": false,
       "webviewInstallMode": {

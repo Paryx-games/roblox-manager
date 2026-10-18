@@ -87,6 +87,7 @@ fn rules() -> &'static [Rule] {
             // The launch URI's authentication ticket. `+` terminates the field
             // in `roblox-player:` URIs, so it must not be consumed.
             mk(r#"(?i)(gameinfo:)([^+\s&"'\)\]}]+)"#, keep_label),
+            mk(r#"(?i)((?:^|\s)-t\s+)("[^"]*"|'[^']*'|[^\s]+)"#, keep_label),
             // The same ticket as it comes off the wire, and the CSRF token that
             // travels with it.
             mk(
@@ -140,6 +141,19 @@ pub fn scrub(input: &str) -> Cow<'_, str> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_ticket_arguments_are_scrubbed_including_quoted_values() {
+        for ticket in [
+            "SYNTHETIC-TICKET",
+            "\"SYNTHETIC TICKET\"",
+            "'SYNTHETIC TICKET'",
+        ] {
+            let line = format!("RobloxPlayerBeta.exe --app -t {ticket} --launchtime=123");
+            let scrubbed = super::scrub(&line);
+            assert!(!scrubbed.contains("SYNTHETIC"));
+            assert!(scrubbed.contains("-t <redacted> --launchtime=123"));
+        }
+    }
     use super::*;
 
     /// A realistically shaped cookie: the banner, then base64-ish payload.

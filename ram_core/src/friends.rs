@@ -234,6 +234,18 @@ struct PlaceDetails {
     universe_id: Option<u64>,
 }
 
+fn apply_game_icons(friends: &mut [Friend], icons: &[(u64, String)]) {
+    for friend in friends
+        .iter_mut()
+        .filter(|friend| friend.status == FriendStatus::Playing)
+    {
+        friend.game_icon = friend
+            .place_id
+            .and_then(|place| icons.iter().find(|(id, _)| *id == place))
+            .map(|(_, url)| url.clone());
+    }
+}
+
 async fn fill_games(
     client: &RobloxClient,
     cookie: &str,
@@ -246,6 +258,10 @@ async fn fill_games(
         .collect::<HashSet<_>>()
         .into_iter()
         .collect();
+    match cached_api::fetch_place_icons(client, &places).await {
+        Ok(icons) => apply_game_icons(friends, &icons),
+        Err(_) => warnings.push("Game thumbnails could not be refreshed.".into()),
+    }
     for batch in places.chunks(50) {
         let ids = batch
             .iter()
@@ -280,14 +296,6 @@ async fn fill_games(
                 HashMap::new()
             }
         };
-        let icons = cached_api::fetch_game_icons(client, cookie, &universes).await;
-        let icons: HashMap<_, _> = match icons {
-            Ok(icons) => icons.into_iter().collect(),
-            Err(_) => {
-                warnings.push("Game thumbnails could not be refreshed.".into());
-                HashMap::new()
-            }
-        };
         for friend in friends.iter_mut() {
             if let Some(place) = details
                 .iter()
@@ -303,7 +311,6 @@ async fn fill_games(
                 )
                 .filter(|name| !name.is_empty());
                 friend.game_name = place.universe_id.and_then(|id| names.get(&id)).cloned();
-                friend.game_icon = place.universe_id.and_then(|id| icons.get(&id)).cloned();
             }
         }
     }
@@ -562,6 +569,7 @@ pub struct FriendGroup {
     pub id: u64,
     pub name: String,
     pub role: String,
+    pub icon_url: Option<String>,
 }
 
 pub async fn fetch_groups(
@@ -593,7 +601,7 @@ pub async fn fetch_groups(
             cookie,
         )
         .await?;
-    Ok(response
+    let mut groups: Vec<_> = response
         .data
         .into_iter()
         .filter(|entry| entry.group.id > 0)
@@ -601,12 +609,119 @@ pub async fn fetch_groups(
             id: entry.group.id,
             name: entry.group.name,
             role: entry.role.name,
+            icon_url: None,
         })
-        .collect())
+        .collect();
+    let ids: Vec<_> = groups.iter().map(|group| group.id).collect();
+    match cached_api::fetch_group_icons(client, &ids).await {
+        Ok(icons) => apply_group_icons(&mut groups, &icons),
+        Err(_) => tracing::warn!("Friend group thumbnails could not be loaded"),
+    }
+    Ok(groups)
+}
+
+fn apply_group_icons(groups: &mut [FriendGroup], icons: &[(u64, String)]) {
+    for group in groups {
+        group.icon_url = icons
+            .iter()
+            .find(|(id, _)| *id == group.id)
+            .map(|(_, url)| url.clone());
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn group_icons_keep_roles_and_match_ids_despite_missing_or_reordered_thumbnails() {
+        use super::*;
+        let mut groups: Vec<_> = [10, 20, 30]
+            .into_iter()
+            .map(|id| FriendGroup {
+                id,
+                name: format!("Group {id}"),
+                role: "Member".into(),
+                icon_url: None,
+            })
+            .collect();
+        apply_group_icons(
+            &mut groups,
+            &[
+                (30, "https://example.invalid/30.png".into()),
+                (10, "https://example.invalid/10.png".into()),
+                (99, "https://example.invalid/99.png".into()),
+            ],
+        );
+        assert_eq!(
+            groups[0].icon_url.as_deref(),
+            Some("https://example.invalid/10.png")
+        );
+        assert!(groups[1].icon_url.is_none());
+        assert_eq!(
+            groups[2].icon_url.as_deref(),
+            Some("https://example.invalid/30.png")
+        );
+        assert!(groups.iter().all(|group| group.role == "Member"));
+        let json = serde_json::to_value(&groups).unwrap();
+        assert_eq!(json[0]["iconUrl"], "https://example.invalid/10.png");
+        assert!(json[1]["iconUrl"].is_null());
+    }
+
+    #[test]
+    fn game_icons_match_place_ids_without_names_and_skip_non_playing_friends() {
+        use super::*;
+        let mut friends: Vec<_> = [
+            (FriendStatus::Playing, Some(10)),
+            (FriendStatus::Playing, Some(20)),
+            (FriendStatus::Playing, Some(30)),
+            (FriendStatus::Playing, None),
+            (FriendStatus::Studio, Some(10)),
+            (FriendStatus::Offline, None),
+        ]
+        .into_iter()
+        .map(|(status, place_id)| Friend {
+            status,
+            place_id,
+            ..map_friend(FriendUser::default(), None)
+        })
+        .collect();
+        apply_game_icons(
+            &mut friends,
+            &[
+                (20, "https://example.invalid/twenty.png".into()),
+                (10, "https://example.invalid/ten.png".into()),
+                (99, "https://example.invalid/unrequested.png".into()),
+            ],
+        );
+        assert_eq!(
+            friends[0].game_icon.as_deref(),
+            Some("https://example.invalid/ten.png")
+        );
+        assert_eq!(
+            friends[1].game_icon.as_deref(),
+            Some("https://example.invalid/twenty.png")
+        );
+        assert!(friends[2..].iter().all(|friend| friend.game_icon.is_none()));
+        assert!(friends.iter().all(|friend| friend.game_name.is_none()));
+    }
+
+    #[test]
+    fn friend_pages_accept_id_only_users_and_encode_pagination_cursors() {
+        let page: super::UsersPage = serde_json::from_str(r#"{"data":[{"id":1,"hasVerifiedBadge":false},{"id":2}],"nextPageCursor":"next&cursor"}"#).unwrap();
+        assert_eq!(page.data.len(), 2);
+        assert!(page.data[0].username.is_empty());
+        let url = super::next_url(
+            "https://friends.roblox.com/v1/users/9/friends?limit=50",
+            page.next_page_cursor.as_deref(),
+        )
+        .unwrap();
+        let url = reqwest::Url::parse(&url).unwrap();
+        let query: std::collections::HashMap<_, _> = url.query_pairs().collect();
+        assert_eq!(query.get("limit").map(|value| value.as_ref()), Some("50"));
+        assert_eq!(
+            query.get("cursor").map(|value| value.as_ref()),
+            Some("next&cursor")
+        );
+    }
     use super::*;
 
     fn users(ids: &[u64]) -> Vec<FriendUser> {

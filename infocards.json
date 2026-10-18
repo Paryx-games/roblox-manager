@@ -1,143 +1,143 @@
 {
   "session_history": {
     "type": "info",
-    "text": "Session history records observed activity while RM is running and unlocked. Memory mode starts empty after restarting. File mode saves readable activity metadata, without credentials, as JSON. Review saved or exported history before sharing."
+    "text": "Records observed activity while RM is running and unlocked. Memory mode clears on restart; file mode saves credential-free metadata as JSON. Review before sharing."
   },
   "credential_manager": {
     "type": "info",
-    "text": "Keeps the device key in Windows Credential Manager and stores account cookies in per-account credential entries. The account file remains encrypted and can unlock automatically on this Windows user profile; clearing or losing the credentials can make the store unavailable."
+    "text": "Keeps the device key and account cookies in Windows Credential Manager so the store unlocks automatically. Clearing them can make the store unavailable."
   },
   "multi_instance": {
     "type": "caution",
-    "text": "Releases Roblox's singleton mutex so RM can launch more than one RobloxPlayerBeta.exe process. This interacts with Hyperion anti-cheat behavior and may carry account or ban risk."
+    "text": "Releases Roblox's singleton mutex so RM can run multiple RobloxPlayerBeta.exe processes. Interacts with Hyperion and may risk your account or a ban."
   },
   "kill_background_roblox": {
     "type": "info",
-    "text": "Periodically finds RobloxPlayerBeta.exe processes started with --launch-to-tray and attempts to close them. RM also runs this cleanup before launches; normal game clients are not targeted."
+    "text": "Periodically closes RobloxPlayerBeta.exe processes started with --launch-to-tray, and before each launch. Normal game clients are not affected."
   },
   "auto_arrange_windows": {
     "type": "info",
-    "text": "After a launch burst, waits for the clients to appear and arranges attributed Roblox windows using the selected monitor target, layout mode, and padding."
+    "text": "After a launch burst, arranges the new Roblox windows using the selected monitor, layout mode, and padding."
   },
   "grid_layout": {
     "type": "info",
-    "text": "Selects automatic square-like tiling, a fixed column count, a fixed row count, an explicit column-by-row grid, one row, or one column."
+    "text": "Choose automatic tiling, a fixed column or row count, an explicit column-by-row grid, one row, or one column."
   },
   "rename_windows": {
     "type": "caution",
-    "text": "Changes each attributed Roblox window title to its account alias, or username when no alias is set. Titles are visible to other programs and in screenshots or streams; RM restores the original titles when renaming is disabled or the app exits."
+    "text": "Sets each Roblox window title to its account alias (or username). Titles show up in screenshots and streams; originals are restored when disabled or on exit."
   },
   "launch_delay": {
     "type": "warning",
-    "text": "Sets the minimum pause between successive account launches, including bulk launches. It can be 0-300 seconds and may help when Roblox rate-limits rapid launches from an IP address."
+    "text": "Minimum pause between account launches, 0-300 seconds. Can help if Roblox rate-limits rapid launches from your IP."
   },
   "privacy_mode": {
     "type": "info",
-    "text": "Enables the selected privacy cleanup before each launch. Cleanup is refused while a Roblox client is running; this does not guarantee full account isolation."
+    "text": "Runs the selected privacy cleanup before each launch. Refused while a Roblox client is running; doesn't guarantee full account isolation."
   },
   "privacy_cookies": {
     "type": "info",
-    "text": "Moves %LOCALAPPDATA%\\Roblox\\LocalStorage\\RobloxCookies.dat into a temporary backup before each launch, then removes the backup after a successful launch. Cookies are enabled by default."
+    "text": "Temporarily moves RobloxCookies.dat out of %LOCALAPPDATA%\\Roblox\\LocalStorage before each launch, then deletes the backup after a successful launch. On by default."
   },
   "privacy_local_storage": {
     "type": "warning",
-    "text": "Moves the Roblox LocalStorage directory into a temporary backup before launch. It may remove additional local session state and can be restored automatically if launching fails."
+    "text": "Temporarily moves the whole Roblox LocalStorage folder before launch, which may clear other session state. Restored automatically if launch fails."
   },
   "privacy_full_profile": {
     "type": "warning",
-    "text": "Moves Roblox user-state directories such as LocalStorage, logs, Downloads, and ClientSettings into a temporary backup. Roblox must be closed before cleanup and the backup is removed after a successful launch."
+    "text": "Temporarily moves Roblox user-state folders (LocalStorage, logs, Downloads, ClientSettings) before launch. Roblox must be closed; the backup is deleted after a successful launch."
   },
   "privacy_on_exit": {
     "type": "info",
-    "text": "Repeats the selected cleanup when RM exits, but refuses to touch privacy data while a Roblox client is running."
+    "text": "Repeats the selected cleanup when RM exits. Skipped while a Roblox client is running."
   },
   "mac_rotation": {
     "type": "warning",
-    "text": "Rotates the active Windows adapter once before the first launch in each RM session, or through the manual action. Close Roblox first. The adapter briefly disconnects, Windows may request administrator permission, and networks may block a changed address."
+    "text": "Rotates the active adapter's MAC once before the first launch each session. Briefly disconnects, may need admin rights, and some networks block new addresses. Close Roblox first."
   },
   "mac_preserve_oui": {
     "type": "info",
-    "text": "Keeps the first three bytes (the manufacturer's OUI) from this PC's active adapter and randomizes only the device portion of the MAC address."
+    "text": "Keeps this adapter's manufacturer prefix (first three bytes) and randomizes only the device portion of the MAC."
   },
   "mac_alternate_oui": {
     "type": "info",
-    "text": "Selects a well-known vendor OUI for the rotated address when preserving this PC's OUI is disabled."
+    "text": "When preserving your OUI is off, uses a well-known vendor prefix for the rotated address."
   },
   "developer_options": {
     "type": "warning",
-    "text": "Shows Inventories and Asset Manager in the navigation rail. Asset uploads create permanent public Roblox assets and are moderated under the account that uploads them."
+    "text": "Shows Inventories and Asset Manager in the navigation. Asset uploads create permanent public assets and are moderated under the uploading account."
   },
   "log_targets": {
     "type": "info",
-    "text": "Selected Rust crates use the chosen log level. Other crates show warnings and errors. Debug builds default to Debug for ram_core and rm_tauri; release builds use Info. Changes apply after restarting. RUST_LOG overrides these preferences. The searchable list includes crates from Cargo.lock, not Cargo compiler output."
+    "text": "Choose which Rust crates log at the selected level; others show warnings and errors only. Applies after restart. RUST_LOG overrides this."
   },
   "log_level": {
     "type": "warning",
-    "text": "Sets the app's tracing verbosity for the current build. Only change this if you know what you're doing: debug and trace can generate a lot of log noise and slow down troubleshooting work."
+    "text": "Sets tracing verbosity for this build. Debug and trace are noisy and can slow down troubleshooting."
   },
   "roblox_player_path": {
     "type": "info",
-    "text": "Optional path to RobloxPlayerBeta.exe, or to its containing folder. RM launches this executable directly; when empty, it searches installed versions under %LOCALAPPDATA%\\Roblox\\Versions."
+    "text": "Optional path to RobloxPlayerBeta.exe or its folder. If empty, RM searches %LOCALAPPDATA%\\Roblox\\Versions."
   },
   "encryption_password": {
     "type": "caution",
-    "text": "Switches the account store to password mode. RM derives its wrapping key with Argon2id and asks for this password at startup; forgetting it prevents the encrypted store from being unlocked. Changing it rewraps the store's data key."
+    "text": "Switches the account store to password mode (Argon2id) and asks for it at startup. Forgetting it locks you out of the store. Changing it rewraps the data key."
   },
   "confirm_kill_all": {
     "type": "info",
-    "text": "Require confirmation before terminating all running Roblox instances. Prevents accidental mass-closure of game clients."
+    "text": "Ask for confirmation before terminating all running Roblox instances."
   },
   "refresh_on_startup": {
     "type": "info",
-    "text": "Automatically revalidate all accounts (check online status, moderation state, presence) immediately after the store is unlocked on startup."
+    "text": "Revalidate all accounts (online status, moderation, presence) right after the store unlocks at startup."
   },
   "remember_selected_account": {
     "type": "info",
-    "text": "Restore the previously selected account in the sidebar when RM reopens, instead of defaulting to the first account."
+    "text": "Reselect the previous account when RM reopens instead of the first one."
   },
   "compact_actions": {
     "type": "info",
-    "text": "Use icon-only buttons for primary actions when available screen width is limited, instead of showing full text labels."
+    "text": "Use icon-only buttons for primary actions when screen width is limited."
   },
   "show_update_notifications": {
     "type": "info",
-    "text": "Display release update link in the top bar when a new version is available."
+    "text": "Show a release link in the top bar when a new version is available."
   },
   "verbose_launch_diagnostics": {
     "type": "warning",
-    "text": "Include detailed launch and process attribution diagnostics in the application log. Useful for troubleshooting launch issues, but can generate extra log noise."
+    "text": "Adds detailed launch and process-attribution diagnostics to the log. Helpful for troubleshooting but noisy."
   },
   "data_folder": {
     "type": "info",
-    "text": "RM stores your encrypted accounts, configuration, presets, and cached metadata in this folder. Clearing or modifying files here can break the app; backups are recommended."
+    "text": "Where RM stores encrypted accounts, config, presets, and cached metadata. Changing or clearing files here can break the app; keep backups."
   },
   "privacy_clear_clipboard": {
     "type": "info",
-    "text": "Clear the Windows clipboard after each successful launch to prevent join history and other sensitive data from lingering in clipboard history."
+    "text": "Clears the Windows clipboard after each successful launch so join history doesn't linger."
   },
   "custom_game_args": {
     "type": "warning",
-    "text": "Pass extra command-line arguments directly to RobloxPlayerBeta.exe on future launches. Use double quotes around values with spaces. Launch URI parameters and credentials are reserved. Unsupported arguments may trigger Hyperion anti-cheat warnings; only use if you know what you are doing."
+    "text": "Extra arguments passed to RobloxPlayerBeta.exe on future launches. Quote values with spaces. Launch URI parameters and credentials are reserved; unsupported arguments may trigger Hyperion warnings."
   },
   "roblox_fast_flags": {
     "type": "warning",
-    "text": "Writes configured flags to the selected Roblox installation before launch. Roblox only honors its current allowlist. RM preserves unrelated keys; removing a flag restores its original value on the next launch."
+    "text": "Writes configured flags to the selected Roblox install before launch; Roblox honors only its allowlist. Removing a flag restores its original value on the next launch."
   },
   "auto_launch_on_startup": {
     "type": "caution",
-    "text": "Launches the configured account and Place ID once after RM starts and the store unlocks. Password mode waits for unlock; invalid targets stop with a notice. Applies on the next restart."
+    "text": "Launches the configured account and Place ID once after RM starts and the store unlocks. Invalid targets stop with a notice. Applies on next restart."
   },
   "discord_webhook": {
     "type": "info",
-    "text": "Save up to 16 named Discord destinations and route each event to any combination. Global, event and destination toggles pause delivery without removing URLs or routes. Preferences save immediately. URLs stay in Windows Credential Manager. RM must be running. Test buttons send explicitly even while paused. Queued delivery is bounded and is not retained across restarts."
+    "text": "Route events to up to 16 named Discord destinations. URLs are stored in Windows Credential Manager. RM must be running to deliver."
   },
   "discord_moderation": {
     "type": "info",
-    "text": "New or changed account restrictions detected during account refreshes. Repeated checks of the same restriction do not repeat the alert."
+    "text": "Alerts on new or changed account restrictions found during refreshes. Repeated checks of the same restriction don't re-alert."
   },
   "hide_from_screen_capture": {
     "type": "info",
-    "text": "Requests Windows capture exclusion for RM's main window after saving. Off by default. Windows 10 version 2004 or newer can omit the window from supported captures; older versions may show a blank window. Capture tools can behave differently. Roblox, browser login and other windows are not covered."
+    "text": "Excludes RM's main window from screen capture (Windows 10 2004+; older versions may show a blank window). Roblox and browser windows aren't covered."
   },
   "discord_batch": {
     "type": "info",
@@ -145,42 +145,42 @@
   },
   "discord_expiry": {
     "type": "info",
-    "text": "Sent once when verification changes an account from a working saved login to an expired session. Network failures alone do not trigger this event. Disabled by default."
+    "text": "Sent once when verification finds that a working saved login has expired. Network failures alone don't trigger it."
   },
   "discord_launch_failure": {
     "type": "info",
-    "text": "A validated launch request failed before RM could complete it. Includes account and place IDs without credentials or private links. Disabled by default."
+    "text": "A validated launch request failed before RM could complete it. Includes account and place IDs, never credentials or private links."
   },
   "discord_client_exit": {
     "type": "info",
-    "text": "An exactly attributed Roblox client exited, including clients closed manually. This does not prove a crash. Inferred and unmatched clients do not trigger this event. Disabled by default."
+    "text": "An exactly attributed Roblox client exited, including manual closes. Doesn't prove a crash; inferred or unmatched clients don't trigger it."
   },
   "page_visibility": {
     "type": "info",
-    "text": "Choose which workspaces appear in navigation. Settings remains available so hidden pages can be re-enabled."
+    "text": "Choose which workspaces appear in navigation. Settings always stays available so you can re-enable pages."
   },
   "discord_friend_received": {
     "type": "info",
-    "text": "Checks incoming requests for unlocked accounts in the background while enabled and routed. The first complete check establishes a baseline without sending existing requests. Later checks run sequentially, with a one-minute pause between rounds. Disabled by default."
+    "text": "Checks incoming friend requests in the background. The first check sets a baseline; later checks run about a minute apart."
   },
   "discord_friend_sent": {
     "type": "info",
-    "text": "Roblox accepted a friend-request action from RM's Accounts page. Requests sent elsewhere cannot be tracked through the available API. Disabled by default."
+    "text": "Roblox accepted a friend request sent from RM's Accounts page. Requests sent elsewhere can't be tracked."
   },
   "discord_friend_added": {
     "type": "info",
-    "text": "A friend request was accepted in RM, or a complete background check found a new friend. The first check is silent. Background changes do not identify who accepted the request. Disabled by default."
+    "text": "A request was accepted in RM, or a complete background check found a new friend. The first check is silent and can't tell who accepted."
   },
   "discord_friend_removed": {
     "type": "info",
-    "text": "A friend was removed in RM, or a complete background check found a friendship missing. Background checks cannot tell who removed it. Blocking in RM sends User blocked instead. Failed or partial checks never imply removal. Disabled by default."
+    "text": "Fires when a friend is removed in RM or a full background check finds one missing. It can't tell who removed them. Blocking sends User blocked instead."
   },
   "discord_friend_declined": {
     "type": "info",
-    "text": "Roblox accepted a decline action from RM's Friends page. Requests disappearing elsewhere do not prove they were declined and do not trigger this event. Disabled by default."
+    "text": "Roblox accepted a decline from RM's Friends page. Requests disappearing elsewhere don't trigger it."
   },
   "discord_friend_blocked": {
     "type": "info",
-    "text": "Roblox accepted a block action from RM's Friends or Accounts page. Includes account and target user IDs. Blocks made outside RM cannot be inferred from a removed friendship. Disabled by default."
+    "text": "Roblox accepted a block from RM's Friends or Accounts page. Includes account and target user IDs. Blocks made outside RM aren't detected."
   }
 }

@@ -232,6 +232,8 @@ pub async fn get_friend_details(
                     result.groups = friends::fetch_groups(&client, &cookie, target_id).await?
                 }
                 DetailSection::Mutual => {
+                    let mut contextual_cookie = cookie.clone();
+                    client.add_browser_context(&mut contextual_cookie).await?;
                     let own =
                         if let Some(snapshot) = state.friends.snapshots.get(&(user_id, revision)) {
                             snapshot
@@ -240,9 +242,10 @@ pub async fn get_friend_details(
                                 .map(|friend| friend.user)
                                 .collect()
                         } else {
-                            friends::fetch_users(&client, &cookie, user_id).await?
+                            friends::fetch_users(&client, &contextual_cookie, user_id).await?
                         };
-                    let theirs = friends::fetch_users(&client, &cookie, target_id).await?;
+                    let theirs =
+                        friends::fetch_users(&client, &contextual_cookie, target_id).await?;
                     let ids: std::collections::HashSet<_> =
                         theirs.into_iter().map(|user| user.user_id).collect();
                     result.mutual = own

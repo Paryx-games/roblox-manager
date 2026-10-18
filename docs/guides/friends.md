@@ -5,11 +5,17 @@ icon: user-group
 
 # Friends
 
+The account picker, friend total and refresh time share a compact header; category counts stay in the filter buttons. Drag the divider beside the friend details sidebar to resize it, or focus the divider and use Left/Right and Home/End. Its width is limited to keep the list usable, and the details stack below the list when space is narrow.
+
+**Open profile in browser**, including from the Groups tab, opens an isolated popup signed in as the selected managed account. Mutual friends uses Roblox's paginated connection lists and temporary browser context. If Roblox requires verification or hides a connection list, use **Open profile to check access** and retry. RM cannot override those access restrictions.
+
 Open **Friends** in the navigation rail and choose a managed account. RM remembers the selection on this installation. The header offers **Refresh**, the complete loaded friend count, distinct presence counts and the last successful presence refresh time.
 
 ## Browse and select
 
 Search by display name or username without making network requests. Filter by **All**, **Playing**, **In Studio**, **Online**, **Offline** or **Requests**. Online means online without playing or using Studio. Missing or unfamiliar presence values show **Unavailable** and are counted separately, never as offline.
+
+Presence uses Roblox's color scheme: green for Playing, orange for In Studio, blue for Online and gray for Offline. Game/place rows show the game's icon when Roblox provides one, even when the game-name lookup is unavailable. Studio and online activity use the Roblox Studio and Roblox application logos. Missing or failed game thumbnails fall back to the Roblox logo.
 
 Sort by online status first, display name or username in either direction. The compact list shows avatars, visible activity, game/place information and any public Job ID Roblox provides. Job IDs use a truncated monospace field; hover for the full value or use the copy button. A missing server ID is not filled from another friend or an invitation code.
 
@@ -18,6 +24,8 @@ Click a name or row to open its details. Check friends individually or use the h
 ## Profile details
 
 The right panel loads extended information only for the selected friend. **Details** shows profile text and known IDs, **Mutual friends** intersects the two visible friend lists, and **Groups** shows visible group memberships and roles. Privacy restrictions or failed lookups show an error with Retry instead of invented zero counts.
+
+Group rows show their Roblox thumbnail, with a group-symbol fallback if the image is unavailable. Use the link button on the right to switch to **Groups** and load that group by ID. If the Groups workspace is hidden, enable it in Settings first.
 
 The three-dot menu supports copying identifiers, viewing the profile panel, opening the Roblox profile, joining eligible games, removing a friend and blocking a user. Remove, block and decline actions require confirmation. Failed or unconfirmed mutations keep the current list visible and explain how to retry safely.
 

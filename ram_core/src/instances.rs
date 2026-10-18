@@ -203,8 +203,20 @@ impl SweepOutcome {
 /// from after the colon to the first non-digit. Returns `None` for a command
 /// line that has no such field at all, which is the normal answer for
 /// `--launch-to-tray` and for anything not started from a launch URI.
+/// Native Home launches use a single positive `--launchtime=<millis>` argument.
 pub fn parse_launchtime(cmdline: &str) -> Option<i64> {
     const KEY: &str = "launchtime:";
+    if !cmdline.contains(KEY) {
+        let mut tokens = cmdline
+            .split_whitespace()
+            .filter_map(|arg| arg.trim_matches('"').strip_prefix("--launchtime="));
+        let token = tokens.next()?;
+        return if tokens.next().is_none() {
+            token.parse::<i64>().ok().filter(|value| *value > 0)
+        } else {
+            None
+        };
+    }
     let start = cmdline.find(KEY)? + KEY.len();
     let digits: String = cmdline[start..]
         .chars()
@@ -497,6 +509,23 @@ impl InstanceRegistry {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_home_tokens_reject_malformed_or_ambiguous_arguments() {
+        assert_eq!(
+            super::parse_launchtime("RobloxPlayerBeta.exe --app --launchtime=1700000000000"),
+            Some(1700000000000)
+        );
+        for line in [
+            "--launchtime=",
+            "--launchtime=-1",
+            "--launchtime=0",
+            "--launchtime=123abc",
+            "--launchtime=999999999999999999999",
+            "--launchtime=123 --launchtime=456",
+        ] {
+            assert_eq!(super::parse_launchtime(line), None);
+        }
+    }
     use super::*;
 
     fn t0() -> DateTime<Utc> {

@@ -12,9 +12,11 @@ macro_rules! cache {
 }
 cache!(avatars, String, 300, 2048);
 cache!(game_icons, String, 1800, 1024);
+cache!(place_icons, String, 1800, 1024);
 cache!(asset_thumbnails, Vec<u8>, 1800, 64);
 cache!(groups, group_api::GroupInfo, 60, 256);
 cache!(group_icons, Vec<u8>, 1800, 64);
+cache!(group_icon_urls, String, 1800, 1024);
 cache!(announcements, group_api::LatestGroupAnnouncement, 30, 256);
 cache!(universe_names, String, 1800, 1024);
 cache!(place_universes, u64, 1800, 1024);
@@ -28,9 +30,11 @@ pub fn invalidate_group(id: u64) {
 pub fn clear() -> usize {
     avatars().clear()
         + game_icons().clear()
+        + place_icons().clear()
         + asset_thumbnails().clear()
         + groups().clear()
         + group_icons().clear()
+        + group_icon_urls().clear()
         + announcements().clear()
         + universe_names().clear()
         + place_universes().clear()
@@ -129,6 +133,32 @@ pub async fn fetch_game_icons(
         game_icons(),
         ids,
         |missing| async move { api::fetch_game_icons(client, "", &missing).await },
+        |url| !url.is_empty(),
+    )
+    .await
+}
+
+pub async fn fetch_place_icons(
+    client: &RobloxClient,
+    ids: &[u64],
+) -> Result<Vec<(u64, String)>, CoreError> {
+    batch(
+        place_icons(),
+        ids,
+        |missing| async move { api::fetch_place_icons(client, &missing).await },
+        |url| !url.is_empty(),
+    )
+    .await
+}
+
+pub async fn fetch_group_icons(
+    client: &RobloxClient,
+    ids: &[u64],
+) -> Result<Vec<(u64, String)>, CoreError> {
+    batch(
+        group_icon_urls(),
+        ids,
+        |missing| async move { api::fetch_group_icons(client, &missing).await },
         |url| !url.is_empty(),
     )
     .await

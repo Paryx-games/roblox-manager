@@ -511,8 +511,24 @@ pub fn launch_game_with_args(
     Ok(())
 }
 
-fn home_launch_uri(ticket: &str, launchtime: i64) -> String {
-    format!("roblox-player:1+launchmode:app+gameinfo:{ticket}+launchtime:{launchtime}")
+fn home_player_command(
+    ticket: &str,
+    launchtime: i64,
+    executable: &std::path::Path,
+    args: &[String],
+) -> std::process::Command {
+    let mut command = std::process::Command::new(executable);
+    command
+        .args([
+            "--app",
+            "-a",
+            "https://www.roblox.com/Login/Negotiate.ashx",
+            "-t",
+        ])
+        .arg(ticket)
+        .arg(format!("--launchtime={launchtime}"))
+        .args(args);
+    command
 }
 
 /// Open the installed client's home screen using an account authentication ticket.
@@ -524,7 +540,10 @@ pub fn launch_home_with_args(
 ) -> Result<(), CoreError> {
     let executable = resolve_player_executable(player_path)?;
     info!("Opening Roblox home screen");
-    open_player(&home_launch_uri(ticket, launchtime), &executable, args)
+    home_player_command(ticket, launchtime, &executable, args)
+        .spawn()
+        .map(|_| ())
+        .map_err(|_| CoreError::Process("Roblox home could not be started".into()))
 }
 
 pub fn resolve_player_executable(
@@ -2454,13 +2473,33 @@ mod tests {
     #[test]
     fn home_launch_uses_app_mode_without_a_game_destination_and_redacts_its_ticket() {
         let token = 1700000000000;
-        let uri = home_launch_uri("SYNTHETIC-HOME-TICKET", token);
-        assert!(uri.starts_with("roblox-player:1+launchmode:app+gameinfo:"));
-        assert!(!uri.contains("placelauncherurl"));
-        assert_eq!(crate::instances::parse_launchtime(&uri), Some(token));
-        let scrubbed = crate::redact::scrub(&uri);
+        let command = home_player_command(
+            "SYNTHETIC-HOME-TICKET",
+            token,
+            std::path::Path::new("RobloxPlayerBeta.exe"),
+            &["--fullscreen".into()],
+        );
+        let args: Vec<_> = command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            args,
+            [
+                "--app",
+                "-a",
+                "https://www.roblox.com/Login/Negotiate.ashx",
+                "-t",
+                "SYNTHETIC-HOME-TICKET",
+                "--launchtime=1700000000000",
+                "--fullscreen"
+            ]
+        );
+        let line = args.join(" ");
+        assert_eq!(crate::instances::parse_launchtime(&line), Some(token));
+        let scrubbed = crate::redact::scrub(&line);
         assert!(!scrubbed.contains("SYNTHETIC-HOME-TICKET"));
-        assert!(scrubbed.contains("gameinfo:<redacted>"));
+        assert!(scrubbed.contains("-t <redacted>"));
     }
 
     /// The launch URI carries a live authentication ticket, and it reaches the
