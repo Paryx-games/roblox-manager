@@ -162,6 +162,7 @@ export function App() {
   const [isReleaseDialogOpen, setIsReleaseDialogOpen] = useState(false);
   const [browserPlaceId, setBrowserPlaceId] = useState<number | null>(null);
   const [prefilledPlaceId, setPrefilledPlaceId] = useState<number>();
+  const [requestedGroup, setRequestedGroup] = useState<{id:number;name:string;request:number}|null>(null);
   const isTourVisible = !!startup?.needsTutorial && (!startup.legacyMigrationAvailable || isMigrationDismissed);
 
   useEffect(() => {
@@ -402,11 +403,12 @@ export function App() {
       return <InstancesPage workspace={workspace} accounts={accounts} selectedIds={selectedIds} onSelectedIdsChange={setSelectedIds} launches={Object.values(launches)} isLoading={isInstancesLoading} error={instancesError} onRefresh={refreshInstances} />;
     }
 
-    if (page === "Friends") return <FriendsPage accounts={accounts} accountsReady={accountsReady} accountsError={accountsError} onRetryAccounts={async()=>{try{setAccounts(await listAccounts());setAccountsError(null);}catch{setAccountsError("Managed accounts could not be loaded. Open Accounts to check the store, then retry.");}finally{setAccountsReady(true);}}} multiInstanceEnabled={settings?.multiInstanceEnabled ?? false} />;
+    if (page === "Friends") return <FriendsPage accounts={accounts} accountsReady={accountsReady} accountsError={accountsError} onRetryAccounts={async()=>{try{setAccounts(await listAccounts());setAccountsError(null);}catch{setAccountsError("Managed accounts could not be loaded. Open Accounts to check the store, then retry.");}finally{setAccountsReady(true);}}} multiInstanceEnabled={settings?.multiInstanceEnabled ?? false} onOpenGroup={visibility.groups ? group=>{setRequestedGroup(current=>({...group,request:(current?.request??0)+1}));navigateTo("Groups");} : undefined} />;
 
     if (page === "Groups") {
       return (
         <GroupsPage
+          requestedGroup={requestedGroup}
           selectedIds={selectedIds}
           setSelectedIds={setSelectedIds}
           onNavigateAccounts={() => navigateTo("Accounts")}

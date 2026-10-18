@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Friend group shortcuts:** Friends profile groups now show group thumbnails and an Open in Groups action that loads the selected group directly. Friend action menus include icons, larger text and wider spacing.
 - **RM-only launch settings:** Added a default-on **Only RM launches** option under Instances client controls. RM launches use a separate Roblox settings file so website and standalone Roblox app launches retain their normal settings. Turn it off to keep applying overrides to Roblox's shared settings file.
 - **Account export options:** Added an Export to popup with JSON, CSV and TXT formats, account and field selection, AES-256-GCM/AES-128-GCM encryption, and password visibility controls. Cookie exports require recommended authenticated encryption and a valid password, enforced in Rust; unencrypted exports remain metadata-only.
 

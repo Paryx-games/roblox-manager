@@ -569,6 +569,7 @@ pub struct FriendGroup {
     pub id: u64,
     pub name: String,
     pub role: String,
+    pub icon_url: Option<String>,
 }
 
 pub async fn fetch_groups(
@@ -600,7 +601,7 @@ pub async fn fetch_groups(
             cookie,
         )
         .await?;
-    Ok(response
+    let mut groups: Vec<_> = response
         .data
         .into_iter()
         .filter(|entry| entry.group.id > 0)
@@ -608,12 +609,63 @@ pub async fn fetch_groups(
             id: entry.group.id,
             name: entry.group.name,
             role: entry.role.name,
+            icon_url: None,
         })
-        .collect())
+        .collect();
+    let ids: Vec<_> = groups.iter().map(|group| group.id).collect();
+    match cached_api::fetch_group_icons(client, &ids).await {
+        Ok(icons) => apply_group_icons(&mut groups, &icons),
+        Err(_) => tracing::warn!("Friend group thumbnails could not be loaded"),
+    }
+    Ok(groups)
+}
+
+fn apply_group_icons(groups: &mut [FriendGroup], icons: &[(u64, String)]) {
+    for group in groups {
+        group.icon_url = icons
+            .iter()
+            .find(|(id, _)| *id == group.id)
+            .map(|(_, url)| url.clone());
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn group_icons_keep_roles_and_match_ids_despite_missing_or_reordered_thumbnails() {
+        use super::*;
+        let mut groups: Vec<_> = [10, 20, 30]
+            .into_iter()
+            .map(|id| FriendGroup {
+                id,
+                name: format!("Group {id}"),
+                role: "Member".into(),
+                icon_url: None,
+            })
+            .collect();
+        apply_group_icons(
+            &mut groups,
+            &[
+                (30, "https://example.invalid/30.png".into()),
+                (10, "https://example.invalid/10.png".into()),
+                (99, "https://example.invalid/99.png".into()),
+            ],
+        );
+        assert_eq!(
+            groups[0].icon_url.as_deref(),
+            Some("https://example.invalid/10.png")
+        );
+        assert!(groups[1].icon_url.is_none());
+        assert_eq!(
+            groups[2].icon_url.as_deref(),
+            Some("https://example.invalid/30.png")
+        );
+        assert!(groups.iter().all(|group| group.role == "Member"));
+        let json = serde_json::to_value(&groups).unwrap();
+        assert_eq!(json[0]["iconUrl"], "https://example.invalid/10.png");
+        assert!(json[1]["iconUrl"].is_null());
+    }
+
     #[test]
     fn game_icons_match_place_ids_without_names_and_skip_non_playing_friends() {
         use super::*;

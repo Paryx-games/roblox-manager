@@ -964,7 +964,7 @@ export interface Friend extends FriendUser { status: FriendStatus; activity: str
 export interface FriendsSnapshot { friends: Friend[]; refreshedAt: string | null; warnings: string[]; }
 export interface FriendRequestsPage { users: FriendUser[]; nextCursor: string | null; warnings: string[]; }
 export type FriendDetailTab = "details" | "mutual" | "groups";
-export interface FriendDetails { profile: {description: string; created: string | null} | null; mutual: FriendUser[]; groups: {id: number; name: string; role: string}[]; }
+export interface FriendDetails { profile: {description: string; created: string | null} | null; mutual: FriendUser[]; groups: {id: number; name: string; role: string; iconUrl: string | null}[]; }
 export type FriendAction = "accept" | "decline" | "remove" | "block";
 export function getFriends(userId: number, refresh = false): Promise<FriendsSnapshot> { return invoke("get_friends", {userId, refresh}); }
 export function getFriendRequests(userId: number, cursor: string | null = null, refresh = false): Promise<FriendRequestsPage> { return invoke("get_friend_requests", {userId, cursor, refresh}); }

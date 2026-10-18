@@ -25,6 +25,8 @@ Click a name or row to open its details. Check friends individually or use the h
 
 The right panel loads extended information only for the selected friend. **Details** shows profile text and known IDs, **Mutual friends** intersects the two visible friend lists, and **Groups** shows visible group memberships and roles. Privacy restrictions or failed lookups show an error with Retry instead of invented zero counts.
 
+Group rows show their Roblox thumbnail, with a group-symbol fallback if the image is unavailable. Use the link button on the right to switch to **Groups** and load that group by ID. If the Groups workspace is hidden, enable it in Settings first.
+
 The three-dot menu supports copying identifiers, viewing the profile panel, opening the Roblox profile, joining eligible games, removing a friend and blocking a user. Remove, block and decline actions require confirmation. Failed or unconfirmed mutations keep the current list visible and explain how to retry safely.
 
 Blocking uses a temporary browser context issued by Roblox, shared with RM's existing settings integration. If Roblox cannot provide it, the action stops with an error. RM never fabricates or persists that context. Blocking also removes an existing friendship on Roblox; unblocking does not restore it.

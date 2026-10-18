@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { getFriendDetails, operationError, type Friend, type FriendDetails, type FriendDetailTab } from "../lib/ipc";
 import { FriendGameInfo, FriendId, FriendIdentity, FriendPresence } from "./FriendComponents";
 import { LoadingSkeleton } from "./LoadingSkeleton";
+import { Icon } from "./Icon";
 import { canJoinFriend } from "../lib/friends";
 import { useWorkspaceActive } from "../hooks/useWorkspaceActive";
 
-export function FriendDetailsPanel({viewerId,friend,busy,onCopy,onJoin,onManage,onProfile}: {
-  viewerId:number; friend:Friend | null; busy:boolean; onCopy:(value:string,label:string)=>void; onJoin:(friend:Friend)=>void; onManage:(friend:Friend,action:"remove"|"block")=>void; onProfile:(id:number)=>void;
+export function FriendDetailsPanel({viewerId,friend,busy,onCopy,onJoin,onManage,onProfile,onOpenGroup}: {
+  viewerId:number; friend:Friend | null; busy:boolean; onCopy:(value:string,label:string)=>void; onJoin:(friend:Friend)=>void; onManage:(friend:Friend,action:"remove"|"block")=>void; onProfile:(id:number)=>void; onOpenGroup?:(group:{id:number;name:string})=>void;
 }) {
   const [tab,setTab]=useState<FriendDetailTab>("details");
   const [loaded,setLoaded]=useState<{key:string;value:FriendDetails}|null>(null);
@@ -36,7 +37,7 @@ export function FriendDetailsPanel({viewerId,friend,busy,onCopy,onJoin,onManage,
           <p className="friends-muted">Friend-since dates, last-online times and server region/player counts are not provided by this integration.</p>
         </>}
         {tab==='mutual'&&details&&<><p className="friends-muted">{details.mutual.length} mutual friends visible to this account</p>{details.mutual.length?<ul className="friends-related">{details.mutual.map(user=><li key={user.userId}><FriendIdentity user={user}/></li>)}</ul>:<p>No visible mutual friends.</p>}</>}
-        {tab==='groups'&&details&&<><p className="friends-muted">{details.groups.length} visible groups</p>{details.groups.length?<ul className="friends-related">{details.groups.map(group=><li key={group.id}><strong>{group.name}</strong><span className="friends-muted">{group.role}</span></li>)}</ul>:<p>No visible groups.</p>}</>}
+        {tab==='groups'&&details&&<><p className="friends-muted">{details.groups.length} visible groups</p>{details.groups.length?<ul className="friends-related friends-group-list">{details.groups.map(group=><li key={group.id}><span className="friend-group-icon"><Icon name="groups"/>{group.iconUrl&&<img key={group.iconUrl} src={group.iconUrl} alt="" loading="lazy" decoding="async" onError={event=>{event.currentTarget.hidden=true;}}/>}</span><span className="friend-group-copy"><strong>{group.name}</strong><span className="friends-muted">{group.role}</span></span><button type="button" className="icon-button" aria-label={`Open ${group.name} in Groups`} data-tip={onOpenGroup?"Open in Groups":"Enable the Groups page in Settings to open this group"} disabled={busy||!onOpenGroup} onClick={()=>onOpenGroup?.(group)}><Icon name="link"/></button></li>)}</ul>:<p>No visible groups.</p>}</>}
       </div>
       <div className="friends-details-actions"><button type="button" className="account-button" onClick={()=>onProfile(friend.userId)}>Open profile in browser</button><button type="button" className="account-button danger" disabled={busy} onClick={()=>onManage(friend,'remove')}>Remove friend</button><button type="button" className="account-button danger" disabled={busy} onClick={()=>onManage(friend,'block')}>Block user</button></div>
     </>}

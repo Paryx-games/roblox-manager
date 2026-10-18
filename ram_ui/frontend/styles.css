@@ -7931,12 +7931,18 @@ button:focus-visible {
 .friends-related li { display: grid; gap: var(--space-1); font-size: var(--text-xs); overflow-wrap: anywhere; }
 .friends-empty { display: flex; min-height: 140px; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-6); color: var(--text-muted); text-align: center; font-size: var(--text-sm); }
 .friends-empty strong { color: var(--text-primary); }
-.friends-context-menu { z-index: 100; display: grid; width: 220px; max-height: calc(100vh - 16px); overflow-y: auto; padding: var(--space-1); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); background: var(--bg-raised); }
-.friends-context-menu button { padding: var(--space-2); border: 0; border-radius: var(--radius); color: var(--text-primary); background: transparent; cursor: pointer; text-align: left; font-size: var(--text-xs); }
+.friends-context-menu { z-index: 100; display: grid; width: 256px; max-width: calc(100vw - var(--space-4)); max-height: calc(100vh - var(--space-4)); overflow-y: auto; padding: var(--space-1); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); background: var(--bg-raised); }
+.friends-context-menu button { display: flex; align-items: center; gap: var(--space-2); min-height: 36px; padding: var(--space-2); border: 0; border-radius: var(--radius); color: var(--text-primary); background: transparent; cursor: pointer; text-align: left; font-size: var(--text-sm); }
 .friends-context-menu button:hover:not(:disabled) { background: var(--bg-surface); }
 .friends-context-menu button:disabled { color: var(--text-disabled); cursor: not-allowed; }
 .friends-context-menu .friends-danger { color: var(--action-danger); }
 .friends-context-menu hr { width: 100%; margin: var(--space-1) 0; border: 0; border-top: var(--border-width) solid var(--border-default); }
+.friends-group-list li { grid-template-columns: 32px minmax(0, 1fr) 28px; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
+.friend-group-icon { position: relative; display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; overflow: hidden; border-radius: var(--radius); background: var(--bg-raised); }
+.friend-group-icon > img:not(.account-icon) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.friend-group-copy { display: grid; min-width: 0; gap: var(--space-1); }
+.friend-group-copy .friends-muted { font-size: var(--text-xs); }
+.friends-group-list .icon-button { width: 28px; height: 28px; }
 .friends-selection { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0 var(--space-6) var(--space-2); font-size: var(--text-xs); }
 .friends-selection .account-button { width: auto; }
 .friends-requests { min-height: 0; flex: 1; padding: 0 var(--space-6) var(--space-4); overflow-y: auto; }
@@ -7974,7 +7980,7 @@ button:focus-visible {
 
 .friends-context-identity { display: flex; min-width: 0; align-items: center; gap: var(--space-2); padding: var(--space-2); }
 .friends-context-identity > span:last-child { display: grid; min-width: 0; gap: var(--space-1); }
-.friends-context-identity strong, .friends-context-identity small { overflow: hidden; font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
+.friends-context-identity strong, .friends-context-identity small { overflow: hidden; font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
 .friends-context-identity small { color: var(--text-muted); }
 
 .friends-table tr[data-selected="true"]:hover { background: var(--action-muted); }
