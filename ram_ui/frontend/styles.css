@@ -6250,6 +6250,31 @@ button:focus-visible {
   background: var(--bg-surface);
 }
 
+.account-button.confirm-modal-destructive {
+  color: var(--text-on-action);
+  border-color: var(--action-danger);
+  background: color-mix(in srgb, var(--action-danger) 80%, var(--bg-canvas));
+}
+
+.account-button.confirm-modal-destructive:not(:disabled):hover,
+.account-button.confirm-modal-destructive:not(:disabled):focus-visible {
+  background: color-mix(in srgb, var(--action-danger) 85%, var(--bg-canvas));
+}
+
+.account-button.confirm-modal-destructive:not(:disabled):active {
+  background: color-mix(in srgb, var(--action-danger) 75%, var(--bg-canvas));
+}
+
+.account-button.confirm-modal-destructive:disabled {
+  color: var(--text-disabled);
+  border-color: var(--border-default);
+  background: var(--bg-surface);
+}
+
+.confirm-modal-message .friend-confirm-name {
+  font-weight: 700;
+}
+
 .group-editor-field {
   display: flex;
   flex-direction: column;

@@ -42,7 +42,7 @@ export function FriendContextMenu({friend, busy, multiInstance, onCopy, onJoin, 
       <button type="button" role="menuitem" onClick={()=>act(()=>onCopy(String(friend.userId),"user ID"))}><Icon name="copy"/>Copy user ID</button>
       {friend.jobId && <button type="button" role="menuitem" onClick={()=>act(()=>onCopy(friend.jobId!,"Job ID"))}><Icon name="copy"/>Copy Job ID</button>}
       <hr /><button type="button" role="menuitem" onClick={()=>act(onView)}><Icon name="accounts"/>View profile</button><button type="button" role="menuitem" onClick={()=>act(()=>onProfile(friend.userId))}><Icon name="browser"/>Open profile in browser</button>
-      <hr /><button type="button" role="menuitem" className="friends-danger" onClick={()=>act(()=>onManage(friend,"remove"))}><Icon name="remove-group"/>Remove friend</button><button type="button" role="menuitem" className="friends-danger" onClick={()=>act(()=>onManage(friend,"block"))}><Icon name="lock"/>Block user</button>
+      <hr /><button type="button" role="menuitem" className="friends-danger" onClick={()=>act(()=>onManage(friend,"remove"))}><Icon name="remove-group" tone="current-color"/>Remove friend</button><button type="button" role="menuitem" className="friends-danger" onClick={()=>act(()=>onManage(friend,"block"))}><Icon name="lock" tone="current-color"/>Block user</button>
     </PopupMenu>,document.body)}
   </>;
 }

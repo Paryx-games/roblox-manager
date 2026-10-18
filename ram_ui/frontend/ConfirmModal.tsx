@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from "react";
 import { Popup } from "./components/Popup";
+import { Icon } from "./components/Icon";
 
 type ConfirmModalProps = {
   title: string;
@@ -10,6 +11,7 @@ type ConfirmModalProps = {
   confirmDisabled?: boolean;
   confirmIcon?: string;
   busy?: boolean;
+  destructive?: boolean;
 };
 
 function ModalIcon({ name }: { name: string }) {
@@ -32,6 +34,7 @@ export function ConfirmModal({
   confirmDisabled = false,
   confirmIcon = "delete",
   busy = false,
+  destructive = false,
 }: ConfirmModalProps) {
   const titleId = useId();
   const messageId = useId();
@@ -68,12 +71,12 @@ export function ConfirmModal({
             Cancel
           </button>
           <button
-            className="account-button confirm-modal-danger"
+            className={`account-button ${destructive ? "confirm-modal-destructive" : "confirm-modal-danger"}`}
             type="button"
             disabled={confirmDisabled || busy}
             onClick={onConfirm}
           >
-            <ModalIcon name={confirmIcon} />
+            <Icon name={confirmIcon} tone={destructive ? "current-color" : "image"} />
             {confirmLabel}
           </button>
         </div>
