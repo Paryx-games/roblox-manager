@@ -1,5 +1,24 @@
 # Changelog
 
+## v2.4.2
+
+### Changed
+
+- Updated React DOM from 19.3.0 to 19.3.1.
+- Updated `@typescript-eslint/parser` from 8.71.1 to 8.72.0.
+- Updated Vite from 8.3.4 to 8.3.5.
+- Updated `roxmltree` from 0.21.1 to 0.21.2.
+- Updated `tauri-build` from 2.7.2 to 2.7.4.
+- Updated Tauri from 2.12.3 to 2.12.5.
+- Updated Wry from 0.57.0 to 0.57.1.
+- Updated Tokio from 1.53.3 to 1.54.1.
+- Updated `zizmor-action` from 0.7.1 to 0.8.0.
+- Updated `Swatinem/rust-cache` from 2.9.2 to 2.9.3.
+
+### Security
+
+- Overrode transitive `minimatch` dependency to 11.0.1 to address GHSA-g3hv-75wg-m249, resolving a denial-of-service vulnerability affecting ESLint and typescript-eslint.
+
 ## v2.4.1
 
 ### Changed
