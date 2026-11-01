@@ -2927,7 +2927,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "ram_core"
-version = "2.4.1"
+version = "2.4.2"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -3134,7 +3134,7 @@ dependencies = [
 
 [[package]]
 name = "rm_tauri"
-version = "2.4.1"
+version = "2.4.2"
 dependencies = [
  "base64 0.23.1",
  "chrono",
