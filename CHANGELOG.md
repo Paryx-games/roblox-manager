@@ -1,5 +1,27 @@
 # Changelog
 
+## v2.4.1
+
+### Changed
+
+- Updated Rust dependencies:
+  - `rustls` 0.23.45 → 0.23.46
+  - `fast-uri` 3.1.7 → 3.1.9
+  - `rand` 0.10.2 → 0.10.3
+  - `serde_json` 1.0.151 → 1.0.154
+  - `uuid` 1.26.1 → 1.28.0
+  - `sha2` 0.11.0 → 0.11.1
+- Updated Tauri dependencies:
+  - `tauri-plugin-dialog` 2.7.0 → 2.8.3
+  - `@tauri-apps/api` 2.12.1 → 2.12.4
+  - `@tauri-apps/cli` 2.12.2 → 2.12.4
+- Updated frontend dependencies:
+  - `react` 19.3.0 → 19.3.1
+- Updated development dependencies:
+  - `eslint` 10.11.0 → 10.13.0
+  - `@typescript-eslint/eslint-plugin` 8.71.0 → 8.71.1
+- Updated `zizmor-action` from 0.6.4 to 0.7.1.
+
 ## v2.4.0
 
 ### Added
