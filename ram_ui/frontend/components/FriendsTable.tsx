@@ -73,9 +73,29 @@ export function FriendsTable({
   const menuRef = useRef<HTMLDivElement>(null);
   const menuTriggerRef = useRef<HTMLElement | null>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ pointerId: number; column: ColumnId; x: number; width: number } | null>(null);
+  const [availableWidth, setAvailableWidth] = useState(0);
   const visibleColumns = useMemo(() => columnDefinitions.filter(column => preferences.visibility[column.id]), [preferences.visibility]);
-  const tableWidth = 28 + visibleColumns.reduce((total, column) => total + preferences.widths[column.id], 0);
+  const fixedColumnsWidth = 28 + visibleColumns
+    .filter(column => column.id !== "actions")
+    .reduce((total, column) => total + preferences.widths[column.id], 0);
+  const hasActions = preferences.visibility.actions;
+  const tableWidth = hasActions
+    ? Math.max(availableWidth, fixedColumnsWidth + preferences.widths.actions)
+    : fixedColumnsWidth;
+  const actionsWidth = hasActions ? tableWidth - fixedColumnsWidth : 0;
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(entries => {
+      const width = Math.floor(entries[0]?.contentRect.width ?? element.clientWidth);
+      setAvailableWidth(current => current === width ? current : width);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (selectAllRef.current) selectAllRef.current.indeterminate = someChecked && !allChecked;
@@ -145,17 +165,17 @@ export function FriendsTable({
   }
 
   function renderHeader(column: typeof columnDefinitions[number]) {
-    const width = preferences.widths[column.id];
+    const width = column.id === "actions" ? actionsWidth : preferences.widths[column.id];
     return <th
       key={column.id}
       scope="col"
       tabIndex={0}
       aria-haspopup="true"
-      aria-label={`${column.label}. Right-click or press the context-menu key to choose columns.`}
+      aria-label={`${column.label}.${column.id === "actions" ? " Fills the remaining table width." : ""} Right-click or press the context-menu key to choose columns.`}
       style={{ width } as CSSProperties}
     >
       {column.label}
-      <span
+      {column.id !== "actions" && <span
         className="friends-column-resizer"
         role="separator"
         aria-label={`Resize ${column.label} column`}
@@ -188,18 +208,18 @@ export function FriendsTable({
           else if (event.key === "Home") { event.preventDefault(); resizeBy(column.id, column.minWidth - width); }
           else if (event.key === "End") { event.preventDefault(); resizeBy(column.id, 640 - width); }
         }}
-      />
+      />}
     </th>;
   }
 
-  const tableStyle = { width: `max(100%, ${tableWidth}px)` } as CSSProperties;
+  const tableStyle = { width: `${tableWidth}px` } as CSSProperties;
   return <>
-    <div className="friends-list-scroll">
+    <div ref={scrollRef} className="friends-list-scroll">
       <table className="friends-table" style={tableStyle}>
         <caption className="sr-only">Friends, presence and available server details. Right-click a column heading to choose visible columns.</caption>
         <colgroup>
           <col style={{ width: 28 }} />
-          {visibleColumns.map(column => <col key={column.id} style={{ width: preferences.widths[column.id] }} />)}
+          {visibleColumns.map(column => <col key={column.id} style={{ width: column.id === "actions" ? actionsWidth : preferences.widths[column.id] }} />)}
         </colgroup>
         <thead>
           <tr onContextMenu={openMenuFromMouse} onKeyDown={openMenuFromKeyboard}>

@@ -131,13 +131,16 @@ fn unique_users(users: Vec<FriendUser>) -> Vec<FriendUser> {
         .collect()
 }
 
+fn friends_url(user_id: u64) -> String {
+    format!("https://friends.roblox.com/v1/users/{user_id}/friends")
+}
+
 pub async fn fetch_users(
     client: &RobloxClient,
     cookie: &str,
     user_id: u64,
 ) -> Result<Vec<FriendUser>, CoreError> {
-    let base = format!("https://friends.roblox.com/v1/users/{user_id}/friends");
-    collect_users(client, cookie, &base).await
+    collect_users(client, cookie, &friends_url(user_id)).await
 }
 
 /// Complete request IDs for background change detection, without avatar or presence work.
@@ -747,19 +750,18 @@ mod tests {
         let page: super::UsersPage = serde_json::from_str(r#"{"data":[{"id":1,"hasVerifiedBadge":false},{"id":2}],"nextPageCursor":"next&cursor"}"#).unwrap();
         assert_eq!(page.data.len(), 2);
         assert!(page.data[0].username.is_empty());
-        let url = super::next_url(
-            "https://friends.roblox.com/v1/users/9/friends?limit=50",
-            page.next_page_cursor.as_deref(),
-        )
-        .unwrap();
+        let url =
+            super::next_url(&super::friends_url(9), page.next_page_cursor.as_deref()).unwrap();
         let url = reqwest::Url::parse(&url).unwrap();
         let query: std::collections::HashMap<_, _> = url.query_pairs().collect();
-        assert_eq!(query.get("limit").map(|value| value.as_ref()), Some("50"));
+        assert_eq!(url.path(), "/v1/users/9/friends");
+        assert_eq!(url.host_str(), Some("friends.roblox.com"));
         assert_eq!(
             query.get("cursor").map(|value| value.as_ref()),
             Some("next&cursor")
         );
     }
+
     use super::*;
 
     fn users(ids: &[u64]) -> Vec<FriendUser> {

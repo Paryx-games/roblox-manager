@@ -28,5 +28,12 @@ export function clampFriendsSidebar(width: number, workspaceWidth: number): numb
   return Math.max(240, Math.min(520, workspaceWidth - 428, width));
 }
 
-export function canJoinFriend(friend: Friend): boolean { return friend.status === "playing"; }
+export function canJoinFriend(friend: Friend): boolean {
+  return friend.status === "playing"
+    && Number.isSafeInteger(friend.placeId)
+    && friend.placeId !== null
+    && friend.placeId > 0
+    && typeof friend.jobId === "string"
+    && friend.jobId.trim().length > 0;
+}
 export function friendLabel(friend: {userId:number; displayName:string; username:string}): string { return friend.displayName || friend.username || `User ${friend.userId}`; }

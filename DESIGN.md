@@ -55,7 +55,7 @@ Keep the compact desktop layout and each page's existing composition:
   beside a client controls panel. The panel stacks below the list on narrower layouts;
   controls are saved shared launch defaults with an explicit notice that running clients are unchanged.
 - Friends uses a compact table and profile sidebar, with a single Refresh header action, inline account picker/summary, status filters, anchored menus and the standard join/confirmation dialogs. The 8px divider reuses the history resize pattern, with pointer dragging and Left/Right/Home/End keyboard controls. Details resize between 240px and 520px while preserving list space and stack below it on narrow workspaces. Job IDs use `--font-mono`, truncate visually and retain full tooltip/copy values. Playing, Studio, online, offline and unavailable states remain distinct.
-- Friends table columns can be resized by pointer or keyboard, and shown or hidden from the right-click/context-menu column chooser. Keep the Friend column visible and preserve the table's horizontal scrolling.
+- Friends table columns can be resized by pointer or keyboard, and shown or hidden from the right-click/context-menu column chooser. The Actions column fills remaining list width; other visible columns retain their configured widths. Keep the Friend column visible and preserve horizontal scrolling when fixed columns exceed available width.
 - Groups uses account/group selection and detail sections for group content.
 - Private Servers and Presets lead with saved lists, filters, and editing flows.
   Header actions open compact add forms; preset creation uses two columns.

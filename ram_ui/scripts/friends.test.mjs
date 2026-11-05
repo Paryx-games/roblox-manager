@@ -31,8 +31,10 @@ test("selection survives filtering and drops removed friends after refresh",()=>
  const selected=new Set([1,2,99]);assert.deepEqual([...reconcileFriendsSelection(selected,friends)],[1,2]);assert.deepEqual([...selected],[1,2,99]);
  assert.deepEqual([...reconcileFriendsSelection(selected,[])],[]);
 });
-test("only playing friends offer a supported join lookup, including hidden Job IDs",()=>{
- assert(canJoinFriend(friends[0]));assert(canJoinFriend(friend(6,"Hidden server","playing")));
+test("only playing friends with a Place ID and Job ID offer a join action",()=>{
+ assert(canJoinFriend({...friends[0],placeId:123}));
+ assert(!canJoinFriend(friend(6,"Hidden server","playing")));
+ assert(!canJoinFriend({...friends[0],placeId:null}));
  for(const friend of friends.slice(1))assert(!canJoinFriend(friend));
  assert.equal(friends[0].jobId,"12345678-1234-4234-8234-123456789abc");
 });

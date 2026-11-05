@@ -13,6 +13,14 @@
 
 - Continue bulk launches after individual failures and report the launched, failed and blocked totals.
 
+### Fixed
+
+- **Friends mutuals:** Use the established paginated Friends list endpoint and avoid a separate browser-context request before loading friend lists.
+- **Friends joins and table layout:** Keep saved column widths fixed while resizing; leave an explained blank Join slot when Roblox doesn't expose a valid server destination.
+- **Friends icons and group navigation:** Show the original Roblox and Studio PNG colors and use the square-arrow Go to action for group links.
+- **Friends loading:** Restore the established Friends list route after the experimental route prevented the page from loading account data.
+- **Join friends:** Reuse the account multi-select to queue sequential joins for multiple eligible accounts, with per-account results and failed-account retry selection.
+
 ## v2.4.2
 
 ### Changed

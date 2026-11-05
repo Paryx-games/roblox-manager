@@ -11,6 +11,10 @@ export function FriendIdentity({ user }: {user: FriendUser}) {
 export function FriendPresence({ friend }: {friend: Friend}) {
   return <span className={`friend-presence friend-presence-${friend.status}`}><span aria-hidden="true" />{friendStatusLabels[friend.status]}</span>;
 }
+export function JoinUnavailable() {
+  const message = "They are in a server you cannot join.";
+  return <span className="friend-join-unavailable" role="img" aria-label={message} data-tip={message} tabIndex={0} />;
+}
 export function FriendGameInfo({friend}: {friend: Friend}) {
   const inGame = friend.status === "playing";
   const studio = friend.status === "studio";
@@ -33,6 +37,6 @@ export const FriendRow = memo(function FriendRow({friend, checked, selected, bus
     {visibleColumns.status&&<td><FriendPresence friend={friend} /></td>}
     {visibleColumns.game&&<td><FriendGameInfo friend={friend} /></td>}
     {visibleColumns.jobId&&<td><FriendId value={friend.jobId} label={`Job ID for ${friendLabel(friend)}`} onCopy={onCopy} /></td>}
-    {visibleColumns.actions&&<td><div className="friend-row-actions">{canJoinFriend(friend) && <button className="account-button primary" type="button" disabled={busy} onClick={() => onJoin(friend)}>Join</button>}<FriendContextMenu friend={friend} busy={busy} multiInstance={multiInstance} onCopy={onCopy} onJoin={onJoin} onManage={onManage} onView={() => onSelect(friend)} onProfile={onProfile} /></div></td>}
+    {visibleColumns.actions&&<td><div className="friend-row-actions">{canJoinFriend(friend) ? <button className="account-button primary" type="button" disabled={busy} onClick={() => onJoin(friend)}>Join</button> : friend.status === "playing" ? <JoinUnavailable /> : null}<FriendContextMenu friend={friend} busy={busy} multiInstance={multiInstance} onCopy={onCopy} onJoin={onJoin} onManage={onManage} onView={() => onSelect(friend)} onProfile={onProfile} /></div></td>}
   </tr>;
 });
