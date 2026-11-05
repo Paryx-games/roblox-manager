@@ -1,4 +1,4 @@
-import type { Friend, FriendStatus } from "./ipc";
+import type { Friend, FriendStatus, LaunchProgress } from "./ipc";
 export type FriendFilter = "all" | FriendStatus | "requests";
 export type FriendSort = "status" | "nameAsc" | "nameDesc" | "userAsc" | "userDesc";
 export const friendStatusLabels: Record<FriendStatus, string> = {playing: "Playing", studio: "In Studio", online: "Online", offline: "Offline", unknown: "Unavailable"};
@@ -28,5 +28,15 @@ export function clampFriendsSidebar(width: number, workspaceWidth: number): numb
   return Math.max(240, Math.min(520, workspaceWidth - 428, width));
 }
 
-export function canJoinFriend(friend: Friend): boolean { return friend.status === "playing"; }
+export function canJoinFriend(friend: Friend): boolean {
+  return friend.status === "playing"
+    && Number.isSafeInteger(friend.placeId)
+    && friend.placeId !== null
+    && friend.placeId > 0
+    && typeof friend.jobId === "string"
+    && friend.jobId.trim().length > 0;
+}
+export function isFriendLaunchProgress(progress: Pick<LaunchProgress, "userId" | "friendTargetId">, viewerId: number, targetId: number): boolean {
+  return progress.userId === viewerId && progress.friendTargetId === targetId;
+}
 export function friendLabel(friend: {userId:number; displayName:string; username:string}): string { return friend.displayName || friend.username || `User ${friend.userId}`; }

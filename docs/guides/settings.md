@@ -27,6 +27,8 @@ Use the section navigation to find preferences. Most edits form a draft: choose 
 - Auto-arrange, target monitor, grid layout, sizing and spacing control Roblox window placement.
 - Window naming identifies clients by account. Launch pacing spaces successive launches rather than starting every selected account together.
 
+The **System status** panel shows whether Roblox is running, the startup registration for the current RM executable, connected displays, and the saved privacy and window-arrangement defaults. **Unavailable** means Windows could not be queried. **Out of sync** means the Windows startup registration differs from the saved setting; change **Start RM with Windows**, save, then set it to the desired state and save again.
+
 **Auto-launch on startup** launches the configured Account ID into the configured Place ID once after the store unlocks. Password mode waits for you to unlock. Startup launch verifies that account and uses the normal launch queue, privacy cleanup, custom arguments, FastFlags and window arrangement. Invalid or missing targets stop with a notice; failures are not retried automatically. Changes apply on the next RM restart. Existing configurations without a Place ID must be completed before startup launch can run. Turning off **Check accounts on startup** skips the initial roster check; the normal five-minute checks continue, and startup launch still checks its own account.
 
 ## Privacy and displayed identity
@@ -71,7 +73,7 @@ Event controls and destinations use two columns where space permits. Enable an e
 
 Moderation and batch-launch events keep their existing defaults. **Account session expired**, **Launch request failed** and **Roblox client exited** start disabled. Expiry only fires on a new rejection during account verification. Client exits require exact attribution and include manually closed clients; they do not prove a crash. Info cards beside each option explain when it fires. RM must be running. Delivery uses a bounded in-memory queue and does not retry lost events after restart.
 
-Notifications include a **Job ID** when RM can confirm one. Launch failures include the requested public server ID; batches include it when every request targets that same server. Client exits include the Job ID from the last confirmed instance snapshot when available. Moderation and expiry events include server details when exactly one confirmed client is tracked for the account. Unknown values and private-server invitation/access codes are omitted.
+Notifications include a **Job ID** when RM can confirm one. Launch failures include the requested public server ID; batches include it when every request targets that same server and report launched, failed or blocked, and not-attempted totals. Batch launches continue after individual failures; check the RM log for per-account reason codes. Client exits include the Job ID from the last confirmed instance snapshot when available. Moderation and expiry events include server details when exactly one confirmed client is tracked for the account. Unknown values and private-server invitation/access codes are omitted.
 
 Friendship events start disabled and use the same global, event and destination switches:
 

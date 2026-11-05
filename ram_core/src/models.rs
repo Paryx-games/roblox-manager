@@ -768,6 +768,12 @@ pub struct LaunchPreset {
     pub data: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tag_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub privacy_mode: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub multi_instance_enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_arrange_windows: Option<bool>,
 }
 
 /// A saved private server for quick launching.

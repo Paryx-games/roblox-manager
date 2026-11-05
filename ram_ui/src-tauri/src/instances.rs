@@ -17,7 +17,7 @@ pub struct InstanceState {
     original_titles: HashMap<(u32, u64), String>,
     applied_titles: HashMap<(u32, u64), String>,
     last_launch: Option<Instant>,
-    arrange_after: Option<Instant>,
+    arrange_after: Option<(Instant, bool)>,
     snapshot: InstanceWorkspace,
     presence_checks: HashMap<u64, (ram_core::models::Presence, chrono::DateTime<chrono::Utc>)>,
 }
@@ -176,9 +176,32 @@ pub fn note_launch(state: &AppState, user_id: u64, place_id: u64) -> Result<i64,
     Ok(token)
 }
 
-pub fn schedule_arrangement(state: &AppState, delay: Duration) {
+pub fn schedule_arrangement(state: &AppState, delay: Duration, enabled: bool) {
     if let Ok(mut instances) = state.instances.lock() {
-        instances.arrange_after = Some(Instant::now() + delay);
+        instances.arrange_after = Some((Instant::now() + delay, enabled));
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ArrangementAction {
+    Wait,
+    Arrange,
+    Cancel,
+}
+
+fn arrangement_action(
+    enabled: bool,
+    live_count: usize,
+    launch_is_stale: bool,
+) -> ArrangementAction {
+    if !enabled {
+        ArrangementAction::Cancel
+    } else if live_count >= 2 {
+        ArrangementAction::Arrange
+    } else if launch_is_stale {
+        ArrangementAction::Cancel
+    } else {
+        ArrangementAction::Wait
     }
 }
 
@@ -310,20 +333,22 @@ fn sweep(app: &tauri::AppHandle) -> Result<InstanceWorkspace, String> {
     } else {
         restore_titles(&mut instances, &live);
     }
-    if instances
-        .arrange_after
-        .is_some_and(|deadline| Instant::now() >= deadline)
-    {
-        if !config.auto_arrange_windows || live.len() >= 2 {
-            instances.arrange_after = None;
-            if config.auto_arrange_windows {
-                process::arrange_roblox_windows(&config.tiling_options());
+    if let Some((deadline, should_arrange)) = instances.arrange_after {
+        if Instant::now() >= deadline {
+            match arrangement_action(
+                should_arrange,
+                live.len(),
+                instances
+                    .last_launch
+                    .is_none_or(|last| last.elapsed() >= Duration::from_secs(60)),
+            ) {
+                ArrangementAction::Arrange => {
+                    instances.arrange_after = None;
+                    process::arrange_roblox_windows(&config.tiling_options());
+                }
+                ArrangementAction::Cancel => instances.arrange_after = None,
+                ArrangementAction::Wait => {}
             }
-        } else if instances
-            .last_launch
-            .is_none_or(|last| last.elapsed() >= Duration::from_secs(60))
-        {
-            instances.arrange_after = None;
         }
     }
     let snapshot = InstanceWorkspace {
@@ -470,6 +495,24 @@ pub fn shutdown(state: &AppState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scheduled_arrangement_uses_effective_launch_setting() {
+        assert_eq!(
+            arrangement_action(true, 2, false),
+            ArrangementAction::Arrange
+        );
+        assert_eq!(
+            arrangement_action(true, 2, true),
+            ArrangementAction::Arrange
+        );
+        assert_eq!(
+            arrangement_action(false, 2, false),
+            ArrangementAction::Cancel
+        );
+        assert_eq!(arrangement_action(true, 1, false), ArrangementAction::Wait);
+        assert_eq!(arrangement_action(true, 1, true), ArrangementAction::Cancel);
+    }
 
     #[test]
     fn loading_waits_for_post_launch_presence_and_expires_without_confirmation() {

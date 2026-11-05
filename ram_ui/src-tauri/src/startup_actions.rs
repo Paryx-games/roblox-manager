@@ -84,6 +84,7 @@ pub async fn run(app: tauri::AppHandle) {
             data: None,
             link_code: None,
             access_code: None,
+            overrides: launcher::LaunchOverrides::default(),
         },
     )
     .await

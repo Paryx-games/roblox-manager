@@ -279,7 +279,7 @@ export function App() {
           if (!isActive) return;
           setLaunches((current) => {
             const next = { ...current };
-            if (event.payload.phase === "requested" || event.payload.phase === "failed") delete next[event.payload.requestId];
+            if (["started", "failed", "blocked"].includes(event.payload.phase)) delete next[event.payload.requestId];
             else next[event.payload.requestId] = event.payload;
             return next;
           });

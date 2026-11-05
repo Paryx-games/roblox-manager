@@ -11,6 +11,7 @@ import {
   saveLaunchPreset,
   updateLaunchPreset,
   type AccountSummary,
+  type LaunchPresetOverrides,
   type LaunchPresetSummary,
 } from "./lib/ipc";
 import { ConfirmModal } from "./ConfirmModal";
@@ -25,6 +26,28 @@ import { matchesTags } from "./lib/accountTags";
 import { listAccountTags, operationError, type AccountTag } from "./lib/ipc";
 
 type PresetSort = "custom" | "name" | "recent";
+type OverrideChoice = "inherit" | "enabled" | "disabled";
+const overrideOptions = [
+  { value: "inherit", label: "Use Settings" },
+  { value: "enabled", label: "On" },
+  { value: "disabled", label: "Off" },
+];
+
+function overrideChoice(value: boolean | null): OverrideChoice {
+  return value === null ? "inherit" : value ? "enabled" : "disabled";
+}
+
+function overrideValue(value: OverrideChoice): boolean | null {
+  return value === "inherit" ? null : value === "enabled";
+}
+
+function presetOverrides(privacyMode: OverrideChoice, multiInstanceEnabled: OverrideChoice, autoArrangeWindows: OverrideChoice): LaunchPresetOverrides {
+  return {
+    privacyMode: overrideValue(privacyMode),
+    multiInstanceEnabled: overrideValue(multiInstanceEnabled),
+    autoArrangeWindows: overrideValue(autoArrangeWindows),
+  };
+}
 
 function PresetDetails({
   preset,
@@ -83,6 +106,9 @@ export function PresetsPage({
   const [tagError, setTagError] = useState<string | null>(null);
   const [tagLoading, setTagLoading] = useState(true);
   const [tagIds, setTagIds] = useState<string[]>([]);
+  const [privacyOverride, setPrivacyOverride] = useState<OverrideChoice>("inherit");
+  const [multiInstanceOverride, setMultiInstanceOverride] = useState<OverrideChoice>("inherit");
+  const [tilingOverride, setTilingOverride] = useState<OverrideChoice>("inherit");
   const [editTagIds, setEditTagIds] = useState<string[]>([]);
   const [isAccountsLoading, setIsAccountsLoading] = useState(true);
   const [presetAccounts, setPresetAccounts] = useState<
@@ -111,6 +137,9 @@ export function PresetsPage({
   const [editPlaceId, setEditPlaceId] = useState("");
   const [editJobId, setEditJobId] = useState("");
   const [editData, setEditData] = useState("");
+  const [editPrivacyOverride, setEditPrivacyOverride] = useState<OverrideChoice>("inherit");
+  const [editMultiInstanceOverride, setEditMultiInstanceOverride] = useState<OverrideChoice>("inherit");
+  const [editTilingOverride, setEditTilingOverride] = useState<OverrideChoice>("inherit");
   const [editSaving, setEditSaving] = useState(false);
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -214,12 +243,15 @@ export function PresetsPage({
     setSaving(true);
     setError(null);
     try {
-      await saveLaunchPreset(name.trim(), parsedPlaceId, jobId, data, tagIds);
+      await saveLaunchPreset(name.trim(), parsedPlaceId, jobId, data, tagIds, presetOverrides(privacyOverride, multiInstanceOverride, tilingOverride));
       setName("");
       setPlaceId("");
       setJobId("");
       setData("");
       setTagIds([]);
+      setPrivacyOverride("inherit");
+      setMultiInstanceOverride("inherit");
+      setTilingOverride("inherit");
       setShowCreate(false);
       await reload();
     } catch (reason) {
@@ -269,6 +301,9 @@ export function PresetsPage({
     setEditPlaceId(String(preset.placeId));
     setEditJobId(preset.jobId ?? "");
     setEditData(preset.data ?? "");
+    setEditPrivacyOverride(overrideChoice(preset.privacyMode));
+    setEditMultiInstanceOverride(overrideChoice(preset.multiInstanceEnabled));
+    setEditTilingOverride(overrideChoice(preset.autoArrangeWindows));
   }
 
   async function saveEdit() {
@@ -284,6 +319,7 @@ export function PresetsPage({
         editJobId,
         editData,
         editTagIds,
+        presetOverrides(editPrivacyOverride, editMultiInstanceOverride, editTilingOverride),
       );
       setPresets((current) =>
         current.map((preset) =>
@@ -370,6 +406,15 @@ export function PresetsPage({
             </label>
           </div>
           <div className="preset-tag-target preset-tag-form"><span>Target tags <InfoTip text="Matching any saved tag selects accounts at launch time. Leave empty to use the account picker. Renaming tags preserves targets; deleted tags must be replaced before launching." /></span><TagPicker tags={tags} selected={tagIds} onChange={setTagIds} disabled={saving || tagLoading || !!tagError} label="new preset" /></div>
+          <details className="preset-advanced">
+            <summary>Advanced</summary>
+            <p>Use Settings keeps each current global launch option.</p>
+            <div className="preset-advanced-fields">
+              <label><span>Privacy mode</span><Select ariaLabel="Preset privacy mode" value={privacyOverride} options={overrideOptions} disabled={saving} onChange={value=>setPrivacyOverride(value as OverrideChoice)} /></label>
+              <label><span>Multi-instance</span><Select ariaLabel="Preset multi-instance" value={multiInstanceOverride} options={overrideOptions} disabled={saving} onChange={value=>setMultiInstanceOverride(value as OverrideChoice)} /></label>
+              <label><span>Window tiling</span><Select ariaLabel="Preset window tiling" value={tilingOverride} options={overrideOptions} disabled={saving} onChange={value=>setTilingOverride(value as OverrideChoice)} /></label>
+            </div>
+          </details>
           <div className="preset-form-actions">
             <button
               className="account-button primary"
@@ -641,6 +686,15 @@ export function PresetsPage({
               autoComplete="off"
             />
             <span>Target tags (optional)</span><TagPicker tags={tags} selected={editTagIds} onChange={setEditTagIds} disabled={editSaving || tagLoading || !!tagError} label="edited preset" />
+            <details className="preset-advanced preset-advanced-edit">
+              <summary>Advanced</summary>
+              <p>Use Settings keeps each current global launch option.</p>
+              <div className="preset-advanced-fields">
+                <label><span>Privacy mode</span><Select ariaLabel="Edited preset privacy mode" value={editPrivacyOverride} options={overrideOptions} disabled={editSaving} onChange={value=>setEditPrivacyOverride(value as OverrideChoice)} /></label>
+                <label><span>Multi-instance</span><Select ariaLabel="Edited preset multi-instance" value={editMultiInstanceOverride} options={overrideOptions} disabled={editSaving} onChange={value=>setEditMultiInstanceOverride(value as OverrideChoice)} /></label>
+                <label><span>Window tiling</span><Select ariaLabel="Edited preset window tiling" value={editTilingOverride} options={overrideOptions} disabled={editSaving} onChange={value=>setEditTilingOverride(value as OverrideChoice)} /></label>
+              </div>
+            </details>
             <button
               className="account-button primary"
               type="button"

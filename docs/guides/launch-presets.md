@@ -28,6 +28,10 @@ Presets store a launch target so you do not have to re-enter the same values for
 
 The preset is saved as its own file in RM's presets folder. Use **Open folder** on the Presets tab to view the files in Explorer.
 
+## Optional launch settings
+
+Open **Advanced** while creating or editing a preset to override **Privacy mode**, **Multi-instance**, or **Auto-arrange windows** for that preset. Each setting defaults to **Use Settings**, so it follows the current global value. These choices do not change the global Settings draft. Older RM versions may ignore these fields and discard them if the preset is edited and saved; keep a backup before downgrading.
+
 ## Use a preset
 
 On **Presets**, choose one or several accounts in the saved preset's account picker and select **Launch**. Preset controls in Accounts can also fill the single-launch or bulk-launch destination fields. Review the selected accounts and target before launching. Invalid credentials are blocked and multiple launches follow the configured pacing.

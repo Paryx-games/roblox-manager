@@ -131,13 +131,16 @@ fn unique_users(users: Vec<FriendUser>) -> Vec<FriendUser> {
         .collect()
 }
 
+fn friends_url(user_id: u64) -> String {
+    format!("https://friends.roblox.com/v1/users/{user_id}/friends")
+}
+
 pub async fn fetch_users(
     client: &RobloxClient,
     cookie: &str,
     user_id: u64,
 ) -> Result<Vec<FriendUser>, CoreError> {
-    let base = format!("https://friends.roblox.com/v1/users/{user_id}/friends");
-    collect_users(client, cookie, &base).await
+    collect_users(client, cookie, &friends_url(user_id)).await
 }
 
 /// Complete request IDs for background change detection, without avatar or presence work.
@@ -572,6 +575,14 @@ pub struct FriendGroup {
     pub icon_url: Option<String>,
 }
 
+fn unique_groups(groups: Vec<FriendGroup>) -> Vec<FriendGroup> {
+    let mut seen = HashSet::new();
+    groups
+        .into_iter()
+        .filter(|group| group.id > 0 && seen.insert(group.id))
+        .collect()
+}
+
 pub async fn fetch_groups(
     client: &RobloxClient,
     cookie: &str,
@@ -601,17 +612,18 @@ pub async fn fetch_groups(
             cookie,
         )
         .await?;
-    let mut groups: Vec<_> = response
-        .data
-        .into_iter()
-        .filter(|entry| entry.group.id > 0)
-        .map(|entry| FriendGroup {
-            id: entry.group.id,
-            name: entry.group.name,
-            role: entry.role.name,
-            icon_url: None,
-        })
-        .collect();
+    let mut groups = unique_groups(
+        response
+            .data
+            .into_iter()
+            .map(|entry| FriendGroup {
+                id: entry.group.id,
+                name: entry.group.name,
+                role: entry.role.name,
+                icon_url: None,
+            })
+            .collect(),
+    );
     let ids: Vec<_> = groups.iter().map(|group| group.id).collect();
     match cached_api::fetch_group_icons(client, &ids).await {
         Ok(icons) => apply_group_icons(&mut groups, &icons),
@@ -631,6 +643,35 @@ fn apply_group_icons(groups: &mut [FriendGroup], icons: &[(u64, String)]) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn duplicate_group_memberships_keep_the_first_role_and_order() {
+        use super::*;
+        let groups = unique_groups(vec![
+            FriendGroup {
+                id: 10,
+                name: "First".into(),
+                role: "Builder".into(),
+                icon_url: None,
+            },
+            FriendGroup {
+                id: 10,
+                name: "Duplicate".into(),
+                role: "Member".into(),
+                icon_url: None,
+            },
+            FriendGroup {
+                id: 20,
+                name: "Second".into(),
+                role: "Member".into(),
+                icon_url: None,
+            },
+        ]);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].name, "First");
+        assert_eq!(groups[0].role, "Builder");
+        assert_eq!(groups[1].id, 20);
+    }
+
     #[test]
     fn group_icons_keep_roles_and_match_ids_despite_missing_or_reordered_thumbnails() {
         use super::*;
@@ -709,19 +750,18 @@ mod tests {
         let page: super::UsersPage = serde_json::from_str(r#"{"data":[{"id":1,"hasVerifiedBadge":false},{"id":2}],"nextPageCursor":"next&cursor"}"#).unwrap();
         assert_eq!(page.data.len(), 2);
         assert!(page.data[0].username.is_empty());
-        let url = super::next_url(
-            "https://friends.roblox.com/v1/users/9/friends?limit=50",
-            page.next_page_cursor.as_deref(),
-        )
-        .unwrap();
+        let url =
+            super::next_url(&super::friends_url(9), page.next_page_cursor.as_deref()).unwrap();
         let url = reqwest::Url::parse(&url).unwrap();
         let query: std::collections::HashMap<_, _> = url.query_pairs().collect();
-        assert_eq!(query.get("limit").map(|value| value.as_ref()), Some("50"));
+        assert_eq!(url.path(), "/v1/users/9/friends");
+        assert_eq!(url.host_str(), Some("friends.roblox.com"));
         assert_eq!(
             query.get("cursor").map(|value| value.as_ref()),
             Some("next&cursor")
         );
     }
+
     use super::*;
 
     fn users(ids: &[u64]) -> Vec<FriendUser> {

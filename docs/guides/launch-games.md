@@ -73,7 +73,11 @@ and does not change any Roblox relationship.
 
 Use multi-instance mode when you need multiple Roblox clients at once.
 
-Select multiple accounts in Accounts with `Ctrl`-click or `Shift`-click, then use **Bulk launch** and review the destination. Successive launches use the configured pacing. Preset launches, private-server launches and server joins use the same launch safeguards.
+Select multiple accounts in Accounts with `Ctrl`-click or `Shift`-click, then use **Bulk launch** and review the destination. Successive launches use the configured pacing. Each selected account is attempted even if another launch fails; the result reports how many started and how many failed or were blocked. Check the RM log for each account's reason code before retrying. Preset launches, private-server launches and server joins use the same launch safeguards.
+
+## Launch status and recovery
+
+The title bar shows the pending launch count, and **Instances** lists active launch attempts in queued, starting, or retrying phases. A started state means RM submitted the launch to Windows; it does not confirm that Roblox finished loading or joined the destination. Failed and blocked launches include a recovery hint in the Friends detail panel for a join started from that friend profile. The application log records timestamped phase changes, the account ID, request ID, and a stable reason code for each terminal failure; it does not record cookies or access codes. Find daily logs under `%APPDATA%\RM\rm.<YYYY-MM-DD>.log`. See the [FAQ](../faq.md) for application data and log locations.
 
 ### Browser links and background behaviour
 

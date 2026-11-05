@@ -23,8 +23,40 @@ pub fn set_enabled(enabled: bool) -> io::Result<()> {
     }
 }
 
+#[cfg(windows)]
+pub fn is_enabled() -> io::Result<bool> {
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
+    use winreg::RegKey;
+
+    let exe = std::env::current_exe()?;
+    let root = RegKey::predef(HKEY_CURRENT_USER);
+    let run_key = match root.open_subkey_with_flags(
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        KEY_READ,
+    ) {
+        Ok(key) => key,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    match run_key.get_value::<String, _>("RobloxManager") {
+        Ok(command) => Ok(command
+            .trim_matches('"')
+            .eq_ignore_ascii_case(&exe.display().to_string())),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
 #[cfg(not(windows))]
 pub fn set_enabled(_enabled: bool) -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "Windows startup is only available on Windows",
+    ))
+}
+
+#[cfg(not(windows))]
+pub fn is_enabled() -> io::Result<bool> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
         "Windows startup is only available on Windows",

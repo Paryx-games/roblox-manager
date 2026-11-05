@@ -170,6 +170,9 @@ pub fn migrate_favourites(
             job_id: None,
             data: None,
             tag_ids: Vec::new(),
+            privacy_mode: None,
+            multi_instance_enabled: None,
+            auto_arrange_windows: None,
         };
         if !existing.iter().any(|(_, saved)| saved == &preset) {
             let path = save(directory, &preset, None)
@@ -189,6 +192,21 @@ pub fn migrate_favourites(
 #[cfg(test)]
 mod migration_tests {
     use super::*;
+
+    #[test]
+    fn older_presets_inherit_global_launch_settings() {
+        let preset: LaunchPreset = serde_json::from_str(
+            r#"{"name":"Synthetic preset","place_id":123,"job_id":null,"data":null}"#,
+        )
+        .unwrap();
+        assert_eq!(preset.privacy_mode, None);
+        assert_eq!(preset.multi_instance_enabled, None);
+        assert_eq!(preset.auto_arrange_windows, None);
+        let saved = serde_json::to_value(preset).unwrap();
+        assert!(saved.get("privacy_mode").is_none());
+        assert!(saved.get("multi_instance_enabled").is_none());
+        assert!(saved.get("auto_arrange_windows").is_none());
+    }
 
     #[test]
     fn failed_config_save_retains_favourites_and_retry_reuses_saved_presets() {

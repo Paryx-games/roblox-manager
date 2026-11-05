@@ -1,5 +1,28 @@
 # Changelog
 
+## v2.5.0
+
+### Added
+
+- **Launch diagnostics:** Show queued, starting, retrying, started, failed and blocked states; add per-account reason codes with recovery hints, timestamped log entries and partial-batch counts.
+- **Preset launch options:** Let presets optionally override privacy mode, multi-instance and automatic window arrangement while inheriting global Settings by default.
+- **Friends table controls:** Resize columns and choose which columns are visible from the table header; deduplicate repeated group memberships.
+- **Windows status:** Show Roblox process state, actual startup registration, connected displays, and saved privacy and window-arrangement settings.
+
+### Changed
+
+- Continue bulk launches after individual failures and report the launched, failed and blocked totals.
+
+### Fixed
+
+- **Friends mutuals:** Use the established paginated Friends list endpoint and avoid a separate browser-context request before loading friend lists.
+- **Friends joins and table layout:** Keep saved column widths fixed while resizing; leave an explained blank Join slot when Roblox doesn't expose a valid server destination.
+- **Friends icons and group navigation:** Show the original Roblox and Studio PNG colors and use the square-arrow Go to action for group links.
+- **Friends loading:** Restore the established Friends list route after the experimental route prevented the page from loading account data.
+- **Join friends:** Reuse the account multi-select to queue sequential joins for multiple eligible accounts, with per-account results and failed-account retry selection.
+- **Launch diagnostics:** Scope friend launch status to the friend being joined, keep rate-limit and connection failures distinct, and honor each launch profile's window-arrangement choice.
+- **Settings and presets:** Refresh Windows startup registration status and prevent preset override changes while a save is in progress.
+
 ## v2.4.2
 
 ### Changed
