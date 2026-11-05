@@ -372,6 +372,12 @@ struct LaunchPresetSummary {
     data: Option<String>,
     #[serde(default)]
     tag_ids: Vec<String>,
+    #[serde(default)]
+    privacy_mode: Option<bool>,
+    #[serde(default)]
+    multi_instance_enabled: Option<bool>,
+    #[serde(default)]
+    auto_arrange_windows: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -616,6 +622,7 @@ struct SettingsSnapshot {
     has_password: bool,
     has_discord_webhook: bool,
     roblox_running: bool,
+    startup_registered: Option<bool>,
     info_cards: std::collections::HashMap<String, SettingsInfoCard>,
 }
 
@@ -1538,6 +1545,7 @@ async fn get_settings(state: tauri::State<'_, AppState>) -> Result<SettingsSnaps
             has_password,
             has_discord_webhook,
             roblox_running: process::is_roblox_running(),
+            startup_registered: startup::is_enabled().ok(),
             info_cards: settings_info_cards(),
         })
     })
@@ -1695,24 +1703,48 @@ struct StartupChange {
 async fn set_startup_with_windows(
     state: tauri::State<'_, AppState>,
     change: StartupChange,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let enabled = change.enabled;
+    let state = state.inner().clone();
+    let previous = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable".to_string())?;
+        runtime.config.startup_with_windows
+    };
     tauri::async_runtime::spawn_blocking(move || startup::set_enabled(enabled))
         .await
         .map_err(|error| format!("Startup task failed: {error}"))?
         .map_err(|error| error.to_string())?;
 
-    let mut runtime = state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable".to_string())?;
-    let previous = runtime.config.startup_with_windows;
-    runtime.config.startup_with_windows = enabled;
-    if let Err(error) = save_config(&runtime) {
-        runtime.config.startup_with_windows = previous;
+    let save_error = match state.runtime.lock() {
+        Ok(mut runtime) => {
+            runtime.config.startup_with_windows = enabled;
+            match save_config(&runtime) {
+                Ok(()) => None,
+                Err(error) => {
+                    runtime.config.startup_with_windows = previous;
+                    Some(error)
+                }
+            }
+        }
+        Err(_) => Some("Application state unavailable".to_string()),
+    };
+    if let Some(error) = save_error {
+        let rollback =
+            tauri::async_runtime::spawn_blocking(move || startup::set_enabled(previous)).await;
+        if !matches!(rollback, Ok(Ok(()))) {
+            return Err(format!(
+                "{error}. Windows startup registration could not be rolled back."
+            ));
+        }
         return Err(error);
     }
-    Ok(())
+    tauri::async_runtime::spawn_blocking(startup::is_enabled)
+        .await
+        .map_err(|_| "Startup status task failed".to_string())?
+        .map_err(|_| "Windows startup registration status is unavailable".to_string())
 }
 
 #[tauri::command]
@@ -2416,6 +2448,7 @@ async fn launch_account(
             data,
             link_code,
             access_code,
+            overrides: launcher::LaunchOverrides::default(),
         },
     )
     .await
@@ -2458,6 +2491,7 @@ async fn launch_private_server(
                 data: None,
                 link_code: Some(link_code.clone()),
                 access_code: access_code.clone(),
+                overrides: launcher::LaunchOverrides::default(),
             })
             .collect(),
     )
@@ -2777,6 +2811,7 @@ async fn join_user_game(
             data: None,
             link_code: None,
             access_code: None,
+            overrides: launcher::LaunchOverrides::default(),
         },
     )
     .await
@@ -2925,6 +2960,9 @@ fn preset_summary(index: usize, preset: &LaunchPreset, icon_url: String) -> Laun
         job_id: preset.job_id.clone(),
         data: preset.data.clone(),
         tag_ids: preset.tag_ids.clone(),
+        privacy_mode: preset.privacy_mode,
+        multi_instance_enabled: preset.multi_instance_enabled,
+        auto_arrange_windows: preset.auto_arrange_windows,
     }
 }
 
@@ -2974,6 +3012,9 @@ async fn save_launch_preset(
     job_id: Option<String>,
     data: Option<String>,
     tag_ids: Option<Vec<String>>,
+    privacy_mode: Option<bool>,
+    multi_instance_enabled: Option<bool>,
+    auto_arrange_windows: Option<bool>,
 ) -> Result<(), String> {
     let tag_ids = tag_ids.unwrap_or_default();
     {
@@ -2997,6 +3038,9 @@ async fn save_launch_preset(
         job_id: job_id.filter(|value| !value.trim().is_empty()),
         data: data.filter(|value| !value.trim().is_empty()),
         tag_ids,
+        privacy_mode,
+        multi_instance_enabled,
+        auto_arrange_windows,
     };
     tauri::async_runtime::spawn_blocking(move || {
         ram_core::presets::save(&preset_data_dir(), &preset, None)
@@ -3016,6 +3060,9 @@ async fn update_launch_preset(
     job_id: Option<String>,
     data: Option<String>,
     tag_ids: Option<Vec<String>>,
+    privacy_mode: Option<bool>,
+    multi_instance_enabled: Option<bool>,
+    auto_arrange_windows: Option<bool>,
 ) -> Result<LaunchPresetSummary, String> {
     let tag_ids = tag_ids.unwrap_or_default();
     {
@@ -3039,6 +3086,9 @@ async fn update_launch_preset(
         job_id: job_id.filter(|value| !value.trim().is_empty()),
         data: data.filter(|value| !value.trim().is_empty()),
         tag_ids,
+        privacy_mode,
+        multi_instance_enabled,
+        auto_arrange_windows,
     };
     let saved = preset.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -3113,6 +3163,11 @@ async fn launch_launch_preset(
                 data: preset.data.clone(),
                 link_code: None,
                 access_code: None,
+                overrides: launcher::LaunchOverrides {
+                    privacy_mode: preset.privacy_mode,
+                    multi_instance_enabled: preset.multi_instance_enabled,
+                    auto_arrange_windows: preset.auto_arrange_windows,
+                },
             })
             .collect(),
     )

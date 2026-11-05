@@ -3420,6 +3420,53 @@ button:focus-visible {
   margin-top: var(--space-4);
 }
 
+.preset-advanced {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border-default);
+  border-radius: var(--radius);
+}
+
+.preset-advanced > summary {
+  width: fit-content;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.preset-advanced > summary:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
+}
+
+.preset-advanced > p {
+  margin: var(--space-2) 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.preset-advanced-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.preset-advanced-fields > label {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.preset-advanced-fields .rm-select {
+  min-width: 0;
+}
+
+.preset-advanced-edit {
+  grid-column: 1 / -1;
+}
+
 .preset-toolbar {
   display: flex;
   flex-wrap: nowrap;
@@ -3695,6 +3742,10 @@ button:focus-visible {
   .preset-form label {
     grid-template-columns: 1fr;
     gap: var(--space-2);
+  }
+
+  .preset-advanced-fields {
+    grid-template-columns: 1fr;
   }
 
   .preset-folder-button {
@@ -7902,15 +7953,20 @@ button:focus-visible {
 .friends-list-panel, .friends-details { min-width: 0; min-height: 0; border: var(--border-width) solid var(--border-default); border-radius: var(--radius); background: var(--bg-surface); }
 .friends-list-panel { display: flex; flex-direction: column; overflow: hidden; }
 .friends-list-scroll { min-width: 0; min-height: 0; overflow: auto; }
-.friends-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: var(--text-xs); }
+.friends-table { min-width: 100%; border-collapse: collapse; table-layout: fixed; font-size: var(--text-xs); }
 .friends-table th, .friends-table td { padding: var(--space-2) var(--space-1); border-bottom: var(--border-width) solid var(--border-default); text-align: left; vertical-align: middle; }
 .friends-table th { position: sticky; z-index: 1; top: 0; color: var(--text-muted); background: var(--bg-raised); font-weight: 400; }
-.friends-table th:first-child { width: 28px; padding-left: var(--space-2); }
-.friends-table th:nth-child(2) { width: 22%; }
-.friends-table th:nth-child(3) { width: 82px; }
-.friends-table th:nth-child(4) { width: 22%; }
-.friends-table th:last-child { width: 94px; }
+.friends-table th:first-child { padding-left: var(--space-2); }
+.friends-table th[tabindex="0"]:focus-visible { outline: 2px solid var(--action-primary); outline-offset: -2px; }
+.friends-column-resizer { position: absolute; z-index: 2; top: 0; right: 0; bottom: 0; width: var(--space-2); cursor: col-resize; touch-action: none; user-select: none; }
+.friends-column-resizer:hover, .friends-column-resizer:active, .friends-column-resizer:focus-visible { border-right: 2px solid var(--action-primary); }
+.friends-column-resizer:focus-visible { outline: 2px solid var(--action-primary); outline-offset: -2px; }
 .friends-table input[type="checkbox"], .friends-radio-account input { width: 16px; height: 16px; accent-color: var(--action-primary); cursor: pointer; }
+.friends-column-menu { position: fixed; z-index: 100; display: grid; min-width: 180px; gap: var(--space-1); padding: var(--space-2); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); background: var(--bg-raised); }
+.friends-column-menu label { display: flex; min-height: 32px; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-radius: var(--radius); color: var(--text-primary); cursor: pointer; font-size: var(--text-sm); }
+.friends-column-menu label:hover, .friends-column-menu label:focus-within { background: var(--action-muted); }
+.friends-column-menu label:has(input:disabled) { color: var(--text-muted); cursor: default; }
+.friends-column-menu input { width: 16px; height: 16px; accent-color: var(--action-primary); }
 .friends-table tr[data-selected="true"] { background: var(--action-muted); }
 .friends-table tbody tr:hover { background: var(--bg-raised); }
 .friend-name-button { display: block; width: 100%; min-width: 0; padding: 0; border: 0; border-radius: var(--radius); color: var(--text-primary); background: transparent; cursor: pointer; text-align: left; }
@@ -7942,6 +7998,12 @@ button:focus-visible {
 .friend-row-actions > .icon-button { width: 28px; height: 32px; flex: 0 0 28px; }
 .friends-details { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3); overflow-y: auto; }
 .friends-details > .friend-identity .shared-account-avatar { width: 56px; height: 56px; flex-basis: 56px; }
+.friends-launch-status { display: grid; min-width: 0; min-height: 24px; grid-template-columns: 7px minmax(0, 1fr); align-items: center; column-gap: var(--space-2); margin: calc(-1 * var(--space-2)) 0 0 64px; color: var(--status-studio); font-size: var(--text-xs); }
+.friends-launch-dot { width: 7px; height: 7px; grid-row: 1 / span 2; align-self: start; margin-top: 3px; border-radius: 50%; background: currentcolor; }
+.friends-launch-status small { min-width: 0; grid-column: 2; overflow-wrap: anywhere; }
+.friends-launch-status-started { color: var(--status-online); }
+.friends-launch-status-failed { color: var(--status-danger); }
+.friends-launch-status-blocked { color: var(--status-warning); }
 .friends-detail-tabs { display: flex; gap: var(--space-1); }
 .friends-detail-tabs button { min-width: 0; flex: 1; padding: var(--space-1); }
 .friends-game-card { display: grid; gap: var(--space-3); padding: var(--space-2); border: var(--border-width) solid var(--border-default); border-radius: var(--radius); }

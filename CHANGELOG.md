@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.5
+
+### Added
+
+- **Launch diagnostics:** Show queued, starting, retrying, started, failed and blocked states; add per-account reason codes with recovery hints, timestamped log entries and partial-batch counts.
+- **Preset launch options:** Let presets optionally override privacy mode, multi-instance and automatic window arrangement while inheriting global Settings by default.
+- **Friends table controls:** Resize columns and choose which columns are visible from the table header; deduplicate repeated group memberships.
+- **Windows status:** Show Roblox process state, actual startup registration, connected displays, and saved privacy and window-arrangement settings.
+
+### Changed
+
+- Continue bulk launches after individual failures and report the launched, failed and blocked totals.
+
 ## v2.4.2
 
 ### Changed

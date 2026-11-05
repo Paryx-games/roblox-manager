@@ -762,32 +762,56 @@ pub fn moderation(app: &tauri::AppHandle, user_id: u64, label: &str) {
 pub fn batch_finished(
     app: &tauri::AppHandle,
     total: usize,
-    completed: usize,
+    launched: usize,
     place_id: u64,
     job_id: Option<&str>,
 ) {
     if total < 2 {
         return;
     }
-    let stopped = completed < total;
-    let detail = format!("**Place ID:** {place_id}{}\n**Launch requests completed:** {completed} / {total}\n**Failed:** {}\n**Not attempted:** {}\n\n{}", job_detail(job_id), usize::from(stopped), total.saturating_sub(completed + usize::from(stopped)),
-        if stopped { "The batch stopped after a launch failure. Check RM before retrying." } else { "All launch requests finished. Roblox clients may still be starting or connecting; check Instances." });
-    dispatch(
-        app,
-        Event::BatchLaunchFinished,
-        payload(
-            if stopped {
-                "Batch launch stopped"
-            } else {
-                "Batch launch finished"
-            },
-            &detail,
-        ),
+    let (title, detail) = batch_summary(total, launched, place_id, job_id);
+    dispatch(app, Event::BatchLaunchFinished, payload(title, &detail));
+}
+
+fn batch_summary(
+    total: usize,
+    launched: usize,
+    place_id: u64,
+    job_id: Option<&str>,
+) -> (&'static str, String) {
+    let failed = total.saturating_sub(launched);
+    let detail = format!(
+        "**Place ID:** {place_id}{}\n**Accounts attempted:** {total} / {total}\n**Launches requested:** {launched} / {total}\n**Failed or blocked:** {failed}\n**Not attempted:** 0\n\n{}",
+        job_detail(job_id),
+        if failed > 0 {
+            "Every selected account was attempted. Check the RM log for per-account reason codes before retrying."
+        } else {
+            "All launch requests were submitted. Roblox clients may still be starting or connecting; check Instances."
+        }
     );
+    (
+        if failed > 0 {
+            "Batch launch finished with failures"
+        } else {
+            "Batch launch finished"
+        },
+        detail,
+    )
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn batch_summary_reports_partial_launches_without_claiming_the_batch_stopped() {
+        let (title, detail) = super::batch_summary(3, 1, 123, None);
+        assert_eq!(title, "Batch launch finished with failures");
+        assert!(detail.contains("Accounts attempted:** 3 / 3"));
+        assert!(detail.contains("Launches requested:** 1 / 3"));
+        assert!(detail.contains("Failed or blocked:** 2"));
+        assert!(detail.contains("Not attempted:** 0"));
+        assert!(detail.contains("Every selected account was attempted"));
+    }
+
     #[test]
     fn retired_home_routes_remain_readable_without_delivery() {
         let mut settings: super::NotificationSettings =

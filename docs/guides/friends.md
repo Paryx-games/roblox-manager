@@ -21,11 +21,15 @@ Sort by online status first, display name or username in either direction. The c
 
 Click a name or row to open its details. Check friends individually or use the header checkbox to select all visible friends. Selection survives filtering; account changes clear it and refreshed lists remove selections for former friends. The selection toolbar copies usernames or user IDs. It never launches clients or changes friendships in bulk.
 
+Right-click a column heading, or focus it and press the context-menu key, to choose visible columns. The Friend column stays visible. Drag a column edge to resize it, or focus the resize handle and use Left/Right; Home and End select the minimum and maximum widths. RM saves column choices locally in this installation.
+
 ## Profile details
 
 The right panel loads extended information only for the selected friend. **Details** shows profile text and known IDs, **Mutual friends** intersects the two visible friend lists, and **Groups** shows visible group memberships and roles. Privacy restrictions or failed lookups show an error with Retry instead of invented zero counts.
 
-Group rows show their Roblox thumbnail, with a group-symbol fallback if the image is unavailable. Use the link button on the right to switch to **Groups** and load that group by ID. If the Groups workspace is hidden, enable it in Settings first.
+Friend entries are deduplicated by user ID, and repeated group memberships are shown once per group ID. The tab count and mutual-friend count summarize the entries visible to the selected account; group roles describe the selected friend and do not verify the selected RM account's access. Group rows show their Roblox thumbnail, with a group-symbol fallback if the image is unavailable. Use the single link action on the right to switch to **Groups** and load that group by ID. If the Groups workspace is hidden, enable it in Settings first.
+
+When a launch is active, its current phase appears below the selected friend's presence. Failed launches show a short recovery hint; detailed per-account reason codes and timestamps are in the [application logs](launch-games.md#launch-status-and-recovery). The compact status clears after a few seconds rather than keeping a recent-attempt list.
 
 The three-dot menu supports copying identifiers, viewing the profile panel, opening the Roblox profile, joining eligible games, removing a friend and blocking a user. Remove, block and decline actions require confirmation. Failed or unconfirmed mutations keep the current list visible and explain how to retry safely.
 

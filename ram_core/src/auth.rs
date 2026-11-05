@@ -221,6 +221,18 @@ impl RobloxClient {
         cookie: &str,
         body: ReqBody<'_>,
     ) -> Result<Response, CoreError> {
+        self.request_inner_with_retry_callback(method, url, cookie, body, |_| {})
+            .await
+    }
+
+    async fn request_inner_with_retry_callback(
+        &self,
+        method: Method,
+        url: &str,
+        cookie: &str,
+        body: ReqBody<'_>,
+        mut on_retry: impl FnMut(&'static str),
+    ) -> Result<Response, CoreError> {
         // Two independent counters. Sharing one made any request that had been
         // rate-limited skip its CSRF retry, returning an auth error while
         // holding the very token that would have worked.
@@ -314,6 +326,7 @@ impl RobloxClient {
                     if csrf_attempt < MAX_CSRF_RETRIES {
                         csrf_attempt += 1;
                         debug!("CSRF token rotated, retrying (attempt {csrf_attempt})");
+                        on_retry("csrf");
                         continue;
                     }
                     return Err(CoreError::AuthFailed(format!(
@@ -328,6 +341,7 @@ impl RobloxClient {
                     let wait =
                         retry_after(resp.headers()).unwrap_or_else(|| backoff_for_attempt(attempt));
                     warn!("Rate limited, backing off {wait:?} (attempt {attempt})");
+                    on_retry("rate_limit");
                     tokio::time::sleep(wait).await;
                     attempt += 1;
                     continue;
@@ -413,12 +427,22 @@ impl RobloxClient {
     /// Request an authentication ticket from Roblox for game launch.
     /// Returns the ticket string on success.
     pub async fn generate_auth_ticket(&self, cookie: &str) -> Result<String, CoreError> {
+        self.generate_auth_ticket_with_retry_callback(cookie, |_| {})
+            .await
+    }
+
+    pub async fn generate_auth_ticket_with_retry_callback(
+        &self,
+        cookie: &str,
+        on_retry: impl FnMut(&'static str),
+    ) -> Result<String, CoreError> {
         let resp = self
-            .request(
+            .request_inner_with_retry_callback(
                 Method::POST,
                 "https://auth.roblox.com/v1/authentication-ticket",
                 cookie,
-                None,
+                ReqBody::None,
+                on_retry,
             )
             .await?;
 
@@ -469,6 +493,91 @@ impl Default for RobloxClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn read_test_request(stream: &mut tokio::net::TcpStream) {
+        let mut bytes = Vec::new();
+        let mut chunk = [0; 1024];
+        while !bytes.windows(4).any(|window| window == b"\r\n\r\n") {
+            let count = stream.read(&mut chunk).await.unwrap();
+            assert_ne!(count, 0);
+            bytes.extend_from_slice(&chunk[..count]);
+        }
+    }
+
+    #[tokio::test]
+    async fn retry_callback_reports_csrf_rotation_without_changing_retry_behavior() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut first, _) = listener.accept().await.unwrap();
+            read_test_request(&mut first).await;
+            first
+                .write_all(
+                    b"HTTP/1.1 403 Forbidden\r\nx-csrf-token: synthetic-token\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+                )
+                .await
+                .unwrap();
+            let (mut second, _) = listener.accept().await.unwrap();
+            read_test_request(&mut second).await;
+            second
+                .write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+                .await
+                .unwrap();
+        });
+        let client = RobloxClient::new().unwrap();
+        let mut retries = Vec::new();
+        let response = client
+            .request_inner_with_retry_callback(
+                Method::POST,
+                &format!("http://{address}/"),
+                "synthetic-cookie",
+                ReqBody::None,
+                |reason| retries.push(reason),
+            )
+            .await
+            .unwrap();
+        assert!(response.status().is_success());
+        assert_eq!(retries, ["csrf"]);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn retry_callback_reports_rate_limiting_before_the_existing_backoff() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut first, _) = listener.accept().await.unwrap();
+            read_test_request(&mut first).await;
+            first
+                .write_all(
+                    b"HTTP/1.1 429 Too Many Requests\r\nretry-after: 0\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+                )
+                .await
+                .unwrap();
+            let (mut second, _) = listener.accept().await.unwrap();
+            read_test_request(&mut second).await;
+            second
+                .write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+                .await
+                .unwrap();
+        });
+        let client = RobloxClient::new().unwrap();
+        let mut retries = Vec::new();
+        let response = client
+            .request_inner_with_retry_callback(
+                Method::POST,
+                &format!("http://{address}/"),
+                "synthetic-cookie",
+                ReqBody::None,
+                |reason| retries.push(reason),
+            )
+            .await
+            .unwrap();
+        assert!(response.status().is_success());
+        assert_eq!(retries, ["rate_limit"]);
+        server.await.unwrap();
+    }
 
     #[test]
     fn browser_context_accepts_only_roblox_tracker_with_numeric_browser_id() {

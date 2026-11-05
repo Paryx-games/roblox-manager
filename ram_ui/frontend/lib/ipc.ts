@@ -173,6 +173,15 @@ export interface LaunchPresetSummary {
   jobId: string | null;
   data: string | null;
   tagIds: string[];
+  privacyMode: boolean | null;
+  multiInstanceEnabled: boolean | null;
+  autoArrangeWindows: boolean | null;
+}
+
+export interface LaunchPresetOverrides {
+  privacyMode: boolean | null;
+  multiInstanceEnabled: boolean | null;
+  autoArrangeWindows: boolean | null;
 }
 
 export interface AccountTag { id: string; name: string; color: [number, number, number]; }
@@ -380,6 +389,7 @@ export interface SettingsSnapshot {
   hasPassword: boolean;
   hasDiscordWebhook: boolean;
   robloxRunning: boolean;
+  startupRegistered: boolean | null;
   infoCards: Record<string, SettingsInfoCard>;
 }
 
@@ -747,6 +757,7 @@ export async function saveLaunchPreset(
   jobId: string,
   data: string,
   tagIds: string[] = [],
+  overrides: LaunchPresetOverrides = { privacyMode: null, multiInstanceEnabled: null, autoArrangeWindows: null },
 ): Promise<void> {
   return invoke<void>("save_launch_preset", {
     name,
@@ -754,6 +765,9 @@ export async function saveLaunchPreset(
     placeId,
     jobId: jobId.trim() || null,
     data: data.trim() || null,
+    privacyMode: overrides.privacyMode,
+    multiInstanceEnabled: overrides.multiInstanceEnabled,
+    autoArrangeWindows: overrides.autoArrangeWindows,
   });
 }
 
@@ -768,6 +782,7 @@ export async function updateLaunchPreset(
   jobId: string,
   data: string,
   tagIds: string[] = [],
+  overrides: LaunchPresetOverrides = { privacyMode: null, multiInstanceEnabled: null, autoArrangeWindows: null },
 ): Promise<LaunchPresetSummary> {
   return invoke<LaunchPresetSummary>("update_launch_preset", {
     index,
@@ -776,6 +791,9 @@ export async function updateLaunchPreset(
     placeId,
     jobId: jobId.trim() || null,
     data: data.trim() || null,
+    privacyMode: overrides.privacyMode,
+    multiInstanceEnabled: overrides.multiInstanceEnabled,
+    autoArrangeWindows: overrides.autoArrangeWindows,
   });
 }
 
@@ -804,8 +822,8 @@ export async function saveSettings(
   return invoke<SettingsConfig>("save_settings", { settings });
 }
 
-export async function setStartupWithWindows(enabled: boolean): Promise<void> {
-  return invoke<void>("set_startup_with_windows", {
+export async function setStartupWithWindows(enabled: boolean): Promise<boolean> {
+  return invoke<boolean>("set_startup_with_windows", {
     change: { enabled },
   });
 }
@@ -920,7 +938,8 @@ export function saveClientLaunchSettings(settings: ClientLaunchSettings): Promis
 export interface LaunchProgress {
   requestId: string;
   userId: number;
-  phase: "waiting" | "authenticating" | "launching" | "requested" | "failed";
+  phase: "queued" | "starting" | "retrying" | "started" | "failed" | "blocked";
+  reasonCode: string | null;
 }
 
 export async function listInstances(): Promise<InstanceWorkspace> {

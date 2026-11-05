@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AccountPicker } from "./components/AccountPicker";
-import { FriendRow } from "./components/FriendComponents";
+import { FriendsTable } from "./components/FriendsTable";
 import { FriendDetailsPanel } from "./components/FriendDetailsPanel";
 import { FriendRequestsView } from "./components/FriendRequestsView";
 import { JoinFriendDialog } from "./components/JoinFriendDialog";
@@ -29,7 +29,7 @@ export function FriendsPage({accounts,accountsReady,accountsError,onRetryAccount
   const [confirm,setConfirm]=useState<{user:FriendUser;action:FriendAction}|null>(null);
   const [join,setJoin]=useState<{friend:Friend;expectedJobId:string|null;requireNewInstance:boolean}|null>(null);
   const [requestsRevision,setRequestsRevision]=useState(0);const [requestCount,setRequestCount]=useState<{viewer:number;count:number;more:boolean}|null>(null);
-  const active=useWorkspaceActive();const selectAll=useRef<HTMLInputElement>(null);const initialized=useRef(false);
+  const active=useWorkspaceActive();const initialized=useRef(false);
   const account=accounts.find(account=>account.userId===viewer);
   const allowed=!!account&&!account.cookieExpired;
   const [sidebarWidth,setSidebarWidth]=useState(320);
@@ -61,22 +61,24 @@ export function FriendsPage({accounts,accountsReady,accountsError,onRetryAccount
   },[viewer,accountsReady,accountsError]);
   useEffect(()=>{setSelected(new Set());setFocused(null);setJoin(null);setConfirm(null);setError(null);},[viewer]);
   useEffect(()=>{if(!friends)return;setSelected(current=>reconcileFriendsSelection(current,friends));setFocused(current=>friends.some(friend=>friend.userId===current)?current:null);},[friends]);
-  useEffect(()=>{if(selectAll.current)selectAll.current.indeterminate=someChecked&&!allChecked;},[someChecked,allChecked]);
-  function toggleVisible(){setSelected(current=>{const next=new Set(current);for(const row of rows){if(allChecked)next.delete(row.userId);else next.add(row.userId);}return next;});}
+  const toggleVisible=useCallback(()=>{setSelected(current=>{const next=new Set(current);for(const row of rows){if(allChecked)next.delete(row.userId);else next.add(row.userId);}return next;});},[rows,allChecked]);
+  const toggleFriend=useCallback((friend:Friend)=>{setFocused(friend.userId);setSelected(current=>{const next=new Set(current);if(next.has(friend.userId))next.delete(friend.userId);else next.add(friend.userId);return next;});},[]);
+  const focusFriend=useCallback((friend:Friend)=>setFocused(friend.userId),[]);
   useSelectAllShortcut(()=>setSelected(current=>new Set([...current,...rows.map(friend=>friend.userId)])),{isEnabled:active&&filter!=='requests'&&rows.length>0});
-  function notify(title:string,message:string){setToast({id:Date.now(),title,message,kind:'success',duration:'standard'});}
-  async function copy(value:string,label:string){try{await navigator.clipboard.writeText(value);if(mounted.current){setError(null);notify('Copied',`${label} copied to the clipboard.`);}}catch{if(mounted.current)setError(`Could not copy ${label}. Check clipboard access and try again.`);}}
-  const onCopy=(value:string,label:string)=>{void copy(value,label);};
-  async function openProfile(id:number){if(!viewer)return;try{await browseAsAccount(viewer,false,id);}catch(reason){if(mounted.current)setError(operationError(reason,'The Roblox profile popup could not be opened.'));}}
-  function startJoin(friend:Friend,expectedJobId?:string,requireNewInstance=false){if(canJoinFriend(friend)){setError(null);setJoin({friend,expectedJobId:expectedJobId??null,requireNewInstance});}}
-  async function mutate(user:FriendUser,action:FriendAction){
+  const notify=useCallback((title:string,message:string)=>{setToast({id:Date.now(),title,message,kind:'success',duration:'standard'});},[]);
+  const copy=useCallback(async(value:string,label:string)=>{try{await navigator.clipboard.writeText(value);if(mounted.current){setError(null);notify('Copied',`${label} copied to the clipboard.`);}}catch{if(mounted.current)setError(`Could not copy ${label}. Check clipboard access and try again.`);}},[notify]);
+  const onCopy=useCallback((value:string,label:string)=>{void copy(value,label);},[copy]);
+  const openProfile=useCallback(async(id:number)=>{if(!viewer)return;try{await browseAsAccount(viewer,false,id);}catch(reason){if(mounted.current)setError(operationError(reason,'The Roblox profile popup could not be opened.'));}},[viewer]);
+  const onProfile=useCallback((id:number)=>{void openProfile(id);},[openProfile]);
+  const startJoin=useCallback((friend:Friend,expectedJobId?:string,requireNewInstance=false)=>{if(canJoinFriend(friend)){setError(null);setJoin({friend,expectedJobId:expectedJobId??null,requireNewInstance});}},[]);
+  const mutate=useCallback(async(user:FriendUser,action:FriendAction)=>{
     if(!viewer||pending.current)return;
     const owner=viewer;pending.current=true;setBusy(true);setError(null);
     try{await friendAction(owner,user.userId,action);if(!mounted.current)return;setConfirm(null);refresh();setRequestsRevision(value=>value+1);notify(action==='accept'?'Friend request accepted':action==='decline'?'Friend request declined':action==='block'?'User blocked':'Friend removed','Refreshing the account to show current relationships.');}
     catch(reason){if(mounted.current)setError(operationError(reason,'The friend action failed. Refresh before trying again.'));}
     finally{pending.current=false;if(mounted.current)setBusy(false);}
-  }
-  function manage(user:FriendUser,action:FriendAction){setError(null);if(action==='accept')void mutate(user,action);else setConfirm({user,action});}
+  },[viewer,refresh,notify]);
+  const manage=useCallback((user:FriendUser,action:FriendAction)=>{setError(null);if(action==='accept')void mutate(user,action);else setConfirm({user,action});},[mutate]);
   function reload(){refresh();setRequestsRevision(value=>value+1);setError(null);}
   const requestBadge=requestCount?.viewer===viewer?`${requestCount.count}${requestCount.more?'+':''}`:null;
   return <><main className="friends-page" data-walkthrough="friends">
@@ -89,7 +91,7 @@ export function FriendsPage({accounts,accountsReady,accountsError,onRetryAccount
     {!accountsReady?<LoadingSkeleton layout="accounts" label="Loading managed accounts"/>:accountsError&&!account?<div className="friends-empty"><strong>Accounts unavailable</strong><span>Retry the account list above.</span></div>:!viewer?<div className="friends-empty"><strong>No account selected</strong><span>Add or unlock an account in Accounts to browse friends.</span></div>:!allowed?<div className="friends-empty" role="alert"><strong>Account login unavailable</strong><span>Refresh this account or log in again from Accounts.</span></div>:filter==='requests'?<FriendRequestsView viewerId={viewer} search={search} revision={requestsRevision} busy={busy||loading} onAction={manage} onProfile={id=>void openProfile(id)} onCount={(count,more)=>setRequestCount({viewer,count,more})}/>:<>
       {checkedFriends.length>0&&<div className="friends-selection" aria-label="Selected friend actions"><strong>{checkedFriends.length} selected</strong><button type="button" className="account-button" disabled={checkedFriends.some(friend=>!friend.username)} onClick={()=>void copy(checkedFriends.filter(friend=>friend.username).map(friend=>friend.username).join('\n'),'usernames')}>Copy usernames</button>{checkedFriends.some(friend=>!friend.username)&&<span className="friends-muted">Some usernames are unavailable; copy user IDs instead.</span>}<button type="button" className="account-button" onClick={()=>void copy(checkedFriends.map(friend=>friend.userId).join('\n'),'user IDs')}>Copy user IDs</button><button type="button" className="account-button" onClick={()=>setSelected(new Set())}>Clear selection</button></div>}
       <div className="friends-workspace" ref={workspace} style={{ "--friends-sidebar-width": `${effectiveSidebarWidth}px` } as CSSProperties}><section className="friends-list-panel" aria-label="Friends list" aria-busy={loading}>
-        {loading&&!data?<LoadingSkeleton layout="results" label="Loading friends and presence"/>:!data?<div className="friends-empty"><span>Friends have not loaded. Use Refresh to try again.</span></div>:!rows.length?<div className="friends-empty"><strong>{!friends?.length?'No friends yet':search?'No matching friends':'No friends in this category'}</strong><span>{search?'Try another display name or username.':'Choose another filter or refresh the selected account.'}</span></div>:<div className="friends-list-scroll"><table className="friends-table"><caption className="sr-only">Friends, presence and available server details</caption><thead><tr><th><input ref={selectAll} type="checkbox" checked={allChecked} aria-label="Select all visible friends" onChange={toggleVisible}/></th><th scope="col">Friend</th><th scope="col">Status</th><th scope="col">Game / Place</th><th scope="col">Job ID</th><th scope="col">Actions</th></tr></thead><tbody>{rows.map(friend=><FriendRow key={friend.userId} friend={friend} checked={selected.has(friend.userId)} selected={focused===friend.userId} busy={busy||loading} multiInstance={multiInstanceEnabled} onCheck={()=>{setFocused(friend.userId);setSelected(current=>{const next=new Set(current);if(next.has(friend.userId))next.delete(friend.userId);else next.add(friend.userId);return next;});}} onSelect={()=>setFocused(friend.userId)} onCopy={onCopy} onJoin={startJoin} onManage={manage} onProfile={id=>void openProfile(id)}/>)}</tbody></table></div>}
+        {loading&&!data?<LoadingSkeleton layout="results" label="Loading friends and presence"/>:!data?<div className="friends-empty"><span>Friends have not loaded. Use Refresh to try again.</span></div>:!rows.length?<div className="friends-empty"><strong>{!friends?.length?'No friends yet':search?'No matching friends':'No friends in this category'}</strong><span>{search?'Try another display name or username.':'Choose another filter or refresh the selected account.'}</span></div>:<FriendsTable rows={rows} selected={selected} focused={focused} allChecked={allChecked} someChecked={someChecked} busy={busy||loading} multiInstance={multiInstanceEnabled} onCheck={toggleFriend} onSelect={focusFriend} onToggleAll={toggleVisible} onCopy={onCopy} onJoin={startJoin} onManage={manage} onProfile={onProfile}/>}
       </section><div className="friends-resizer" role="separator" aria-label="Resize friend details" aria-orientation="vertical" aria-valuemin={240} aria-valuemax={clampFriendsSidebar(520,workspaceWidth)} aria-valuenow={effectiveSidebarWidth} tabIndex={0}
         onPointerDown={event=>{if(event.button!==0)return;resize.current={x:event.clientX,width:effectiveSidebarWidth};event.currentTarget.setPointerCapture(event.pointerId);}}
         onPointerMove={event=>{if(resize.current)resizeSidebar(resize.current.width+resize.current.x-event.clientX);}}

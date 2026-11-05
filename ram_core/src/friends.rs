@@ -572,6 +572,14 @@ pub struct FriendGroup {
     pub icon_url: Option<String>,
 }
 
+fn unique_groups(groups: Vec<FriendGroup>) -> Vec<FriendGroup> {
+    let mut seen = HashSet::new();
+    groups
+        .into_iter()
+        .filter(|group| group.id > 0 && seen.insert(group.id))
+        .collect()
+}
+
 pub async fn fetch_groups(
     client: &RobloxClient,
     cookie: &str,
@@ -601,17 +609,18 @@ pub async fn fetch_groups(
             cookie,
         )
         .await?;
-    let mut groups: Vec<_> = response
-        .data
-        .into_iter()
-        .filter(|entry| entry.group.id > 0)
-        .map(|entry| FriendGroup {
-            id: entry.group.id,
-            name: entry.group.name,
-            role: entry.role.name,
-            icon_url: None,
-        })
-        .collect();
+    let mut groups = unique_groups(
+        response
+            .data
+            .into_iter()
+            .map(|entry| FriendGroup {
+                id: entry.group.id,
+                name: entry.group.name,
+                role: entry.role.name,
+                icon_url: None,
+            })
+            .collect(),
+    );
     let ids: Vec<_> = groups.iter().map(|group| group.id).collect();
     match cached_api::fetch_group_icons(client, &ids).await {
         Ok(icons) => apply_group_icons(&mut groups, &icons),
@@ -631,6 +640,35 @@ fn apply_group_icons(groups: &mut [FriendGroup], icons: &[(u64, String)]) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn duplicate_group_memberships_keep_the_first_role_and_order() {
+        use super::*;
+        let groups = unique_groups(vec![
+            FriendGroup {
+                id: 10,
+                name: "First".into(),
+                role: "Builder".into(),
+                icon_url: None,
+            },
+            FriendGroup {
+                id: 10,
+                name: "Duplicate".into(),
+                role: "Member".into(),
+                icon_url: None,
+            },
+            FriendGroup {
+                id: 20,
+                name: "Second".into(),
+                role: "Member".into(),
+                icon_url: None,
+            },
+        ]);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups[0].name, "First");
+        assert_eq!(groups[0].role, "Builder");
+        assert_eq!(groups[1].id, 20);
+    }
+
     #[test]
     fn group_icons_keep_roles_and_match_ids_despite_missing_or_reordered_thumbnails() {
         use super::*;

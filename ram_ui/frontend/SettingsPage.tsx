@@ -310,9 +310,12 @@ function SettingsContext({
             <Icon name="refresh" tone="current-color" />
           </button>
         </div>
-        {isRefreshingStatus ? <LoadingSkeleton layout="status" label="Refreshing system status" count={3} /> : <dl>
+        {isRefreshingStatus ? <LoadingSkeleton layout="status" label="Refreshing system status" count={6} /> : <dl>
           <div><dt>Roblox</dt><dd>{snapshot.robloxRunning ? "Running" : "Not running"}</dd></div>
+          <div><dt>Windows startup</dt><dd data-tip={snapshot.startupRegistered !== null && snapshot.startupRegistered !== snapshot.config.startupWithWindows ? "Change Start RM with Windows, save, then set it to the desired state and save again." : undefined}>{snapshot.startupRegistered === null ? "Unavailable" : snapshot.startupRegistered === snapshot.config.startupWithWindows ? snapshot.startupRegistered ? "Enabled" : "Disabled" : "Out of sync"}</dd></div>
           <div><dt>Displays</dt><dd>{snapshot.monitors.length} connected</dd></div>
+          <div><dt>Privacy mode</dt><dd>{snapshot.config.privacyMode ? "Enabled" : "Disabled"}</dd></div>
+          <div><dt>Window tiling</dt><dd>{snapshot.config.autoArrangeWindows ? "Automatic" : "Manual"}</dd></div>
           <div><dt>Settings</dt><dd>{isDirty ? "Unsaved changes" : "Up to date"}</dd></div>
         </dl>}
       </section>
@@ -543,7 +546,8 @@ export function SettingsPage({ onNavigationGuardChange }: {
         await enableMultiInstance();
       }
       if (startupWithWindows !== snapshot.config.startupWithWindows) {
-        await setStartupWithWindows(startupWithWindows);
+        const startupRegistered = await setStartupWithWindows(startupWithWindows);
+        setSnapshot((current) => current ? { ...current, startupRegistered } : current);
       }
       const config = await saveSettings(settingsUpdate);
       setSnapshot((current) => (current ? { ...current, config } : current));

@@ -521,6 +521,7 @@ pub async fn join_friend_game(
         data: None,
         link_code: None,
         access_code: None,
+        overrides: crate::launcher::LaunchOverrides::default(),
     };
     if require_new_instance || !reuse_confirmed {
         crate::launcher::launch_new_instance(&app, request, reuse_confirmed).await

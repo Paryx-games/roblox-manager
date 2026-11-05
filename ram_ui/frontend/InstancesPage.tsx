@@ -9,7 +9,14 @@ import { ConfirmModal } from "./ConfirmModal";
 import { Toast, type ToastItem } from "./Toast";
 import { arrangeAccountWindows, focusInstance, getSettings, getClientLaunchSettings, saveClientLaunchSettings, joinUserGame, killAllAccounts, killInstance, operationError, type AccountSummary, type ClientLaunchSettings, type InstanceSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 
-const phaseLabels = { waiting: "Waiting to launch", authenticating: "Logging in", launching: "Starting Roblox", requested: "Waiting for Roblox", failed: "Launch failed" };
+const phaseLabels: Record<LaunchProgress["phase"], string> = {
+  queued: "Queued",
+  starting: "Starting Roblox",
+  retrying: "Retrying Roblox request",
+  started: "Roblox started",
+  failed: "Launch failed",
+  blocked: "Launch blocked",
+};
 
 const defaultSettings: ClientLaunchSettings = { enabled: false, rmOnly: true, fps: 60, graphics: 5, fullscreen: false, muted: false };
 const fpsOptions = ["30", "60", "120", "144", "240"].map((value) => ({ value, label: `${value} FPS` }));
