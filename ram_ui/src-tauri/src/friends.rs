@@ -520,11 +520,14 @@ pub async fn join_friend_game(
         access_code: None,
         overrides: crate::launcher::LaunchOverrides::default(),
     };
-    if require_new_instance || !reuse_confirmed {
-        crate::launcher::launch_new_instance(&app, request, reuse_confirmed).await
-    } else {
-        crate::launcher::launch(&app, request).await
-    }
+    crate::launcher::launch_friend(
+        &app,
+        request,
+        target_id,
+        reuse_confirmed,
+        require_new_instance,
+    )
+    .await
 }
 
 #[cfg(test)]

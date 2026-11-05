@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.5
+## v2.5.0
 
 ### Added
 
@@ -20,6 +20,8 @@
 - **Friends icons and group navigation:** Show the original Roblox and Studio PNG colors and use the square-arrow Go to action for group links.
 - **Friends loading:** Restore the established Friends list route after the experimental route prevented the page from loading account data.
 - **Join friends:** Reuse the account multi-select to queue sequential joins for multiple eligible accounts, with per-account results and failed-account retry selection.
+- **Launch diagnostics:** Scope friend launch status to the friend being joined, keep rate-limit and connection failures distinct, and honor each launch profile's window-arrangement choice.
+- **Settings and presets:** Refresh Windows startup registration status and prevent preset override changes while a save is in progress.
 
 ## v2.4.2
 

@@ -4,7 +4,7 @@ import { getFriendDetails, operationError, type Friend, type FriendDetails, type
 import { FriendGameInfo, FriendId, FriendIdentity, FriendPresence, JoinUnavailable } from "./FriendComponents";
 import { LoadingSkeleton } from "./LoadingSkeleton";
 import { Icon } from "./Icon";
-import { canJoinFriend } from "../lib/friends";
+import { canJoinFriend, isFriendLaunchProgress } from "../lib/friends";
 import { useWorkspaceActive } from "../hooks/useWorkspaceActive";
 
 const launchRecoveryHints: Record<string, string> = {
@@ -41,6 +41,8 @@ export function FriendDetailsPanel({viewerId,friend,busy,onCopy,onJoin,onManage,
   const [error,setError]=useState<string|null>(null);
   const [retry,setRetry]=useState(0);
   const [launchStatus,setLaunchStatus]=useState<LaunchProgress|null>(null);
+  const [launchListenerError,setLaunchListenerError]=useState<string|null>(null);
+  const [launchListenerRetry,setLaunchListenerRetry]=useState(0);
   const active=useWorkspaceActive();
   const target=friend?.userId;
   const key=`${viewerId}:${target}:${tab}`;
@@ -51,20 +53,29 @@ export function FriendDetailsPanel({viewerId,friend,busy,onCopy,onJoin,onManage,
     return()=>{current=false;};
   },[viewerId,target,tab,retry,active]);
   useEffect(()=>{
+    if(!target||!active){
+      setLaunchStatus(null);
+      setLaunchListenerError(null);
+      return;
+    }
     let current=true;
     let clearTimer=0;
     let stop:(()=>void)|null=null;
+    setLaunchStatus(null);
+    setLaunchListenerError(null);
     void listen<LaunchProgress>("launch-progress",event=>{
-      if(!current)return;
+      if(!current||!isFriendLaunchProgress(event.payload,viewerId,target))return;
       window.clearTimeout(clearTimer);
       setLaunchStatus(event.payload);
       if(["started","failed","blocked"].includes(event.payload.phase)){
         const duration = event.payload.phase === "started" ? 5000 : 8000;
         clearTimer=window.setTimeout(()=>{if(current)setLaunchStatus(null);},duration);
       }
-    }).then(unlisten=>{if(current)stop=unlisten;else unlisten();});
+    }).then(unlisten=>{if(current)stop=unlisten;else unlisten();}).catch(reason=>{
+      if(current)setLaunchListenerError(operationError(reason,"Live launch updates are unavailable. Retry to reconnect."));
+    });
     return()=>{current=false;window.clearTimeout(clearTimer);stop?.();};
-  },[]);
+  },[active,target,viewerId,launchListenerRetry]);
   const details=loaded?.key===key?loaded.value:null;
   const launchLabel=launchStatus?{
     queued:"Launch queued",
@@ -81,6 +92,7 @@ export function FriendDetailsPanel({viewerId,friend,busy,onCopy,onJoin,onManage,
     {!friend?<div className="friends-empty"><strong>Select a friend</strong><span>Choose a row to see their profile and server details.</span></div>:<>
       <FriendIdentity user={friend}/><FriendPresence friend={friend}/>
       {launchStatus&&launchLabel&&<p className={`friends-launch-status friends-launch-status-${launchStatus.phase}`} role="status" data-tip={launchStatus.reasonCode ? `Reason code: ${launchStatus.reasonCode}` : launchLabel}><span className="friends-launch-dot" aria-hidden="true"/><span>{launchLabel}</span>{launchHint&&<small>{launchHint}</small>}</p>}
+      {launchListenerError&&<p className="friends-error" role="alert">{launchListenerError}<button type="button" className="account-button" onClick={()=>setLaunchListenerRetry(value=>value+1)}>Retry live updates</button></p>}
       <div className="friends-detail-tabs" role="tablist" aria-label="Friend detail sections" onKeyDown={event=>{const values:FriendDetailTab[]=["details","mutual","groups"];const index=values.indexOf(tab);const next=event.key==="ArrowRight"?(index+1)%3:event.key==="ArrowLeft"?(index+2)%3:event.key==="Home"?0:event.key==="End"?2:null;if(next===null)return;event.preventDefault();setTab(values[next]);event.currentTarget.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();}}>{([['details','Details'],['mutual',`Mutual${details&&tab==='mutual'?` (${details.mutual.length})`:''}`],['groups',`Groups${details&&tab==='groups'?` (${details.groups.length})`:''}`]] as const).map(([value,label])=><button key={value} type="button" role="tab" tabIndex={tab===value?0:-1} aria-selected={tab===value} onClick={()=>setTab(value)}>{label}</button>)}</div>
       <div role="tabpanel" aria-label={tab==='details'?'Details':tab==='mutual'?'Mutual friends':'Groups'}>
         {loading&&!details&&<LoadingSkeleton layout="status" label="Loading friend details"/>}

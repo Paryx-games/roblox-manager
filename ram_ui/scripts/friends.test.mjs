@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {clampFriendsSidebar, canJoinFriend, friendCounts, reconcileFriendsSelection, visibleFriends} from "../frontend/lib/friends.ts";
+import {clampFriendsSidebar, canJoinFriend, friendCounts, isFriendLaunchProgress, reconcileFriendsSelection, visibleFriends} from "../frontend/lib/friends.ts";
 
 test("friend details resizing keeps a useful list width and clamps both limits",()=>{
   assert.equal(clampFriendsSidebar(100,1200),240);
@@ -37,4 +37,11 @@ test("only playing friends with a Place ID and Job ID offer a join action",()=>{
  assert(!canJoinFriend({...friends[0],placeId:null}));
  for(const friend of friends.slice(1))assert(!canJoinFriend(friend));
  assert.equal(friends[0].jobId,"12345678-1234-4234-8234-123456789abc");
+});
+test("friend launch progress only matches its source friend and account",()=>{
+ const progress={userId:1,friendTargetId:7};
+ assert(isFriendLaunchProgress(progress,1,7));
+ assert(!isFriendLaunchProgress(progress,2,7));
+ assert(!isFriendLaunchProgress(progress,1,8));
+ assert(!isFriendLaunchProgress({...progress,friendTargetId:null},1,7));
 });

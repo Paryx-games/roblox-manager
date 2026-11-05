@@ -569,6 +569,7 @@ mod tests {
                 credential_revisions: Default::default(),
             })),
             account_refresh: Arc::new(tokio::sync::Mutex::new(())),
+            startup_change: Arc::new(tokio::sync::Mutex::new(())),
             pending_additions: Arc::new(Mutex::new(Default::default())),
             instances: Arc::new(Mutex::new(Default::default())),
             mac_rotated: Arc::new(Default::default()),

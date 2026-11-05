@@ -44,6 +44,7 @@ pub async fn open_account_home(app: tauri::AppHandle, user_id: u64) -> Result<()
         false,
         false,
         LaunchMode::Home,
+        None,
     )
     .await
 }
@@ -53,6 +54,7 @@ pub async fn open_account_home(app: tauri::AppHandle, user_id: u64) -> Result<()
 struct LaunchProgress {
     request_id: String,
     user_id: u64,
+    friend_target_id: Option<u64>,
     phase: &'static str,
     reason_code: Option<&'static str>,
 }
@@ -61,6 +63,7 @@ fn progress(
     app: &tauri::AppHandle,
     request_id: &str,
     user_id: u64,
+    friend_target_id: Option<u64>,
     phase: &'static str,
     reason_code: Option<&'static str>,
 ) {
@@ -76,17 +79,20 @@ fn progress(
         LaunchProgress {
             request_id: request_id.into(),
             user_id,
+            friend_target_id,
             phase,
             reason_code,
         },
     );
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum LaunchFailureStage {
     Queued,
     Preflight,
     Authentication,
+    RateLimited,
+    Transport,
     PrivacyPreparation,
     ProcessStart,
 }
@@ -133,6 +139,8 @@ fn launch_failure(stage: LaunchFailureStage, error: &str) -> (&'static str, &'st
             LaunchFailureStage::Queued => "launch_queue_failed",
             LaunchFailureStage::Preflight => "launch_preflight_failed",
             LaunchFailureStage::Authentication => "roblox_request_failed",
+            LaunchFailureStage::RateLimited => "roblox_rate_limited",
+            LaunchFailureStage::Transport => "roblox_connection_failed",
             LaunchFailureStage::PrivacyPreparation => "launch_preparation_failed",
             LaunchFailureStage::ProcessStart => "process_launch_failed",
         }
@@ -157,10 +165,32 @@ fn launch_failure(stage: LaunchFailureStage, error: &str) -> (&'static str, &'st
             LaunchFailureStage::Preflight | LaunchFailureStage::PrivacyPreparation => "blocked",
             LaunchFailureStage::Queued
             | LaunchFailureStage::Authentication
+            | LaunchFailureStage::RateLimited
+            | LaunchFailureStage::Transport
             | LaunchFailureStage::ProcessStart => "failed",
         },
     };
     (status, code)
+}
+
+fn auth_ticket_failure(error: ram_core::CoreError, stage: &mut LaunchFailureStage) -> String {
+    match error {
+        ram_core::CoreError::RateLimited => {
+            *stage = LaunchFailureStage::RateLimited;
+            "Roblox rate-limited the launch request. Wait before trying again.".into()
+        }
+        ram_core::CoreError::Http(_) => {
+            *stage = LaunchFailureStage::Transport;
+            "Roblox could not be reached. Check the connection and retry.".into()
+        }
+        ram_core::CoreError::CookieRejected
+        | ram_core::CoreError::CookieRejectedWithReason(_)
+        | ram_core::CoreError::RobloxApi {
+            status: 401 | 403, ..
+        } => "Roblox rejected the launch request. Refresh the account and try again.".into(),
+        _ => "Roblox could not complete the launch request. Check the account and connection, then retry."
+            .into(),
+    }
 }
 
 fn batch_outcome(total: usize, launched: usize) -> Result<(), String> {
@@ -248,25 +278,33 @@ fn validate_request(request: &LaunchRequest) -> Result<(), String> {
 }
 
 pub async fn launch(app: &tauri::AppHandle, request: LaunchRequest) -> Result<(), String> {
-    launch_impl(app, request, false, false, false, LaunchMode::Game).await
+    launch_impl(app, request, false, false, false, LaunchMode::Game, None).await
 }
 
 pub async fn launch_startup(app: &tauri::AppHandle, request: LaunchRequest) -> Result<(), String> {
-    launch_impl(app, request, true, false, false, LaunchMode::Game).await
+    launch_impl(app, request, true, false, false, LaunchMode::Game, None).await
 }
 
-pub async fn launch_new_instance(
+pub async fn launch_friend(
     app: &tauri::AppHandle,
     request: LaunchRequest,
-    session_confirmed: bool,
+    friend_target_id: u64,
+    reuse_confirmed: bool,
+    require_new_instance: bool,
 ) -> Result<(), String> {
+    let (multi_instance, check_account_session) = if require_new_instance || !reuse_confirmed {
+        (true, !reuse_confirmed)
+    } else {
+        (false, false)
+    };
     launch_impl(
         app,
         request,
         false,
-        true,
-        !session_confirmed,
+        multi_instance,
+        check_account_session,
         LaunchMode::Game,
+        Some(friend_target_id),
     )
     .await
 }
@@ -285,13 +323,28 @@ async fn launch_impl(
     require_multi_instance: bool,
     check_account_session: bool,
     mode: LaunchMode,
+    friend_target_id: Option<u64>,
 ) -> Result<(), String> {
     let request_id = uuid::Uuid::new_v4().to_string();
     let mut stage = LaunchFailureStage::Queued;
-    progress(app, &request_id, request.user_id, "queued", None);
+    progress(
+        app,
+        &request_id,
+        request.user_id,
+        friend_target_id,
+        "queued",
+        None,
+    );
     if let Err(error) = validate_launch_mode(&request, mode) {
         let (status, reason_code) = launch_failure(LaunchFailureStage::Preflight, &error);
-        progress(app, &request_id, request.user_id, status, Some(reason_code));
+        progress(
+            app,
+            &request_id,
+            request.user_id,
+            friend_target_id,
+            status,
+            Some(reason_code),
+        );
         return Err(error);
     }
     let result = launch_queued(
@@ -303,6 +356,7 @@ async fn launch_impl(
         require_multi_instance,
         check_account_session,
         mode,
+        friend_target_id,
     )
     .await;
     if result.is_ok() && instances::list_instances(app.clone()).await.is_err() {
@@ -318,7 +372,14 @@ async fn launch_impl(
     }
     if let Err(error) = &result {
         let (status, reason_code) = launch_failure(stage, error);
-        progress(app, &request_id, request.user_id, status, Some(reason_code));
+        progress(
+            app,
+            &request_id,
+            request.user_id,
+            friend_target_id,
+            status,
+            Some(reason_code),
+        );
         tracing::warn!(
             request_id,
             user_id = request.user_id,
@@ -326,7 +387,14 @@ async fn launch_impl(
             "launch attempt ended"
         );
     } else {
-        progress(app, &request_id, request.user_id, "started", None);
+        progress(
+            app,
+            &request_id,
+            request.user_id,
+            friend_target_id,
+            "started",
+            None,
+        );
     }
     result
 }
@@ -415,6 +483,7 @@ async fn launch_queued(
     require_multi_instance: bool,
     check_account_session: bool,
     mode: LaunchMode,
+    friend_target_id: Option<u64>,
 ) -> Result<(), String> {
     let state = app.state::<AppState>().inner().clone();
     let mut next_launch = state.launch_queue.lock().await;
@@ -427,7 +496,14 @@ async fn launch_queued(
         armed: false,
     };
     *stage = LaunchFailureStage::Preflight;
-    progress(app, request_id, request.user_id, "starting", None);
+    progress(
+        app,
+        request_id,
+        request.user_id,
+        friend_target_id,
+        "starting",
+        None,
+    );
     if check_account_session {
         instances::require_no_account_session(&state, request.user_id)?;
     }
@@ -460,7 +536,7 @@ async fn launch_queued(
     }).await.map_err(|_| "Launch options task failed")??;
     if config.mac_rotation_enabled && !state.mac_rotated.load(std::sync::atomic::Ordering::Acquire)
     {
-        progress(app, request_id, user_id, "starting", None);
+        progress(app, request_id, user_id, friend_target_id, "starting", None);
         let mac_config = config.clone();
         let mac_state = state.clone();
         tauri::async_runtime::spawn_blocking(move || {
@@ -479,7 +555,14 @@ async fn launch_queued(
         needs_tray_cleanup,
     }));
     *stage = LaunchFailureStage::Authentication;
-    progress(app, request_id, request.user_id, "starting", None);
+    progress(
+        app,
+        request_id,
+        request.user_id,
+        friend_target_id,
+        "starting",
+        None,
+    );
     let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
     let resolved_access_code = match request.link_code.as_deref() {
         Some(link_code) => Some(ram_core::api::resolve_private_server_access(&client, &cookie, request.place_id, link_code).await
@@ -488,19 +571,27 @@ async fn launch_queued(
     };
     let ticket = client
         .generate_auth_ticket_with_retry_callback(&cookie, |_| {
-            progress(app, request_id, request.user_id, "retrying", None);
+            progress(
+                app,
+                request_id,
+                request.user_id,
+                friend_target_id,
+                "retrying",
+                None,
+            );
         })
         .await
-        .map_err(|_| "Roblox rejected the launch request. Refresh the account and try again.")?;
+        .map_err(|error| auth_ticket_failure(error, stage))?;
     drop(cookie);
     let cleanup_options = config.privacy_cleanup_options();
     *stage = LaunchFailureStage::PrivacyPreparation;
     let cleanup = tauri::async_runtime::spawn_blocking(move || {
-        if multi_instance {
-            process::enable_multi_instance().map_err(|error| error.to_string())?;
-        }
         if needs_tray_cleanup {
             process::kill_tray_roblox();
+        }
+        if multi_instance {
+            std::thread::sleep(Duration::from_millis(500));
+            process::enable_multi_instance().map_err(|error| error.to_string())?;
         }
         process::prepare_privacy_cleanup(cleanup_options)
             .map_err(|_| "Privacy cleanup failed. Roblox was not launched.".to_string())
@@ -519,7 +610,14 @@ async fn launch_queued(
     let link_code = request.link_code.clone();
     let access_code = resolved_access_code;
     *stage = LaunchFailureStage::ProcessStart;
-    progress(app, request_id, request.user_id, "starting", None);
+    progress(
+        app,
+        request_id,
+        request.user_id,
+        friend_target_id,
+        "starting",
+        None,
+    );
     let clear_clipboard = config.privacy_mode && config.privacy_clear_clipboard;
     let launch_state = state.clone();
     let launch_result = tauri::async_runtime::spawn_blocking(move || {
@@ -585,12 +683,11 @@ async fn launch_queued(
             "Roblox launched, but the clipboard could not be cleared. Another app may be using it.",
         );
     }
-    if config.auto_arrange_windows {
-        instances::schedule_arrangement(
-            &state,
-            Duration::from_secs(u64::from(config.launch_delay_secs).saturating_add(2).max(5)),
-        );
-    }
+    instances::schedule_arrangement(
+        &state,
+        Duration::from_secs(u64::from(config.launch_delay_secs).saturating_add(2).max(5)),
+        config.auto_arrange_windows,
+    );
     let save_state = state.clone();
     let saved = tauri::async_runtime::spawn_blocking(move || {
         let mut runtime = save_state
@@ -692,6 +789,75 @@ mod tests {
             ),
             ("blocked", "mac_rotation_failed")
         );
+        assert_eq!(
+            launch_failure(LaunchFailureStage::RateLimited, "safe rate limit message"),
+            ("failed", "roblox_rate_limited")
+        );
+        assert_eq!(
+            launch_failure(LaunchFailureStage::Transport, "safe transport message"),
+            ("failed", "roblox_connection_failed")
+        );
+    }
+
+    #[test]
+    fn auth_ticket_errors_keep_safe_reason_categories() {
+        let mut stage = LaunchFailureStage::Authentication;
+        let rate_limit = auth_ticket_failure(ram_core::CoreError::RateLimited, &mut stage);
+        assert_eq!(stage, LaunchFailureStage::RateLimited);
+        assert_eq!(
+            launch_failure(stage, &rate_limit),
+            ("failed", "roblox_rate_limited")
+        );
+
+        let mut stage = LaunchFailureStage::Authentication;
+        let rejected = auth_ticket_failure(
+            ram_core::CoreError::CookieRejectedWithReason("synthetic-secret".into()),
+            &mut stage,
+        );
+        assert_eq!(stage, LaunchFailureStage::Authentication);
+        assert!(!rejected.contains("synthetic-secret"));
+        assert_eq!(
+            launch_failure(stage, &rejected),
+            ("failed", "roblox_auth_rejected")
+        );
+
+        let mut stage = LaunchFailureStage::Authentication;
+        let api_error = auth_ticket_failure(
+            ram_core::CoreError::RobloxApi {
+                status: 503,
+                message: "synthetic-secret".into(),
+            },
+            &mut stage,
+        );
+        assert!(!api_error.contains("synthetic-secret"));
+        assert_eq!(
+            launch_failure(stage, &api_error),
+            ("failed", "roblox_request_failed")
+        );
+
+        let transport = reqwest::Client::new().get("not-a-url").build().unwrap_err();
+        let mut stage = LaunchFailureStage::Authentication;
+        let transport_error = auth_ticket_failure(ram_core::CoreError::Http(transport), &mut stage);
+        assert_eq!(stage, LaunchFailureStage::Transport);
+        assert_eq!(
+            launch_failure(stage, &transport_error),
+            ("failed", "roblox_connection_failed")
+        );
+    }
+
+    #[test]
+    fn launch_progress_serializes_friend_target_context() {
+        let payload = serde_json::to_value(LaunchProgress {
+            request_id: "synthetic-request".into(),
+            user_id: 1,
+            friend_target_id: Some(2),
+            phase: "failed",
+            reason_code: Some("roblox_rate_limited"),
+        })
+        .unwrap();
+        assert_eq!(payload["userId"], 1);
+        assert_eq!(payload["friendTargetId"], 2);
+        assert_eq!(payload["reasonCode"], "roblox_rate_limited");
     }
 
     #[test]

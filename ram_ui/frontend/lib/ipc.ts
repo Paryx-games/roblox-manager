@@ -938,6 +938,7 @@ export function saveClientLaunchSettings(settings: ClientLaunchSettings): Promis
 export interface LaunchProgress {
   requestId: string;
   userId: number;
+  friendTargetId: number | null;
   phase: "queued" | "starting" | "retrying" | "started" | "failed" | "blocked";
   reasonCode: string | null;
 }

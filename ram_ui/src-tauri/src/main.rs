@@ -1706,6 +1706,7 @@ async fn set_startup_with_windows(
 ) -> Result<bool, String> {
     let enabled = change.enabled;
     let state = state.inner().clone();
+    let _startup_change = state.startup_change.lock().await;
     let previous = {
         let runtime = state
             .runtime

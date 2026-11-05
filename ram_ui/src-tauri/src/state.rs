@@ -22,6 +22,7 @@ pub struct AppState {
     pub presence_cache:
         Arc<ram_core::cache::ResponseCache<(u64, u64, u64), ram_core::models::Presence>>,
     pub account_refresh: Arc<tokio::sync::Mutex<()>>,
+    pub startup_change: Arc<tokio::sync::Mutex<()>>,
     pub pending_additions:
         Arc<Mutex<std::collections::HashMap<String, crate::accounts::PendingAddition>>>,
     pub instances: Arc<Mutex<crate::instances::InstanceState>>,
@@ -89,6 +90,7 @@ impl Default for AppState {
                 2048,
             )),
             account_refresh: Arc::new(tokio::sync::Mutex::new(())),
+            startup_change: Arc::new(tokio::sync::Mutex::new(())),
             pending_additions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             instances: Arc::new(Mutex::new(crate::instances::InstanceState::default())),
             mac_rotated: Arc::new(std::sync::atomic::AtomicBool::new(false)),

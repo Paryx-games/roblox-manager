@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { FriendRow } from "./FriendComponents";
 import type { Friend, FriendAction, FriendUser } from "../lib/ipc";
 
@@ -126,7 +127,7 @@ export function FriendsTable({
     };
     document.addEventListener("pointerdown", dismiss);
     document.addEventListener("keydown", escape);
-    menuRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+    menuRef.current?.querySelector<HTMLInputElement>("input:not(:disabled)")?.focus();
     return () => {
       document.removeEventListener("pointerdown", dismiss);
       document.removeEventListener("keydown", escape);
@@ -246,16 +247,19 @@ export function FriendsTable({
         </tbody>
       </table>
     </div>
-    {menu&&<div ref={menuRef} className="friends-column-menu" role="group" aria-label="Visible friend columns" style={{ left: menu.x, top: menu.y }}>
-      {columnDefinitions.map(column=><label key={column.id}>
-        <input
-          type="checkbox"
-          checked={preferences.visibility[column.id]}
-          disabled={column.id==="friend"}
-          onChange={event=>setPreferences(current=>({...current,visibility:{...current.visibility,[column.id]:event.target.checked}}))}
-        />
-        <span>{column.label}</span>
-      </label>)}
-    </div>}
+    {menu&&createPortal(
+      <div ref={menuRef} className="friends-column-menu" role="group" aria-label="Visible friend columns" style={{ left: menu.x, top: menu.y }}>
+        {columnDefinitions.map(column=><label key={column.id}>
+          <input
+            type="checkbox"
+            checked={preferences.visibility[column.id]}
+            disabled={column.id==="friend"}
+            onChange={event=>setPreferences(current=>({...current,visibility:{...current.visibility,[column.id]:event.target.checked}}))}
+          />
+          <span>{column.label}</span>
+        </label>)}
+      </div>,
+      document.body,
+    )}
   </>;
 }

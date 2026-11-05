@@ -410,9 +410,9 @@ export function PresetsPage({
             <summary>Advanced</summary>
             <p>Use Settings keeps each current global launch option.</p>
             <div className="preset-advanced-fields">
-              <label><span>Privacy mode</span><Select ariaLabel="Preset privacy mode" value={privacyOverride} options={overrideOptions} onChange={value=>setPrivacyOverride(value as OverrideChoice)} /></label>
-              <label><span>Multi-instance</span><Select ariaLabel="Preset multi-instance" value={multiInstanceOverride} options={overrideOptions} onChange={value=>setMultiInstanceOverride(value as OverrideChoice)} /></label>
-              <label><span>Window tiling</span><Select ariaLabel="Preset window tiling" value={tilingOverride} options={overrideOptions} onChange={value=>setTilingOverride(value as OverrideChoice)} /></label>
+              <label><span>Privacy mode</span><Select ariaLabel="Preset privacy mode" value={privacyOverride} options={overrideOptions} disabled={saving} onChange={value=>setPrivacyOverride(value as OverrideChoice)} /></label>
+              <label><span>Multi-instance</span><Select ariaLabel="Preset multi-instance" value={multiInstanceOverride} options={overrideOptions} disabled={saving} onChange={value=>setMultiInstanceOverride(value as OverrideChoice)} /></label>
+              <label><span>Window tiling</span><Select ariaLabel="Preset window tiling" value={tilingOverride} options={overrideOptions} disabled={saving} onChange={value=>setTilingOverride(value as OverrideChoice)} /></label>
             </div>
           </details>
           <div className="preset-form-actions">
@@ -690,9 +690,9 @@ export function PresetsPage({
               <summary>Advanced</summary>
               <p>Use Settings keeps each current global launch option.</p>
               <div className="preset-advanced-fields">
-                <label><span>Privacy mode</span><Select ariaLabel="Edited preset privacy mode" value={editPrivacyOverride} options={overrideOptions} onChange={value=>setEditPrivacyOverride(value as OverrideChoice)} /></label>
-                <label><span>Multi-instance</span><Select ariaLabel="Edited preset multi-instance" value={editMultiInstanceOverride} options={overrideOptions} onChange={value=>setEditMultiInstanceOverride(value as OverrideChoice)} /></label>
-                <label><span>Window tiling</span><Select ariaLabel="Edited preset window tiling" value={editTilingOverride} options={overrideOptions} onChange={value=>setEditTilingOverride(value as OverrideChoice)} /></label>
+                <label><span>Privacy mode</span><Select ariaLabel="Edited preset privacy mode" value={editPrivacyOverride} options={overrideOptions} disabled={editSaving} onChange={value=>setEditPrivacyOverride(value as OverrideChoice)} /></label>
+                <label><span>Multi-instance</span><Select ariaLabel="Edited preset multi-instance" value={editMultiInstanceOverride} options={overrideOptions} disabled={editSaving} onChange={value=>setEditMultiInstanceOverride(value as OverrideChoice)} /></label>
+                <label><span>Window tiling</span><Select ariaLabel="Edited preset window tiling" value={editTilingOverride} options={overrideOptions} disabled={editSaving} onChange={value=>setEditTilingOverride(value as OverrideChoice)} /></label>
               </div>
             </details>
             <button

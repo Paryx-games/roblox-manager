@@ -590,6 +590,7 @@ export function SettingsPage({ onNavigationGuardChange }: {
       setSnapshot((current) => current ? {
         ...current,
         robloxRunning: currentStatus.robloxRunning,
+        startupRegistered: currentStatus.startupRegistered,
         monitors: currentStatus.monitors,
       } : current);
     } catch (error) {

@@ -77,7 +77,7 @@ Select multiple accounts in Accounts with `Ctrl`-click or `Shift`-click, then us
 
 ## Launch status and recovery
 
-The title bar and **Instances** show active launch phases: queued, starting, retrying, and started. A started state means RM submitted the launch to Windows; it does not confirm that Roblox finished loading or joined the destination. Failed and blocked launches include a recovery hint in the Friends detail panel when a friend profile is selected. The application log records timestamped phase changes, the account ID, request ID, and a stable reason code for each terminal failure; it does not record cookies or access codes. Find daily logs under `%APPDATA%\RM\rm.<YYYY-MM-DD>.log`. See the [FAQ](../faq.md) for application data and log locations.
+The title bar shows the pending launch count, and **Instances** lists active launch attempts in queued, starting, or retrying phases. A started state means RM submitted the launch to Windows; it does not confirm that Roblox finished loading or joined the destination. Failed and blocked launches include a recovery hint in the Friends detail panel for a join started from that friend profile. The application log records timestamped phase changes, the account ID, request ID, and a stable reason code for each terminal failure; it does not record cookies or access codes. Find daily logs under `%APPDATA%\RM\rm.<YYYY-MM-DD>.log`. See the [FAQ](../faq.md) for application data and log locations.
 
 ### Browser links and background behaviour
 
