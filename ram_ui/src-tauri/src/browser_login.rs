@@ -346,8 +346,8 @@ fn run_browse_as_inner(
         std::fs::read_to_string(&cookie_in).map_err(|e| format!("read cookie file: {e}"))?;
     let _ = std::fs::remove_file(&cookie_in);
     let cookie_value = cookie_value.trim().to_string();
-    if cookie_value.is_empty() {
-        return Err("empty cookie hand-off".into());
+    if !valid_cookie_value(&cookie_value) {
+        return Err("invalid cookie hand-off".into());
     }
 
     std::fs::create_dir_all(&profile_dir).map_err(|e| format!("create profile dir: {e}"))?;
@@ -374,32 +374,14 @@ fn run_browse_as_inner(
     // we install the cookie from inside roblox.com's own origin via
     // document.cookie, which the underlying Chromium parser handles per
     // RFC 6265 (treating any Domain as covering subdomains).
-    //
-    // To avoid flashing the login form, we register the cookie+redirect as an
-    // initialization script that runs BEFORE the page's own scripts. The first
-    // load lands on /login (boot URL), the init script installs the cookie and
-    // immediately `location.replace`s to /home, so the login UI never gets a
-    // chance to render. The init script runs on subsequent navigations too,
-    // but a path check prevents a redirect loop.
-    let cookie_js_literal = serde_json::to_string(&cookie_value)
-        .map_err(|e| format!("serialize cookie for JS: {e}"))?;
-    let boot_path_js = serde_json::to_string(BROWSE_AS_BOOT_PATH).unwrap();
+    // bootstrap runs only once per session so a rejected cookie does not
+    // repeatedly replace the login form or overwrite a manual sign-in.
     let destination_url = destination_url
         .filter(|url| url.starts_with("https://www.roblox.com/"))
         .unwrap_or_else(|| BROWSE_AS_HOME_URL.to_string());
-    let home_url_js = serde_json::to_string(&destination_url).unwrap();
+    let cookie_bootstrap = browse_as_cookie_bootstrap(&cookie_value, &destination_url)?;
     let init_script = format!(
-        r#"(function(){{
-            try {{
-                document.cookie = ".ROBLOSECURITY=" + {cookie_js_literal} +
-                    "; path=/; domain=.roblox.com; secure; samesite=lax";
-            }} catch (e) {{}}
-            try {{
-                if (location.pathname.toLowerCase() === {boot_path_js}) {{
-                    location.replace({home_url_js});
-                }}
-            }} catch (e) {{}}
-        }})();
+        r#"{cookie_bootstrap}
         (function(){{
             function report(url) {{
                 try {{ window.ipc.postMessage("LAUNCH_INTERCEPT:" + url); }} catch (e) {{}}
@@ -538,4 +520,72 @@ fn run_browse_as_inner(
             *control_flow = ControlFlow::Exit;
         }
     })
+}
+
+fn browse_as_cookie_bootstrap(cookie_value: &str, destination_url: &str) -> Result<String, String> {
+    let cookie_js_literal =
+        serde_json::to_string(cookie_value).map_err(|e| format!("serialize cookie for JS: {e}"))?;
+    let boot_path_js = serde_json::to_string(BROWSE_AS_BOOT_PATH)
+        .map_err(|e| format!("serialize boot path for JS: {e}"))?;
+    let destination_js = serde_json::to_string(destination_url)
+        .map_err(|e| format!("serialize destination for JS: {e}"))?;
+    Ok(format!(
+        r#"(function(){{
+            try {{
+                if (window.top !== window) return;
+            }} catch (e) {{
+                return;
+            }}
+            var firstRun = false;
+            try {{
+                var key = "rm-browse-as-cookie-bootstrap-v1";
+                if (!sessionStorage.getItem(key)) {{
+                    sessionStorage.setItem(key, "1");
+                    firstRun = true;
+                }}
+            }} catch (e) {{}}
+            if (!firstRun) return;
+            try {{
+                document.cookie = ".ROBLOSECURITY=" + {cookie_js_literal} +
+                    "; path=/; domain=.roblox.com; secure; samesite=lax";
+            }} catch (e) {{}}
+            try {{
+                if (location.pathname.toLowerCase() === {boot_path_js}) {{
+                    location.replace({destination_js});
+                }}
+            }} catch (e) {{}}
+        }})();"#
+    ))
+}
+
+fn valid_cookie_value(cookie: &str) -> bool {
+    !cookie.is_empty()
+        && cookie.bytes().all(|byte| {
+            (0x21..=0x7e).contains(&byte) && !matches!(byte, b'"' | b',' | b';' | b'\\')
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn browse_as_cookie_bootstrap_is_one_shot_and_uses_escaped_values() {
+        let script =
+            browse_as_cookie_bootstrap("synthetic-cookie\"value", "https://www.roblox.com/home")
+                .unwrap();
+        assert!(script.contains("sessionStorage.getItem(key)"));
+        assert!(script.contains("sessionStorage.setItem(key, \"1\")"));
+        assert!(script.contains("if (window.top !== window) return;"));
+        assert!(script.contains("if (!firstRun) return;"));
+        assert!(script.contains(r#"synthetic-cookie\"value"#));
+    }
+
+    #[test]
+    fn browse_as_rejects_cookie_values_that_can_change_cookie_attributes() {
+        assert!(valid_cookie_value("synthetic|cookie-value_123"));
+        assert!(!valid_cookie_value("synthetic; path=/"));
+        assert!(!valid_cookie_value("synthetic\ncookie"));
+        assert!(!valid_cookie_value(""));
+    }
 }

@@ -37,6 +37,7 @@ import {
   addAccount,
   addAccountAnyway,
   browseAsAccount,
+  copyAccountCookie,
   openAccountHome,
   loginAndAddAccount,
   listAccounts,
@@ -277,6 +278,7 @@ function AccountRow({
   onManageTags,
   selected,
   onSelect,
+  onOpenHome,
   onDropAccount,
   canDragAccounts,
   accentColor,
@@ -294,6 +296,7 @@ function AccountRow({
   onManageTags: () => void;
   selected: boolean;
   onSelect: (event: AccountSelectionEvent) => void;
+  onOpenHome: (userId: number) => void;
   onDropAccount: (
     sourceId: number,
     targetId: number,
@@ -368,6 +371,17 @@ function AccountRow({
         onDropIndicatorChange(null);
       }}
       onClick={onSelect}
+      onDoubleClick={(event) => {
+        const target = event.target;
+        if (
+          !account.canLaunch ||
+          (target instanceof Element &&
+            target.closest("button, input, select, a, [role='menu'], [role='menuitem']"))
+        ) {
+          return;
+        }
+        onOpenHome(account.userId);
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -413,6 +427,7 @@ function AccountGroup({
   onToggle,
   selectedIds,
   onSelect,
+  onOpenHome,
   onDropAccount,
   canDragAccounts,
   onDropGroup,
@@ -437,6 +452,7 @@ function AccountGroup({
   selectedIds: ReadonlySet<number>;
   onToggle: () => void;
   onSelect: (id: number, event: AccountSelectionEvent) => void;
+  onOpenHome: (userId: number) => void;
   onDropAccount: (
     sourceId: number,
     targetId: number,
@@ -569,6 +585,7 @@ function AccountGroup({
               key={account.userId}
               selected={selectedIds.has(account.userId)}
               onSelect={(event) => onSelect(account.userId, event)}
+              onOpenHome={onOpenHome}
               onDropAccount={(sourceId, targetId, position, targetGroup) =>
                 onDropAccount(sourceId, targetId, position, targetGroup)
               }
@@ -1869,12 +1886,26 @@ export function AccountsPage({
     }
   }
 
-  async function openHomeScreen() {
-    if (mutationLoading || homeLaunchPending.current || !canOpenHome) return;
+  async function openHomeScreen(userIds?: number[]) {
+    const targets =
+      userIds === undefined
+        ? homeAccounts
+        : userIds
+            .map((userId) => accounts.find((account) => account.userId === userId))
+            .filter((account): account is AccountSummary => account !== undefined);
+    if (
+      mutationLoading ||
+      homeLaunchPending.current ||
+      targets.length === 0 ||
+      (userIds !== undefined && targets.length !== userIds.length) ||
+      targets.some((account) => !account.canLaunch)
+    ) {
+      return;
+    }
     homeLaunchPending.current = true;
     setOpeningHome(true);
     setMutationLoading(true);
-    const ids = homeAccounts.map((account) => account.userId);
+    const ids = targets.map((account) => account.userId);
     let opened = 0;
     try {
       for (const userId of ids) {
@@ -1899,6 +1930,28 @@ export function AccountsPage({
     } catch {
       setAccountNotice("Couldn’t open this account’s browser. Refresh the account and try again.");
     }
+  }
+
+  async function copyLoginCookie() {
+    if (!selectedAccount) return;
+    try {
+      await copyAccountCookie(selectedAccount.userId);
+      setNotice(
+        "The login cookie was copied to the clipboard. Treat it as a password and clear the clipboard when finished.",
+        "warning",
+        "long",
+        "Sensitive credential copied",
+      );
+    } catch {
+      setNotice(
+        "The login cookie could not be copied. Check clipboard access and try again.",
+        "error",
+      );
+    }
+  }
+
+  function openHomeForAccount(userId: number) {
+    void openHomeScreen([userId]);
   }
 
   return (
@@ -2055,6 +2108,7 @@ export function AccountsPage({
                 }
                 selectedIds={selectedIds}
                 onSelect={selectAccountWithModifiers}
+                onOpenHome={openHomeForAccount}
                 onDropAccount={(sourceId, targetId, position, targetGroup) =>
                   void reorderAccount(sourceId, targetId, position, targetGroup)
                 }
@@ -2732,7 +2786,18 @@ export function AccountsPage({
                         }}
                       >
                         <Icon name="browser" />
-                        Browse as account
+                        Log in as account
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          void copyLoginCookie();
+                          setShowAccountMenu(false);
+                        }}
+                      >
+                        <Icon name="copy" />
+                        Copy login cookie
                       </button>
                       <button
                         type="button"

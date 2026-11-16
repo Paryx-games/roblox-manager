@@ -48,6 +48,8 @@ Roblox Manager uses a Roblox authentication cookie to add and launch accounts. T
 
 Do not put a real cookie in GitHub issues, commits, pull requests, screenshots, logs, or Discord messages.
 
+The **Copy login cookie** account action is deliberate and writes the saved credential to the Windows clipboard without sending it through the interface. Other applications may read clipboard contents; paste only where you trust the destination and clear the clipboard when finished.
+
 #### If you shared a cookie
 
 {% stepper %}

@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.6.0
+
+### Added
+
+- **Account shortcuts:** Double-click a launchable account row to open Roblox Home for that account; the account menu can open a logged-in browser or explicitly copy its login cookie to the Windows clipboard.
+- **Verified self-updates:** Install updates from the app after the installer checksum is verified against the GitHub release manifest; portable copies retain the manual download path.
+- **Per-client launch limits:** Optionally cap CPU usage and private commit for each newly launched Roblox client, with the memory maximum based on installed physical RAM; both limits are off by default.
+
+### Fixed
+
+- **Friend join availability:** Allow a join attempt when the cached Job ID is missing, recheck current presence before launching, and report per-account visibility or credential failures instead of silently skipping them.
+- **Open browser as:** Install the saved login cookie only once per browser session so Roblox's login page remains usable if the cookie is rejected.
+- **Custom FastFlags:** Write boolean and numeric values as JSON scalars instead of strings, while preserving explicit string values.
+
 ## v2.5.0
 
 ### Added

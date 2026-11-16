@@ -439,6 +439,175 @@ fn append_launch_data(query: &mut String, data: Option<&str>) {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RobloxResourceLimits {
+    pub cpu_percent: Option<u32>,
+    pub memory_limit_mb: Option<u64>,
+}
+
+impl RobloxResourceLimits {
+    pub fn is_enabled(self) -> bool {
+        self.cpu_percent.is_some() || self.memory_limit_mb.is_some()
+    }
+
+    pub fn validate(self) -> Result<(), &'static str> {
+        if self
+            .cpu_percent
+            .is_some_and(|percent| !(1..100).contains(&percent))
+        {
+            return Err("The Roblox CPU cap must be between 1 and 99 percent");
+        }
+        if let Some(megabytes) = self.memory_limit_mb {
+            let max_memory_mb = system_memory_limit_mb()
+                .ok_or("The system memory limit could not be determined")?;
+            validate_memory_limit(megabytes, max_memory_mb)?;
+        }
+        Ok(())
+    }
+}
+
+const MIN_MEMORY_LIMIT_MB: u64 = 1024;
+
+/// Return the installed physical memory in whole MiB for the settings limit.
+pub fn system_memory_limit_mb() -> Option<u64> {
+    let mut system = sysinfo::System::new();
+    system.refresh_memory();
+    let megabytes = system.total_memory() / (1024 * 1024);
+    (megabytes > 0).then_some(megabytes)
+}
+
+fn validate_memory_limit(megabytes: u64, max_memory_mb: u64) -> Result<(), &'static str> {
+    if megabytes < MIN_MEMORY_LIMIT_MB || megabytes > max_memory_mb {
+        return Err(
+            "The Roblox memory cap must be between 1024 MB and the installed system memory",
+        );
+    }
+    Ok(())
+}
+
+fn job_cpu_rate(percent: u32) -> Option<u32> {
+    (1..100).contains(&percent).then(|| percent * 100)
+}
+
+fn job_memory_limit_bytes(megabytes: u64, max_memory_mb: u64) -> Option<usize> {
+    validate_memory_limit(megabytes, max_memory_mb).ok()?;
+    megabytes
+        .checked_mul(1024 * 1024)
+        .and_then(|bytes| usize::try_from(bytes).ok())
+}
+
+#[cfg(windows)]
+fn apply_job_limits(child: &std::process::Child, limits: RobloxResourceLimits) -> Result<(), ()> {
+    use std::mem::{size_of, zeroed};
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectCpuRateControlInformation,
+        JobObjectExtendedLimitInformation, SetInformationJobObject,
+        JOBOBJECT_CPU_RATE_CONTROL_INFORMATION, JOBOBJECT_CPU_RATE_CONTROL_INFORMATION_0,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_CPU_RATE_CONTROL_ENABLE,
+        JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP, JOB_OBJECT_LIMIT_JOB_MEMORY,
+    };
+
+    let cpu_rate = match limits.cpu_percent {
+        Some(percent) => Some(job_cpu_rate(percent).ok_or(())?),
+        None => None,
+    };
+    let memory_limit = match limits.memory_limit_mb {
+        Some(megabytes) => {
+            let max_memory_mb = system_memory_limit_mb().ok_or(())?;
+            Some(job_memory_limit_bytes(megabytes, max_memory_mb).ok_or(())?)
+        }
+        None => None,
+    };
+    let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+    if job.is_null() {
+        return Err(());
+    }
+
+    let mut success = true;
+    if let Some(memory_limit) = memory_limit {
+        let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = unsafe { zeroed() };
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_JOB_MEMORY;
+        info.JobMemoryLimit = memory_limit;
+        success = unsafe {
+            SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+        } != 0;
+    }
+
+    if success {
+        if let Some(cpu_rate) = cpu_rate {
+            let info = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION {
+                ControlFlags: JOB_OBJECT_CPU_RATE_CONTROL_ENABLE
+                    | JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP,
+                Anonymous: JOBOBJECT_CPU_RATE_CONTROL_INFORMATION_0 { CpuRate: cpu_rate },
+            };
+            success = unsafe {
+                SetInformationJobObject(
+                    job,
+                    JobObjectCpuRateControlInformation,
+                    (&info as *const JOBOBJECT_CPU_RATE_CONTROL_INFORMATION).cast(),
+                    size_of::<JOBOBJECT_CPU_RATE_CONTROL_INFORMATION>() as u32,
+                )
+            } != 0;
+        }
+    }
+
+    if success {
+        success = unsafe { AssignProcessToJobObject(job, child.as_raw_handle() as HANDLE) } != 0;
+    }
+    success = unsafe { CloseHandle(job) } != 0 && success;
+    if success {
+        Ok(())
+    } else {
+        Err(())
+    }
+}
+
+fn spawn_player_command(
+    mut command: std::process::Command,
+    limits: RobloxResourceLimits,
+) -> Result<(), CoreError> {
+    limits
+        .validate()
+        .map_err(|message| CoreError::Process(message.to_owned()))?;
+    #[cfg(not(windows))]
+    if limits.is_enabled() {
+        return Err(CoreError::Process(
+            "Roblox resource limits are only supported on Windows".into(),
+        ));
+    }
+
+    let mut child = command
+        .spawn()
+        .map_err(|_| CoreError::Process("Roblox player could not be started".into()))?;
+    #[cfg(windows)]
+    if limits.is_enabled() && apply_job_limits(&child, limits).is_err() {
+        let termination_error = match child.kill() {
+            Ok(()) => child.wait().err(),
+            Err(error) => match child.try_wait() {
+                Ok(Some(_)) => None,
+                Ok(None) => Some(error),
+                Err(wait_error) => Some(wait_error),
+            },
+        };
+        if let Some(error) = termination_error {
+            return Err(CoreError::Process(format!(
+                "Roblox resource limits could not be applied, and RM could not confirm the client stopped: {error}"
+            )));
+        }
+        return Err(CoreError::Process(
+            "Roblox resource limits could not be applied; the client was stopped".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Build the `roblox-player://` URI and pass it directly to the Roblox player.
 ///
 /// `ticket` — the rbx-authentication-ticket from [`crate::auth::RobloxClient`].
@@ -491,6 +660,34 @@ pub fn launch_game_with_args(
     player_path: Option<&std::path::Path>,
     args: &[String],
 ) -> Result<(), CoreError> {
+    launch_game_with_limits(
+        ticket,
+        place_id,
+        job_id,
+        link_code,
+        access_code,
+        data,
+        launchtime,
+        player_path,
+        args,
+        RobloxResourceLimits::default(),
+    )
+}
+
+/// Launch with parsed arguments and per-client Windows resource limits.
+#[allow(clippy::too_many_arguments)]
+pub fn launch_game_with_limits(
+    ticket: &str,
+    place_id: u64,
+    job_id: Option<&str>,
+    link_code: Option<&str>,
+    access_code: Option<&str>,
+    data: Option<&str>,
+    launchtime: i64,
+    player_path: Option<&std::path::Path>,
+    args: &[String],
+    limits: RobloxResourceLimits,
+) -> Result<(), CoreError> {
     let query = place_launcher_query(place_id, job_id, link_code, access_code, data);
     let uri = format!(
         "roblox-player:1+launchmode:play\
@@ -507,7 +704,7 @@ pub fn launch_game_with_args(
     debug!("URI: {}", crate::redact::scrub(&uri));
 
     let executable = resolve_player_executable(player_path)?;
-    open_player(&uri, &executable, args)?;
+    open_player(&uri, &executable, args, limits)?;
     Ok(())
 }
 
@@ -538,12 +735,29 @@ pub fn launch_home_with_args(
     player_path: Option<&std::path::Path>,
     args: &[String],
 ) -> Result<(), CoreError> {
+    launch_home_with_limits(
+        ticket,
+        launchtime,
+        player_path,
+        args,
+        RobloxResourceLimits::default(),
+    )
+}
+
+/// Open the Roblox home screen with per-client Windows resource limits.
+pub fn launch_home_with_limits(
+    ticket: &str,
+    launchtime: i64,
+    player_path: Option<&std::path::Path>,
+    args: &[String],
+    limits: RobloxResourceLimits,
+) -> Result<(), CoreError> {
     let executable = resolve_player_executable(player_path)?;
     info!("Opening Roblox home screen");
-    home_player_command(ticket, launchtime, &executable, args)
-        .spawn()
-        .map(|_| ())
-        .map_err(|_| CoreError::Process("Roblox home could not be started".into()))
+    spawn_player_command(
+        home_player_command(ticket, launchtime, &executable, args),
+        limits,
+    )
 }
 
 pub fn resolve_player_executable(
@@ -571,11 +785,13 @@ pub fn resolve_player_executable(
     Ok(executable)
 }
 
-fn open_player(uri: &str, executable: &std::path::Path, args: &[String]) -> Result<(), CoreError> {
-    player_command(uri, executable, args)
-        .spawn()
-        .map_err(|_| CoreError::Process("Roblox player could not be started".into()))?;
-    Ok(())
+fn open_player(
+    uri: &str,
+    executable: &std::path::Path,
+    args: &[String],
+    limits: RobloxResourceLimits,
+) -> Result<(), CoreError> {
+    spawn_player_command(player_command(uri, executable, args), limits)
 }
 
 fn player_command(
@@ -2266,6 +2482,66 @@ mod tests {
                 "literal;$(text)"
             ]
         );
+    }
+
+    #[test]
+    fn resource_limits_validate_and_map_to_windows_job_units() {
+        assert_eq!(RobloxResourceLimits::default().validate(), Ok(()));
+        assert!(!RobloxResourceLimits::default().is_enabled());
+        assert_eq!(job_cpu_rate(1), Some(100));
+        assert_eq!(job_cpu_rate(99), Some(9900));
+        assert_eq!(job_cpu_rate(0), None);
+        assert_eq!(job_cpu_rate(100), None);
+        assert_eq!(job_memory_limit_bytes(1024, 8192), Some(1_073_741_824));
+        assert_eq!(
+            job_memory_limit_bytes(8192, 8192),
+            usize::try_from(8_589_934_592_u64).ok()
+        );
+        assert_eq!(
+            job_memory_limit_bytes(65_537, 131_072),
+            usize::try_from(68_720_525_312_u64).ok()
+        );
+        assert_eq!(job_memory_limit_bytes(1023, 8192), None);
+        assert_eq!(job_memory_limit_bytes(8193, 8192), None);
+        assert!(validate_memory_limit(1024, 8192).is_ok());
+        assert!(validate_memory_limit(8192, 8192).is_ok());
+        assert!(validate_memory_limit(8193, 8192).is_err());
+        assert!(validate_memory_limit(1024, 512).is_err());
+        assert!(RobloxResourceLimits {
+            cpu_percent: Some(0),
+            memory_limit_mb: None,
+        }
+        .validate()
+        .is_err());
+        assert!(RobloxResourceLimits {
+            cpu_percent: None,
+            memory_limit_mb: Some(u64::MAX),
+        }
+        .validate()
+        .is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_job_limits_are_applied_to_the_new_client_process() {
+        let mut child = std::process::Command::new("cmd.exe")
+            .args(["/C", "for /L %i in (1,1,2147483647) do @rem"])
+            .spawn()
+            .unwrap();
+        let result = apply_job_limits(
+            &child,
+            RobloxResourceLimits {
+                cpu_percent: Some(50),
+                memory_limit_mb: Some(1024),
+            },
+        );
+        if result.is_err() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        assert!(result.is_ok(), "Windows rejected the Roblox job limits");
+        child.kill().unwrap();
+        child.wait().unwrap();
     }
 
     #[test]

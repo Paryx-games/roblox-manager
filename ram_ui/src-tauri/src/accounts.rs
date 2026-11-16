@@ -53,6 +53,32 @@ pub fn list_account_tags(state: tauri::State<'_, AppState>) -> Result<TagSnapsho
     Ok(tag_snapshot(&runtime.accounts))
 }
 
+#[tauri::command]
+pub async fn copy_account_cookie(
+    state: tauri::State<'_, AppState>,
+    user_id: u64,
+) -> Result<(), String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let cookie = {
+            let runtime = state
+                .runtime
+                .lock()
+                .map_err(|_| "Account state unavailable".to_string())?;
+            if !runtime.unlocked {
+                return Err("Unlock the account store before copying a login cookie".into());
+            }
+            account_cookie(&runtime, user_id)
+                .map_err(|_| "Account credential unavailable".to_string())?
+        };
+        ram_core::clipboard::copy_text(&cookie)
+            .map_err(|_| "The login cookie could not be copied to the clipboard".to_string())?;
+        Ok(())
+    })
+    .await
+    .map_err(|_| "Cookie copy task failed".to_string())?
+}
+
 async fn change_tags(
     app: tauri::AppHandle,
     update: impl FnOnce(&mut ram_core::models::AccountStore) -> Result<(), ram_core::CoreError>

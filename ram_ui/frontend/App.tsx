@@ -9,7 +9,7 @@ import { ReleaseNotes } from "./components/ReleaseNotes";
 import { Walkthrough, walkthroughSteps } from "./components/Walkthrough";
 import { WalkthroughAccounts, type DemoAccountName } from "./components/WalkthroughAccounts";
 import { ConfirmModal } from "./ConfirmModal";
-import { benchmarkReady, acknowledgeStartup, checkReleaseUpdate, clearPassword, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
+import { benchmarkReady, acknowledgeStartup, checkReleaseUpdate, clearPassword, installReleaseUpdate, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
 import { defaultPageVisibility, workspacePages, listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
@@ -160,6 +160,8 @@ export function App() {
   const [isMigrationDismissed, setIsMigrationDismissed] = useState(false);
   const [update, setUpdate] = useState<[string, string] | null>(null);
   const [isReleaseDialogOpen, setIsReleaseDialogOpen] = useState(false);
+  const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
   const [browserPlaceId, setBrowserPlaceId] = useState<number | null>(null);
   const [prefilledPlaceId, setPrefilledPlaceId] = useState<number>();
   const [requestedGroup, setRequestedGroup] = useState<{id:number;name:string;request:number}|null>(null);
@@ -223,6 +225,29 @@ export function App() {
   }, []);
   const visibility = { ...defaultPageVisibility, ...settings?.pageVisibility };
   const updateVersion = update?.[0].startsWith("v") ? update[0] : update ? `v${update[0]}` : null;
+  async function installUpdate() {
+    if (!update) return;
+    setIsInstallingUpdate(true);
+    setUpdateError(null);
+    try {
+      await installReleaseUpdate(update[0]);
+    } catch (error) {
+      setIsInstallingUpdate(false);
+      setUpdateError(operationError(
+        error,
+        "The update could not be started. Use Download manually to retry.",
+      ));
+    }
+  }
+  async function openManualUpdate() {
+    if (!update) return;
+    try {
+      await openReleasePage(update[1]);
+      setIsReleaseDialogOpen(false);
+    } catch {
+      setUpdateError("The release page could not be opened. Try again.");
+    }
+  }
   const visibleNavItems = navItems.filter((item) => {
     const page = workspacePages.find((page) => page.label === item.page);
     return isTourVisible || !page || visibility[page.key];
@@ -504,7 +529,7 @@ export function App() {
           {actionsOpen && <PopupMenu className="titlebar-actions-menu" onClose={() => setActionsOpen(false)}>
             <button className="titlebar-action-option" type="button" role="menuitemcheckbox" aria-checked={historyOpen} aria-controls="session-history-panel" onClick={() => { setHistoryOpen(value => !value); setActionsOpen(false); }}><span className="titlebar-action-icon"><Icon name="list" /></span>Session history</button>
             <button className="titlebar-action-option" type="button" role="menuitem" disabled={!accounts.length} onClick={() => { setActionsOpen(false); setJoinSelection(null); setJoinTarget(null); }}><span className="titlebar-action-icon"><Icon name="accounts" /></span>Join user</button>
-            {update && <button className="titlebar-action-option" type="button" role="menuitem" onClick={() => { setActionsOpen(false); setIsReleaseDialogOpen(true); }}><span className="titlebar-action-icon"><Icon name="update" /></span>Update to {updateVersion}</button>}
+            {update && <button className="titlebar-action-option" type="button" role="menuitem" onClick={() => { setActionsOpen(false); setUpdateError(null); setIsInstallingUpdate(false); setIsReleaseDialogOpen(true); }}><span className="titlebar-action-icon"><Icon name="update" /></span>Update to {updateVersion}</button>}
           </PopupMenu>}
         </div>
         <div className="window-controls" aria-label="Window controls">
@@ -577,12 +602,20 @@ export function App() {
           <button className="account-button primary" type="button" disabled={isNavigationSaving} onClick={() => void saveBeforeNavigating()}>{isNavigationSaving ? "Saving..." : "Save and leave"}</button>
         </div>
       </Popup>}
-      {isReleaseDialogOpen && update && updateVersion && <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="release-update-title" describedBy="release-update-message" onClose={() => setIsReleaseDialogOpen(false)} closeOnBackdrop>
+      {isReleaseDialogOpen && update && updateVersion && <Popup className="confirm-modal" backdropClassName="confirm-modal-backdrop" labelledBy="release-update-title" describedBy="release-update-message" busy={isInstallingUpdate} onClose={() => { if (!isInstallingUpdate) setIsReleaseDialogOpen(false); }} closeOnBackdrop={!isInstallingUpdate}>
         <div className="confirm-modal-header"><h2 id="release-update-title">A new version is available</h2></div>
-        <p id="release-update-message" className="confirm-modal-message">RM {updateVersion} is ready. Open the latest GitHub release to download it.</p>
+        <p id="release-update-message" className="confirm-modal-message" role={updateError ? "alert" : undefined}>
+          {updateError ?? (isInstallingUpdate
+            ? `Preparing and verifying the RM ${updateVersion} installer. This can take a few minutes; RM will close to apply the update.`
+            : `RM ${updateVersion} is ready. Install it automatically; if that fails, RM will offer the manual download.`)}
+        </p>
         <div className="confirm-modal-actions">
-          <button className="account-button" type="button" onClick={() => setIsReleaseDialogOpen(false)}>Cancel</button>
-          <button className="account-button primary" type="button" onClick={() => void openReleasePage(update[1]).then(() => setIsReleaseDialogOpen(false)).catch(() => setStartupError("The release page could not be opened. Try again."))}>Go to latest release</button>
+          <button className="account-button" type="button" disabled={isInstallingUpdate} onClick={() => setIsReleaseDialogOpen(false)}>Cancel</button>
+          {updateError ? (
+            <button className="account-button primary" type="button" disabled={isInstallingUpdate} onClick={() => void openManualUpdate()}>Download manually</button>
+          ) : (
+            <button className="account-button primary" type="button" disabled={isInstallingUpdate} onClick={() => void installUpdate()}>{isInstallingUpdate ? "Preparing..." : "Install update"}</button>
+          )}
         </div>
       </Popup>}
       {runtimeToast && <Toast item={runtimeToast} onDismiss={() => setRuntimeToast(null)} />}

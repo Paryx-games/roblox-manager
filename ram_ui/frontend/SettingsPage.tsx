@@ -75,6 +75,7 @@ const SETTINGS_SECTION_GROUPS: SettingsSectionGroup[] = [
           { id: "launch-safeguards", label: "Launch safeguards" },
           { id: "window-layout", label: "Window layout" },
           { id: "launch-pacing", label: "Launch pacing" },
+          { id: "resource-limits", label: "Client resource limits" },
         ],
       },
       {
@@ -1073,6 +1074,51 @@ export function SettingsPage({ onNavigationGuardChange }: {
               <span className="settings-muted">(Roblox rate-limits some IPs)</span>
             </label>
           </SettingRow>
+          <div className="settings-divider" />
+          <SubsectionHeading id="resource-limits">Client resource limits</SubsectionHeading>
+          <SettingRow referenceId="roblox_cpu_limit" infoCards={infoCards}>
+            <label className="settings-field-row">
+              <span>Per-client CPU cap:</span>
+              <input
+                type="number"
+                min="1"
+                max="99"
+                step="1"
+                disabled={isSaving}
+                value={draft.robloxCpuLimitPercent ?? ""}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  updateDraft({
+                    robloxCpuLimitPercent: value === "" ? null : Number(value),
+                  });
+                }}
+              />
+              <span>%</span>
+            </label>
+          </SettingRow>
+          <SettingRow referenceId="roblox_memory_limit" infoCards={infoCards}>
+            <label className="settings-field-row">
+              <span>Per-client memory cap:</span>
+              <input
+                type="number"
+                min="1024"
+                max={snapshot.config.systemMemoryLimitMb ?? undefined}
+                step="1"
+                disabled={isSaving}
+                value={draft.robloxMemoryLimitMb ?? ""}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  updateDraft({
+                    robloxMemoryLimitMb: value === "" ? null : Number(value),
+                  });
+                }}
+              />
+              <span>MB (max {snapshot.config.systemMemoryLimitMb?.toLocaleString() ?? "unavailable"})</span>
+            </label>
+          </SettingRow>
+          <p className="settings-muted">
+            Leave either field blank to disable its limit. The memory maximum is your installed physical memory. Limits apply to new RM-launched clients only.
+          </p>
         </Section>
 
         <Section

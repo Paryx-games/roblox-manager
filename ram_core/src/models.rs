@@ -107,9 +107,17 @@ mod tests {
         old.as_object_mut()
             .unwrap()
             .remove("hide_from_screen_capture");
+        old.as_object_mut()
+            .unwrap()
+            .remove("roblox_cpu_limit_percent");
+        old.as_object_mut()
+            .unwrap()
+            .remove("roblox_memory_limit_mb");
         old["anonymize_names"] = serde_json::json!(true);
         let mut loaded: AppConfig = serde_json::from_value(old).unwrap();
         assert!(!loaded.hide_from_screen_capture);
+        assert_eq!(loaded.roblox_cpu_limit_percent, None);
+        assert_eq!(loaded.roblox_memory_limit_mb, None);
         assert!(loaded.anonymize_names);
         loaded.hide_from_screen_capture = true;
         let saved: AppConfig =
@@ -323,6 +331,12 @@ pub struct AppConfig {
     /// Custom command-line arguments passed to RobloxPlayerBeta.exe during launch.
     #[serde(default)]
     pub custom_game_args: String,
+    /// Maximum CPU share for each newly launched Roblox client. `None` disables the cap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roblox_cpu_limit_percent: Option<u32>,
+    /// Maximum job commit in MiB for each newly launched Roblox client. `None` disables the cap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roblox_memory_limit_mb: Option<u64>,
     /// Custom Roblox player install path override.
     pub roblox_player_path: Option<PathBuf>,
     /// Per-account Roblox player install path overrides, stored in plain config.
@@ -642,6 +656,8 @@ impl Default for AppConfig {
             auto_launch_account_id: None,
             auto_launch_place_id: None,
             custom_game_args: String::new(),
+            roblox_cpu_limit_percent: None,
+            roblox_memory_limit_mb: None,
             roblox_player_path: None,
             custom_player_paths: HashMap::new(),
             roblox_fast_flags: HashMap::new(),

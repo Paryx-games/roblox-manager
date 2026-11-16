@@ -12,7 +12,7 @@ export function FriendPresence({ friend }: {friend: Friend}) {
   return <span className={`friend-presence friend-presence-${friend.status}`}><span aria-hidden="true" />{friendStatusLabels[friend.status]}</span>;
 }
 export function JoinUnavailable() {
-  const message = "They are in a server you cannot join.";
+  const message = "Roblox has not shared enough game details to join. Refresh the friend list and try again.";
   return <span className="friend-join-unavailable" role="img" aria-label={message} data-tip={message} tabIndex={0} />;
 }
 export function FriendGameInfo({friend}: {friend: Friend}) {

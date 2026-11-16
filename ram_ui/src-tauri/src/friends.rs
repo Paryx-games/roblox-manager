@@ -462,7 +462,17 @@ fn join_destination(
     presence: &ram_core::models::Presence,
     expected: Option<&str>,
 ) -> Result<(u64, String), String> {
-    let (place, job) = ram_core::session_history::server(presence).ok_or("This friend's server is unavailable to the selected account. They may have left, hidden their session, or restricted joining.")?;
+    if presence.user_presence_type != 2 {
+        return Err(
+            "This friend is no longer in a game. Refresh the friend list and try again.".into(),
+        );
+    }
+    let place = presence.place_id.filter(|place| *place > 0).ok_or(
+        "Roblox did not share this friend's place ID. Check join permissions and try again.",
+    )?;
+    let job = ram_core::instances::normalize_job_id(presence.game_id.as_deref()).ok_or(
+        "Roblox did not share a joinable server ID. Check join permissions and try again.",
+    )?;
     if let Some(expected) = expected {
         if ram_core::instances::normalize_job_id(Some(expected)).as_ref() != Some(&job) {
             return Err("This friend's server changed. Refresh and choose Join again.".into());
@@ -633,10 +643,19 @@ mod tests {
         assert!(join_destination(&presence, presence.game_id.as_deref()).is_ok());
         assert!(join_destination(&presence, Some("87654321-1234-4234-8234-123456789abc")).is_err());
         presence.user_presence_type = 3;
-        assert!(join_destination(&presence, None).is_err());
+        assert!(join_destination(&presence, None)
+            .unwrap_err()
+            .contains("no longer in a game"));
         presence.user_presence_type = 2;
         presence.game_id = None;
-        assert!(join_destination(&presence, None).is_err());
+        assert!(join_destination(&presence, None)
+            .unwrap_err()
+            .contains("server ID"));
+        presence.game_id = Some("12345678-1234-4234-8234-123456789abc".into());
+        presence.place_id = None;
+        assert!(join_destination(&presence, None)
+            .unwrap_err()
+            .contains("place ID"));
     }
 
     #[test]

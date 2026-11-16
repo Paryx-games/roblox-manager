@@ -31,8 +31,9 @@ test("selection survives filtering and drops removed friends after refresh",()=>
  const selected=new Set([1,2,99]);assert.deepEqual([...reconcileFriendsSelection(selected,friends)],[1,2]);assert.deepEqual([...selected],[1,2,99]);
  assert.deepEqual([...reconcileFriendsSelection(selected,[])],[]);
 });
-test("only playing friends with a Place ID and Job ID offer a join action",()=>{
+test("playing friends with a Place ID can be joined without a cached Job ID",()=>{
  assert(canJoinFriend({...friends[0],placeId:123}));
+ assert(canJoinFriend({...friends[0],jobId:null,placeId:123}));
  assert(!canJoinFriend(friend(6,"Hidden server","playing")));
  assert(!canJoinFriend({...friends[0],placeId:null}));
  for(const friend of friends.slice(1))assert(!canJoinFriend(friend));

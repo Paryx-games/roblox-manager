@@ -32,9 +32,7 @@ export function canJoinFriend(friend: Friend): boolean {
   return friend.status === "playing"
     && Number.isSafeInteger(friend.placeId)
     && friend.placeId !== null
-    && friend.placeId > 0
-    && typeof friend.jobId === "string"
-    && friend.jobId.trim().length > 0;
+    && friend.placeId > 0;
 }
 export function isFriendLaunchProgress(progress: Pick<LaunchProgress, "userId" | "friendTargetId">, viewerId: number, targetId: number): boolean {
   return progress.userId === viewerId && progress.friendTargetId === targetId;

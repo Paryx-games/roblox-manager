@@ -25,6 +25,7 @@ mod private_servers;
 mod roblox_settings;
 mod startup_actions;
 mod state;
+mod updates;
 mod webview_recovery;
 
 #[allow(dead_code)]
@@ -393,6 +394,10 @@ struct SettingsUpdate {
     kill_background_roblox: bool,
     confirm_kill_all: bool,
     launch_delay_secs: u32,
+    #[serde(default)]
+    roblox_cpu_limit_percent: Option<u32>,
+    #[serde(default)]
+    roblox_memory_limit_mb: Option<u64>,
     custom_game_args: String,
     roblox_player_path: Option<String>,
     roblox_fast_flags: std::collections::HashMap<String, String>,
@@ -438,6 +443,9 @@ struct SettingsConfig {
     kill_background_roblox: bool,
     confirm_kill_all: bool,
     launch_delay_secs: u32,
+    roblox_cpu_limit_percent: Option<u32>,
+    roblox_memory_limit_mb: Option<u64>,
+    system_memory_limit_mb: Option<u64>,
     custom_game_args: String,
     roblox_player_path: Option<String>,
     roblox_fast_flags: std::collections::HashMap<String, String>,
@@ -481,6 +489,9 @@ impl SettingsConfig {
             kill_background_roblox: config.kill_background_roblox,
             confirm_kill_all: config.confirm_kill_all,
             launch_delay_secs: config.launch_delay_secs,
+            roblox_cpu_limit_percent: config.roblox_cpu_limit_percent,
+            roblox_memory_limit_mb: config.roblox_memory_limit_mb,
+            system_memory_limit_mb: process::system_memory_limit_mb(),
             custom_game_args: config.custom_game_args.clone(),
             roblox_player_path: config
                 .roblox_player_path
@@ -533,6 +544,12 @@ impl SettingsUpdate {
         if self.launch_delay_secs > 300 {
             return Err("Launch delay must be between 0 and 300 seconds".to_string());
         }
+        ram_core::process::RobloxResourceLimits {
+            cpu_percent: self.roblox_cpu_limit_percent,
+            memory_limit_mb: self.roblox_memory_limit_mb,
+        }
+        .validate()
+        .map_err(str::to_string)?;
         if self.tiling_custom_cols == 0 || self.tiling_custom_cols > 12 {
             return Err("Tiling columns must be between 1 and 12".to_string());
         }
@@ -573,6 +590,8 @@ impl SettingsUpdate {
         config.kill_background_roblox = self.kill_background_roblox;
         config.confirm_kill_all = self.confirm_kill_all;
         config.launch_delay_secs = self.launch_delay_secs;
+        config.roblox_cpu_limit_percent = self.roblox_cpu_limit_percent;
+        config.roblox_memory_limit_mb = self.roblox_memory_limit_mb;
         config.custom_game_args = self.custom_game_args;
         config.roblox_fast_flags = self.roblox_fast_flags;
         config.roblox_player_path = self
@@ -1658,6 +1677,46 @@ mod settings_validation_tests {
                 enabled
             );
         }
+    }
+
+    #[test]
+    fn resource_limits_round_trip_and_reject_invalid_values_without_partial_changes() {
+        let mut config = AppConfig::default();
+        let original = serde_json::to_value(&config).unwrap();
+        let mut base = serde_json::to_value(SettingsConfig::from_config(&config)).unwrap();
+        base.as_object_mut()
+            .unwrap()
+            .remove("robloxCpuLimitPercent");
+        base.as_object_mut().unwrap().remove("robloxMemoryLimitMb");
+        let old_update: SettingsUpdate = serde_json::from_value(base.clone()).unwrap();
+        old_update.apply_to_config(&mut config).unwrap();
+        assert_eq!(config.roblox_cpu_limit_percent, None);
+        assert_eq!(config.roblox_memory_limit_mb, None);
+
+        for (key, value) in [
+            ("robloxCpuLimitPercent", serde_json::json!(0)),
+            ("robloxCpuLimitPercent", serde_json::json!(100)),
+            ("robloxMemoryLimitMb", serde_json::json!(1023)),
+            (
+                "robloxMemoryLimitMb",
+                serde_json::json!(process::system_memory_limit_mb().unwrap() + 1),
+            ),
+        ] {
+            let mut payload = base.clone();
+            payload[key] = value;
+            payload["utilityEnabled"] = serde_json::json!(!config.utility_enabled);
+            let update: SettingsUpdate = serde_json::from_value(payload).unwrap();
+            assert!(update.apply_to_config(&mut config).is_err());
+            assert_eq!(serde_json::to_value(&config).unwrap(), original);
+        }
+
+        let mut payload = base;
+        payload["robloxCpuLimitPercent"] = serde_json::json!(35);
+        payload["robloxMemoryLimitMb"] = serde_json::json!(4096);
+        let update: SettingsUpdate = serde_json::from_value(payload).unwrap();
+        update.apply_to_config(&mut config).unwrap();
+        assert_eq!(config.roblox_cpu_limit_percent, Some(35));
+        assert_eq!(config.roblox_memory_limit_mb, Some(4096));
     }
 
     #[test]
@@ -3792,6 +3851,7 @@ fn main() {
             lifecycle::migrate_legacy_data,
             lifecycle::reset_account_store,
             lifecycle::check_release_update,
+            lifecycle::install_release_update,
             lifecycle::open_release_page,
             list_accounts,
             account_export::export_accounts,
@@ -3823,6 +3883,7 @@ fn main() {
             toggle_account_pin,
             update_account_group,
             accounts::list_account_tags,
+            accounts::copy_account_cookie,
             accounts::save_account_tag,
             accounts::delete_account_tag,
             accounts::assign_account_tags,
