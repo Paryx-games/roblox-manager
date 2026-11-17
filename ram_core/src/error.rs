@@ -59,6 +59,9 @@ pub enum CoreError {
     #[error("Process error: {0}")]
     Process(String),
 
+    #[error("Update error: {0}")]
+    Update(#[from] crate::update::UpdateError),
+
     #[error("Roblox API error ({status}): {message}")]
     RobloxApi { status: u16, message: String },
 }

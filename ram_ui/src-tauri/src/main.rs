@@ -527,6 +527,14 @@ impl SettingsConfig {
 
 impl SettingsUpdate {
     fn apply_to_config(self, config: &mut AppConfig) -> Result<(), String> {
+        self.apply_to_config_with_memory_limit(config, process::system_memory_limit_mb())
+    }
+
+    fn apply_to_config_with_memory_limit(
+        self,
+        config: &mut AppConfig,
+        system_memory_limit_mb: Option<u64>,
+    ) -> Result<(), String> {
         ram_core::launch_options::parse_arguments(&self.custom_game_args).map_err(|_| {
             "Custom arguments have invalid quoting or reserved launch parameters".to_string()
         })?;
@@ -548,7 +556,7 @@ impl SettingsUpdate {
             cpu_percent: self.roblox_cpu_limit_percent,
             memory_limit_mb: self.roblox_memory_limit_mb,
         }
-        .validate()
+        .validate_with_memory_limit(system_memory_limit_mb)
         .map_err(str::to_string)?;
         if self.tiling_custom_cols == 0 || self.tiling_custom_cols > 12 {
             return Err("Tiling columns must be between 1 and 12".to_string());
@@ -1689,7 +1697,9 @@ mod settings_validation_tests {
             .remove("robloxCpuLimitPercent");
         base.as_object_mut().unwrap().remove("robloxMemoryLimitMb");
         let old_update: SettingsUpdate = serde_json::from_value(base.clone()).unwrap();
-        old_update.apply_to_config(&mut config).unwrap();
+        old_update
+            .apply_to_config_with_memory_limit(&mut config, Some(8192))
+            .unwrap();
         assert_eq!(config.roblox_cpu_limit_percent, None);
         assert_eq!(config.roblox_memory_limit_mb, None);
 
@@ -1697,16 +1707,15 @@ mod settings_validation_tests {
             ("robloxCpuLimitPercent", serde_json::json!(0)),
             ("robloxCpuLimitPercent", serde_json::json!(100)),
             ("robloxMemoryLimitMb", serde_json::json!(1023)),
-            (
-                "robloxMemoryLimitMb",
-                serde_json::json!(process::system_memory_limit_mb().unwrap() + 1),
-            ),
+            ("robloxMemoryLimitMb", serde_json::json!(8193)),
         ] {
             let mut payload = base.clone();
             payload[key] = value;
             payload["utilityEnabled"] = serde_json::json!(!config.utility_enabled);
             let update: SettingsUpdate = serde_json::from_value(payload).unwrap();
-            assert!(update.apply_to_config(&mut config).is_err());
+            assert!(update
+                .apply_to_config_with_memory_limit(&mut config, Some(8192))
+                .is_err());
             assert_eq!(serde_json::to_value(&config).unwrap(), original);
         }
 
@@ -1714,7 +1723,9 @@ mod settings_validation_tests {
         payload["robloxCpuLimitPercent"] = serde_json::json!(35);
         payload["robloxMemoryLimitMb"] = serde_json::json!(4096);
         let update: SettingsUpdate = serde_json::from_value(payload).unwrap();
-        update.apply_to_config(&mut config).unwrap();
+        update
+            .apply_to_config_with_memory_limit(&mut config, Some(8192))
+            .unwrap();
         assert_eq!(config.roblox_cpu_limit_percent, Some(35));
         assert_eq!(config.roblox_memory_limit_mb, Some(4096));
     }
@@ -1745,7 +1756,9 @@ mod settings_validation_tests {
         }
         payload["autoLaunchPlaceId"] = serde_json::json!(2);
         let update: SettingsUpdate = serde_json::from_value(payload).unwrap();
-        update.apply_to_config(&mut config).unwrap();
+        update
+            .apply_to_config_with_memory_limit(&mut config, Some(8192))
+            .unwrap();
         assert_eq!(config.auto_launch_account_id, Some(1));
         assert_eq!(config.auto_launch_place_id, Some(2));
         assert!(config.auto_launch_on_startup);

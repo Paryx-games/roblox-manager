@@ -451,6 +451,13 @@ impl RobloxResourceLimits {
     }
 
     pub fn validate(self) -> Result<(), &'static str> {
+        self.validate_with_memory_limit(system_memory_limit_mb())
+    }
+
+    pub fn validate_with_memory_limit(
+        self,
+        max_memory_mb: Option<u64>,
+    ) -> Result<(), &'static str> {
         if self
             .cpu_percent
             .is_some_and(|percent| !(1..100).contains(&percent))
@@ -458,8 +465,8 @@ impl RobloxResourceLimits {
             return Err("The Roblox CPU cap must be between 1 and 99 percent");
         }
         if let Some(megabytes) = self.memory_limit_mb {
-            let max_memory_mb = system_memory_limit_mb()
-                .ok_or("The system memory limit could not be determined")?;
+            let max_memory_mb =
+                max_memory_mb.ok_or("The system memory limit could not be determined")?;
             validate_memory_limit(megabytes, max_memory_mb)?;
         }
         Ok(())

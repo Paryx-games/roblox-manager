@@ -155,7 +155,7 @@ fn fast_flag_value(value: &str) -> Value {
     }
 
     match serde_json::from_str::<Value>(value) {
-        Ok(value @ (Value::Number(_) | Value::String(_))) => value,
+        Ok(value @ (Value::Bool(_) | Value::Number(_) | Value::String(_))) => value,
         _ => Value::String(value.to_owned()),
     }
 }
@@ -282,6 +282,8 @@ mod tests {
     fn fast_flag_values_write_json_scalar_types() {
         assert_eq!(fast_flag_value("True"), Value::Bool(true));
         assert_eq!(fast_flag_value("false"), Value::Bool(false));
+        assert_eq!(fast_flag_value(" true "), Value::Bool(true));
+        assert_eq!(fast_flag_value(" false "), Value::Bool(false));
         assert_eq!(fast_flag_value("240"), serde_json::json!(240));
         assert_eq!(fast_flag_value("0.5"), serde_json::json!(0.5));
         assert_eq!(

@@ -697,6 +697,8 @@ export function AccountsPage({
   const [exportOpen, setExportOpen] = useState(false);
   const [openingHome, setOpeningHome] = useState(false);
   const homeLaunchPending = useRef(false);
+  const [copyingLoginCookie, setCopyingLoginCookie] = useState(false);
+  const copyLoginCookiePending = useRef(false);
   const connectionRequestPending = useRef(false);
   const [browserLoginLoading, setBrowserLoginLoading] = useState(false);
   const [browserLoginOverlayVisible, setBrowserLoginOverlayVisible] =
@@ -1933,7 +1935,9 @@ export function AccountsPage({
   }
 
   async function copyLoginCookie() {
-    if (!selectedAccount) return;
+    if (!selectedAccount || copyLoginCookiePending.current) return;
+    copyLoginCookiePending.current = true;
+    setCopyingLoginCookie(true);
     try {
       await copyAccountCookie(selectedAccount.userId);
       setNotice(
@@ -1947,6 +1951,9 @@ export function AccountsPage({
         "The login cookie could not be copied. Check clipboard access and try again.",
         "error",
       );
+    } finally {
+      copyLoginCookiePending.current = false;
+      setCopyingLoginCookie(false);
     }
   }
 
@@ -2791,13 +2798,14 @@ export function AccountsPage({
                       <button
                         type="button"
                         role="menuitem"
+                        disabled={copyingLoginCookie}
+                        aria-busy={copyingLoginCookie}
                         onClick={() => {
                           void copyLoginCookie();
-                          setShowAccountMenu(false);
                         }}
                       >
                         <Icon name="copy" />
-                        Copy login cookie
+                        {copyingLoginCookie ? "Copying login cookie..." : "Copy login cookie"}
                       </button>
                       <button
                         type="button"

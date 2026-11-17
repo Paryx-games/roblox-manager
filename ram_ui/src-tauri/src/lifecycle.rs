@@ -7,6 +7,14 @@ use tauri::{Emitter, Manager};
 
 static UPDATE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
+struct UpdateInProgressGuard;
+
+impl Drop for UpdateInProgressGuard {
+    fn drop(&mut self) {
+        UPDATE_IN_PROGRESS.store(false, Ordering::Release);
+    }
+}
+
 fn registered_install_matches(executable: &Path) -> bool {
     use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
@@ -326,29 +334,30 @@ pub async fn install_release_update(app: tauri::AppHandle, version: String) -> R
     {
         return Err("An update is already being prepared".into());
     }
+    let _update_guard = UpdateInProgressGuard;
 
-    let updates_enabled = match app.state::<AppState>().runtime.lock() {
-        Ok(runtime) => runtime.config.show_update_notifications,
-        Err(_) => {
-            UPDATE_IN_PROGRESS.store(false, Ordering::Release);
-            return Err("Application state unavailable".into());
-        }
-    };
+    let updates_enabled = app
+        .state::<AppState>()
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?
+        .config
+        .show_update_notifications;
     if !updates_enabled {
-        UPDATE_IN_PROGRESS.store(false, Ordering::Release);
         return Err("Enable update notifications before installing an update".into());
     }
 
-    let executable = match std::env::current_exe() {
-        Ok(executable) if registered_install_matches(&executable) => executable,
-        _ => {
-            UPDATE_IN_PROGRESS.store(false, Ordering::Release);
-            return Err(
-                "Automatic updates are available only for the installed copy. Download the installer manually."
-                    .into(),
-            );
-        }
-    };
+    let executable = tauri::async_runtime::spawn_blocking(|| {
+        std::env::current_exe()
+            .ok()
+            .filter(|executable| registered_install_matches(executable))
+    })
+    .await
+    .map_err(|_| "Install verification task failed".to_string())?
+    .ok_or_else(|| {
+        "Automatic updates are available only for the installed copy. Download the installer manually."
+            .to_string()
+    })?;
 
     let staged = match ram_core::update::stage_release_installer(
         &version,
@@ -358,33 +367,46 @@ pub async fn install_release_update(app: tauri::AppHandle, version: String) -> R
     {
         Ok(staged) => staged,
         Err(_) => {
-            UPDATE_IN_PROGRESS.store(false, Ordering::Release);
             return Err(
                 "The update could not be downloaded or verified. Use Download manually to retry."
                     .into(),
-            );
+            )
         }
     };
-    let updates_enabled = match app.state::<AppState>().runtime.lock() {
-        Ok(runtime) => runtime.config.show_update_notifications,
+    let cleanup_path = staged.path.clone();
+    let staged_path = staged.path;
+    let checksum = staged.sha256;
+    let state = app.state::<AppState>().inner().clone();
+    let worker_result = tauri::async_runtime::spawn_blocking(move || {
+        let result = (|| {
+            let updates_enabled = state
+                .runtime
+                .lock()
+                .map_err(|_| "Application state unavailable".to_string())?
+                .config
+                .show_update_notifications;
+            if !updates_enabled || !registered_install_matches(&executable) {
+                return Err("The install or update settings changed while the download was in progress. Try again if you still want to update.".into());
+            }
+            crate::updates::spawn_update_worker(&executable, &staged_path, &checksum)
+                .map_err(|_| "The update helper could not be started. Use Download manually.".to_string())
+        })();
+        if result.is_err() {
+            let _ = ram_core::update::remove_staged_installer(&staged_path);
+        }
+        result
+    })
+    .await;
+    match worker_result {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => return Err(error),
         Err(_) => {
-            let _ = ram_core::update::remove_staged_installer(&staged.path);
-            UPDATE_IN_PROGRESS.store(false, Ordering::Release);
-            return Err("Application state unavailable".into());
+            let _ = tauri::async_runtime::spawn_blocking(move || {
+                ram_core::update::remove_staged_installer(&cleanup_path)
+            })
+            .await;
+            return Err("Update setup task failed. Use Download manually to retry.".into());
         }
-    };
-    if !updates_enabled || !registered_install_matches(&executable) {
-        let _ = ram_core::update::remove_staged_installer(&staged.path);
-        UPDATE_IN_PROGRESS.store(false, Ordering::Release);
-        return Err(
-            "The install or update settings changed while the download was in progress. Try again if you still want to update."
-                .into(),
-        );
-    }
-    if crate::updates::spawn_update_worker(&executable, &staged.path, &staged.sha256).is_err() {
-        let _ = ram_core::update::remove_staged_installer(&staged.path);
-        UPDATE_IN_PROGRESS.store(false, Ordering::Release);
-        return Err("The update helper could not be started. Use Download manually.".into());
     }
 
     app.exit(0);

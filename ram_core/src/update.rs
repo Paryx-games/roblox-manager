@@ -154,10 +154,10 @@ async fn response_bytes_bounded(
 pub async fn stage_release_installer(
     version: &str,
     current_version: &str,
-) -> Result<StagedInstaller, UpdateError> {
+) -> Result<StagedInstaller, crate::CoreError> {
     let tag = release_tag(version).ok_or(UpdateError::InvalidVersion)?;
     if !crate::api::is_newer_stable_release(&tag, current_version) {
-        return Err(UpdateError::InvalidVersion);
+        return Err(UpdateError::InvalidVersion.into());
     }
 
     let client = update_client()?;
@@ -177,7 +177,7 @@ pub async fn stage_release_installer(
         serde_json::from_slice(&release_bytes).map_err(|_| UpdateError::ReleaseRequest)?;
 
     if !release_matches_version(&release, &tag) {
-        return Err(UpdateError::InvalidVersion);
+        return Err(UpdateError::InvalidVersion.into());
     }
     let filename = format!("roblox-manager-{tag}-windows-x64-setup.exe");
     let expected_installer_url =
@@ -209,11 +209,11 @@ pub async fn stage_release_installer(
 
     let installer = download_bounded(&client, installer_url, MAX_INSTALLER_BYTES).await?;
     if installer.is_empty() {
-        return Err(UpdateError::Download);
+        return Err(UpdateError::Download.into());
     }
     let actual_checksum = crate::assets::sha256_hex(&installer);
     if actual_checksum != expected_checksum {
-        return Err(UpdateError::InvalidChecksum);
+        return Err(UpdateError::InvalidChecksum.into());
     }
 
     let path = std::env::temp_dir().join(format!("rm-update-{}.exe", uuid::Uuid::new_v4()));
@@ -233,10 +233,10 @@ pub async fn stage_release_installer(
     .await
     {
         Ok(Ok(())) => {}
-        Ok(Err(_)) => return Err(UpdateError::StageFile),
+        Ok(Err(_)) => return Err(UpdateError::StageFile.into()),
         Err(_) => {
             let _ = fs::remove_file(&path);
-            return Err(UpdateError::StageFile);
+            return Err(UpdateError::StageFile.into());
         }
     }
 
