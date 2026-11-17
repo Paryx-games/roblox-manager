@@ -13,7 +13,7 @@
 - **Friend join availability:** Allow a join attempt when the cached Job ID is missing, recheck current presence before launching, and report per-account visibility or credential failures instead of silently skipping them.
 - **Open browser as:** Install the saved login cookie only once per browser session so Roblox's login page remains usable if the cookie is rejected.
 - **Custom FastFlags:** Write boolean and numeric values as JSON scalars instead of strings, while preserving explicit string values.
-- **Account and update actions:** Prevent duplicate cookie copies and require an explicit save or discard decision before installing an update with a dirty Settings draft.
+- **Account and update actions:** Prevent duplicate cookie copies, require an explicit save or discard decision before installing an update with a dirty Settings draft, and show that confirmation without an overlapping release dialog.
 
 ## v2.5.0
 

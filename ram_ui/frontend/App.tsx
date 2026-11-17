@@ -228,6 +228,7 @@ export function App() {
   const updateVersion = update?.[0].startsWith("v") ? update[0] : update ? `v${update[0]}` : null;
   async function installUpdate() {
     if (!update) return;
+    setIsReleaseDialogOpen(true);
     setIsInstallingUpdate(true);
     setUpdateError(null);
     try {
@@ -247,6 +248,7 @@ export function App() {
       return;
     }
     if (guard?.isDirty) {
+      setIsReleaseDialogOpen(false);
       setPendingUpdateInstall(true);
       return;
     }
