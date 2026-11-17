@@ -69,6 +69,7 @@ impl ResourceMonitorSettings {
 fn validate_resource_monitor_settings(
     settings: &ResourceMonitorSettingsUpdate,
     system_memory_limit_mb: Option<u64>,
+    existing_memory_limit_mb: Option<u64>,
 ) -> Result<(), &'static str> {
     if settings
         .cpu_limit_percent
@@ -77,10 +78,18 @@ fn validate_resource_monitor_settings(
         return Err("The CPU threshold must be between 1 and 99 percent");
     }
     if let Some(megabytes) = settings.memory_limit_mb {
-        let maximum =
-            system_memory_limit_mb.ok_or("The installed system memory could not be determined")?;
-        if !(1024..=maximum).contains(&megabytes) {
-            return Err("The RAM threshold must be between 1024 MB and installed physical memory");
+        if Some(megabytes) == existing_memory_limit_mb {
+            if megabytes < 1024 {
+                return Err("The RAM threshold must be at least 1024 MB");
+            }
+        } else {
+            let maximum = system_memory_limit_mb
+                .ok_or("The installed system memory could not be determined")?;
+            if !(1024..=maximum).contains(&megabytes) {
+                return Err(
+                    "The RAM threshold must be between 1024 MB and installed physical memory",
+                );
+            }
         }
     }
     Ok(())
@@ -246,6 +255,7 @@ fn enforce_resource_limits(
     }
 
     if cpu_threshold.is_none() && memory_threshold.is_none() {
+        instances.resource_monitor.sample(&[]);
         return;
     }
     let targets = tracked
@@ -702,11 +712,16 @@ pub async fn save_resource_monitor_settings(
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let memory_limit = process::system_memory_limit_mb();
-        validate_resource_monitor_settings(&settings, memory_limit).map_err(str::to_string)?;
         let mut runtime = state
             .runtime
             .lock()
             .map_err(|_| "Application state unavailable")?;
+        validate_resource_monitor_settings(
+            &settings,
+            memory_limit,
+            runtime.config.roblox_memory_limit_mb,
+        )
+        .map_err(str::to_string)?;
         let mut candidate = runtime.config.clone();
         candidate.roblox_cpu_limit_percent = settings.cpu_limit_percent;
         candidate.roblox_memory_limit_mb = settings.memory_limit_mb;
@@ -808,7 +823,7 @@ mod tests {
             cpu_action: CpuLimitAction::Throttle,
             memory_action: MemoryLimitAction::Warn,
         };
-        assert!(validate_resource_monitor_settings(&valid, Some(8192)).is_ok());
+        assert!(validate_resource_monitor_settings(&valid, Some(8192), None).is_ok());
 
         for invalid in [
             ResourceMonitorSettingsUpdate {
@@ -828,17 +843,28 @@ mod tests {
                 ..valid_update()
             },
         ] {
-            assert!(validate_resource_monitor_settings(&invalid, Some(8192)).is_err());
+            assert!(validate_resource_monitor_settings(&invalid, Some(8192), None).is_err());
         }
-        assert!(validate_resource_monitor_settings(&valid_update(), None).is_ok());
+        assert!(validate_resource_monitor_settings(&valid_update(), None, None).is_ok());
         assert!(validate_resource_monitor_settings(
             &ResourceMonitorSettingsUpdate {
                 memory_limit_mb: Some(1024),
                 ..valid_update()
             },
-            None
+            None,
+            None,
         )
         .is_err());
+        let unchanged_ram = ResourceMonitorSettingsUpdate {
+            memory_limit_mb: Some(8192),
+            ..valid_update()
+        };
+        assert!(validate_resource_monitor_settings(&unchanged_ram, None, Some(8192)).is_ok());
+        let changed_ram = ResourceMonitorSettingsUpdate {
+            memory_limit_mb: Some(4096),
+            ..valid_update()
+        };
+        assert!(validate_resource_monitor_settings(&changed_ram, None, Some(8192)).is_err());
     }
 
     fn valid_update() -> ResourceMonitorSettingsUpdate {

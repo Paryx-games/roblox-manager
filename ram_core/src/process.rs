@@ -479,6 +479,19 @@ pub struct RobloxResourceMonitor {
 }
 
 #[cfg(windows)]
+fn process_ids_to_refresh(
+    cached: impl IntoIterator<Item = sysinfo::Pid>,
+    pids: &[u32],
+) -> Vec<sysinfo::Pid> {
+    cached
+        .into_iter()
+        .chain(pids.iter().copied().map(sysinfo::Pid::from_u32))
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+#[cfg(windows)]
 impl Default for RobloxResourceMonitor {
     fn default() -> Self {
         let mut system = sysinfo::System::new();
@@ -497,11 +510,7 @@ pub struct RobloxProcessUsage {
 #[cfg(windows)]
 impl RobloxResourceMonitor {
     pub fn sample(&mut self, pids: &[u32]) -> std::collections::HashMap<u32, RobloxProcessUsage> {
-        let process_ids = pids
-            .iter()
-            .copied()
-            .map(sysinfo::Pid::from_u32)
-            .collect::<Vec<_>>();
+        let process_ids = process_ids_to_refresh(self.system.processes().keys().copied(), pids);
         self.system.refresh_processes_specifics(
             sysinfo::ProcessesToUpdate::Some(&process_ids),
             true,
@@ -552,6 +561,15 @@ fn job_cpu_rate(percent: u32) -> Option<u32> {
 
 fn matches_expected_launchtime(cmdline: &str, expected_launchtime: i64) -> bool {
     crate::instances::parse_launchtime(cmdline) == Some(expected_launchtime)
+}
+
+#[cfg(windows)]
+fn cpu_throttle_process_access() -> u32 {
+    use windows_sys::Win32::System::Threading::{
+        PROCESS_QUERY_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE, PROCESS_VM_READ,
+    };
+
+    PROCESS_QUERY_INFORMATION | PROCESS_SET_QUOTA | PROCESS_TERMINATE | PROCESS_VM_READ
 }
 
 fn job_memory_limit_bytes(megabytes: u64, max_memory_mb: u64) -> Option<usize> {
@@ -739,20 +757,12 @@ pub fn throttle_verified_instance(
         JOBOBJECT_CPU_RATE_CONTROL_INFORMATION_0, JOB_OBJECT_CPU_RATE_CONTROL_ENABLE,
         JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP,
     };
-    use windows_sys::Win32::System::Threading::{
-        OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_SET_QUOTA, PROCESS_VM_READ,
-    };
+    use windows_sys::Win32::System::Threading::OpenProcess;
 
     let cpu_rate = job_cpu_rate(cpu_percent).ok_or_else(|| {
         CoreError::Process("The Roblox CPU throttle must be between 1 and 99 percent".into())
     })?;
-    let process = unsafe {
-        OpenProcess(
-            PROCESS_QUERY_INFORMATION | PROCESS_SET_QUOTA | PROCESS_VM_READ,
-            FALSE,
-            pid,
-        )
-    };
+    let process = unsafe { OpenProcess(cpu_throttle_process_access(), FALSE, pid) };
     if process.is_null() {
         return Err(CoreError::Process(format!(
             "Could not open PID {pid} to apply CPU throttling."
@@ -2679,6 +2689,42 @@ mod tests {
         }
         .validate()
         .is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn resource_monitor_refreshes_cached_and_current_pids_once() {
+        use std::collections::HashSet;
+
+        let cached = [sysinfo::Pid::from_u32(11), sysinfo::Pid::from_u32(12)];
+        let pids = process_ids_to_refresh(cached, &[12, 13]);
+        let refreshed = pids.into_iter().collect::<HashSet<_>>();
+        let expected = [11, 12, 13]
+            .into_iter()
+            .map(sysinfo::Pid::from_u32)
+            .collect::<HashSet<_>>();
+        assert_eq!(refreshed, expected);
+
+        let cached_only = process_ids_to_refresh([sysinfo::Pid::from_u32(11)], &[]);
+        assert_eq!(cached_only, vec![sysinfo::Pid::from_u32(11)]);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn cpu_throttle_process_access_includes_assignment_and_verification_rights() {
+        use windows_sys::Win32::System::Threading::{
+            PROCESS_QUERY_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE, PROCESS_VM_READ,
+        };
+
+        let access = cpu_throttle_process_access();
+        for required in [
+            PROCESS_QUERY_INFORMATION,
+            PROCESS_SET_QUOTA,
+            PROCESS_TERMINATE,
+            PROCESS_VM_READ,
+        ] {
+            assert_eq!(access & required, required);
+        }
     }
 
     #[cfg(windows)]
