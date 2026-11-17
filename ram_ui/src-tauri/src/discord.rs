@@ -22,10 +22,11 @@ pub enum Event {
     FriendRemoved,
     FriendRequestDeclined,
     UserBlocked,
+    ResourceLimitExceeded,
 }
 
 impl Event {
-    const ALL: [Self; 11] = [
+    const ALL: [Self; 12] = [
         Self::ModerationDetected,
         Self::BatchLaunchFinished,
         Self::SessionExpired,
@@ -37,6 +38,7 @@ impl Event {
         Self::FriendRemoved,
         Self::FriendRequestDeclined,
         Self::UserBlocked,
+        Self::ResourceLimitExceeded,
     ];
 }
 
@@ -75,6 +77,7 @@ pub struct NotificationSettings {
     friend_removed: bool,
     friend_request_declined: bool,
     user_blocked: bool,
+    resource_limit_exceeded: bool,
     destinations: Vec<Destination>,
 }
 
@@ -93,6 +96,7 @@ impl Default for NotificationSettings {
             friend_removed: false,
             friend_request_declined: false,
             user_blocked: false,
+            resource_limit_exceeded: false,
             destinations: Vec::new(),
         }
     }
@@ -122,6 +126,7 @@ impl NotificationSettings {
             Event::FriendRemoved => self.friend_removed,
             Event::FriendRequestDeclined => self.friend_request_declined,
             Event::UserBlocked => self.user_blocked,
+            Event::ResourceLimitExceeded => self.resource_limit_exceeded,
         };
         self.destinations
             .iter()
@@ -741,6 +746,35 @@ pub fn client_exited(app: &tauri::AppHandle, user_id: u64, place_id: u64, job_id
     dispatch(app, Event::ClientExited, payload("Roblox client exited", &format!("**Account ID:** {user_id}{}{}\n\nAn exactly attributed Roblox client has exited. This includes clients closed manually; it does not confirm a crash.", place_detail(place_id), job_detail(job_id))));
 }
 
+#[derive(Clone, Copy)]
+pub enum ResourceLimit {
+    Cpu,
+    Ram,
+}
+
+pub fn resource_limit_exceeded(
+    app: &tauri::AppHandle,
+    pid: u32,
+    resource: ResourceLimit,
+    usage: u64,
+    threshold: u64,
+) {
+    let (label, units) = match resource {
+        ResourceLimit::Cpu => ("CPU", "%"),
+        ResourceLimit::Ram => ("RAM", " MB"),
+    };
+    dispatch(
+        app,
+        Event::ResourceLimitExceeded,
+        payload(
+            "Roblox resource threshold reached",
+            &format!(
+                "**Client PID:** {pid}\n**Resource:** {label}\n**Usage:** {usage}{units}\n**Threshold:** {threshold}{units}"
+            ),
+        ),
+    );
+}
+
 pub fn moderation_changed(
     previous: Option<&ModerationInfo>,
     current: Option<&ModerationInfo>,
@@ -1041,6 +1075,27 @@ mod tests {
         settings.batch_launch_finished = true;
         assert!(settings.routes(Event::BatchLaunchFinished).is_empty());
         assert_eq!(settings.destinations.len(), 2);
+    }
+
+    #[test]
+    fn resource_limit_notifications_require_explicit_global_and_destination_routes() {
+        let mut settings = NotificationSettings {
+            destinations: vec![Destination::new("default".into(), "Primary".into())],
+            ..Default::default()
+        };
+        assert!(settings.routes(Event::ResourceLimitExceeded).is_empty());
+        settings.resource_limit_exceeded = true;
+        assert_eq!(settings.routes(Event::ResourceLimitExceeded).len(), 1);
+        settings.destinations[0].events.clear();
+        assert!(settings.routes(Event::ResourceLimitExceeded).is_empty());
+
+        let mut legacy = serde_json::to_value(NotificationSettings::default()).unwrap();
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .remove("resourceLimitExceeded");
+        let legacy: NotificationSettings = serde_json::from_value(legacy).unwrap();
+        assert!(!legacy.resource_limit_exceeded);
     }
 
     #[test]

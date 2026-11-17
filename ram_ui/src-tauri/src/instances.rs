@@ -1,11 +1,12 @@
 use crate::state::AppState;
 use ram_core::{
     instances::{Attribution, InstanceRegistry, LiveClient, TrackedInstance},
+    models::{AppConfig, CpuLimitAction, MemoryLimitAction},
     process,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     time::{Duration, Instant},
 };
 use tauri::{Emitter, Manager};
@@ -20,6 +21,69 @@ pub struct InstanceState {
     arrange_after: Option<(Instant, bool)>,
     snapshot: InstanceWorkspace,
     presence_checks: HashMap<u64, (ram_core::models::Presence, chrono::DateTime<chrono::Utc>)>,
+    resource_triggers: HashSet<(u32, u64, ResourceKind)>,
+    invalid_threshold_notices: HashSet<ResourceKind>,
+    #[cfg(windows)]
+    resource_monitor: process::RobloxResourceMonitor,
+    #[cfg(windows)]
+    cpu_throttle_jobs: HashMap<(u32, u64), process::CpuThrottleJob>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+enum ResourceKind {
+    Cpu,
+    Memory,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceMonitorSettings {
+    cpu_limit_percent: Option<u32>,
+    memory_limit_mb: Option<u64>,
+    cpu_action: CpuLimitAction,
+    memory_action: MemoryLimitAction,
+    system_memory_limit_mb: Option<u64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceMonitorSettingsUpdate {
+    cpu_limit_percent: Option<u32>,
+    memory_limit_mb: Option<u64>,
+    cpu_action: CpuLimitAction,
+    memory_action: MemoryLimitAction,
+}
+
+impl ResourceMonitorSettings {
+    fn from_config(config: &AppConfig) -> Self {
+        Self {
+            cpu_limit_percent: config.roblox_cpu_limit_percent,
+            memory_limit_mb: config.roblox_memory_limit_mb,
+            cpu_action: config.roblox_cpu_limit_action,
+            memory_action: config.roblox_memory_limit_action,
+            system_memory_limit_mb: process::system_memory_limit_mb(),
+        }
+    }
+}
+
+fn validate_resource_monitor_settings(
+    settings: &ResourceMonitorSettingsUpdate,
+    system_memory_limit_mb: Option<u64>,
+) -> Result<(), &'static str> {
+    if settings
+        .cpu_limit_percent
+        .is_some_and(|percent| !(1..=99).contains(&percent))
+    {
+        return Err("The CPU threshold must be between 1 and 99 percent");
+    }
+    if let Some(megabytes) = settings.memory_limit_mb {
+        let maximum =
+            system_memory_limit_mb.ok_or("The installed system memory could not be determined")?;
+        if !(1024..=maximum).contains(&megabytes) {
+            return Err("The RAM threshold must be between 1024 MB and installed physical memory");
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Default, PartialEq, Serialize)]
@@ -94,6 +158,200 @@ fn instance_job_id(
         return None;
     }
     ram_core::instances::normalize_job_id(presence.game_id.as_deref())
+}
+
+#[cfg(windows)]
+fn notify_resource_threshold(
+    app: &tauri::AppHandle,
+    pid: u32,
+    resource: crate::discord::ResourceLimit,
+    usage: u64,
+    threshold: u64,
+) {
+    use tauri_plugin_notification::NotificationExt;
+
+    let (label, units) = match resource {
+        crate::discord::ResourceLimit::Cpu => ("CPU", "%"),
+        crate::discord::ResourceLimit::Ram => ("RAM", " MB"),
+    };
+    let body = format!(
+        "{label} use for Roblox client PID {pid} reached {usage}{units} (threshold {threshold}{units})."
+    );
+    if app
+        .notification()
+        .builder()
+        .title("Roblox resource threshold reached")
+        .body(&body)
+        .show()
+        .is_err()
+    {
+        let _ = app.emit(
+            "background-notice",
+            "A Roblox resource threshold was reached, but Windows could not show its notification.",
+        );
+    }
+    crate::discord::resource_limit_exceeded(app, pid, resource, usage, threshold);
+}
+
+#[cfg(windows)]
+fn enforce_resource_limits(
+    app: &tauri::AppHandle,
+    instances: &mut InstanceState,
+    live: &[LiveClient],
+    tracked: &[TrackedInstance],
+    config: &AppConfig,
+) {
+    let live_keys = live
+        .iter()
+        .map(|client| (client.pid, client.start_time))
+        .collect::<HashSet<_>>();
+    instances
+        .resource_triggers
+        .retain(|(pid, start_time, _)| live_keys.contains(&(*pid, *start_time)));
+    instances
+        .cpu_throttle_jobs
+        .retain(|key, _| live_keys.contains(key));
+
+    let cpu_threshold = config
+        .roblox_cpu_limit_percent
+        .filter(|value| (1..=99).contains(value));
+    let memory_threshold = config.roblox_memory_limit_mb.filter(|value| *value >= 1024);
+    for (kind, configured, valid) in [
+        (
+            ResourceKind::Cpu,
+            config.roblox_cpu_limit_percent.is_some(),
+            cpu_threshold.is_some(),
+        ),
+        (
+            ResourceKind::Memory,
+            config.roblox_memory_limit_mb.is_some(),
+            memory_threshold.is_some(),
+        ),
+    ] {
+        if configured && !valid && instances.invalid_threshold_notices.insert(kind) {
+            let resource = if kind == ResourceKind::Cpu {
+                "CPU"
+            } else {
+                "RAM"
+            };
+            let _ = app.emit(
+                "background-notice",
+                format!(
+                    "The saved {resource} threshold is invalid. Review Resource monitoring in Instances; no automatic action was taken."
+                ),
+            );
+        } else if !configured || valid {
+            instances.invalid_threshold_notices.remove(&kind);
+        }
+    }
+
+    if cpu_threshold.is_none() && memory_threshold.is_none() {
+        return;
+    }
+    let targets = tracked
+        .iter()
+        .filter(|instance| {
+            instance.attribution.is_exact()
+                && live_keys.contains(&(instance.pid, instance.start_time))
+        })
+        .collect::<Vec<_>>();
+    let pids = targets
+        .iter()
+        .map(|instance| instance.pid)
+        .collect::<Vec<_>>();
+    let usage_by_pid = instances.resource_monitor.sample(&pids);
+
+    for instance in targets {
+        let Some(usage) = usage_by_pid.get(&instance.pid) else {
+            continue;
+        };
+        let identity = (instance.pid, instance.start_time);
+        if let Some(threshold) = cpu_threshold {
+            let key = (identity.0, identity.1, ResourceKind::Cpu);
+            if usage.cpu_percent >= threshold && instances.resource_triggers.insert(key) {
+                match config.roblox_cpu_limit_action {
+                    CpuLimitAction::Warn => notify_resource_threshold(
+                        app,
+                        instance.pid,
+                        crate::discord::ResourceLimit::Cpu,
+                        u64::from(usage.cpu_percent),
+                        u64::from(threshold),
+                    ),
+                    CpuLimitAction::Throttle => {
+                        notify_resource_threshold(
+                            app,
+                            instance.pid,
+                            crate::discord::ResourceLimit::Cpu,
+                            u64::from(usage.cpu_percent),
+                            u64::from(threshold),
+                        );
+                        let throttle_percent = (threshold / 2).max(1);
+                        match process::throttle_verified_instance(
+                            instance.pid,
+                            instance.launchtime,
+                            throttle_percent,
+                        ) {
+                            Ok(job) => {
+                                instances.cpu_throttle_jobs.insert(identity, job);
+                            }
+                            Err(_) => {
+                                let _ = app.emit(
+                                    "background-notice",
+                                    format!(
+                                        "CPU throttling could not be applied to Roblox client PID {}. It was left running.",
+                                        instance.pid
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                    CpuLimitAction::Kill => {
+                        match process::kill_verified_instance(instance.pid, instance.launchtime) {
+                            Ok(()) => break,
+                            Err(_) => {
+                                let _ = app.emit(
+                                    "background-notice",
+                                    format!(
+                                        "Roblox client PID {} exceeded its CPU threshold but could not be safely closed.",
+                                        instance.pid
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(threshold) = memory_threshold {
+            let key = (identity.0, identity.1, ResourceKind::Memory);
+            if usage.memory_mb >= threshold && instances.resource_triggers.insert(key) {
+                match config.roblox_memory_limit_action {
+                    MemoryLimitAction::Warn => notify_resource_threshold(
+                        app,
+                        instance.pid,
+                        crate::discord::ResourceLimit::Ram,
+                        usage.memory_mb,
+                        threshold,
+                    ),
+                    MemoryLimitAction::Kill => {
+                        match process::kill_verified_instance(instance.pid, instance.launchtime) {
+                            Ok(()) => break,
+                            Err(_) => {
+                                let _ = app.emit(
+                                    "background-notice",
+                                    format!(
+                                        "Roblox client PID {} exceeded its RAM threshold but could not be safely closed.",
+                                        instance.pid
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn record_presence_check(
@@ -294,6 +552,8 @@ fn sweep(app: &tauri::AppHandle) -> Result<InstanceWorkspace, String> {
         );
     }
     let tracked = instances.registry.snapshot();
+    #[cfg(windows)]
+    enforce_resource_limits(app, &mut instances, &live, &tracked, &config);
     instances.original_titles.retain(|(pid, start_time), _| {
         live.iter()
             .any(|client| client.pid == *pid && client.start_time == *start_time)
@@ -419,6 +679,50 @@ pub async fn list_instances(app: tauri::AppHandle) -> Result<InstanceWorkspace, 
 }
 
 #[tauri::command]
+pub async fn get_resource_monitor_settings(
+    state: tauri::State<'_, AppState>,
+) -> Result<ResourceMonitorSettings, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable")?;
+        Ok(ResourceMonitorSettings::from_config(&runtime.config))
+    })
+    .await
+    .map_err(|_| "Resource monitor settings could not be loaded")?
+}
+
+#[tauri::command]
+pub async fn save_resource_monitor_settings(
+    state: tauri::State<'_, AppState>,
+    settings: ResourceMonitorSettingsUpdate,
+) -> Result<ResourceMonitorSettings, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let memory_limit = process::system_memory_limit_mb();
+        validate_resource_monitor_settings(&settings, memory_limit).map_err(str::to_string)?;
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable")?;
+        let mut candidate = runtime.config.clone();
+        candidate.roblox_cpu_limit_percent = settings.cpu_limit_percent;
+        candidate.roblox_memory_limit_mb = settings.memory_limit_mb;
+        candidate.roblox_cpu_limit_action = settings.cpu_action;
+        candidate.roblox_memory_limit_action = settings.memory_action;
+        candidate
+            .save(&runtime.config_path)
+            .map_err(|_| "Resource monitor settings could not be saved")?;
+        runtime.config = candidate;
+        Ok(ResourceMonitorSettings::from_config(&runtime.config))
+    })
+    .await
+    .map_err(|_| "Resource monitor settings save task failed")?
+}
+
+#[tauri::command]
 pub async fn focus_instance(
     state: tauri::State<'_, AppState>,
     pid: u32,
@@ -495,6 +799,56 @@ pub fn shutdown(state: &AppState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resource_threshold_validation_accepts_bounds_and_rejects_invalid_values() {
+        let valid = ResourceMonitorSettingsUpdate {
+            cpu_limit_percent: Some(1),
+            memory_limit_mb: Some(8192),
+            cpu_action: CpuLimitAction::Throttle,
+            memory_action: MemoryLimitAction::Warn,
+        };
+        assert!(validate_resource_monitor_settings(&valid, Some(8192)).is_ok());
+
+        for invalid in [
+            ResourceMonitorSettingsUpdate {
+                cpu_limit_percent: Some(0),
+                ..valid_update()
+            },
+            ResourceMonitorSettingsUpdate {
+                cpu_limit_percent: Some(100),
+                ..valid_update()
+            },
+            ResourceMonitorSettingsUpdate {
+                memory_limit_mb: Some(1023),
+                ..valid_update()
+            },
+            ResourceMonitorSettingsUpdate {
+                memory_limit_mb: Some(8193),
+                ..valid_update()
+            },
+        ] {
+            assert!(validate_resource_monitor_settings(&invalid, Some(8192)).is_err());
+        }
+        assert!(validate_resource_monitor_settings(&valid_update(), None).is_ok());
+        assert!(validate_resource_monitor_settings(
+            &ResourceMonitorSettingsUpdate {
+                memory_limit_mb: Some(1024),
+                ..valid_update()
+            },
+            None
+        )
+        .is_err());
+    }
+
+    fn valid_update() -> ResourceMonitorSettingsUpdate {
+        ResourceMonitorSettingsUpdate {
+            cpu_limit_percent: None,
+            memory_limit_mb: None,
+            cpu_action: CpuLimitAction::Warn,
+            memory_action: MemoryLimitAction::Warn,
+        }
+    }
 
     #[test]
     fn scheduled_arrangement_uses_effective_launch_setting() {

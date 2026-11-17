@@ -27,6 +27,7 @@ tauri-plugin-dialog = "2"
 uuid.workspace = true
 tokio.workspace = true
 roxmltree = "0.21"
+tauri-plugin-notification = "2.8.1"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

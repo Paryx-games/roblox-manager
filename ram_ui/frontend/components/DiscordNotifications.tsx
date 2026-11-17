@@ -17,6 +17,7 @@ const events: { key: DiscordEvent; label: string; info: string }[] = [
   { key: "friendRemoved", label: "Friend removed", info: "discord_friend_removed" },
   { key: "friendRequestDeclined", label: "Friend request declined", info: "discord_friend_declined" },
   { key: "userBlocked", label: "User blocked", info: "discord_friend_blocked" },
+  { key: "resourceLimitExceeded", label: "Roblox resource threshold reached", info: "discord_resource_limit" },
 ];
 
 export function DiscordNotifications({ hasWebhook, onConfiguredChange, onBusyChange, infoCards }: {

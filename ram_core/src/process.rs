@@ -473,6 +473,60 @@ impl RobloxResourceLimits {
     }
 }
 
+#[cfg(windows)]
+pub struct RobloxResourceMonitor {
+    system: sysinfo::System,
+}
+
+#[cfg(windows)]
+impl Default for RobloxResourceMonitor {
+    fn default() -> Self {
+        let mut system = sysinfo::System::new();
+        system.refresh_cpu_all();
+        Self { system }
+    }
+}
+
+#[cfg(windows)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RobloxProcessUsage {
+    pub cpu_percent: u32,
+    pub memory_mb: u64,
+}
+
+#[cfg(windows)]
+impl RobloxResourceMonitor {
+    pub fn sample(&mut self, pids: &[u32]) -> std::collections::HashMap<u32, RobloxProcessUsage> {
+        let process_ids = pids
+            .iter()
+            .copied()
+            .map(sysinfo::Pid::from_u32)
+            .collect::<Vec<_>>();
+        self.system.refresh_processes_specifics(
+            sysinfo::ProcessesToUpdate::Some(&process_ids),
+            true,
+            sysinfo::ProcessRefreshKind::nothing()
+                .with_cpu()
+                .with_memory(),
+        );
+        let logical_cpu_count = self.system.cpus().len().max(1) as f32;
+        pids.iter()
+            .filter_map(|pid| {
+                let process = self.system.process(sysinfo::Pid::from_u32(*pid))?;
+                Some((
+                    *pid,
+                    RobloxProcessUsage {
+                        cpu_percent: (process.cpu_usage() / logical_cpu_count)
+                            .round()
+                            .clamp(0.0, 100.0) as u32,
+                        memory_mb: process.memory() / (1024 * 1024),
+                    },
+                ))
+            })
+            .collect()
+    }
+}
+
 const MIN_MEMORY_LIMIT_MB: u64 = 1024;
 
 /// Return the installed physical memory in whole MiB for the settings limit.
@@ -494,6 +548,10 @@ fn validate_memory_limit(megabytes: u64, max_memory_mb: u64) -> Result<(), &'sta
 
 fn job_cpu_rate(percent: u32) -> Option<u32> {
     (1..100).contains(&percent).then(|| percent * 100)
+}
+
+fn matches_expected_launchtime(cmdline: &str, expected_launchtime: i64) -> bool {
+    crate::instances::parse_launchtime(cmdline) == Some(expected_launchtime)
 }
 
 fn job_memory_limit_bytes(megabytes: u64, max_memory_mb: u64) -> Option<usize> {
@@ -613,6 +671,141 @@ fn spawn_player_command(
         ));
     }
     Ok(())
+}
+
+#[cfg(windows)]
+pub struct CpuThrottleJob(usize);
+
+#[cfg(windows)]
+impl Drop for CpuThrottleJob {
+    fn drop(&mut self) {
+        use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+        unsafe {
+            CloseHandle(self.0 as HANDLE);
+        }
+    }
+}
+
+#[cfg(windows)]
+fn verify_roblox_launch(
+    handle: windows_sys::Win32::Foundation::HANDLE,
+    pid: u32,
+    expected_launchtime: i64,
+) -> Result<(), CoreError> {
+    use windows_sys::Win32::System::Threading::QueryFullProcessImageNameW;
+
+    let mut buffer = [0u16; 260];
+    let mut length = buffer.len() as u32;
+    if unsafe { QueryFullProcessImageNameW(handle, 0, buffer.as_mut_ptr(), &mut length) } == 0 {
+        return Err(CoreError::Process(format!(
+            "Could not identify PID {pid}. No action was taken."
+        )));
+    }
+    let image = String::from_utf16_lossy(&buffer[..length as usize]);
+    if !image
+        .rsplit(['\\', '/'])
+        .next()
+        .is_some_and(|name| name.eq_ignore_ascii_case(ROBLOX_PLAYER_EXE))
+    {
+        return Err(CoreError::Process(format!(
+            "PID {pid} is not a Roblox client any more. No action was taken."
+        )));
+    }
+    let Some(cmdline) = (unsafe { read_cmdline_from_handle(handle) }) else {
+        return Err(CoreError::Process(format!(
+            "Could not read PID {pid} to confirm its RM launch. No action was taken."
+        )));
+    };
+    if matches_expected_launchtime(&cmdline, expected_launchtime) {
+        Ok(())
+    } else {
+        Err(CoreError::Process(format!(
+            "PID {pid} no longer matches its recorded RM launch. No action was taken."
+        )))
+    }
+}
+
+#[cfg(windows)]
+pub fn throttle_verified_instance(
+    pid: u32,
+    expected_launchtime: i64,
+    cpu_percent: u32,
+) -> Result<CpuThrottleJob, CoreError> {
+    use std::mem::size_of;
+    use windows_sys::Win32::Foundation::{CloseHandle, FALSE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectCpuRateControlInformation,
+        SetInformationJobObject, JOBOBJECT_CPU_RATE_CONTROL_INFORMATION,
+        JOBOBJECT_CPU_RATE_CONTROL_INFORMATION_0, JOB_OBJECT_CPU_RATE_CONTROL_ENABLE,
+        JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP,
+    };
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_SET_QUOTA, PROCESS_VM_READ,
+    };
+
+    let cpu_rate = job_cpu_rate(cpu_percent).ok_or_else(|| {
+        CoreError::Process("The Roblox CPU throttle must be between 1 and 99 percent".into())
+    })?;
+    let process = unsafe {
+        OpenProcess(
+            PROCESS_QUERY_INFORMATION | PROCESS_SET_QUOTA | PROCESS_VM_READ,
+            FALSE,
+            pid,
+        )
+    };
+    if process.is_null() {
+        return Err(CoreError::Process(format!(
+            "Could not open PID {pid} to apply CPU throttling."
+        )));
+    }
+
+    let result = (|| {
+        verify_roblox_launch(process, pid, expected_launchtime)?;
+        let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+        if job.is_null() {
+            return Err(CoreError::Process(
+                "Windows could not create a CPU throttle for the Roblox client.".into(),
+            ));
+        }
+        let information = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION {
+            ControlFlags: JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP,
+            Anonymous: JOBOBJECT_CPU_RATE_CONTROL_INFORMATION_0 { CpuRate: cpu_rate },
+        };
+        let configured = unsafe {
+            SetInformationJobObject(
+                job,
+                JobObjectCpuRateControlInformation,
+                (&information as *const JOBOBJECT_CPU_RATE_CONTROL_INFORMATION).cast(),
+                size_of::<JOBOBJECT_CPU_RATE_CONTROL_INFORMATION>() as u32,
+            )
+        } != 0;
+        let assigned = configured && unsafe { AssignProcessToJobObject(job, process) } != 0;
+        if assigned {
+            Ok(CpuThrottleJob(job as usize))
+        } else {
+            unsafe {
+                CloseHandle(job);
+            }
+            Err(CoreError::Process(
+                "Windows could not apply CPU throttling to the Roblox client.".into(),
+            ))
+        }
+    })();
+    unsafe {
+        CloseHandle(process);
+    }
+    result
+}
+
+#[cfg(not(windows))]
+pub fn throttle_verified_instance(
+    _pid: u32,
+    _expected_launchtime: i64,
+    _cpu_percent: u32,
+) -> Result<(), CoreError> {
+    Err(CoreError::Process(
+        "CPU throttling is only supported on Windows".into(),
+    ))
 }
 
 /// Build the `roblox-player://` URI and pass it directly to the Roblox player.
@@ -1286,8 +1479,8 @@ unsafe fn read_cmdline_from_handle(
 pub fn kill_verified_instance(pid: u32, expected_launchtime: i64) -> Result<(), CoreError> {
     use windows_sys::Win32::Foundation::{CloseHandle, FALSE};
     use windows_sys::Win32::System::Threading::{
-        OpenProcess, QueryFullProcessImageNameW, TerminateProcess, PROCESS_QUERY_INFORMATION,
-        PROCESS_TERMINATE, PROCESS_VM_READ,
+        OpenProcess, TerminateProcess, PROCESS_QUERY_INFORMATION, PROCESS_TERMINATE,
+        PROCESS_VM_READ,
     };
 
     let handle = unsafe {
@@ -1306,47 +1499,7 @@ pub fn kill_verified_instance(pid: u32, expected_launchtime: i64) -> Result<(), 
     // Everything from here runs through `handle`, so bail out via this closure
     // rather than returning directly: the handle has to be closed either way.
     let verdict = (|| -> Result<(), CoreError> {
-        let mut buf = [0u16; 260];
-        let mut len: u32 = buf.len() as u32;
-        let ok = unsafe { QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut len) };
-        if ok == 0 {
-            return Err(CoreError::Process(format!(
-                "Could not identify PID {pid}. Nothing was killed."
-            )));
-        }
-        let image = String::from_utf16_lossy(&buf[..len as usize]);
-        let is_client = image
-            .rsplit(['\\', '/'])
-            .next()
-            .is_some_and(|name| name.eq_ignore_ascii_case(ROBLOX_PLAYER_EXE));
-        if !is_client {
-            return Err(CoreError::Process(format!(
-                "PID {pid} is not a Roblox client any more. Nothing was killed."
-            )));
-        }
-
-        let Some(cmdline) = (unsafe { read_cmdline_from_handle(handle) }) else {
-            return Err(CoreError::Process(format!(
-                "Could not read PID {pid} to confirm which account it belongs to. \
-                 Nothing was killed."
-            )));
-        };
-        match crate::instances::parse_launchtime(&cmdline) {
-            Some(found) if found == expected_launchtime => {}
-            Some(_) => {
-                return Err(CoreError::Process(format!(
-                    "PID {pid} belongs to a different launch than the one recorded \
-                     for this account. Nothing was killed."
-                )))
-            }
-            None => {
-                return Err(CoreError::Process(format!(
-                    "PID {pid} carries no RM launch token, so it was not started by \
-                     this account. Nothing was killed."
-                )))
-            }
-        }
-
+        verify_roblox_launch(handle, pid, expected_launchtime)?;
         if unsafe { TerminateProcess(handle, 1) } == 0 {
             return Err(CoreError::Process(format!(
                 "Windows refused to terminate PID {pid}."
@@ -2828,6 +2981,19 @@ mod tests {
             work_w: w,
             work_h: h - 40, // simulate 40px taskbar
         }
+    }
+
+    #[test]
+    fn process_actions_require_the_exact_recorded_launch_token() {
+        let command = "roblox-player:1+launchtime:1700000000000+placelauncherurl:https";
+        assert!(matches_expected_launchtime(command, 1_700_000_000_000));
+        assert!(!matches_expected_launchtime(command, 1_700_000_000_001));
+        let home_command = "RobloxPlayerBeta.exe --launchtime=1700000000000";
+        assert!(matches_expected_launchtime(home_command, 1_700_000_000_000));
+        assert!(!matches_expected_launchtime(
+            home_command,
+            1_700_000_000_001
+        ));
     }
 
     #[test]

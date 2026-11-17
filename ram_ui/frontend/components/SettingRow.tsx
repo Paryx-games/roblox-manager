@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 
 export function SettingRow({ label, description, children }: {
   label: string;
@@ -27,6 +27,38 @@ export function RangeField({ value, min, max, onChange, labelId, descriptionId, 
   return <div className="control-range-field">
     <input type="range" min={min} max={max} step={1} value={value} onChange={(event) => onChange(Number(event.target.value))} aria-labelledby={labelId} aria-describedby={descriptionId} disabled={disabled} />
     <output aria-labelledby={labelId}>{value}</output>
+  </div>;
+}
+
+export function RangeNumberField({ value, min, max, unit, onChange, labelId, descriptionId, disabled = false }: {
+  value: number;
+  min: number;
+  max: number;
+  unit: string;
+  onChange: (value: number) => void;
+  labelId: string;
+  descriptionId: string;
+  disabled?: boolean;
+}) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+
+  function commit() {
+    const parsed = Number(text);
+    const next = Number.isFinite(parsed) ? Math.min(max, Math.max(min, Math.round(parsed))) : value;
+    setText(String(next));
+    onChange(next);
+  }
+
+  return <div className="control-range-number-field">
+    <input type="range" min={min} max={max} step={1} value={value} onChange={(event) => onChange(Number(event.target.value))} aria-labelledby={labelId} aria-describedby={descriptionId} disabled={disabled} />
+    <input type="number" min={min} max={max} step={1} value={text} onChange={(event) => {
+      const next = event.currentTarget.value;
+      setText(next);
+      const parsed = Number(next);
+      if (next !== "" && Number.isInteger(parsed) && parsed >= min && parsed <= max) onChange(parsed);
+    }} onBlur={commit} onKeyDown={(event) => { if (event.key === "Enter") commit(); }} aria-labelledby={labelId} aria-describedby={descriptionId} disabled={disabled} />
+    <span>{unit}</span>
   </div>;
 }
 

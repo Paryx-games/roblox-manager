@@ -41,6 +41,18 @@ When the target is a saved account with usable credentials, **Join server** chec
 
 **Close** closes one exactly matched client after confirmation. **Close all Roblox** closes every Roblox client, including clients launched outside RM. The global action follows the **Confirm before killing all Roblox instances** preference.
 
+## Monitor CPU and RAM
+
+The **Resource monitoring** controls set per-client CPU and resident-memory thresholds. Use the slider or enter a number. The CPU percentage is normalized to the computer's total logical-processor capacity; RAM is the client's working set in MB. An unset threshold is off. Existing CPU and memory values saved in Settings are reused as thresholds, but no longer cap new launches.
+
+Only exactly attributed clients launched through RM are monitored. Inferred and unmatched clients are left alone. Each selected action runs once per client and resource while RM is running:
+
+- **Warn** sends a Windows notification and a Discord event if the event and destination are enabled in Settings.
+- **Throttle** sends the same notifications, then applies a Windows CPU hard cap at half the selected CPU threshold (minimum 1%). It is available for CPU only. Windows cannot smoothly throttle a process's RAM use.
+- **Kill** quietly closes only the verified RM client. If Windows cannot verify or close the client, RM reports the failure and leaves it running.
+
+The monitor checks every few seconds. Notifications may be delayed by that polling interval. Windows notifications require the installed app; the Tauri notification plugin does not provide branded Windows notifications in development.
+
 ## Configure future clients
 
 The **Client controls** panel saves shared FPS, graphics quality, fullscreen and audio defaults for future launches. It does not change the selected running client's settings. See [Client controls](client-controls.md) for the enable/save steps and what happens when overrides are disabled.
