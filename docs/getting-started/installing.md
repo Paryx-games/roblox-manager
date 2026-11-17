@@ -35,9 +35,9 @@ Roblox Manager configures encrypted storage during its first launch. You can the
 
 ### Keep the app updated
 
-Download the latest release when an update is available. Updates may restore compatibility after Roblox client changes.
+When RM detects a newer stable release, choose **Install update** from the update prompt to download the Windows installer and verify it against the release's `SHA256SUMS.txt` before applying it. RM closes while the existing installer updates the installed copy. If the automatic update cannot be started or verified, use **Download manually** to open the GitHub release page. Portable copies must be updated manually.
 
-Close Roblox Manager and run the newer installer. Saved accounts, settings and presets remain available. The installer prevents installing an older version over a newer one.
+You can also close Roblox Manager and run the newer installer yourself. Saved accounts, settings and presets remain available. The installer prevents installing an older version over a newer one.
 
 If an earlier installation appears as **RM** in Windows Settings, uninstall it before running the renamed Roblox Manager installer. The installer will prompt you if it detects that older installation. Your saved accounts, settings and presets are kept.
 

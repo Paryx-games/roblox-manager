@@ -7,6 +7,7 @@ pub mod assets_api;
 pub mod auth;
 pub mod cache;
 pub mod cached_api;
+pub mod clipboard;
 pub mod crypto;
 pub mod error;
 pub mod friends;
@@ -21,6 +22,7 @@ pub mod process;
 pub mod redact;
 pub mod session_history;
 pub mod storage;
+pub mod update;
 
 pub use error::CoreError;
 pub use models::{Account, AccountStore, AppConfig};

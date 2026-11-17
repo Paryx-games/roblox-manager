@@ -39,6 +39,8 @@ RM starts Home using the installed player's native app-mode arguments and a shor
 
 Select one or more valid accounts, then choose **Open to home screen** beside **Open browser** in the launch controls. This opens the installed Roblox app signed in as each selected account, without joining a game or requiring a Place ID. **Open browser** continues to open the Roblox website.
 
+You can also double-click one launchable account row to open Roblox Home for that account only. The row's account controls do not trigger this shortcut.
+
 Home launches use the same player path, launch pacing, multi-instance setting and privacy safeguards as game launches. Enable Multi-instance to keep several clients open. Home clients are tracked in Instances without a launch Place ID or Job ID.
 
 In-app notifications report successful Home launch requests and failures, including how many accounts were requested before a bulk operation stopped. A success notification confirms the request, not that Roblox has finished loading.
@@ -68,6 +70,10 @@ The invalid-credentials or moderation page blocks launch actions and offers reco
 Leave the existing account in the list. Use **Replace account credential**, or **Add account** and sign in to that same Roblox account again. A duplicate warning identifies the existing account; replacement preserves its alias, group, pin and position while saving the updated credential to the encrypted store.
 
 Removing the account first is different: re-adding it creates a new entry and does not restore the removed organisation metadata.
+
+### Log in and copy a cookie
+
+Open the selected account's three-dot menu and choose **Log in as account** to open an isolated Roblox browser window using its saved login. **Copy login cookie** is a separate, explicit action that writes the credential directly to the Windows clipboard; RM does not return the cookie to the interface. Treat the clipboard value as a password, avoid pasting it into messages or logs, and clear the clipboard when finished.
 
 ### Select multiple accounts
 

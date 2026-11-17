@@ -2,7 +2,40 @@ use crate::{state::AppState, StoreStatus};
 use ram_core::{crypto, models::AccountStore, presets, storage};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Emitter, Manager};
+
+static UPDATE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+
+struct UpdateInProgressGuard;
+
+impl Drop for UpdateInProgressGuard {
+    fn drop(&mut self) {
+        UPDATE_IN_PROGRESS.store(false, Ordering::Release);
+    }
+}
+
+fn registered_install_matches(executable: &Path) -> bool {
+    use winreg::{enums::HKEY_CURRENT_USER, RegKey};
+
+    let uninstall_key = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Roblox Manager");
+    let Ok(uninstall_key) = uninstall_key else {
+        return false;
+    };
+    let Ok(install_location) = uninstall_key.get_value::<String, _>("InstallLocation") else {
+        return false;
+    };
+    let Some(executable_directory) = executable
+        .parent()
+        .and_then(|path| path.canonicalize().ok())
+    else {
+        return false;
+    };
+    PathBuf::from(install_location.trim_matches('"'))
+        .canonicalize()
+        .is_ok_and(|install_directory| install_directory == executable_directory)
+}
 
 pub fn data_directory() -> PathBuf {
     std::env::var_os("APPDATA")
@@ -291,6 +324,93 @@ pub async fn check_release_update(
         ram_core::api::is_newer_stable_release(version, env!("CARGO_PKG_VERSION"))
             && url.starts_with("https://github.com/Paryx-games/roblox-manager/releases/")
     }))
+}
+
+#[tauri::command]
+pub async fn install_release_update(app: tauri::AppHandle, version: String) -> Result<(), String> {
+    if UPDATE_IN_PROGRESS
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err("An update is already being prepared".into());
+    }
+    let _update_guard = UpdateInProgressGuard;
+
+    let updates_enabled = app
+        .state::<AppState>()
+        .runtime
+        .lock()
+        .map_err(|_| "Application state unavailable".to_string())?
+        .config
+        .show_update_notifications;
+    if !updates_enabled {
+        return Err("Enable update notifications before installing an update".into());
+    }
+
+    let executable = tauri::async_runtime::spawn_blocking(|| {
+        std::env::current_exe()
+            .ok()
+            .filter(|executable| registered_install_matches(executable))
+    })
+    .await
+    .map_err(|_| "Install verification task failed".to_string())?
+    .ok_or_else(|| {
+        "Automatic updates are available only for the installed copy. Download the installer manually."
+            .to_string()
+    })?;
+
+    let staged = match ram_core::update::stage_release_installer(
+        &version,
+        env!("CARGO_PKG_VERSION"),
+    )
+    .await
+    {
+        Ok(staged) => staged,
+        Err(_) => {
+            return Err(
+                "The update could not be downloaded or verified. Use Download manually to retry."
+                    .into(),
+            )
+        }
+    };
+    let cleanup_path = staged.path.clone();
+    let staged_path = staged.path;
+    let checksum = staged.sha256;
+    let state = app.state::<AppState>().inner().clone();
+    let worker_result = tauri::async_runtime::spawn_blocking(move || {
+        let result = (|| {
+            let updates_enabled = state
+                .runtime
+                .lock()
+                .map_err(|_| "Application state unavailable".to_string())?
+                .config
+                .show_update_notifications;
+            if !updates_enabled || !registered_install_matches(&executable) {
+                return Err("The install or update settings changed while the download was in progress. Try again if you still want to update.".into());
+            }
+            crate::updates::spawn_update_worker(&executable, &staged_path, &checksum)
+                .map_err(|_| "The update helper could not be started. Use Download manually.".to_string())
+        })();
+        if result.is_err() {
+            let _ = ram_core::update::remove_staged_installer(&staged_path);
+        }
+        result
+    })
+    .await;
+    match worker_result {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => return Err(error),
+        Err(_) => {
+            let _ = tauri::async_runtime::spawn_blocking(move || {
+                ram_core::update::remove_staged_installer(&cleanup_path)
+            })
+            .await;
+            return Err("Update setup task failed. Use Download manually to retry.".into());
+        }
+    }
+
+    app.exit(0);
+    Ok(())
 }
 
 #[tauri::command]

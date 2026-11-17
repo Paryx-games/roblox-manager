@@ -26,6 +26,7 @@ Use the section navigation to find preferences. Most edits form a draft: choose 
 - **Close Roblox tray and background processes automatically** clears leftover background clients. **Confirm before killing all Roblox instances** controls confirmation for the separate close-all action; it does not enable automatic cleanup.
 - Auto-arrange, target monitor, grid layout, sizing and spacing control Roblox window placement.
 - Window naming identifies clients by account. Launch pacing spaces successive launches rather than starting every selected account together.
+- **Client resource limits** optionally cap each newly launched Roblox client at 1-99% CPU and/or 1024 MB up to your installed physical memory in private commit. Blank fields leave that limit disabled. These are per-client hard limits, not shared across all RM launches; existing clients are unchanged. A hard memory cap can make Roblox allocations fail or close the client. If Windows cannot enforce a configured limit, RM stops that launch rather than starting without the cap.
 
 The **System status** panel shows whether Roblox is running, the startup registration for the current RM executable, connected displays, and the saved privacy and window-arrangement defaults. **Unavailable** means Windows could not be queried. **Out of sync** means the Windows startup registration differs from the saved setting; change **Start RM with Windows**, save, then set it to the desired state and save again.
 
@@ -93,5 +94,7 @@ If notification preferences cannot load, try **Retry loading preferences**. **Re
 Custom arguments are parsed using Windows double-quote and backslash rules and passed directly to Roblox, without a command shell. Quote arguments containing spaces. RM reserves its launch URI, authentication and attribution parameters; invalid arguments stop the launch. Roblox determines which extra arguments it recognizes.
 
 FastFlags are written before launches to `ClientSettings/ClientAppSettings.json` beside the selected `RobloxPlayerBeta.exe`, including account-specific installations. RM preserves unrelated keys and records original values in `ClientSettings/rm-original-fast-flags.json`. Removing a configured flag restores that original value at the next launch in that installation. RM owns the keys configured here; editing the same keys with another tool may be overwritten. Invalid existing JSON stops the launch instead of replacing that file. Writes are atomic and retain backups. Applied settings remain if a later authentication or launch step fails. Roblox updates may install a new directory; RM applies your flags there on the next launch.
+
+FastFlag values are written as JSON scalars: enter `true` or `false` for booleans, an unquoted number for numeric values, or a JSON-quoted value for strings. Other JSON shapes are saved as strings. Roblox only honors flags on its local configuration allowlist.
 
 Roblox only honors flags on its [local configuration allowlist](https://devforum.roblox.com/t/allowlist-for-local-client-configuration-via-fast-flags/3966569). Writing a flag does not guarantee the client accepts it.

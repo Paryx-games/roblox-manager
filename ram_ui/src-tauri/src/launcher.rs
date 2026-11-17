@@ -522,6 +522,10 @@ async fn launch_queued(
     }).await.map_err(|_| "Launch credential task failed")??;
     apply_launch_overrides(&mut config, request.overrides);
     validate_instance_policy(require_multi_instance, config.multi_instance_enabled)?;
+    let resource_limits = process::RobloxResourceLimits {
+        cpu_percent: config.roblox_cpu_limit_percent,
+        memory_limit_mb: config.roblox_memory_limit_mb,
+    };
     let options_state = state.clone();
     let options_config = config.clone();
     let (executable, custom_args) = tauri::async_runtime::spawn_blocking(move || {
@@ -636,14 +640,18 @@ async fn launch_queued(
                     .is_none_or(|account| account.cookie_expired || !account.can_launch())
                 || *runtime.credential_revisions.get(&user_id).unwrap_or(&0) != revision
             {
-                return Err("The account changed or RM is closing. Launch cancelled.");
+                return Err("The account changed or RM is closing. Launch cancelled.".to_string());
             }
         }
         match mode {
-            LaunchMode::Home => {
-                process::launch_home_with_args(&ticket, token, Some(&executable), &custom_args)
-            }
-            LaunchMode::Game => process::launch_game_with_args(
+            LaunchMode::Home => process::launch_home_with_limits(
+                &ticket,
+                token,
+                Some(&executable),
+                &custom_args,
+                resource_limits,
+            ),
+            LaunchMode::Game => process::launch_game_with_limits(
                 &ticket,
                 place_id,
                 job_id.as_deref(),
@@ -653,16 +661,17 @@ async fn launch_queued(
                 token,
                 Some(&executable),
                 &custom_args,
+                resource_limits,
             ),
         }
-        .map_err(|_| "Roblox could not be launched. Check the configured player path.")?;
+        .map_err(|error| error.to_string())?;
         let privacy_backup_cleaned = cleanup.commit().is_ok();
         let mut clipboard_cleared = true;
         #[cfg(windows)]
         if clear_clipboard {
             clipboard_cleared = process::clear_clipboard().is_ok();
         }
-        Ok::<_, &str>((privacy_backup_cleaned, clipboard_cleared))
+        Ok::<_, String>((privacy_backup_cleaned, clipboard_cleared))
     })
     .await
     .map_err(|_| "Roblox launch task failed")?;

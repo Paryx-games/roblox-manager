@@ -258,6 +258,7 @@ pub async fn join_user_accounts(
     };
     let mut results = Vec::new();
     let mut shared_server = None;
+    let mut visibility_errors = HashMap::new();
     let mut terminal = false;
     if mode == JoinMode::VisibleServer {
         for &user_id in &user_ids {
@@ -270,21 +271,39 @@ pub async fn join_user_accounts(
                 user_id,
                 "Checking target presence from this account",
             );
-            let Ok((cookie, revision)) = credential(&state, user_id).await else {
-                continue;
+            let (cookie, revision) = match credential(&state, user_id).await {
+                Ok(credentials) => credentials,
+                Err(error) => {
+                    visibility_errors.insert(user_id, error.to_string());
+                    continue;
+                }
             };
             match visible(&client, &cookie, target).await {
-                Ok(server) if current(&state, user_id, revision) => {
-                    shared_server = server;
-                    if shared_server.is_some() {
+                Ok(server) if current(&state, user_id, revision) => match server {
+                    Some(server) => {
+                        shared_server = Some(server);
                         break;
                     }
+                    None => {
+                        visibility_errors.insert(
+                                user_id,
+                                "This account cannot see a joinable server. Check join privacy and whether the user is in a game.".into(),
+                            );
+                    }
+                },
+                Ok(_) => {
+                    visibility_errors.insert(
+                        user_id,
+                        "This account changed while checking the target. Refresh and retry.".into(),
+                    );
                 }
                 Err(ram_core::CoreError::RateLimited) => {
                     terminal = true;
                     break;
                 }
-                _ => {}
+                Err(error) => {
+                    visibility_errors.insert(user_id, safe_error(&error));
+                }
             }
         }
     }
@@ -337,7 +356,9 @@ pub async fn join_user_accounts(
                     Err(e) => row.message = e,
                 }
             } else {
-                row.message="No selected account can see a live server for this target. Check join privacy and whether the user is in a game.".into();
+                row.message = visibility_errors.remove(&user_id).unwrap_or_else(|| {
+                    "No selected account could see a joinable server. Check join privacy and whether the user is in a game.".into()
+                });
             }
         } else {
             match temporary_join(

@@ -343,6 +343,9 @@ export interface SettingsConfig {
   killBackgroundRoblox: boolean;
   confirmKillAll: boolean;
   launchDelaySecs: number;
+  robloxCpuLimitPercent: number | null;
+  robloxMemoryLimitMb: number | null;
+  systemMemoryLimitMb: number | null;
   customGameArgs: string;
   robloxPlayerPath: string | null;
   robloxFastFlags: Record<string, string>;
@@ -373,7 +376,7 @@ export interface SettingsConfig {
 
 export type SettingsUpdate = Omit<
   SettingsConfig,
-  "startupWithWindows" | "sessionHistoryPersist"
+  "startupWithWindows" | "sessionHistoryPersist" | "systemMemoryLimitMb"
 >;
 
 export interface SettingsInfoCard {
@@ -739,6 +742,10 @@ export async function browseAsAccount(
   return invoke<void>("browse_as_account", { userId, inventory, profileUserId });
 }
 
+export async function copyAccountCookie(userId: number): Promise<void> {
+  return invoke<void>("copy_account_cookie", { userId });
+}
+
 export type AccountExportFormat = "json" | "csv" | "txt";
 export type AccountExportEncryption = "none" | "aes256Gcm" | "aes128Gcm";
 export type AccountExportField = "username" | "accountName" | "displayName" | "userId" | "alias" | "group" | "createdAt" | "accountAge" | "lastUsed" | "cookie";
@@ -971,6 +978,7 @@ export async function acknowledgeStartup(section: "version" | "passwordless"): P
 export async function migrateLegacyData(): Promise<void> { return invoke("migrate_legacy_data"); }
 export async function resetAccountStore(confirmation: string): Promise<StoreStatus> { return invoke("reset_account_store", { confirmation }); }
 export async function checkReleaseUpdate(): Promise<[string, string] | null> { return invoke("check_release_update"); }
+export async function installReleaseUpdate(version: string): Promise<void> { return invoke("install_release_update", { version }); }
 export async function openReleasePage(url: string): Promise<void> { return invoke("open_release_page", { url }); }
 
 export async function loggingTargets(): Promise<string[]> { return invoke<string[]>("logging_targets"); }

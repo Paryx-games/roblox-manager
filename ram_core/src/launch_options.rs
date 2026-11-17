@@ -146,6 +146,20 @@ fn read_object(path: &Path) -> Result<Map<String, Value>, CoreError> {
     })
 }
 
+fn fast_flag_value(value: &str) -> Value {
+    if value.eq_ignore_ascii_case("true") {
+        return Value::Bool(true);
+    }
+    if value.eq_ignore_ascii_case("false") {
+        return Value::Bool(false);
+    }
+
+    match serde_json::from_str::<Value>(value) {
+        Ok(value @ (Value::Bool(_) | Value::Number(_) | Value::String(_))) => value,
+        _ => Value::String(value.to_owned()),
+    }
+}
+
 /// Preserve unrelated flags and remember original values for RM-owned keys.
 /// The journal is durable before editing Roblox's file; interrupted writes can be retried.
 pub fn apply_fast_flags(
@@ -177,7 +191,7 @@ pub fn apply_fast_flags(
         originals
             .entry(key.clone())
             .or_insert_with(|| current.get(key).cloned().unwrap_or(Value::Null));
-        current.insert(key.clone(), Value::String(value.clone()));
+        current.insert(key.clone(), fast_flag_value(value));
     }
     std::fs::create_dir_all(&directory)?;
     storage::atomic_write(&journal_path, &serde_json::to_vec_pretty(&originals)?)?;
@@ -252,7 +266,8 @@ mod tests {
         ]);
         apply_fast_flags(&executable, &desired).unwrap();
         assert_eq!(read_object(&path).unwrap()["Other"], 17);
-        assert_eq!(read_object(&path).unwrap()["FFlagNew"], "True");
+        assert_eq!(read_object(&path).unwrap()["FFlagOriginal"], false);
+        assert_eq!(read_object(&path).unwrap()["FFlagNew"], true);
         apply_fast_flags(&executable, &desired).unwrap();
         apply_fast_flags(&executable, &HashMap::new()).unwrap();
         assert_eq!(
@@ -261,6 +276,26 @@ mod tests {
                 .unwrap()
         );
         std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn fast_flag_values_write_json_scalar_types() {
+        assert_eq!(fast_flag_value("True"), Value::Bool(true));
+        assert_eq!(fast_flag_value("false"), Value::Bool(false));
+        assert_eq!(fast_flag_value(" true "), Value::Bool(true));
+        assert_eq!(fast_flag_value(" false "), Value::Bool(false));
+        assert_eq!(fast_flag_value("240"), serde_json::json!(240));
+        assert_eq!(fast_flag_value("0.5"), serde_json::json!(0.5));
+        assert_eq!(
+            fast_flag_value(r#""quoted value""#),
+            serde_json::json!("quoted value")
+        );
+        assert_eq!(
+            fast_flag_value("plain value"),
+            serde_json::json!("plain value")
+        );
+        assert_eq!(fast_flag_value("null"), serde_json::json!("null"));
+        assert_eq!(fast_flag_value("[]"), serde_json::json!("[]"));
     }
     #[test]
     fn corrupt_flags_are_preserved_and_interrupted_writes_recover() {
@@ -277,7 +312,7 @@ mod tests {
         storage::atomic_write(&path, br#"{"Other":1}"#).unwrap();
         storage::atomic_write(&journal, br#"{"FFlagNew":null}"#).unwrap();
         apply_fast_flags(&executable, &flags).unwrap();
-        assert_eq!(read_object(&path).unwrap()["FFlagNew"], "True");
+        assert_eq!(read_object(&path).unwrap()["FFlagNew"], true);
         apply_fast_flags(&executable, &HashMap::new()).unwrap();
         assert!(!read_object(&path).unwrap().contains_key("FFlagNew"));
         assert!(

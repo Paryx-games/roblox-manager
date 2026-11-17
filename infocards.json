@@ -31,6 +31,14 @@
     "type": "warning",
     "text": "Minimum pause between account launches, 0-300 seconds. Can help if Roblox rate-limits rapid launches from your IP."
   },
+  "roblox_cpu_limit": {
+    "type": "warning",
+    "text": "Sets a hard CPU-rate cap for each newly launched Roblox client (1-99%). Each client has its own cap. Lower caps can reduce performance. If Windows cannot enforce it, RM stops the client instead of launching without the limit."
+  },
+  "roblox_memory_limit": {
+    "type": "warning",
+    "text": "Sets a hard per-client job-memory cap (1024 MB up to installed physical memory). This limits private commit, not physical RAM or working set; Roblox can fail allocations or close when it reaches the cap. Each client has its own cap, and RM stops the client if Windows cannot enforce it."
+  },
   "privacy_mode": {
     "type": "info",
     "text": "Runs the selected privacy cleanup before each launch. Refused while a Roblox client is running; doesn't guarantee full account isolation."
@@ -121,7 +129,7 @@
   },
   "roblox_fast_flags": {
     "type": "warning",
-    "text": "Writes configured flags to the selected Roblox install before launch; Roblox honors only its allowlist. Removing a flag restores its original value on the next launch."
+    "text": "Writes configured flags to the selected Roblox install before launch; Roblox honors only its allowlist. Values are JSON scalars: true/false, numbers, or quoted strings. Removing a flag restores its original value on the next launch."
   },
   "auto_launch_on_startup": {
     "type": "caution",
