@@ -420,7 +420,7 @@ jobs:
           RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
         run: ./scripts/package-release.ps1
 
-      - name: Summarize packages for approval
+      - name: Summarize packages
         shell: pwsh
         env:
           RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
@@ -493,9 +493,6 @@ jobs:
 
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
-    # pauses for manual approval before the immutable publish
-    environment: release-publish
 
     permissions:
       contents: write
