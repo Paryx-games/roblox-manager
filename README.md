@@ -44,9 +44,9 @@
 <details>
   <summary>Table of Contents</summary>
   <ol>
-    <li><a href="#showcase-image">Showcase Image</a></li>
     <li><a href="#about-the-project">About The Project</a></li>
-    <li><a href="#performance">Performance</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#showcase-image">Showcase Image</a></li>
     <li>
       <a href="#download">Download</a>
       <ul>
@@ -54,10 +54,12 @@
       </ul>
     </li>
     <li><a href="#security-notice">Security Notice</a></li>
-    <li><a href="#features">Features</a></li>
     <li><a href="#usage">Usage</a></li>
-    <li><a href="#credits">Credits</a></li>
+    <li><a href="#performance">Performance</a></li>
+    <li><a href="#benchmarking">Benchmarking</a></li>
     <li><a href="#support-the-project">Support the Project</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#reporting-issues--requesting-features">Reporting Issues & Requesting Features</a></li>
     <li>
       <a href="#building-from-source">Building From Source</a>
       <ul>
@@ -65,17 +67,11 @@
         <li><a href="#build">Build</a></li>
       </ul>
     </li>
-    <li><a href="#benchmarking">Benchmarking</a></li>
     <li><a href="#development-commands">Development Commands</a></li>
-    <li><a href="#reporting-issues--requesting-features">Reporting Issues & Requesting Features</a></li>
-    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#credits">Credits</a></li>
     <li><a href="#license">License</a></li>
   </ol>
 </details>
-
-## Showcase image
-
-<img src="images/stacked.png" alt="Stacked">
 
 ## About The Project
 
@@ -101,9 +97,38 @@ This branch contains the Tauri + React v2 interface. The retired egui applicatio
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Performance
+## Features
 
-Roblox Manager is designed to remain lightweight while managing your accounts. Performance is measured with a reproducible Windows benchmark covering the application and its WebView2 processes. Results depend on your hardware, saved accounts and settings; see [Benchmarking](#benchmarking) to measure your own setup.
+- **Multi-Account Management** - Add, remove, and organize Roblox accounts with cookie-based auth
+- **Encrypted Storage** - AES-256-GCM, unlocked automatically via Windows Credential Manager. An optional master password (Argon2id) is available for anyone who wants one
+- **Multi-Instance** - Launch multiple Roblox clients simultaneously
+- **Bulk Launch** - Launch selected accounts into the same server sequentially
+- **Privacy Mode** - Applies the selected local Roblox data cleanup before launch and, optionally, on exit
+- **Discord Webhooks** - Sends optional notifications through a protected Discord webhook
+- **Auto Window Tiling** - Arranges Roblox windows in a grid after launch
+- **Live Presence** - Real-time Online / In Game / In Studio / Offline indicators
+- **Instance Tracking** - Inspect exact, inferred and unmatched clients; focus windows and join supported server targets
+- **Saved Destinations** - Launch presets and private-server bookmarks
+- **Account Tools** - Browser login, bulk import, credential replacement preserving organisation, and field-selectable JSON/CSV/TXT exports with optional encryption; cookie exports require AES-GCM protection
+- **Developer Workspaces** - Group membership tools, inventory comparisons, creation libraries and staged asset uploads
+
+Auto-launching games on startup, custom game arguments, FastFlags and automatic MAC rotation remain unfinished. Their settings are retained, but those behaviours are not applied automatically. Starting the manager with Windows and explicit manual MAC rotation are separate controls.
+
+> [!IMPORTANT]
+> RM stores Roblox authentication cookies in encrypted form. Never share your `.ROBLOSECURITY` cookie with anyone, and treat it like a password.
+>
+> Discord webhook URLs are sensitive bearer credentials. RM keeps them out of `config.json` and stores them in Windows Credential Manager, alongside the device key. Never share a webhook URL publicly; rotate it in Discord if it is exposed.
+>
+> If you are planning to contribute, please read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) before opening a pull request. Changes involving cookie handling, encryption, storage, or process control require additional review and should be explicitly mentioned in the PR description.
+
+> [!CAUTION]
+> Never include `.ROBLOSECURITY` cookies, authentication tokens, credentials, encryption keys, or other sensitive account data in issues, pull requests, commits, logs, or screenshots. If you discover a security vulnerability, see [SECURITY.md](SECURITY.md) for how to report it privately.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Showcase image
+
+<img src="images/stacked.png" alt="Stacked">
 
 ## Download
 
@@ -166,35 +191,6 @@ Report suspicious behavior or security concerns through [SECURITY.md](SECURITY.m
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Features
-
-- **Multi-Account Management** - Add, remove, and organize Roblox accounts with cookie-based auth
-- **Encrypted Storage** - AES-256-GCM, unlocked automatically via Windows Credential Manager. An optional master password (Argon2id) is available for anyone who wants one
-- **Multi-Instance** - Launch multiple Roblox clients simultaneously
-- **Bulk Launch** - Launch selected accounts into the same server sequentially
-- **Privacy Mode** - Applies the selected local Roblox data cleanup before launch and, optionally, on exit
-- **Discord Webhooks** - Sends optional notifications through a protected Discord webhook
-- **Auto Window Tiling** - Arranges Roblox windows in a grid after launch
-- **Live Presence** - Real-time Online / In Game / In Studio / Offline indicators
-- **Instance Tracking** - Inspect exact, inferred and unmatched clients; focus windows and join supported server targets
-- **Saved Destinations** - Launch presets and private-server bookmarks
-- **Account Tools** - Browser login, bulk import, credential replacement preserving organisation, and field-selectable JSON/CSV/TXT exports with optional encryption; cookie exports require AES-GCM protection
-- **Developer Workspaces** - Group membership tools, inventory comparisons, creation libraries and staged asset uploads
-
-Auto-launching games on startup, custom game arguments, FastFlags and automatic MAC rotation remain unfinished. Their settings are retained, but those behaviours are not applied automatically. Starting the manager with Windows and explicit manual MAC rotation are separate controls.
-
-> [!IMPORTANT]
-> RM stores Roblox authentication cookies in encrypted form. Never share your `.ROBLOSECURITY` cookie with anyone, and treat it like a password.
->
-> Discord webhook URLs are sensitive bearer credentials. RM keeps them out of `config.json` and stores them in Windows Credential Manager, alongside the device key. Never share a webhook URL publicly; rotate it in Discord if it is exposed.
->
-> If you are planning to contribute, please read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) before opening a pull request. Changes involving cookie handling, encryption, storage, or process control require additional review and should be explicitly mentioned in the PR description.
-
-> [!CAUTION]
-> Never include `.ROBLOSECURITY` cookies, authentication tokens, credentials, encryption keys, or other sensitive account data in issues, pull requests, commits, logs, or screenshots. If you discover a security vulnerability, see [SECURITY.md](SECURITY.md) for how to report it privately.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
 ## Usage
 
 1. **First launch** - A new encrypted store unlocks through Windows Credential Manager. Follow or skip the walkthrough; existing password-mode stores need their master password.
@@ -211,19 +207,15 @@ Use **Refresh accounts** to validate every account or **Revalidate account** for
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Credits
+## Performance
 
-- [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of RobloxAccountManager that this repository was forked from
-- [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by [ic3w0lf22](https://github.com/ic3w0lf22) - The original Roblox Account Manager that served as the primary reference for this project
-- [Lucide Icons](https://lucide.dev/icons/) - The icon pack used for icons throughout the app. Licensed under the [ISC License](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
+Roblox Manager is designed to remain lightweight while managing your accounts. Performance is measured with a reproducible Windows benchmark covering the application and its WebView2 processes. Results depend on your hardware, saved accounts and settings; see [Benchmarking](#benchmarking) to measure your own setup.
 
-### Contributors
+## Benchmarking
 
-<a href="https://github.com/Paryx-games/roblox-manager/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Paryx-games/roblox-manager" alt="contributors" />
-</a>
+The Roblox Manager benchmark is **public and reproducible, and anyone can run it themselves**. It measures startup, CPU, memory, process resources and I/O for RM and its WebView2 process group, and saves raw samples and statistics in one timestamped CSV per session.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+The standard 10-run benchmark takes roughly 10 minutes; a quick mode checks the setup in under a minute on a typical machine. Close unnecessary applications and leave the computer untouched until the benchmark finishes. Follow [the benchmark instructions](benchmarks/README.md) for requirements, commands and interpretation.
 
 ## Support the Project
 
@@ -232,6 +224,31 @@ If Roblox Manager saves you time or you enjoy using it, you can support its deve
 <a href="https://ko-fi.com/paryx">
   <img src="https://storage.ko-fi.com/cdn/brandasset/v2/support_me_on_kofi_dark.png" alt="Support me on Ko-fi" height="44">
 </a>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Contributing
+
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement". Read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) first - PRs touching cookie handling, encryption, storage, or process control need extra review.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b dev/short-feature-name`)
+3. Commit your Changes (`git commit -m 'feat: add some amazing feature'`)
+4. Push to the Branch (`git push origin dev/short-feature-name`)
+5. Open a Pull Request
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Reporting Issues & Requesting Features
+
+Found a bug or have an idea for RM? Here's where it goes:
+
+- **Bug report** - [Open a bug report](https://github.com/Paryx-games/roblox-manager/issues/new?template=bug_report.yml) using the bug template. Include your RM version, OS build, and repro steps.
+- **Feature request** - [Open a feature request](https://github.com/Paryx-games/roblox-manager/issues/new?template=feature_request.yml) using the feature template. Explain the use case, not just the feature.
+- **Security vulnerability** - Do not open a public issue. Follow the private disclosure process in [SECURITY.md](SECURITY.md) instead.
+- **Existing issues** - Check the [open issues](https://github.com/Paryx-games/roblox-manager/issues) first in case it's already tracked.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -264,12 +281,6 @@ pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked
 The executable is `target/release/rm_tauri.exe`. The installer is under `target/release/bundle/nsis/`, normally `Roblox Manager_<version>_x64-setup.exe`. A plain `cargo build` does not build and bundle the React frontend; use the Tauri wrapper for distributable builds.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Benchmarking
-
-The Roblox Manager benchmark is **public and reproducible, and anyone can run it themselves**. It measures startup, CPU, memory, process resources and I/O for RM and its WebView2 process group, and saves raw samples and statistics in one timestamped CSV per session.
-
-The standard 10-run benchmark takes roughly 10 minutes; a quick mode checks the setup in under a minute on a typical machine. Close unnecessary applications and leave the computer untouched until the benchmark finishes. Follow [the benchmark instructions](benchmarks/README.md) for requirements, commands and interpretation.
 
 ## Development Commands
 
@@ -364,28 +375,17 @@ pnpm --dir ram_ui typecheck
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Reporting Issues & Requesting Features
+## Credits
 
-Found a bug or have an idea for RM? Here's where it goes:
+- [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of RobloxAccountManager that this repository was forked from
+- [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by [ic3w0lf22](https://github.com/ic3w0lf22) - The original Roblox Account Manager that served as the primary reference for this project
+- [Lucide Icons](https://lucide.dev/icons/) - The icon pack used for icons throughout the app. Licensed under the [ISC License](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
 
-- **Bug report** - [Open a bug report](https://github.com/Paryx-games/roblox-manager/issues/new?template=bug_report.yml) using the bug template. Include your RM version, OS build, and repro steps.
-- **Feature request** - [Open a feature request](https://github.com/Paryx-games/roblox-manager/issues/new?template=feature_request.yml) using the feature template. Explain the use case, not just the feature.
-- **Security vulnerability** - Do not open a public issue. Follow the private disclosure process in [SECURITY.md](SECURITY.md) instead.
-- **Existing issues** - Check the [open issues](https://github.com/Paryx-games/roblox-manager/issues) first in case it's already tracked.
+### Contributors
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Contributing
-
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
-
-If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement". Read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) first - PRs touching cookie handling, encryption, storage, or process control need extra review.
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b dev/short-feature-name`)
-3. Commit your Changes (`git commit -m 'feat: add some amazing feature'`)
-4. Push to the Branch (`git push origin dev/short-feature-name`)
-5. Open a Pull Request
+<a href="https://github.com/Paryx-games/roblox-manager/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Paryx-games/roblox-manager" alt="contributors" />
+</a>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
