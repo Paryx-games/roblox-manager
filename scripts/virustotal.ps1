@@ -328,6 +328,10 @@ $security = @(
   ""
   "VirusTotal scanning is best-effort and does not block a release if the external service is unavailable."
   ""
+  "VirusTotal detections are automated vendor signals, not proof that an asset is safe or malicious. Review the vendor, detection name, and linked report; do not assume a new or different detection is a false positive."
+  ""
+  "SecureAge has flagged the installer since its introduction in v2.1.0. Based on this repeated history, we believe this specific SecureAge detection is a false positive. We have not seen SecureAge flag the portable executable. This history does not apply to other vendors or new detections."
+  ""
 )
 
 foreach ($result in $results) {

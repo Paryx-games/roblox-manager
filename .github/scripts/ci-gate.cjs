@@ -1,6 +1,5 @@
 const groups = {
-  frontend: ['frontend'], frontendBuild: ['frontend-build'],
-  rust: ['fmt', 'clippy', 'test'], build: ['build'],
+  frontend: ['frontend'], frontendBuild: ['frontend-build'], build: ['build'],
 };
 
 function failures(needs) {
@@ -17,6 +16,17 @@ function failures(needs) {
     for (const key of jobs) {
       const expected = value === 'true' ? 'success' : 'skipped';
       if (needs[key]?.result !== expected) errors.push(`${key}: expected ${expected}, got ${needs[key]?.result ?? 'missing'}`);
+    }
+  }
+  const rustScope = needs.changes?.outputs?.rustScope;
+  if (!['none', 'core', 'app', 'workspace'].includes(rustScope)) {
+    errors.push(`Missing or invalid selection: rustScope`);
+  } else {
+    const expected = rustScope === 'none' ? 'skipped' : 'success';
+    for (const key of ['fmt', 'clippy', 'test']) {
+      if (needs[key]?.result !== expected) {
+        errors.push(`${key}: expected ${expected}, got ${needs[key]?.result ?? 'missing'}`);
+      }
     }
   }
   return errors;

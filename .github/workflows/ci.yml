@@ -36,7 +36,7 @@ jobs:
     outputs:
       frontend: ${{ steps.select.outputs.frontend }}
       frontendBuild: ${{ steps.select.outputs.frontendBuild }}
-      rust: ${{ steps.select.outputs.rust }}
+      rustScope: ${{ steps.select.outputs.rustScope }}
       build: ${{ steps.select.outputs.build }}
     steps:
       - name: Checkout
@@ -121,6 +121,11 @@ jobs:
         working-directory: ram_ui
         run: pnpm install --frozen-lockfile
 
+      - name: Validate application version
+        working-directory: ram_ui
+        shell: pwsh
+        run: pnpm run version:check
+
       - name: Lint frontend
         run: pnpm --dir ram_ui lint
 
@@ -133,7 +138,7 @@ jobs:
   fmt:
     name: Rust formatting
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: needs.changes.outputs.rustScope != 'none'
     runs-on: windows-latest
     timeout-minutes: 10
 
@@ -148,12 +153,23 @@ jobs:
         run: ./scripts/setup-rust.ps1
 
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        shell: pwsh
+        env:
+          RUST_SCOPE: ${{ needs.changes.outputs.rustScope }}
+        run: |
+          if ($env:RUST_SCOPE -eq "workspace") {
+            cargo fmt --all -- --check
+          } elseif ($env:RUST_SCOPE -eq "core") {
+            cargo fmt --package ram_core -- --check
+          } else {
+            cargo fmt --package rm_tauri -- --check
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   clippy:
     name: Rust lint (Clippy)
     needs: [changes, frontend-build]
-    if: needs.changes.outputs.rust == 'true'
+    if: needs.changes.outputs.rustScope != 'none'
     runs-on: windows-latest
     timeout-minutes: 20
 
@@ -180,12 +196,25 @@ jobs:
           save-if: false
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+        shell: pwsh
+        env:
+          RUST_SCOPE: ${{ needs.changes.outputs.rustScope }}
+        run: |
+          if ($env:RUST_SCOPE -eq "core") {
+            cargo clippy --package ram_core --all-targets --all-features --locked -- -D warnings
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            cargo check --package rm_tauri --all-features --locked
+          } elseif ($env:RUST_SCOPE -eq "app") {
+            cargo clippy --package rm_tauri --all-targets --all-features --locked -- -D warnings
+          } else {
+            cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   test:
     name: Rust tests
     needs: [changes, frontend-build]
-    if: needs.changes.outputs.rust == 'true'
+    if: needs.changes.outputs.rustScope != 'none'
     runs-on: windows-latest
     timeout-minutes: 20
 
@@ -212,14 +241,26 @@ jobs:
           save-if: false
 
       - name: Test
-        run: cargo test --workspace --all-features --locked
+        shell: pwsh
+        env:
+          RUST_SCOPE: ${{ needs.changes.outputs.rustScope }}
+        run: |
+          if ($env:RUST_SCOPE -eq "core") {
+            cargo test --package ram_core --all-features --locked
+          } elseif ($env:RUST_SCOPE -eq "app") {
+            cargo test --package rm_tauri --all-features --locked
+          } else {
+            cargo test --workspace --all-features --locked
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   build:
     name: Windows application and installer
     needs: [changes, frontend-build, frontend]
     if: >-
       always() && !cancelled() && needs.changes.outputs.build == 'true' &&
-      needs.frontend-build.result == 'success' &&
+      (needs.changes.outputs.frontendBuild != 'true' ||
+       needs.frontend-build.result == 'success') &&
       (needs.frontend.result == 'success' ||
        (needs.changes.outputs.frontend == 'false' && needs.frontend.result == 'skipped'))
     runs-on: windows-latest

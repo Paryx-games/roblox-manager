@@ -2,9 +2,9 @@
 
 <!-- Summarise the change in a short paragraph or bullets. Include what users notice, if relevant, and the reason when it helps explain the change. Link related issues here, e.g. Closes #123. -->
 
-## Testing (optional)
+## Testing
 
-<!-- List checks run and their results if you ran them. GitHub will automatically run a few tests for you, and you may need to append your branch with the fixes Add brief manual steps for UI or launch changes, and say what remains unverified. -->
+<!-- This section is required but flexible: list the checks relevant to this change and their results, explain relevant skips or failures, and include manual steps for UI or launch changes. Do not run unrelated full suites just to fill out the template. -->
 
 ## Notes (optional)
 
@@ -16,9 +16,9 @@
 
 ## Checklist
 
-<!-- Check only completed items. For an inapplicable item, replace its checkbox with N/A. Explain incomplete verification in Testing. Detailed requirements live in AGENTS.md and PR_CONVENTIONS.md. -->
+<!-- Complete each item: check it when done, use N/A when it does not apply, or leave it unchecked only when outstanding and explain the gap in Testing. This template is flexible; tailor the checklist while retaining the relevant review coverage. See AGENTS.md and PR_CONVENTIONS.md. -->
 
-- [ ] Full pre-commit verification passed; applicable manual checks are recorded in Testing.
-- [ ] Changelog updated for user-facing changes (N/A otherwise).
-- [ ] Applicable design, security, and core ownership rules checked.
-- [ ] Diff reviewed: one focused change, no unrelated files, secrets, local data, or scratch output.
+- [ ] Relevant checks and results are recorded in Testing; applicable omissions or failures are explained.
+- [ ] Changelog updated for user-visible changes (N/A if not applicable).
+- [ ] Applicable design, security, and core ownership requirements reviewed (N/A if none apply).
+- [ ] Diff reviewed for unrelated files, secrets, local data, and build artifacts.

@@ -44,19 +44,22 @@
 <details>
   <summary>Table of Contents</summary>
   <ol>
-    <li><a href="#showcase-image">Showcase Image</a></li>
     <li><a href="#about-the-project">About The Project</a></li>
-    <li><a href="#performance">Performance</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#showcase-image">Showcase Image</a></li>
     <li>
       <a href="#download">Download</a>
       <ul>
         <li><a href="#system-requirements">System Requirements</a></li>
       </ul>
     </li>
-    <li><a href="#features">Features</a></li>
+    <li><a href="#security-notice">Security Notice</a></li>
     <li><a href="#usage">Usage</a></li>
-    <li><a href="#credits">Credits</a></li>
+    <li><a href="#performance">Performance</a></li>
+    <li><a href="#benchmarking">Benchmarking</a></li>
     <li><a href="#support-the-project">Support the Project</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#reporting-issues--requesting-features">Reporting Issues & Requesting Features</a></li>
     <li>
       <a href="#building-from-source">Building From Source</a>
       <ul>
@@ -64,17 +67,11 @@
         <li><a href="#build">Build</a></li>
       </ul>
     </li>
-    <li><a href="#benchmarking">Benchmarking</a></li>
     <li><a href="#development-commands">Development Commands</a></li>
-    <li><a href="#reporting-issues--requesting-features">Reporting Issues & Requesting Features</a></li>
-    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#credits">Credits</a></li>
     <li><a href="#license">License</a></li>
   </ol>
 </details>
-
-## Showcase image
-
-<img src="images/stacked.png" alt="Stacked">
 
 ## About The Project
 
@@ -97,40 +94,6 @@ This branch contains the Tauri + React v2 interface. The retired egui applicatio
 - [Rust](https://www.rust-lang.org/)
 - [Tauri](https://tauri.app/)
 - [React](https://react.dev/)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Performance
-
-Roblox Manager is designed to remain lightweight while managing your accounts. Performance is measured with a reproducible Windows benchmark covering the application and its WebView2 processes. Results depend on your hardware, saved accounts and settings; see [Benchmarking](#benchmarking) to measure your own setup.
-
-## Download
-
-Download Roblox Manager from the [latest release](https://github.com/Paryx-games/roblox-manager/releases/latest). For alpha, beta and earlier versions, browse [all releases](https://github.com/Paryx-games/roblox-manager/releases).
-
-The latest release may be a release candidate (`-rc.N`) during final testing. See [CHANGELOG.md](CHANGELOG.md) for what's new.
-
-The Tauri release workflow produces two downloads:
-
-- **Installer** - `roblox-manager-vX.Y.Z-windows-x64-setup.exe`. Installs Roblox Manager for the current Windows user, with shortcut and browser-data choices. **Recommended for most users.**
-- **Portable executable** - `roblox-manager-vX.Y.Z-windows-x64.exe`. Run it directly without extracting an archive. Microsoft WebView2 Runtime must already be installed.
-
-Setup defaults to `%LOCALAPPDATA%\Roblox Manager`. It embeds a WebView2 bootstrapper that needs internet access if the runtime is missing. Uninstall optionally removes browser sessions/cache and logs while retaining encrypted accounts, settings, presets and Credential Manager keys. See [Installer and uninstall options](docs/getting-started/installer-options.md) for defaults, data paths and upgrading an older **RM** installation.
-
-Release assets include `SHA256SUMS.txt` for both executable files. Compare a download with `Get-FileHash -Algorithm SHA256` when checking its integrity.
-
-> [!TIP]
-> **Portable does not mean fully self-contained.** The portable version still writes application data to `%APPDATA%`, `%LOCALAPPDATA%`, and other relevant Windows locations. These files are not stored entirely alongside the executable.
->
-> If you stop using the portable version, you may need to remove this application data separately.
-
-No Rust, Node.js, or pnpm installation is required for either option. These are only needed when building Roblox Manager from source.
-
-### System Requirements
-
-- Windows 10 or 11 (64-bit)
-- Roblox installed
-- Microsoft WebView2 Runtime for the Tauri interface and account browser windows
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -163,6 +126,71 @@ Auto-launching games on startup, custom game arguments, FastFlags and automatic 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## Showcase image
+
+<img src="images/stacked.png" alt="Stacked">
+
+## Download
+
+Download Roblox Manager from the [latest release](https://github.com/Paryx-games/roblox-manager/releases/latest). For alpha, beta and earlier versions, browse [all releases](https://github.com/Paryx-games/roblox-manager/releases).
+
+The latest release may be a release candidate (`-rc.N`) during final testing. See [CHANGELOG.md](CHANGELOG.md) for what's new.
+
+The Tauri release workflow produces two downloads:
+
+- **Installer** - `roblox-manager-vX.Y.Z-windows-x64-setup.exe`. Installs Roblox Manager for the current Windows user, with shortcut and browser-data choices. **Recommended for most users.**
+- **Portable executable** - `roblox-manager-vX.Y.Z-windows-x64.exe`. Run it directly without extracting an archive. Microsoft WebView2 Runtime must already be installed.
+
+Setup defaults to `%LOCALAPPDATA%\Roblox Manager`. It embeds a WebView2 bootstrapper that needs internet access if the runtime is missing. Uninstall optionally removes browser sessions/cache and logs while retaining encrypted accounts, settings, presets and Credential Manager keys. See [Installer and uninstall options](docs/getting-started/installer-options.md) for defaults, data paths and upgrading an older **RM** installation.
+
+Release assets include `SHA256SUMS.txt` for both executable files. Compare a download with `Get-FileHash -Algorithm SHA256` when checking its integrity.
+
+> [!TIP]
+> **Portable does not mean fully self-contained.** The portable version still writes application data to `%APPDATA%`, `%LOCALAPPDATA%`, and other relevant Windows locations. These files are not stored entirely alongside the executable.
+>
+> If you stop using the portable version, you may need to remove this application data separately.
+
+No Rust, Node.js, or pnpm installation is required for either option. These are only needed when building Roblox Manager from source.
+
+### System Requirements
+
+- Windows 10 or 11 (64-bit)
+- Roblox installed
+- Microsoft WebView2 Runtime for the Tauri interface and account browser windows
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Security Notice
+
+Roblox Manager is open-source software, and its installer and portable executable are built from the code in this repository by the public GitHub Actions release workflow. Release assets include SHA256 checksums and build provenance attestations. Review or build the source yourself if you need to verify it independently.
+
+Antivirus detections are signals to investigate, not proof that a file is safe or malicious. Review the vendor, detection name, and linked report for each release; do not assume a new or different detection is a false positive.
+
+SecureAge has flagged the Roblox Manager installer since it was introduced in v2.1.0; based on this repeated history, we believe this specific SecureAge detection is a false positive. We have not seen SecureAge flag the portable executable. This history does not apply to other vendors or new detections. If you are concerned about the installer result, you can use the portable executable instead.
+
+<details>
+  <summary>Verify a release download</summary>
+
+Compare the file's SHA256 hash with its entry in `SHA256SUMS.txt`:
+
+```powershell
+Get-FileHash -Algorithm SHA256 .\roblox-manager-vX.Y.Z-windows-x64-setup.exe
+```
+
+Verify the GitHub build provenance with the [GitHub CLI](https://cli.github.com/):
+
+```powershell
+gh attestation verify .\roblox-manager-vX.Y.Z-windows-x64-setup.exe --repo Paryx-games/roblox-manager
+```
+
+A matching hash confirms the file matches the published checksum; the attestation verifies its build provenance. Neither check by itself proves that software is harmless.
+
+</details>
+
+Report suspicious behavior or security concerns through [SECURITY.md](SECURITY.md).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## Usage
 
 1. **First launch** - A new encrypted store unlocks through Windows Credential Manager. Follow or skip the walkthrough; existing password-mode stores need their master password.
@@ -179,19 +207,15 @@ Use **Refresh accounts** to validate every account or **Revalidate account** for
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Credits
+## Performance
 
-- [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of RobloxAccountManager that this repository was forked from
-- [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by [ic3w0lf22](https://github.com/ic3w0lf22) - The original Roblox Account Manager that served as the primary reference for this project
-- [Lucide Icons](https://lucide.dev/icons/) - The icon pack used for icons throughout the app. Licensed under the [ISC License](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
+Roblox Manager is designed to remain lightweight while managing your accounts. Performance is measured with a reproducible Windows benchmark covering the application and its WebView2 processes. Results depend on your hardware, saved accounts and settings; see [Benchmarking](#benchmarking) to measure your own setup.
 
-### Contributors
+## Benchmarking
 
-<a href="https://github.com/Paryx-games/roblox-manager/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Paryx-games/roblox-manager" alt="contributors" />
-</a>
+The Roblox Manager benchmark is **public and reproducible, and anyone can run it themselves**. It measures startup, CPU, memory, process resources and I/O for RM and its WebView2 process group, and saves raw samples and statistics in one timestamped CSV per session.
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+The standard 10-run benchmark takes roughly 10 minutes; a quick mode checks the setup in under a minute on a typical machine. Close unnecessary applications and leave the computer untouched until the benchmark finishes. Follow [the benchmark instructions](benchmarks/README.md) for requirements, commands and interpretation.
 
 ## Support the Project
 
@@ -200,6 +224,31 @@ If Roblox Manager saves you time or you enjoy using it, you can support its deve
 <a href="https://ko-fi.com/paryx">
   <img src="https://storage.ko-fi.com/cdn/brandasset/v2/support_me_on_kofi_dark.png" alt="Support me on Ko-fi" height="44">
 </a>
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Contributing
+
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement". Read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) first - PRs touching cookie handling, encryption, storage, or process control need extra review.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b dev/short-feature-name`)
+3. Commit your Changes (`git commit -m 'feat: add some amazing feature'`)
+4. Push to the Branch (`git push origin dev/short-feature-name`)
+5. Open a Pull Request
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Reporting Issues & Requesting Features
+
+Found a bug or have an idea for RM? Here's where it goes:
+
+- **Bug report** - [Open a bug report](https://github.com/Paryx-games/roblox-manager/issues/new?template=bug_report.yml) using the bug template. Include your RM version, OS build, and repro steps.
+- **Feature request** - [Open a feature request](https://github.com/Paryx-games/roblox-manager/issues/new?template=feature_request.yml) using the feature template. Explain the use case, not just the feature.
+- **Security vulnerability** - Do not open a public issue. Follow the private disclosure process in [SECURITY.md](SECURITY.md) instead.
+- **Existing issues** - Check the [open issues](https://github.com/Paryx-games/roblox-manager/issues) first in case it's already tracked.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -232,12 +281,6 @@ pnpm --dir ram_ui tauri build --ci --bundles nsis -- --locked
 The executable is `target/release/rm_tauri.exe`. The installer is under `target/release/bundle/nsis/`, normally `Roblox Manager_<version>_x64-setup.exe`. A plain `cargo build` does not build and bundle the React frontend; use the Tauri wrapper for distributable builds.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Benchmarking
-
-The Roblox Manager benchmark is **public and reproducible, and anyone can run it themselves**. It measures startup, CPU, memory, process resources and I/O for RM and its WebView2 process group, and saves raw samples and statistics in one timestamped CSV per session.
-
-The standard 10-run benchmark takes roughly 10 minutes; a quick mode checks the setup in under a minute on a typical machine. Close unnecessary applications and leave the computer untouched until the benchmark finishes. Follow [the benchmark instructions](benchmarks/README.md) for requirements, commands and interpretation.
 
 ## Development Commands
 
@@ -332,28 +375,17 @@ pnpm --dir ram_ui typecheck
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-## Reporting Issues & Requesting Features
+## Credits
 
-Found a bug or have an idea for RM? Here's where it goes:
+- [RobloxManager](https://gitlab.com/centerepic/robloxmanager) by [centerepic](https://gitlab.com/centerepic) - The modern version of RobloxAccountManager that this repository was forked from
+- [RobloxAccountManager](https://github.com/ic3w0lf22/Roblox-Account-Manager) by [ic3w0lf22](https://github.com/ic3w0lf22) - The original Roblox Account Manager that served as the primary reference for this project
+- [Lucide Icons](https://lucide.dev/icons/) - The icon pack used for icons throughout the app. Licensed under the [ISC License](https://github.com/lucide-icons/lucide/blob/main/LICENSE).
 
-- **Bug report** - [Open a bug report](https://github.com/Paryx-games/roblox-manager/issues/new?template=bug_report.yml) using the bug template. Include your RM version, OS build, and repro steps.
-- **Feature request** - [Open a feature request](https://github.com/Paryx-games/roblox-manager/issues/new?template=feature_request.yml) using the feature template. Explain the use case, not just the feature.
-- **Security vulnerability** - Do not open a public issue. Follow the private disclosure process in [SECURITY.md](SECURITY.md) instead.
-- **Existing issues** - Check the [open issues](https://github.com/Paryx-games/roblox-manager/issues) first in case it's already tracked.
+### Contributors
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Contributing
-
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
-
-If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement". Read the [commit guide](CONVENTIONAL_COMMITS.md) and [contributing guide](CONTRIBUTING.md) first - PRs touching cookie handling, encryption, storage, or process control need extra review.
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b dev/short-feature-name`)
-3. Commit your Changes (`git commit -m 'feat: add some amazing feature'`)
-4. Push to the Branch (`git push origin dev/short-feature-name`)
-5. Open a Pull Request
+<a href="https://github.com/Paryx-games/roblox-manager/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Paryx-games/roblox-manager" alt="contributors" />
+</a>
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

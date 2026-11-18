@@ -420,7 +420,7 @@ jobs:
           RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
         run: ./scripts/package-release.ps1
 
-      - name: Summarize packages for approval
+      - name: Summarize packages
         shell: pwsh
         env:
           RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
@@ -481,27 +481,23 @@ jobs:
           if-no-files-found: error
           retention-days: 5
 
-  publish:
-    name: Publish
+  draft:
+    name: Create draft release
     needs:
       - prepare
-      - wait-for-ci
-      - build
       - package
-      - metadata
-      - virustotal
 
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
-    # pauses for manual approval before the immutable publish
-    environment: release-publish
 
     permissions:
       contents: write
 
     env:
       GH_TOKEN: ${{ github.token }}
+
+    outputs:
+      release_id: ${{ steps.create-release.outputs.id }}
 
     steps:
       - name: Checkout validated release scripts
@@ -510,35 +506,11 @@ jobs:
           ref: ${{ needs.prepare.outputs.sha }}
           persist-credentials: false
 
-      - name: Setup node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          package-manager-cache: false
-
       - name: Download release assets
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-assets
           path: release
-
-      - name: Download changelog notes
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: release-notes
-          path: notes/changelog
-
-      - name: Download GitHub release notes
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: github-release-notes
-          path: notes/github
-
-      - name: Download security notes
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: security-notes
-          path: notes/security
 
       - name: Verify downloaded release packages
         shell: bash
@@ -549,12 +521,6 @@ jobs:
           (cd release && sha256sum --check SHA256SUMS.txt)
           artifact_sha="$(tr -d '\r\n\357\273\277' < release/COMMIT.txt)"
           [[ "$artifact_sha" == "$RELEASE_SHA" ]] || { echo 'Artifact commit mismatch'; exit 1; }
-
-      - name: Assemble release notes
-        shell: pwsh
-        env:
-          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
-        run: node scripts/write-release-notes.cjs
 
       - name: Clean up leftover draft
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -637,12 +603,117 @@ jobs:
             release/*.txt
 
           fail_on_unmatched_files: true
-          body_path: final-release-notes.md
-
           prerelease: ${{ needs.prepare.outputs.prerelease }}
           make_latest: ${{ needs.prepare.outputs.make_latest }}
-
           draft: true
+
+  publish:
+    name: Publish
+    needs:
+      - prepare
+      - draft
+      - metadata
+      - virustotal
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: write
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_ID: ${{ needs.draft.outputs.release_id }}
+
+    steps:
+      - name: Checkout validated release scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+
+      - name: Setup node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Download release assets
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+          path: release
+
+      - name: Download changelog notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+          path: notes/changelog
+
+      - name: Download GitHub release notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: github-release-notes
+          path: notes/github
+
+      - name: Download security notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: security-notes
+          path: notes/security
+
+      - name: Verify downloaded release packages
+        shell: bash
+        env:
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          set -euo pipefail
+          (cd release && sha256sum --check SHA256SUMS.txt)
+          artifact_sha="$(tr -d '\r\n\357\273\277' < release/COMMIT.txt)"
+          [[ "$artifact_sha" == "$RELEASE_SHA" ]] || { echo 'Artifact commit mismatch'; exit 1; }
+
+      - name: Assemble release notes
+        shell: pwsh
+        env:
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+        run: node scripts/write-release-notes.cjs
+
+      - name: Update draft release notes
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        with:
+          script: |
+            const fs = require("node:fs");
+            const { owner, repo } = context.repo;
+            const releaseId = Number(process.env.RELEASE_ID);
+
+            if (!Number.isSafeInteger(releaseId) || releaseId <= 0) {
+              throw new Error("Draft release ID is missing or invalid.");
+            }
+
+            const { data: release } =
+              await github.rest.repos.getRelease({
+                owner,
+                repo,
+                release_id: releaseId,
+              });
+
+            if (
+              !release.draft ||
+              release.tag_name !== process.env.TAG
+            ) {
+              throw new Error(
+                "The expected draft release is missing or is no longer a draft.",
+              );
+            }
+
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: releaseId,
+              body: fs.readFileSync("final-release-notes.md", "utf8"),
+            });
 
       - name: Recheck tag immediately before publication
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -656,7 +727,6 @@ jobs:
       - name: Publish release
         shell: pwsh
         env:
-          RELEASE_ID: ${{ steps.create-release.outputs.id }}
           RELEASE_PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
           RELEASE_MAKE_LATEST: ${{ needs.prepare.outputs.make_latest }}
         run: |
