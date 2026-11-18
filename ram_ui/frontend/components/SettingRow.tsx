@@ -1,4 +1,5 @@
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { committedRangeNumber, commitRangeNumberOnEvent, validRangeNumberDraft } from "../lib/rangeNumber";
 
 export function SettingRow({ label, description, children }: {
   label: string;
@@ -27,6 +28,37 @@ export function RangeField({ value, min, max, onChange, labelId, descriptionId, 
   return <div className="control-range-field">
     <input type="range" min={min} max={max} step={1} value={value} onChange={(event) => onChange(Number(event.target.value))} aria-labelledby={labelId} aria-describedby={descriptionId} disabled={disabled} />
     <output aria-labelledby={labelId}>{value}</output>
+  </div>;
+}
+
+export function RangeNumberField({ value, min, max, unit, onChange, labelId, descriptionId, disabled = false }: {
+  value: number;
+  min: number;
+  max: number;
+  unit: string;
+  onChange: (value: number) => void;
+  labelId: string;
+  descriptionId: string;
+  disabled?: boolean;
+}) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+
+  function commit() {
+    const next = committedRangeNumber(text, value, min, max);
+    setText(String(next));
+    onChange(next);
+  }
+
+  return <div className="control-range-number-field">
+    <input type="range" min={min} max={max} step={1} value={value} onChange={(event) => onChange(Number(event.target.value))} aria-labelledby={labelId} aria-describedby={descriptionId} disabled={disabled} />
+    <input type="number" min={min} max={max} step={1} value={text} onChange={(event) => {
+      const next = event.currentTarget.value;
+      setText(next);
+      const parsed = validRangeNumberDraft(next, min, max);
+      if (parsed !== null) onChange(parsed);
+    }} onBlur={() => commitRangeNumberOnEvent("blur", undefined, commit)} onKeyDown={(event) => commitRangeNumberOnEvent("keydown", event.key, commit)} aria-labelledby={labelId} aria-describedby={descriptionId} disabled={disabled} />
+    <span>{unit}</span>
   </div>;
 }
 

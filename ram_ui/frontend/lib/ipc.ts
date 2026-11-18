@@ -41,7 +41,7 @@ export function changeRobloxPrivacy(userIds: number[], field: RobloxPrivacyField
   return invoke("change_roblox_privacy", { userIds, field, value });
 }
 
-export type DiscordEvent = "moderationDetected" | "batchLaunchFinished" | "sessionExpired" | "launchFailed" | "clientExited" | "friendRequestReceived" | "friendRequestSent" | "friendAdded" | "friendRemoved" | "friendRequestDeclined" | "userBlocked";
+export type DiscordEvent = "moderationDetected" | "batchLaunchFinished" | "sessionExpired" | "launchFailed" | "clientExited" | "friendRequestReceived" | "friendRequestSent" | "friendAdded" | "friendRemoved" | "friendRequestDeclined" | "userBlocked" | "resourceLimitExceeded";
 export interface DiscordDestination { id: string; name: string; enabled: boolean; events: DiscordEvent[]; }
 export interface DiscordNotificationSettings {
   enabled: boolean;
@@ -56,6 +56,7 @@ export interface DiscordNotificationSettings {
   friendRemoved: boolean;
   friendRequestDeclined: boolean;
   userBlocked: boolean;
+  resourceLimitExceeded: boolean;
   destinations: DiscordDestination[];
 }
 export function getDiscordNotifications(): Promise<DiscordNotificationSettings> { return invoke("get_discord_notifications"); }
@@ -343,9 +344,6 @@ export interface SettingsConfig {
   killBackgroundRoblox: boolean;
   confirmKillAll: boolean;
   launchDelaySecs: number;
-  robloxCpuLimitPercent: number | null;
-  robloxMemoryLimitMb: number | null;
-  systemMemoryLimitMb: number | null;
   customGameArgs: string;
   robloxPlayerPath: string | null;
   robloxFastFlags: Record<string, string>;
@@ -376,8 +374,25 @@ export interface SettingsConfig {
 
 export type SettingsUpdate = Omit<
   SettingsConfig,
-  "startupWithWindows" | "sessionHistoryPersist" | "systemMemoryLimitMb"
+  "startupWithWindows" | "sessionHistoryPersist"
 >;
+
+export type CpuLimitAction = "warn" | "throttle" | "kill";
+export type MemoryLimitAction = "warn" | "kill";
+export interface ResourceMonitorSettings {
+  cpuLimitPercent: number | null;
+  memoryLimitMb: number | null;
+  cpuAction: CpuLimitAction;
+  memoryAction: MemoryLimitAction;
+  systemMemoryLimitMb: number | null;
+}
+export type ResourceMonitorSettingsUpdate = Omit<ResourceMonitorSettings, "systemMemoryLimitMb">;
+export function getResourceMonitorSettings(): Promise<ResourceMonitorSettings> {
+  return invoke<ResourceMonitorSettings>("get_resource_monitor_settings");
+}
+export function saveResourceMonitorSettings(settings: ResourceMonitorSettingsUpdate): Promise<ResourceMonitorSettings> {
+  return invoke<ResourceMonitorSettings>("save_resource_monitor_settings", { settings });
+}
 
 export interface SettingsInfoCard {
   kind: "info" | "warning" | "caution" | string;

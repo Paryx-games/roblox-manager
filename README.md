@@ -39,7 +39,7 @@
 </div>
 
 > [!NOTE]
-> This repository is a fork of [gitlab.com/centerepic/robloxmanager](https://gitlab.com/centerepic/robloxmanager).
+> This repository is a fork of [centerepic/robloxmanager](https://gitlab.com/centerepic/robloxmanager). Credit is given to the original author for the foundational code and UI components incorporated into this project. Selected features and improvements from upstream may also be integrated over time.
 
 <details>
   <summary>Table of Contents</summary>
@@ -86,6 +86,8 @@ This branch contains the Tauri + React v2 interface. The retired egui applicatio
 
 > [!WARNING]
 > This tool interacts with Roblox authentication cookies and game-launching internals. Use it at your own risk. The multi-instance feature bypasses Roblox's singleton mutex, which may conflict with Hyperion anti-cheat and could carry a ban risk. This project is not affiliated with or endorsed by Roblox Corporation.
+>
+> I have been using this tool alongside my main. I have not been banned, warned, notified or had any actions taken against me. (2+ months of usage alongside my main)
 
 > [!NOTE]
 > This project is independent and is not affiliated with, endorsed by, or sponsored by Roblox Corporation.

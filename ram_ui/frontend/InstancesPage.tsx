@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { AccountPicker } from "./components/AccountPicker";
 import { InstanceIdentity, InstanceRow, instanceKey } from "./components/InstanceRow";
-import { RangeField, SettingRow, ToggleField } from "./components/SettingRow";
+import { RangeField, RangeNumberField, SettingRow, ToggleField } from "./components/SettingRow";
 import Select from "./components/Select";
 import { Icon } from "./components/Icon";
 import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { ConfirmModal } from "./ConfirmModal";
 import { Toast, type ToastItem } from "./Toast";
-import { arrangeAccountWindows, focusInstance, getSettings, getClientLaunchSettings, saveClientLaunchSettings, joinUserGame, killAllAccounts, killInstance, operationError, type AccountSummary, type ClientLaunchSettings, type InstanceSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
+import { arrangeAccountWindows, focusInstance, getSettings, getClientLaunchSettings, getResourceMonitorSettings, saveClientLaunchSettings, saveResourceMonitorSettings, joinUserGame, killAllAccounts, killInstance, operationError, type AccountSummary, type ClientLaunchSettings, type InstanceSummary, type InstanceWorkspace, type LaunchProgress, type ResourceMonitorSettings, type ResourceMonitorSettingsUpdate } from "./lib/ipc";
+import { hasResourceMonitorSettingsChanged } from "./lib/resourceMonitorSettings";
 
 const phaseLabels: Record<LaunchProgress["phase"], string> = {
   queued: "Queued",
@@ -19,7 +20,10 @@ const phaseLabels: Record<LaunchProgress["phase"], string> = {
 };
 
 const defaultSettings: ClientLaunchSettings = { enabled: false, rmOnly: true, fps: 60, graphics: 5, fullscreen: false, muted: false };
+const defaultResourceSettings: ResourceMonitorSettingsUpdate = { cpuLimitPercent: null, memoryLimitMb: null, cpuAction: "warn", memoryAction: "warn" };
 const fpsOptions = ["30", "60", "120", "144", "240"].map((value) => ({ value, label: `${value} FPS` }));
+const cpuActionOptions = [{ value: "warn", label: "Warn" }, { value: "throttle", label: "Throttle" }, { value: "kill", label: "Kill" }];
+const memoryActionOptions = [{ value: "warn", label: "Warn" }, { value: "kill", label: "Kill" }];
 
 export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsChange, launches, isLoading, error, onRefresh }: {
   workspace: InstanceWorkspace;
@@ -41,11 +45,18 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [settingsRevision, setSettingsRevision] = useState(0);
+  const [resourceDraft, setResourceDraft] = useState<ResourceMonitorSettingsUpdate>(defaultResourceSettings);
+  const [resourceSaved, setResourceSaved] = useState<ResourceMonitorSettingsUpdate>(defaultResourceSettings);
+  const [resourceMaximum, setResourceMaximum] = useState<number | null>(null);
+  const [resourceLoading, setResourceLoading] = useState(true);
+  const [resourceError, setResourceError] = useState<string | null>(null);
+  const [resourceRevision, setResourceRevision] = useState(0);
   const actionPending = useRef(false);
   const launchAccounts = accounts.filter((account) => account.canLaunch && !account.cookieExpired);
   const selectedInstance = workspace.instances.find((instance) => instanceKey(instance) === selectedKey);
   const controlsDisabled = settingsLoading || settingsError !== null || pendingAction !== null;
   const hasSettingsChanges = JSON.stringify(draft) !== JSON.stringify(savedSettings);
+  const hasResourceChanges = hasResourceMonitorSettingsChanged(resourceDraft, resourceSaved);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +73,22 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
   }, [settingsRevision]);
 
   useEffect(() => {
+    let cancelled = false;
+    setResourceLoading(true);
+    setResourceError(null);
+    void getResourceMonitorSettings().then((settings: ResourceMonitorSettings) => {
+      if (cancelled) return;
+      const { systemMemoryLimitMb, ...editable } = settings;
+      setResourceMaximum(systemMemoryLimitMb);
+      setResourceDraft(editable);
+      setResourceSaved(editable);
+    }).catch((failure) => {
+      if (!cancelled) setResourceError(operationError(failure, "Resource monitoring settings could not be loaded."));
+    }).finally(() => { if (!cancelled) setResourceLoading(false); });
+    return () => { cancelled = true; };
+  }, [resourceRevision]);
+
+  useEffect(() => {
     if (isLoading || error) return;
     const liveKeys = new Set(workspace.instances.map(instanceKey));
     setSelectedKey((current) => current && liveKeys.has(current) ? current : null);
@@ -70,6 +97,11 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
   function updateSettings(update: Partial<ClientLaunchSettings>) {
     if (controlsDisabled) return;
     setDraft((current) => ({ ...current, ...update }));
+  }
+
+  function updateResourceSettings(update: Partial<ResourceMonitorSettingsUpdate>) {
+    if (pendingAction !== null) return;
+    setResourceDraft((current) => ({ ...current, ...update }));
   }
 
   async function saveControls() {
@@ -87,6 +119,16 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
     }, "Launch overrides reset", "Saved shared launch overrides were reset and disabled. Roblox retains its last saved settings; running clients were not changed.");
   }
 
+  async function saveResourceControls() {
+    await runAction("save-resource-controls", async () => {
+      const saved = await saveResourceMonitorSettings(resourceDraft);
+      const { systemMemoryLimitMb, ...editable } = saved;
+      setResourceMaximum(systemMemoryLimitMb);
+      setResourceDraft(editable);
+      setResourceSaved(editable);
+    }, "Resource monitoring saved", "Thresholds apply to exactly attributed Roblox clients while RM is running. Saved resource limits no longer cap new launches.");
+  }
+
   async function runAction(action: string, operation: () => Promise<unknown>, success?: string, detail?: string) {
     if (actionPending.current) return;
     actionPending.current = true;
@@ -95,7 +137,7 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
       await operation();
       if (success) setToast({ id: Date.now(), title: success, message: detail ?? "Refresh Instances to see the latest details.", kind: "success", duration: "standard" });
     } catch (error) {
-      setToast({ id: Date.now(), title: "Instance action failed", message: `Couldn’t ${action.startsWith("focus-") ? "focus this window" : action.startsWith("join-") ? "join this server" : action === "close" ? "close Roblox" : action === "save-controls" ? "save launch settings" : action === "reset-controls" ? "reset launch settings" : action === "check-confirmation" ? "check the close-confirmation setting" : action === "arrange" ? "arrange Roblox windows" : action}. ${operationError(error, "Refresh Instances and try again.")}`, kind: "error", duration: "long" });
+      setToast({ id: Date.now(), title: "Instance action failed", message: `Couldn’t ${action.startsWith("focus-") ? "focus this window" : action.startsWith("join-") ? "join this server" : action === "close" ? "close Roblox" : action === "save-controls" ? "save launch settings" : action === "save-resource-controls" ? "save resource monitoring settings" : action === "reset-controls" ? "reset launch settings" : action === "check-confirmation" ? "check the close-confirmation setting" : action === "arrange" ? "arrange Roblox windows" : action}. ${operationError(error, "Refresh Instances and try again.")}`, kind: "error", duration: "long" });
     } finally {
       actionPending.current = false;
       setPendingAction(null);
@@ -183,6 +225,32 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
               {hasSettingsChanges && <p className="instances-description" role="status">Unsaved launch settings</p>}
               <button className="account-button" type="button" disabled={controlsDisabled || !hasSettingsChanges} onClick={() => void saveControls()}>{pendingAction === "save-controls" ? "Saving..." : "Save launch settings"}</button>
             </>}
+            <div className="instances-resource-controls">
+              <h3>Resource monitoring</h3>
+              <p className="instances-description">Checks exact RM-attributed clients every few seconds. Each action runs once per client and resource.</p>
+              {resourceLoading ? <LoadingSkeleton layout="status" label="Loading resource monitoring settings" /> : resourceError ? <div className="instances-empty" role="alert"><p className="selectable-text">{resourceError}</p><button className="account-button" type="button" disabled={pendingAction !== null} onClick={() => setResourceRevision((current) => current + 1)}>Retry</button></div> : <>
+                <div className="instances-controls-notice" id="resource-monitor-notice" role="note"><Icon name="info-mark" tone="current-color" /><p><strong>Warnings notify once per client.</strong> Warn and Throttle send Windows and routed Discord notifications. Kill closes only the verified client and does not send a notification. Saved limits from Settings are now thresholds.</p></div>
+                <div role="group" aria-label="Roblox resource monitoring settings" aria-describedby="resource-monitor-notice">
+                  <SettingRow label="CPU usage threshold" description="Percent of total logical-processor capacity.">{(labelId, descriptionId) => <div className="resource-threshold-control">
+                    <label className="settings-toggle"><input type="checkbox" aria-label="Monitor CPU usage" checked={resourceDraft.cpuLimitPercent !== null} disabled={pendingAction !== null} onChange={(event) => updateResourceSettings({ cpuLimitPercent: event.target.checked ? 80 : null })} /><span>{resourceDraft.cpuLimitPercent === null ? "Off" : "On"}</span></label>
+                    {resourceDraft.cpuLimitPercent !== null && <RangeNumberField min={1} max={99} value={resourceDraft.cpuLimitPercent} unit="%" onChange={(cpuLimitPercent) => updateResourceSettings({ cpuLimitPercent })} labelId={labelId} descriptionId={descriptionId} disabled={pendingAction !== null} />}
+                  </div>}</SettingRow>
+                  <SettingRow label="CPU action" description="Throttle halves the configured threshold as the CPU cap. Kill closes the client silently.">{() => <Select value={resourceDraft.cpuAction} options={cpuActionOptions} onChange={(cpuAction) => {
+                    if (cpuAction === "warn" || cpuAction === "throttle" || cpuAction === "kill") updateResourceSettings({ cpuAction });
+                  }} ariaLabel="Action when CPU threshold is reached" disabled={resourceDraft.cpuLimitPercent === null || pendingAction !== null} />}</SettingRow>
+                  <SettingRow label="RAM usage threshold" description="Per-client resident memory (working set), in MB.">{(labelId, descriptionId) => <div className="resource-threshold-control">
+                    <label className="settings-toggle"><input type="checkbox" aria-label="Monitor RAM usage" checked={resourceDraft.memoryLimitMb !== null} disabled={pendingAction !== null || (resourceMaximum === null && resourceDraft.memoryLimitMb === null)} onChange={(event) => updateResourceSettings({ memoryLimitMb: event.target.checked ? Math.min(8192, Math.max(1024, resourceMaximum ?? 8192)) : null })} /><span>{resourceDraft.memoryLimitMb === null ? "Off" : "On"}</span></label>
+                    {resourceDraft.memoryLimitMb !== null && <RangeNumberField min={1024} max={Math.max(1024, resourceMaximum ?? 1024)} value={resourceDraft.memoryLimitMb} unit="MB" onChange={(memoryLimitMb) => updateResourceSettings({ memoryLimitMb })} labelId={labelId} descriptionId={descriptionId} disabled={pendingAction !== null || resourceMaximum === null} />}
+                  </div>}</SettingRow>
+                  <SettingRow label="RAM action" description="Windows cannot smoothly throttle RAM. Kill closes the client silently.">{() => <Select value={resourceDraft.memoryAction} options={memoryActionOptions} onChange={(memoryAction) => {
+                    if (memoryAction === "warn" || memoryAction === "kill") updateResourceSettings({ memoryAction });
+                  }} ariaLabel="Action when RAM threshold is reached" disabled={resourceDraft.memoryLimitMb === null || pendingAction !== null} />}</SettingRow>
+                </div>
+                {resourceMaximum === null && <p className="instances-description" role="status">Installed memory could not be determined. RAM thresholds are unavailable.</p>}
+                {hasResourceChanges && <p className="instances-description" role="status">Unsaved resource monitoring settings</p>}
+                <button className="account-button" type="button" disabled={pendingAction !== null || !hasResourceChanges} onClick={() => void saveResourceControls()}>{pendingAction === "save-resource-controls" ? "Saving..." : "Save resource settings"}</button>
+              </>}
+            </div>
           </section>
         </div>
       </div>

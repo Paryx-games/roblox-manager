@@ -522,10 +522,7 @@ async fn launch_queued(
     }).await.map_err(|_| "Launch credential task failed")??;
     apply_launch_overrides(&mut config, request.overrides);
     validate_instance_policy(require_multi_instance, config.multi_instance_enabled)?;
-    let resource_limits = process::RobloxResourceLimits {
-        cpu_percent: config.roblox_cpu_limit_percent,
-        memory_limit_mb: config.roblox_memory_limit_mb,
-    };
+    let resource_limits = process::RobloxResourceLimits::default();
     let options_state = state.clone();
     let options_config = config.clone();
     let (executable, custom_args) = tauri::async_runtime::spawn_blocking(move || {

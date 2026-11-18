@@ -113,16 +113,43 @@ mod tests {
         old.as_object_mut()
             .unwrap()
             .remove("roblox_memory_limit_mb");
+        old.as_object_mut()
+            .unwrap()
+            .remove("roblox_cpu_limit_action");
+        old.as_object_mut()
+            .unwrap()
+            .remove("roblox_memory_limit_action");
         old["anonymize_names"] = serde_json::json!(true);
         let mut loaded: AppConfig = serde_json::from_value(old).unwrap();
         assert!(!loaded.hide_from_screen_capture);
         assert_eq!(loaded.roblox_cpu_limit_percent, None);
         assert_eq!(loaded.roblox_memory_limit_mb, None);
+        assert_eq!(loaded.roblox_cpu_limit_action, CpuLimitAction::Warn);
+        assert_eq!(loaded.roblox_memory_limit_action, MemoryLimitAction::Warn);
         assert!(loaded.anonymize_names);
         loaded.hide_from_screen_capture = true;
         let saved: AppConfig =
             serde_json::from_slice(&serde_json::to_vec(&loaded).unwrap()).unwrap();
         assert!(saved.hide_from_screen_capture && saved.anonymize_names);
+    }
+
+    #[test]
+    fn existing_resource_limits_are_preserved_as_thresholds_with_warn_actions() {
+        let mut old = serde_json::to_value(AppConfig::default()).unwrap();
+        old["roblox_cpu_limit_percent"] = serde_json::json!(35);
+        old["roblox_memory_limit_mb"] = serde_json::json!(4096);
+        old.as_object_mut()
+            .unwrap()
+            .remove("roblox_cpu_limit_action");
+        old.as_object_mut()
+            .unwrap()
+            .remove("roblox_memory_limit_action");
+
+        let loaded: AppConfig = serde_json::from_value(old).unwrap();
+        assert_eq!(loaded.roblox_cpu_limit_percent, Some(35));
+        assert_eq!(loaded.roblox_memory_limit_mb, Some(4096));
+        assert_eq!(loaded.roblox_cpu_limit_action, CpuLimitAction::Warn);
+        assert_eq!(loaded.roblox_memory_limit_action, MemoryLimitAction::Warn);
     }
 
     #[test]
@@ -268,6 +295,23 @@ impl AccountStore {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CpuLimitAction {
+    #[default]
+    Warn,
+    Throttle,
+    Kill,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MemoryLimitAction {
+    #[default]
+    Warn,
+    Kill,
+}
+
 /// Global application configuration persisted to `config.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppConfig {
@@ -331,12 +375,18 @@ pub struct AppConfig {
     /// Custom command-line arguments passed to RobloxPlayerBeta.exe during launch.
     #[serde(default)]
     pub custom_game_args: String,
-    /// Maximum CPU share for each newly launched Roblox client. `None` disables the cap.
+    /// Per-client CPU usage threshold. `None` disables CPU monitoring.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub roblox_cpu_limit_percent: Option<u32>,
-    /// Maximum job commit in MiB for each newly launched Roblox client. `None` disables the cap.
+    /// Per-client resident memory threshold in MiB. `None` disables memory monitoring.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub roblox_memory_limit_mb: Option<u64>,
+    /// Action to take when a Roblox client exceeds its CPU threshold.
+    #[serde(default)]
+    pub roblox_cpu_limit_action: CpuLimitAction,
+    /// Action to take when a Roblox client exceeds its memory threshold.
+    #[serde(default)]
+    pub roblox_memory_limit_action: MemoryLimitAction,
     /// Custom Roblox player install path override.
     pub roblox_player_path: Option<PathBuf>,
     /// Per-account Roblox player install path overrides, stored in plain config.
@@ -658,6 +708,8 @@ impl Default for AppConfig {
             custom_game_args: String::new(),
             roblox_cpu_limit_percent: None,
             roblox_memory_limit_mb: None,
+            roblox_cpu_limit_action: CpuLimitAction::Warn,
+            roblox_memory_limit_action: MemoryLimitAction::Warn,
             roblox_player_path: None,
             custom_player_paths: HashMap::new(),
             roblox_fast_flags: HashMap::new(),

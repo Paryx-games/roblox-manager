@@ -6,7 +6,7 @@
 
 - **Account shortcuts:** Double-click a launchable account row to open Roblox Home for that account; the account menu can open a logged-in browser or explicitly copy its login cookie to the Windows clipboard.
 - **Verified self-updates:** Install updates from the app after the installer checksum is verified against the GitHub release manifest; portable copies retain the manual download path.
-- **Per-client launch limits:** Optionally cap CPU usage and private commit for each newly launched Roblox client, with the memory maximum based on installed physical RAM; both limits are off by default.
+- **Per-client resource monitoring:** Set editable CPU and RAM thresholds for exactly attributed Roblox clients, then warn, throttle CPU use, or quietly close the client. Existing saved limits become thresholds; unset limits stay disabled.
 
 ### Fixed
 
