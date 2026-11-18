@@ -76,6 +76,19 @@ test('CI wait trusts only exact-SHA push/dispatch runs and preserves failed-vers
   assert.equal(result.calls, 120); assert.match(result.failure, /No successful ci.yml run/);
 });
 
+test('draft creation overlaps release notes and VirusTotal while publishing waits for both', () => {
+  const workflow = fs.readFileSync('.github/workflows/release.yml', 'utf8');
+  const draft = workflow.split('  draft:\n')[1].split('\n  publish:')[0];
+  const publish = workflow.split('  publish:\n')[1];
+  const dependencies = block => block.match(/    needs:\n([\s\S]*?)\n\n    runs-on/)[1]
+    .match(/- ([\w-]+)/g)
+    .map(item => item.slice(2));
+
+  assert.deepEqual(dependencies(draft), ['prepare', 'package']);
+  assert.deepEqual(dependencies(publish), ['prepare', 'draft', 'metadata', 'virustotal']);
+  assert.ok(draft.indexOf('Verify downloaded release packages') < draft.indexOf('Create draft release and upload assets'));
+  assert.ok(publish.indexOf('Update draft release notes') < publish.indexOf('Publish release'));
+});
 
 test('publish integrity gate rejects checksum tampering and a different source commit', t => {
   const bash = process.platform === 'win32' ? path.join(process.env.ProgramFiles, 'Git/bin/bash.exe') : 'bash';
@@ -90,7 +103,8 @@ test('publish integrity gate rejects checksum tampering and a different source c
   const manifest = () => fs.writeFileSync(path.join(root, 'release/SHA256SUMS.txt'), `${checksum('Synthetic app')}  app.exe\n${checksum(fs.readFileSync(path.join(root, 'release/COMMIT.txt')))}  COMMIT.txt\n`);
   manifest();
   const workflow = fs.readFileSync('.github/workflows/release.yml', 'utf8');
-  const step = workflow.split('      - name: Verify downloaded release packages\n')[1].split('      - name: Assemble release notes')[0];
+  const publish = workflow.split('  publish:\n')[1];
+  const step = publish.split('      - name: Verify downloaded release packages\n')[1].split('      - name: Assemble release notes')[0];
   const script = step.split('        run: |\n')[1].split('\n').map(line => line.startsWith('          ') ? line.slice(10) : line).join('\n');
   const run = sha => spawnSync(bash, ['-c', script], { cwd: root, env: { ...process.env, RELEASE_SHA: sha }, encoding: 'utf8' });
   let result = run('validated');
