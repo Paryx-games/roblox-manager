@@ -68,7 +68,7 @@ fix(auth): preserve csrf token per cookie
 feat(groups): show membership status
 ```
 
-Keep each commit coherent and avoid committing cookies, tokens, logs, build output, or local account data. One focused change per pull request is preferred; documentation-only edits can be grouped when they describe one feature area.
+Keep each commit coherent and avoid committing cookies, tokens, logs, build output, or local account data. Related improvements can be grouped in one pull request; keep unrelated work separate where practical.
 
 ## Verify locally
 

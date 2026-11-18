@@ -34,7 +34,7 @@ unchecked and explain the gap in Testing.
 - [ ] Full pre-commit verification passed; applicable manual checks are recorded in Testing.
 - [ ] Changelog updated for user-facing changes (N/A otherwise).
 - [ ] Applicable design, security, and core ownership rules checked.
-- [ ] Diff reviewed: one focused change, no unrelated files, secrets, local data, or scratch output.
+- [ ] Diff reviewed: no unrelated files, secrets, local data, or scratch output.
 
 The shorter checklist does not remove the underlying requirements:
 
@@ -55,7 +55,3 @@ The shorter checklist does not remove the underlying requirements:
   focused tests, and applicable Windows checks when relevant.
 
 Report vulnerabilities through [SECURITY.md](SECURITY.md), never as a public issue or in a PR description.
-
-## One focused change per PR
-
-If the checklist above is hard to fill in cleanly because the PR is doing several unrelated things, that's a signal to split it, not to write a longer description.

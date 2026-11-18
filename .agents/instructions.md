@@ -310,7 +310,7 @@ git switch -c your-feature-name
 - To sync: `git fetch upstream`, `git switch main`, `git pull --ff-only upstream main`, `git push origin main`. Rebase existing feature branches onto the synced `main` instead of merging.
 - Commits follow `CONVENTIONAL_COMMITS.md`, for example `fix(auth): preserve csrf token per cookie` or `feat(groups): show membership status`. Commit each logical change as soon as it is done, not one giant commit at the end. Do not batch unrelated changes. Run the fast verification before each commit.
 - Review the diff before committing: only task-relevant changes, no cookies, tokens, logs, build output, `node_modules/`, local account data, or stray files.
-- One focused change per PR. Follow `PR_CONVENTIONS.md` for title, Changes, Testing, and the Checklist. Include design-system confirmation for UI changes, and call out security-sensitive changes and Roblox-version assumptions.
+- Group related improvements in a PR when they share a clear outcome. Follow `PR_CONVENTIONS.md` for title, Changes, Testing, and the Checklist. Include design-system confirmation for UI changes, and call out security-sensitive changes and Roblox-version assumptions.
 
 ### Changelog
 

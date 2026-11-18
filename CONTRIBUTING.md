@@ -53,7 +53,7 @@ Start the desktop app with `pnpm --dir ram_ui tauri dev`. For an independent deb
 
 ## Making changes
 
-- Keep PRs focused - one fix or feature per PR. Don't bundle unrelated cleanup in with a feature change; open a separate PR for that.
+- Group related improvements in a single PR when it helps users or reviewers; avoid mixing in unrelated cleanup.
 - Follow the repository's [Conventional Commits guide](CONVENTIONAL_COMMITS.md) for commit messages (`feat:`, `fix:`, `refactor:`, `docs:`, etc), and [VERSIONING.md](VERSIONING.md) for how version numbers are chosen.
 - Comments should explain *why*, not *what* - if the code already makes the "what" obvious, skip the comment.
 - If you're touching cookie handling, encryption, storage, or process control (mutex patching, client attribution, etc), say so explicitly in your PR description. These get closer review than UI-only changes.

@@ -21,4 +21,4 @@
 - [ ] Full pre-commit verification passed; applicable manual checks are recorded in Testing.
 - [ ] Changelog updated for user-facing changes (N/A otherwise).
 - [ ] Applicable design, security, and core ownership rules checked.
-- [ ] Diff reviewed: one focused change, no unrelated files, secrets, local data, or scratch output.
+- [ ] Diff reviewed: no unrelated files, secrets, local data, or scratch output.
