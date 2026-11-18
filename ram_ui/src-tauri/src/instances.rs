@@ -21,7 +21,7 @@ pub struct InstanceState {
     arrange_after: Option<(Instant, bool)>,
     snapshot: InstanceWorkspace,
     presence_checks: HashMap<u64, (ram_core::models::Presence, chrono::DateTime<chrono::Utc>)>,
-    resource_triggers: HashSet<(u32, u64, ResourceKind)>,
+    resource_triggers: ResourceTriggerTracker,
     invalid_threshold_notices: HashSet<ResourceKind>,
     #[cfg(windows)]
     resource_monitor: process::RobloxResourceMonitor,
@@ -33,6 +33,31 @@ pub struct InstanceState {
 enum ResourceKind {
     Cpu,
     Memory,
+}
+
+#[derive(Default)]
+struct ResourceTriggerTracker {
+    fired: HashSet<(u32, i64, ResourceKind)>,
+}
+
+impl ResourceTriggerTracker {
+    fn should_fire(
+        &mut self,
+        pid: u32,
+        launchtime: i64,
+        kind: ResourceKind,
+        usage: u64,
+        threshold: Option<u64>,
+    ) -> bool {
+        threshold.is_some_and(|threshold| {
+            usage >= threshold && self.fired.insert((pid, launchtime, kind))
+        })
+    }
+
+    fn retain_live(&mut self, live_launches: &HashSet<(u32, i64)>) {
+        self.fired
+            .retain(|(pid, launchtime, _)| live_launches.contains(&(*pid, *launchtime)));
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -93,6 +118,24 @@ fn validate_resource_monitor_settings(
         }
     }
     Ok(())
+}
+
+fn resource_monitor_config_candidate(
+    current: &AppConfig,
+    settings: &ResourceMonitorSettingsUpdate,
+    system_memory_limit_mb: Option<u64>,
+) -> Result<AppConfig, &'static str> {
+    validate_resource_monitor_settings(
+        settings,
+        system_memory_limit_mb,
+        current.roblox_memory_limit_mb,
+    )?;
+    let mut candidate = current.clone();
+    candidate.roblox_cpu_limit_percent = settings.cpu_limit_percent;
+    candidate.roblox_memory_limit_mb = settings.memory_limit_mb;
+    candidate.roblox_cpu_limit_action = settings.cpu_action;
+    candidate.roblox_memory_limit_action = settings.memory_action;
+    Ok(candidate)
 }
 
 #[derive(Clone, Default, PartialEq, Serialize)]
@@ -214,9 +257,15 @@ fn enforce_resource_limits(
         .iter()
         .map(|client| (client.pid, client.start_time))
         .collect::<HashSet<_>>();
-    instances
-        .resource_triggers
-        .retain(|(pid, start_time, _)| live_keys.contains(&(*pid, *start_time)));
+    let live_launches = tracked
+        .iter()
+        .filter(|instance| {
+            instance.attribution.is_exact()
+                && live_keys.contains(&(instance.pid, instance.start_time))
+        })
+        .map(|instance| (instance.pid, instance.launchtime))
+        .collect::<HashSet<_>>();
+    instances.resource_triggers.retain_live(&live_launches);
     instances
         .cpu_throttle_jobs
         .retain(|key, _| live_keys.contains(key));
@@ -276,9 +325,14 @@ fn enforce_resource_limits(
             continue;
         };
         let identity = (instance.pid, instance.start_time);
-        if let Some(threshold) = cpu_threshold {
-            let key = (identity.0, identity.1, ResourceKind::Cpu);
-            if usage.cpu_percent >= threshold && instances.resource_triggers.insert(key) {
+        if instances.resource_triggers.should_fire(
+            instance.pid,
+            instance.launchtime,
+            ResourceKind::Cpu,
+            u64::from(usage.cpu_percent),
+            cpu_threshold.map(u64::from),
+        ) {
+            if let Some(threshold) = cpu_threshold {
                 match config.roblox_cpu_limit_action {
                     CpuLimitAction::Warn => notify_resource_threshold(
                         app,
@@ -333,9 +387,14 @@ fn enforce_resource_limits(
             }
         }
 
-        if let Some(threshold) = memory_threshold {
-            let key = (identity.0, identity.1, ResourceKind::Memory);
-            if usage.memory_mb >= threshold && instances.resource_triggers.insert(key) {
+        if instances.resource_triggers.should_fire(
+            instance.pid,
+            instance.launchtime,
+            ResourceKind::Memory,
+            usage.memory_mb,
+            memory_threshold,
+        ) {
+            if let Some(threshold) = memory_threshold {
                 match config.roblox_memory_limit_action {
                     MemoryLimitAction::Warn => notify_resource_threshold(
                         app,
@@ -716,17 +775,8 @@ pub async fn save_resource_monitor_settings(
             .runtime
             .lock()
             .map_err(|_| "Application state unavailable")?;
-        validate_resource_monitor_settings(
-            &settings,
-            memory_limit,
-            runtime.config.roblox_memory_limit_mb,
-        )
-        .map_err(str::to_string)?;
-        let mut candidate = runtime.config.clone();
-        candidate.roblox_cpu_limit_percent = settings.cpu_limit_percent;
-        candidate.roblox_memory_limit_mb = settings.memory_limit_mb;
-        candidate.roblox_cpu_limit_action = settings.cpu_action;
-        candidate.roblox_memory_limit_action = settings.memory_action;
+        let candidate = resource_monitor_config_candidate(&runtime.config, &settings, memory_limit)
+            .map_err(str::to_string)?;
         candidate
             .save(&runtime.config_path)
             .map_err(|_| "Resource monitor settings could not be saved")?;
@@ -816,6 +866,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn resource_monitor_triggers_once_per_resource_and_launch() {
+        let mut triggers = ResourceTriggerTracker::default();
+        assert!(!triggers.should_fire(7, 100, ResourceKind::Cpu, 90, None));
+        assert!(!triggers.should_fire(7, 100, ResourceKind::Cpu, 49, Some(50)));
+        assert!(triggers.should_fire(7, 100, ResourceKind::Cpu, 50, Some(50)));
+        assert!(!triggers.should_fire(7, 100, ResourceKind::Cpu, 80, Some(50)));
+        assert!(triggers.should_fire(7, 100, ResourceKind::Memory, 2048, Some(2048)));
+        assert!(triggers.should_fire(7, 101, ResourceKind::Cpu, 50, Some(50)));
+
+        triggers.retain_live(&HashSet::from([(7, 101)]));
+        assert!(triggers.should_fire(7, 100, ResourceKind::Cpu, 50, Some(50)));
+    }
+
+    #[test]
     fn resource_threshold_validation_accepts_bounds_and_rejects_invalid_values() {
         let valid = ResourceMonitorSettingsUpdate {
             cpu_limit_percent: Some(1),
@@ -865,6 +929,43 @@ mod tests {
             ..valid_update()
         };
         assert!(validate_resource_monitor_settings(&changed_ram, None, Some(8192)).is_err());
+    }
+
+    #[test]
+    fn resource_monitor_config_candidate_round_trips_and_rejects_without_partial_changes() {
+        let config = AppConfig::default();
+        let original = serde_json::to_value(&config).unwrap();
+        let settings = ResourceMonitorSettingsUpdate {
+            cpu_limit_percent: Some(35),
+            memory_limit_mb: Some(4096),
+            cpu_action: CpuLimitAction::Throttle,
+            memory_action: MemoryLimitAction::Kill,
+        };
+        let candidate = resource_monitor_config_candidate(&config, &settings, Some(8192)).unwrap();
+        assert_eq!(candidate.roblox_cpu_limit_percent, Some(35));
+        assert_eq!(candidate.roblox_memory_limit_mb, Some(4096));
+        assert_eq!(candidate.roblox_cpu_limit_action, CpuLimitAction::Throttle);
+        assert_eq!(
+            candidate.roblox_memory_limit_action,
+            MemoryLimitAction::Kill
+        );
+
+        let round_trip: AppConfig =
+            serde_json::from_slice(&serde_json::to_vec(&candidate).unwrap()).unwrap();
+        assert_eq!(round_trip.roblox_cpu_limit_percent, Some(35));
+        assert_eq!(round_trip.roblox_memory_limit_mb, Some(4096));
+        assert_eq!(round_trip.roblox_cpu_limit_action, CpuLimitAction::Throttle);
+        assert_eq!(
+            round_trip.roblox_memory_limit_action,
+            MemoryLimitAction::Kill
+        );
+
+        let invalid = ResourceMonitorSettingsUpdate {
+            cpu_limit_percent: Some(100),
+            ..valid_update()
+        };
+        assert!(resource_monitor_config_candidate(&config, &invalid, Some(8192)).is_err());
+        assert_eq!(serde_json::to_value(&config).unwrap(), original);
     }
 
     fn valid_update() -> ResourceMonitorSettingsUpdate {

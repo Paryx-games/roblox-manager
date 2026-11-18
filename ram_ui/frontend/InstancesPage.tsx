@@ -8,6 +8,7 @@ import { LoadingSkeleton } from "./components/LoadingSkeleton";
 import { ConfirmModal } from "./ConfirmModal";
 import { Toast, type ToastItem } from "./Toast";
 import { arrangeAccountWindows, focusInstance, getSettings, getClientLaunchSettings, getResourceMonitorSettings, saveClientLaunchSettings, saveResourceMonitorSettings, joinUserGame, killAllAccounts, killInstance, operationError, type AccountSummary, type ClientLaunchSettings, type InstanceSummary, type InstanceWorkspace, type LaunchProgress, type ResourceMonitorSettings, type ResourceMonitorSettingsUpdate } from "./lib/ipc";
+import { hasResourceMonitorSettingsChanged } from "./lib/resourceMonitorSettings";
 
 const phaseLabels: Record<LaunchProgress["phase"], string> = {
   queued: "Queued",
@@ -55,7 +56,7 @@ export function InstancesPage({ workspace, accounts, selectedIds, onSelectedIdsC
   const selectedInstance = workspace.instances.find((instance) => instanceKey(instance) === selectedKey);
   const controlsDisabled = settingsLoading || settingsError !== null || pendingAction !== null;
   const hasSettingsChanges = JSON.stringify(draft) !== JSON.stringify(savedSettings);
-  const hasResourceChanges = JSON.stringify(resourceDraft) !== JSON.stringify(resourceSaved);
+  const hasResourceChanges = hasResourceMonitorSettingsChanged(resourceDraft, resourceSaved);
 
   useEffect(() => {
     let cancelled = false;

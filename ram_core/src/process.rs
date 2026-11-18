@@ -507,6 +507,16 @@ pub struct RobloxProcessUsage {
     pub memory_mb: u64,
 }
 
+fn normalize_cpu_usage(cpu_usage: f32, logical_cpu_count: usize) -> u32 {
+    (cpu_usage / logical_cpu_count.max(1) as f32)
+        .round()
+        .clamp(0.0, 100.0) as u32
+}
+
+fn process_memory_megabytes(memory_bytes: u64) -> u64 {
+    memory_bytes / (1024 * 1024)
+}
+
 #[cfg(windows)]
 impl RobloxResourceMonitor {
     pub fn sample(&mut self, pids: &[u32]) -> std::collections::HashMap<u32, RobloxProcessUsage> {
@@ -518,17 +528,15 @@ impl RobloxResourceMonitor {
                 .with_cpu()
                 .with_memory(),
         );
-        let logical_cpu_count = self.system.cpus().len().max(1) as f32;
+        let logical_cpu_count = self.system.cpus().len().max(1);
         pids.iter()
             .filter_map(|pid| {
                 let process = self.system.process(sysinfo::Pid::from_u32(*pid))?;
                 Some((
                     *pid,
                     RobloxProcessUsage {
-                        cpu_percent: (process.cpu_usage() / logical_cpu_count)
-                            .round()
-                            .clamp(0.0, 100.0) as u32,
-                        memory_mb: process.memory() / (1024 * 1024),
+                        cpu_percent: normalize_cpu_usage(process.cpu_usage(), logical_cpu_count),
+                        memory_mb: process_memory_megabytes(process.memory()),
                     },
                 ))
             })
@@ -2689,6 +2697,17 @@ mod tests {
         }
         .validate()
         .is_err());
+    }
+
+    #[test]
+    fn process_usage_normalizes_cpu_and_converts_memory_to_mib() {
+        assert_eq!(normalize_cpu_usage(200.0, 4), 50);
+        assert_eq!(normalize_cpu_usage(100.0, 8), 13);
+        assert_eq!(normalize_cpu_usage(800.0, 4), 100);
+        assert_eq!(normalize_cpu_usage(37.0, 0), 37);
+        assert_eq!(process_memory_megabytes(1_048_575), 0);
+        assert_eq!(process_memory_megabytes(1_048_576), 1);
+        assert_eq!(process_memory_megabytes(2_500_000), 2);
     }
 
     #[cfg(windows)]

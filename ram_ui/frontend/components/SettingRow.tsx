@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
+import { committedRangeNumber, commitRangeNumberOnEvent, validRangeNumberDraft } from "../lib/rangeNumber";
 
 export function SettingRow({ label, description, children }: {
   label: string;
@@ -44,8 +45,7 @@ export function RangeNumberField({ value, min, max, unit, onChange, labelId, des
   useEffect(() => setText(String(value)), [value]);
 
   function commit() {
-    const parsed = Number(text);
-    const next = Number.isFinite(parsed) ? Math.min(max, Math.max(min, Math.round(parsed))) : value;
+    const next = committedRangeNumber(text, value, min, max);
     setText(String(next));
     onChange(next);
   }
@@ -55,9 +55,9 @@ export function RangeNumberField({ value, min, max, unit, onChange, labelId, des
     <input type="number" min={min} max={max} step={1} value={text} onChange={(event) => {
       const next = event.currentTarget.value;
       setText(next);
-      const parsed = Number(next);
-      if (next !== "" && Number.isInteger(parsed) && parsed >= min && parsed <= max) onChange(parsed);
-    }} onBlur={commit} onKeyDown={(event) => { if (event.key === "Enter") commit(); }} aria-labelledby={labelId} aria-describedby={descriptionId} disabled={disabled} />
+      const parsed = validRangeNumberDraft(next, min, max);
+      if (parsed !== null) onChange(parsed);
+    }} onBlur={() => commitRangeNumberOnEvent("blur", undefined, commit)} onKeyDown={(event) => commitRangeNumberOnEvent("keydown", event.key, commit)} aria-labelledby={labelId} aria-describedby={descriptionId} disabled={disabled} />
     <span>{unit}</span>
   </div>;
 }
