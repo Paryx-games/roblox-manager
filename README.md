@@ -53,6 +53,7 @@
         <li><a href="#system-requirements">System Requirements</a></li>
       </ul>
     </li>
+    <li><a href="#security-notice">Security Notice</a></li>
     <li><a href="#features">Features</a></li>
     <li><a href="#usage">Usage</a></li>
     <li><a href="#credits">Credits</a></li>
@@ -131,6 +132,18 @@ No Rust, Node.js, or pnpm installation is required for either option. These are 
 - Windows 10 or 11 (64-bit)
 - Roblox installed
 - Microsoft WebView2 Runtime for the Tauri interface and account browser windows
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Security Notice
+
+Roblox Manager is open-source software, and its installer and portable executable are built from the code in this repository by the public GitHub Actions release workflow. Release assets include SHA256 checksums and build provenance attestations. Review or build the source yourself if you need to verify it independently.
+
+Some VirusTotal vendors may flag unsigned or newly packaged Windows executables. For releases containing detections, treat them as false positives: there is no malicious payload in the published files.
+
+The SecureAge vendor has falsely flagged the Roblox Manager installer since the installer was first introduced in v2.1.0. It has never falsely flagged the portable executable. If you are nervous about the installer warning, use the portable executable and compare its SHA256 checksum instead.
+
+VirusTotal and individual antivirus detections are best-effort signals, not proof that an executable is safe or malicious. Report genuine suspicious behavior or security concerns through [SECURITY.md](SECURITY.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

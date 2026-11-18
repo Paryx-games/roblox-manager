@@ -328,6 +328,10 @@ $security = @(
   ""
   "VirusTotal scanning is best-effort and does not block a release if the external service is unavailable."
   ""
+  "Roblox Manager is open-source software, and these assets are built from the public repository release workflow. VirusTotal detections on the release executables are false positives."
+  ""
+  "SecureAge has falsely flagged the installer since v2.1.0, when the installer was first introduced. It has never falsely flagged the portable executable. If you are concerned by the installer result, use the portable executable and verify its SHA256 checksum."
+  ""
 )
 
 foreach ($result in $results) {

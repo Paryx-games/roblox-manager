@@ -60,6 +60,9 @@ try { & $env:VT_TEST_SCRIPT } finally {
   assert.ok(result.trace.Requests.every(request => request.Method === 'Get' && /\/files\/[a-f0-9]{64}$/.test(request.Uri)));
   assert.equal(result.trace.Sleeps.length, 0);
   assert.match(result.notes, /1 \/ 70 security vendors flagged this file/);
+  assert.match(result.notes, /detections on the release executables are false positives/i);
+  assert.match(result.notes, /SecureAge has falsely flagged the installer since v2\.1\.0/i);
+  assert.match(result.notes, /never falsely flagged the portable executable/i);
   assert.match(result.summary, /Open VirusTotal report/);
   for (const mode of ['missing', 'empty', 'zero', 'no-stats']) {
     result = run(mode);
