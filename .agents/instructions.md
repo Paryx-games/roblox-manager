@@ -229,7 +229,7 @@ cargo check
 pnpm --dir ram_ui typecheck
 ```
 
-Before pushing or opening a PR (full local verification; covers CI's source checks, packaged Tauri build excluded):
+Full local verification is recommended for broad, high-risk, or cross-cutting changes. For smaller changes, run the smallest existing checks that cover the diff and report relevant gaps in PR Testing:
 
 ```powershell
 pnpm --dir ram_ui version:check
@@ -310,7 +310,7 @@ git switch -c your-feature-name
 - To sync: `git fetch upstream`, `git switch main`, `git pull --ff-only upstream main`, `git push origin main`. Rebase existing feature branches onto the synced `main` instead of merging.
 - Commits follow `CONVENTIONAL_COMMITS.md`, for example `fix(auth): preserve csrf token per cookie` or `feat(groups): show membership status`. Commit each logical change as soon as it is done, not one giant commit at the end. Do not batch unrelated changes. Run the fast verification before each commit.
 - Review the diff before committing: only task-relevant changes, no cookies, tokens, logs, build output, `node_modules/`, local account data, or stray files.
-- Group related improvements in a PR when they share a clear outcome. Follow `PR_CONVENTIONS.md` for title, Changes, Testing, and the Checklist. Include design-system confirmation for UI changes, and call out security-sensitive changes and Roblox-version assumptions.
+- Group related improvements in a PR when they share a clear outcome. Follow `PR_CONVENTIONS.md` for title, Changes, Testing, and the Checklist. For every PR, complete each checklist item: mark it done, use `N/A` if it does not apply, or leave it unchecked only when outstanding and explain the gap in Testing. The template is flexible; adapt its checklist to the change while covering relevant requirements. Include design-system confirmation for UI changes, and call out security-sensitive changes and Roblox-version assumptions.
 
 ### Changelog
 
@@ -456,14 +456,14 @@ Explain the impact and get confirmation before:
 - The change does what was asked, and the actual diff matches your intent (not just a green build).
 - Relevant failure paths were traced before completion, and the final response says which ones were checked.
 - Tests added or updated for new behavior, using synthetic data.
-- Full verification passes, or any gap is stated plainly.
+- Relevant verification passes, or any applicable gap is stated plainly.
 - Manual Windows checks done where required, or reported as not done.
 - `CHANGELOG.md` updated if user-facing.
 - Matching user documentation updated when the workflow/behaviour changed and a guide exists.
 - Security rules re-checked for anything touching secrets, storage, or process data.
 - UI changes checked against `DESIGN.md`.
 - No stray files, no unrelated changes, commits are small and conventional.
-- PR follows `PR_CONVENTIONS.md`.
+- PR follows `PR_CONVENTIONS.md`, and every checklist item is evaluated as complete, N/A, or outstanding with its gap explained in Testing.
 
 ## Final response format for agents
 

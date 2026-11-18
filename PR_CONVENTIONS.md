@@ -9,15 +9,17 @@ design system, security rules).
 
 ## Description
 
-Use the repository template. Only **Changes**, **Testing**, and **Checklist**
-are required, in that order; optional sections can appear before Checklist.
+Use the repository template as a flexible starting point. **Changes**,
+**Testing**, and **Checklist** are required, in that order; optional sections
+can be removed or adapted.
 
 - **Changes**: Explain the concrete change in a short paragraph or bullets.
   Include user-visible behavior when relevant, the reason when it helps
   explain the change, and related issues (`Closes #NN`) when applicable.
-- **Testing**: List checks run and results. Include concrete manual steps
-  for UI or launch changes on Windows with Roblox installed. Record any
-  failures or outstanding verification rather than claiming a clean pass.
+- **Testing**: List relevant checks run and results. Choose checks based on
+  the change's scope and risk. Include concrete manual steps for UI or launch
+  changes on Windows with Roblox installed. Explain relevant failures or
+  outstanding verification rather than claiming a clean pass.
 - **Notes (optional)**: Record relevant limitations, compatibility assumptions,
   security-sensitive changes, or follow-up work. Delete when unnecessary.
 - **Screenshots (optional)**: Add visuals when they help explain interface
@@ -25,18 +27,22 @@ are required, in that order; optional sections can appear before Checklist.
 
 Keep it concise. No filler, no "This PR introduces..." or similar opener - start directly with the content.
 
-## Required checklist items
+## Required checklist
 
-Keep the four template items. Check only completed items; replace the
-checkbox with `N/A` when an item does not apply. Leave incomplete checks
-unchecked and explain the gap in Testing.
+Complete every checklist item for every PR; do not leave copied defaults
+unreviewed. Check completed items, replace the checkbox with `N/A` when an item
+does not apply, and leave an item unchecked only when it is outstanding and
+the gap is explained in Testing. The template is flexible: adapt wording to
+the change, while retaining relevant coverage of these four areas.
 
-- [ ] Full pre-commit verification passed; applicable manual checks are recorded in Testing.
-- [ ] Changelog updated for user-facing changes (N/A otherwise).
-- [ ] Applicable design, security, and core ownership rules checked.
-- [ ] Diff reviewed: no unrelated files, secrets, local data, or scratch output.
+- [ ] Relevant checks and results are recorded in Testing; applicable omissions or failures are explained.
+- [ ] Changelog updated for user-visible changes (N/A if not applicable).
+- [ ] Applicable design, security, and core ownership requirements reviewed (N/A if none apply).
+- [ ] Diff reviewed for unrelated files, secrets, local data, and build artifacts.
 
-The shorter checklist does not remove the underlying requirements:
+Full local verification is recommended for broad, high-risk, or cross-cutting
+changes. For smaller changes, run the smallest existing checks that cover the
+diff and explain relevant gaps in Testing. The full verification command set is:
 
 - Full verification means `cargo fmt --all -- --check`, `cargo check`,
   `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
