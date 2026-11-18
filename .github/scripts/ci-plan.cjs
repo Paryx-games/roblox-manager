@@ -6,23 +6,54 @@ const labelRules = {
 };
 
 function plan(paths, force = false) {
-  const result = { frontend: false, frontendBuild: false, rust: false, build: false };
+  const result = { frontend: false, frontendBuild: false, rustScope: 'none', build: false };
+  let core = false;
+  let app = false;
+  let workspace = false;
+
   for (const path of paths) {
-    if (/^\.github\/(?:workflows\/(?:ci|release)\.yml|scripts\/ci-plan\.cjs)$/.test(path)) {
-      force = true;
-      continue;
-    }
     if (labelRules.documentation.test(path) || /^\.github\//.test(path)) continue;
+
     if (/^ram_ui\/(?:frontend\/|scripts\/|package\.json$|pnpm-lock\.yaml$|[^/]+\.(?:json|[cm]?js|ts))/.test(path)) {
-      result.frontend = result.frontendBuild = result.build = true;
-    } else if (/\.rs$|(?:^|\/)Cargo\.(?:toml|lock)$|^clippy\.toml$|^rust-toolchain(?:\.toml)?$/.test(path)) {
-      result.rust = result.frontendBuild = result.build = true;
+      result.frontend = true;
+      result.build = true;
+    } else if (/^(?:package\.json|pnpm-lock\.yaml)$/.test(path)) {
+      result.frontend = true;
+      result.build = true;
+    } else if (/^ram_core\/.*\.rs$/i.test(path)) {
+      core = true;
+    } else if (/^ram_ui\/src-tauri\/.*\.rs$/i.test(path)) {
+      app = true;
+      result.frontendBuild = true;
+      result.build = true;
+    } else if (/^ram_ui\/src-tauri\/(?:tauri\.conf\.json|installer\/|icons\/|capabilities\/)/i.test(path)
+      || /^assets\//i.test(path)) {
+      result.build = true;
+    } else if (/\.rs$|(?:^|\/)Cargo\.(?:toml|lock)$|^clippy\.toml$|^rust-toolchain(?:\.toml)?$/i.test(path)) {
+      workspace = true;
+      result.frontendBuild = true;
+      result.build = true;
     } else {
       // unknown build inputs are checked conservatively, never silently ignored
       force = true;
     }
   }
-  if (force) for (const key of Object.keys(result)) result[key] = true;
+
+  if (workspace || (core && app)) result.rustScope = 'workspace';
+  else if (app) result.rustScope = 'app';
+  else if (core) result.rustScope = 'core';
+
+  if (result.rustScope === 'core') {
+    result.frontendBuild = true;
+  }
+
+  if (force) {
+    result.frontend = true;
+    result.frontendBuild = true;
+    result.rustScope = 'workspace';
+    result.build = true;
+  }
+
   return result;
 }
 

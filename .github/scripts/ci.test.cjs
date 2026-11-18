@@ -4,21 +4,58 @@ const { plan, changedPaths, label } = require('./ci-plan.cjs');
 const { failures } = require('./ci-gate.cjs');
 const { readState, transition, render, findPull, snapshot, report } = require('./ci-report.cjs');
 
-const full = { frontend: true, frontendBuild: true, rust: true, build: true };
-const docs = { frontend: false, frontendBuild: false, rust: false, build: false };
-test('select only needed work, and fail safe for unknown inputs', () => {
-  assert.deepEqual(plan(['README.md', 'docs/guides/accounts.md']), docs);
-  assert.deepEqual(plan(['.github/workflows/ci-report.yml', '.github/dependabot.yml']), docs);
-  assert.deepEqual(plan(['ram_ui/frontend/AccountsPage.tsx']), { ...full, rust: false });
-  assert.deepEqual(plan(['ram_core/src/auth.rs']), { ...full, frontend: false });
-  for (const path of ['Cargo.lock', 'ram_ui/src-tauri/tauri.conf.json', 'assets/icons/a.svg',
-    'package.json', 'bump-version.bat', '.cargo/config.toml', '.github/workflows/ci.yml', '.github/scripts/ci-plan.cjs']) {
-    const selected = plan([path]);
-    assert.equal(selected.build, true, path);
-    assert.equal(selected.rust, true, path);
+const full = { frontend: true, frontendBuild: true, rustScope: 'workspace', build: true };
+const docs = { frontend: false, frontendBuild: false, rustScope: 'none', build: false };
+const frontend = { frontend: true, frontendBuild: false, rustScope: 'none', build: true };
+const appBuild = { frontend: false, frontendBuild: false, rustScope: 'none', build: true };
+const core = { frontend: false, frontendBuild: true, rustScope: 'core', build: false };
+const app = { frontend: false, frontendBuild: true, rustScope: 'app', build: true };
+const workspace = { frontend: false, frontendBuild: true, rustScope: 'workspace', build: true };
+
+test('select only the affected frontend, Rust package, or application build', () => {
+  const cases = [
+    { paths: ['README.md', 'docs/guides/accounts.md'], expected: docs },
+    { paths: ['.github/workflows/ci-report.yml', '.github/workflows/ci.yml', '.github/workflows/release.yml',
+      '.github/dependabot.yml', '.github/scripts/ci-plan.cjs', '.github/scripts/ci-gate.cjs'], expected: docs },
+    { paths: ['ram_ui/frontend/AccountsPage.tsx'], expected: frontend },
+    { paths: ['ram_ui/scripts/test.mjs', 'ram_ui/package.json'], expected: frontend },
+    { paths: ['ram_core/src/auth.rs'], expected: core },
+    { paths: ['ram_core/tests/auth.rs'], expected: core },
+    { paths: ['ram_ui/src-tauri/src/accounts.rs'], expected: app },
+    { paths: ['ram_ui/src-tauri/build.rs'], expected: app },
+    { paths: ['ram_core/src/auth.rs', 'ram_ui/src-tauri/src/accounts.rs'], expected: workspace },
+    { paths: ['Cargo.toml'], expected: workspace },
+    { paths: ['Cargo.lock'], expected: workspace },
+    { paths: ['ram_core/Cargo.toml'], expected: workspace },
+    { paths: ['ram_ui/src-tauri/Cargo.toml'], expected: workspace },
+    { paths: ['clippy.toml'], expected: workspace },
+    { paths: ['rust-toolchain.toml'], expected: workspace },
+    { paths: ['ram_ui/src-tauri/tauri.conf.json'], expected: appBuild },
+    { paths: ['ram_ui/src-tauri/installer/installer.nsi'], expected: appBuild },
+    { paths: ['ram_ui/src-tauri/icons/default.png'], expected: appBuild },
+    { paths: ['assets/logos/Live.ico'], expected: appBuild },
+    { paths: ['assets/icons/launch.svg'], expected: appBuild },
+    { paths: ['ram_ui/vite.config.ts'], expected: frontend },
+    { paths: ['package.json'], expected: frontend },
+    { paths: ['pnpm-lock.yaml'], expected: frontend },
+    { paths: ['ram_ui/pnpm-lock.yaml'], expected: frontend },
+    { paths: ['bump-version.bat'], expected: full },
+    { paths: ['.cargo/config.toml'], expected: full },
+    { paths: ['new-build-input'], expected: full },
+  ];
+
+  for (const { paths, expected } of cases) {
+    assert.deepEqual(plan(paths), expected, paths.join(', '));
   }
-  assert.deepEqual(plan(['new-build-input'], false), full);
-  assert.deepEqual(plan([], true), full);
+  assert.deepEqual(plan(['README.md'], true), full, 'incomplete file lists run every check');
+  assert.deepEqual(plan([], true), full, 'manual runs run every check');
+});
+
+test('documentation and unrelated GitHub automation do not select product tests', () => {
+  assert.deepEqual(plan(['README.md']), docs);
+  assert.deepEqual(plan(['.github/workflows/ci-report.yml']), docs);
+  assert.deepEqual(plan(['.github/scripts/ci-report.cjs']), docs);
+  assert.deepEqual(plan(['.github/workflows/ci.yml', '.github/scripts/ci-plan.cjs']), docs);
 });
 
 test('renames include the previous filename and incomplete lists force full work', async () => {
@@ -53,26 +90,30 @@ test('labels preserve manual labels, remove obsolete labels and are idempotent',
 });
 
 function gate(selected) {
+  const rustStatus = selected.rustScope === 'none' ? 'skipped' : 'success';
   return {
     changes: { result: 'success', outputs: Object.fromEntries(Object.entries(selected).map(([k, v]) => [k, String(v)])) },
     'workflow-check': { result: 'success' }, zizmor: { result: 'success' },
     frontend: { result: selected.frontend ? 'success' : 'skipped' },
     'frontend-build': { result: selected.frontendBuild ? 'success' : 'skipped' },
-    ...Object.fromEntries(['fmt', 'clippy', 'test'].map(k => [k, { result: selected.rust ? 'success' : 'skipped' }])),
+    ...Object.fromEntries(['fmt', 'clippy', 'test'].map(k => [k, { result: rustStatus }])),
     build: { result: selected.build ? 'success' : 'skipped' },
   };
 }
 test('aggregate gate distinguishes deliberate skips from broken or cancelled checks', () => {
   assert.deepEqual(failures(gate(docs)), []);
   assert.deepEqual(failures(gate(full)), []);
+  assert.deepEqual(failures(gate(core)), []);
+  assert.deepEqual(failures(gate(app)), []);
+  assert.deepEqual(failures(gate(workspace)), []);
   for (const result of ['skipped', 'failure', 'cancelled']) {
     const needs = gate(full);
     needs.test.result = result;
     assert.ok(failures(needs).length);
   }
   const needs = gate(docs);
-  needs.changes.outputs = {};
-  assert.ok(failures(needs).length);
+  needs.changes.outputs.rustScope = 'unknown';
+  assert.ok(failures(needs).some(error => error.includes('rustScope')));
   needs.changes.result = 'failure';
   assert.ok(failures(needs).some(error => error.startsWith('changes:')));
 });
