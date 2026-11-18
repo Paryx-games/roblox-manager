@@ -139,11 +139,30 @@ No Rust, Node.js, or pnpm installation is required for either option. These are 
 
 Roblox Manager is open-source software, and its installer and portable executable are built from the code in this repository by the public GitHub Actions release workflow. Release assets include SHA256 checksums and build provenance attestations. Review or build the source yourself if you need to verify it independently.
 
-Some VirusTotal vendors may flag unsigned or newly packaged Windows executables. For releases containing detections, treat them as false positives: there is no malicious payload in the published files.
+Antivirus detections are signals to investigate, not proof that a file is safe or malicious. Review the vendor, detection name, and linked report for each release; do not assume a new or different detection is a false positive.
 
-The SecureAge vendor has falsely flagged the Roblox Manager installer since the installer was first introduced in v2.1.0. It has never falsely flagged the portable executable. If you are nervous about the installer warning, use the portable executable and compare its SHA256 checksum instead.
+SecureAge has flagged the Roblox Manager installer since it was introduced in v2.1.0; based on this repeated history, we believe this specific SecureAge detection is a false positive. We have not seen SecureAge flag the portable executable. This history does not apply to other vendors or new detections. If you are concerned about the installer result, you can use the portable executable instead.
 
-VirusTotal and individual antivirus detections are best-effort signals, not proof that an executable is safe or malicious. Report genuine suspicious behavior or security concerns through [SECURITY.md](SECURITY.md).
+<details>
+  <summary>Verify a release download</summary>
+
+Compare the file's SHA256 hash with its entry in `SHA256SUMS.txt`:
+
+```powershell
+Get-FileHash -Algorithm SHA256 .\roblox-manager-vX.Y.Z-windows-x64-setup.exe
+```
+
+Verify the GitHub build provenance with the [GitHub CLI](https://cli.github.com/):
+
+```powershell
+gh attestation verify .\roblox-manager-vX.Y.Z-windows-x64-setup.exe --repo Paryx-games/roblox-manager
+```
+
+A matching hash confirms the file matches the published checksum; the attestation verifies its build provenance. Neither check by itself proves that software is harmless.
+
+</details>
+
+Report suspicious behavior or security concerns through [SECURITY.md](SECURITY.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
