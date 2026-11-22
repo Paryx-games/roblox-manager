@@ -1,5 +1,24 @@
 # Changelog
 
+## v2.6.1
+
+### Changed
+
+- Updated `@tailwindcss/vite` from 4.3.3 to 4.3.5.
+- Updated Tailwind CSS from 4.3.3 to 4.3.5.
+- Updated Vite from 8.3.5 to 8.3.8.
+- Updated `@typescript-eslint/eslint-plugin` from 8.71.1 to 8.72.1.
+- Updated ESLint from 10.13.0 to 10.14.0.
+- Updated `uuid` from 1.29.0 to 1.29.2.
+- Updated `winreg` from 0.55.0 to 0.56.0.
+- Updated `softprops/action-gh-release` from 3.0.3 to 3.0.4.
+- Updated `zizmor-action` from 0.8.0 to 0.8.1.
+- Updated `pnpm/action-setup` from 6.1.0 to 6.1.1.
+
+### Fixed
+
+- **Multi-instance reliability:** Claim newly created singleton mutexes at creation time to prevent another process winning the acquisition race, and report mutex setup failures with a specific launch reason code.
+
 ## v2.6.0
 
 ### Added

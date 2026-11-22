@@ -112,6 +112,8 @@ fn launch_failure(stage: LaunchFailureStage, error: &str) -> (&'static str, &'st
         "account_credential_unavailable"
     } else if error.contains("Multi-instance was disabled") {
         "multi_instance_disabled"
+    } else if error.contains("Roblox singleton") {
+        "multi_instance_setup_failed"
     } else if error.contains("Startup launch was disabled") {
         "startup_settings_changed"
     } else if error.contains("RobloxPlayerBeta.exe was not found") {
@@ -153,6 +155,7 @@ fn launch_failure(stage: LaunchFailureStage, error: &str) -> (&'static str, &'st
         | "account_restricted_or_expired"
         | "account_credential_unavailable"
         | "multi_instance_disabled"
+        | "multi_instance_setup_failed"
         | "startup_settings_changed"
         | "player_executable_missing"
         | "custom_arguments_invalid"
@@ -787,6 +790,13 @@ mod tests {
                 "Privacy cleanup failed. Roblox was not launched."
             ),
             ("blocked", "privacy_cleanup_failed")
+        );
+        assert_eq!(
+            launch_failure(
+                LaunchFailureStage::PrivacyPreparation,
+                "Roblox singleton object ROBLOX_singletonMutex is already owned; close Roblox and other multi-instance tools, then retry"
+            ),
+            ("blocked", "multi_instance_setup_failed")
         );
         assert_eq!(
             launch_failure(
