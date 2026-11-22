@@ -708,10 +708,12 @@ jobs:
               );
             }
 
+            // restate the tag so the draft cannot fall back to an untagged placeholder
             await github.rest.repos.updateRelease({
               owner,
               repo,
               release_id: releaseId,
+              tag_name: process.env.TAG,
               body: fs.readFileSync("final-release-notes.md", "utf8"),
             });
 
@@ -744,10 +746,12 @@ jobs:
               Start-Sleep -Seconds $delay
             }
 
+            # tag_name is sent again so publishing always binds the real tag
             gh api `
               --method PATCH `
               "repos/$env:REPO/releases/$env:RELEASE_ID" `
               -F draft=false `
+              -f "tag_name=$env:RELEASE_TAG" `
               -F "prerelease=$env:RELEASE_PRERELEASE" `
               -f "make_latest=$env:RELEASE_MAKE_LATEST" |
               Out-Null
@@ -782,5 +786,56 @@ jobs:
               "It remains a draft."
             )
           }
+
+          $global:LASTEXITCODE = 0
+
+      # an immutable release cannot be repaired, so fail loudly if the tag is wrong
+      - name: Verify published release tag
+        shell: pwsh
+        env:
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          $problems = @()
+
+          foreach ($attempt in 1..3) {
+            $problems = @()
+
+            $json = gh api "repos/$env:REPO/releases/$env:RELEASE_ID"
+
+            if ($LASTEXITCODE -ne 0) {
+              $problems += "could not read release $env:RELEASE_ID"
+            } else {
+              $release = $json | ConvertFrom-Json
+
+              if ($release.draft) {
+                $problems += "release is still a draft"
+              }
+
+              if ($release.tag_name -ne $env:RELEASE_TAG) {
+                $problems += "release tag_name is '$($release.tag_name)', expected '$env:RELEASE_TAG'"
+              }
+            }
+
+            $tagCommit = gh api "repos/$env:REPO/commits/$env:RELEASE_TAG" --jq ".sha"
+
+            if ($LASTEXITCODE -ne 0 -or $tagCommit -ne $env:RELEASE_SHA) {
+              $problems += "tag $env:RELEASE_TAG does not resolve to $env:RELEASE_SHA"
+            }
+
+            if ($problems.Count -eq 0) {
+              break
+            }
+
+            if ($attempt -lt 3) {
+              Start-Sleep -Seconds 5
+            }
+          }
+
+          if ($problems.Count -gt 0) {
+            Write-Host "::error::Published release is wrong: $($problems -join '; ')"
+            throw "Published release failed tag verification."
+          }
+
+          Write-Host "Release $env:RELEASE_TAG verified at $env:RELEASE_SHA."
 
           $global:LASTEXITCODE = 0
