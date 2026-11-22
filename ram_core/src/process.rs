@@ -1781,8 +1781,8 @@ mod multi_instance {
     use std::sync::{mpsc, Mutex};
     use tracing::info;
     use windows_sys::Win32::Foundation::{
-        CloseHandle, GetLastError, ERROR_INVALID_HANDLE, HANDLE, WAIT_ABANDONED, WAIT_OBJECT_0,
-        WAIT_TIMEOUT,
+        CloseHandle, GetLastError, SetLastError, ERROR_ALREADY_EXISTS, ERROR_INVALID_HANDLE,
+        HANDLE, WAIT_ABANDONED, WAIT_OBJECT_0, WAIT_TIMEOUT,
     };
     use windows_sys::Win32::System::Threading::{
         CreateMutexW, OpenEventW, ReleaseMutex, WaitForSingleObject, SYNCHRONIZATION_SYNCHRONIZE,
@@ -1816,18 +1816,18 @@ mod multi_instance {
         let mut candidate = Vec::with_capacity(names.len());
         for &(name, allow_event) in names {
             let raw_name: Vec<u16> = format!("{name}\0").encode_utf16().collect();
-            let mut handle = unsafe { CreateMutexW(std::ptr::null(), 0, raw_name.as_ptr()) };
-            let mut owns_mutex = !handle.is_null();
-            let mut error = if handle.is_null() {
-                unsafe { GetLastError() }
-            } else {
-                0
-            };
+            unsafe { SetLastError(0) };
+            let mut handle = unsafe { CreateMutexW(std::ptr::null(), 1, raw_name.as_ptr()) };
+            let mut error = unsafe { GetLastError() };
+            let mut owns_mutex = !handle.is_null() && error != ERROR_ALREADY_EXISTS;
+            let mut is_event = false;
             if handle.is_null() && allow_event && error == ERROR_INVALID_HANDLE {
                 // the name is occupied by another object type; only accept an existing event
                 handle = unsafe { OpenEventW(SYNCHRONIZATION_SYNCHRONIZE, 0, raw_name.as_ptr()) };
                 if handle.is_null() {
                     error = unsafe { GetLastError() };
+                } else {
+                    is_event = true;
                 }
             }
             if handle.is_null() {
@@ -1841,7 +1841,7 @@ mod multi_instance {
                 )));
             }
             let mut handle = SingletonHandle(handle, false);
-            if owns_mutex {
+            if !owns_mutex && !is_event {
                 let wait = unsafe { WaitForSingleObject(handle.0, 0) };
                 owns_mutex = matches!(wait, WAIT_OBJECT_0 | WAIT_ABANDONED);
                 if !owns_mutex {
@@ -1992,6 +1992,20 @@ mod multi_instance {
         }
 
         #[test]
+        fn existing_legacy_auto_reset_event_is_not_consumed() {
+            let (legacy, current) = names();
+            let event = SingletonHandle(
+                unsafe { CreateEventW(std::ptr::null(), 0, 1, wide(&legacy).as_ptr()) },
+                false,
+            );
+            assert!(!event.0.is_null());
+
+            let mut held = None;
+            acquire_named_objects(&mut held, &[(&legacy, true), (&current, false)]).unwrap();
+            assert_eq!(unsafe { WaitForSingleObject(event.0, 0) }, WAIT_OBJECT_0);
+        }
+
+        #[test]
         fn fresh_names_remain_mutexes_and_repeated_acquisition_is_a_no_op() {
             let (legacy, current) = names();
             let mut held = None;
@@ -2017,6 +2031,28 @@ mod multi_instance {
                     false,
                 );
                 assert!(!handle.0.is_null());
+            }
+        }
+
+        #[test]
+        fn newly_created_mutexes_are_owned_before_they_can_be_claimed_elsewhere() {
+            let (legacy, current) = names();
+            let mut held = None;
+            acquire_named_objects(&mut held, &[(&legacy, true), (&current, false)]).unwrap();
+
+            for name in [&legacy, &current] {
+                let name = name.clone();
+                let wait = std::thread::spawn(move || {
+                    let handle = SingletonHandle(
+                        unsafe { OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, 0, wide(&name).as_ptr()) },
+                        false,
+                    );
+                    assert!(!handle.0.is_null());
+                    unsafe { WaitForSingleObject(handle.0, 0) }
+                })
+                .join()
+                .unwrap();
+                assert_eq!(wait, WAIT_TIMEOUT);
             }
         }
 

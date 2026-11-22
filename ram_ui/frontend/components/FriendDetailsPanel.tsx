@@ -15,6 +15,7 @@ const launchRecoveryHints: Record<string, string> = {
   account_restricted_or_expired: "Refresh or re-add this account in Accounts.",
   account_credential_unavailable: "Unlock the account store or re-add this account.",
   multi_instance_disabled: "Enable multi-instance in Settings or retry without a new instance.",
+  multi_instance_setup_failed: "Close other Roblox clients or multi-instance tools, then retry.",
   startup_settings_changed: "Review the startup launch settings and try again.",
   player_executable_missing: "Check the Roblox installation path in Settings.",
   custom_arguments_invalid: "Review the custom Roblox arguments in Settings.",

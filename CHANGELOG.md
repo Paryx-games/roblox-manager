@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.6.1
+
+### Fixed
+
+- **Multi-instance reliability:** Claim newly created singleton mutexes at creation time to prevent another process winning the acquisition race, and report mutex setup failures with a specific launch reason code.
+
 ## v2.6.0
 
 ### Added
