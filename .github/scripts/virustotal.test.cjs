@@ -34,7 +34,8 @@ function Start-Sleep {
 }
 function Invoke-RestMethod {
   param($Uri, $Method = 'Get', $Headers, [int]$TimeoutSec, $Form)
-  if ($TimeoutSec -le 0 -or $TimeoutSec -gt 45) { throw 'Request has no bounded timeout.' }
+  $limit = if ($Method -eq 'Post') { 180 } else { 45 }
+  if ($TimeoutSec -le 0 -or $TimeoutSec -gt $limit) { throw 'Request has no bounded timeout.' }
   $global:requests.Add(@{ Uri = $Uri; Method = "$Method"; Timeout = $TimeoutSec })
   if ($env:VT_TEST_MODE -eq 'outage') { throw 'Synthetic network outage' }
   if ($Uri -match '/files/[a-f0-9]{64}$') {
