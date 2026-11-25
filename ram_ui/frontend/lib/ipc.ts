@@ -65,8 +65,8 @@ export function saveDiscordNotifications(settings: DiscordNotificationSettings):
 export function saveDiscordDestination(id: string | null, name: string, url: string): Promise<DiscordNotificationSettings> { return invoke("save_discord_destination", { id, name, url }); }
 export function removeDiscordDestination(id: string): Promise<DiscordNotificationSettings> { return invoke("remove_discord_destination", { id }); }
 export function testDiscordDestination(id: string): Promise<void> { return invoke("test_discord_destination", { id }); }
-export function launchAccounts(userIds: number[], placeId: number, jobId: string, data: string): Promise<void> {
-  return invoke("launch_accounts", { userIds, placeId, jobId: jobId.trim() || null, data: data.trim() || null });
+export function launchAccounts(userIds: number[], placeId: number, jobId: string, data: string, privateServerInput: string): Promise<void> {
+  return invoke("launch_accounts", { userIds, placeId, jobId: jobId.trim() || null, data: data.trim() || null, privateServerInput: privateServerInput.trim() || null });
 }
 
 declare global {
@@ -659,12 +659,14 @@ export async function launchAccount(
   placeId: number,
   jobId: string,
   data: string,
+  privateServerInput: string,
 ): Promise<void> {
   return invoke<void>("launch_account", {
     userId,
     placeId,
     jobId: jobId.trim() || null,
     data: data.trim() || null,
+    privateServerInput: privateServerInput.trim() || null,
   });
 }
 

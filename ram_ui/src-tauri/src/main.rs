@@ -2440,7 +2440,17 @@ async fn launch_account(
     data: Option<String>,
     link_code: Option<String>,
     access_code: Option<String>,
+    private_server_input: Option<String>,
 ) -> Result<(), String> {
+    let (place_id, parsed_link_code, share_code) = launcher::parse_private_server_target(
+        private_server_input.as_deref().unwrap_or_default(),
+        place_id,
+    )?;
+    if parsed_link_code.is_some() && (link_code.is_some() || access_code.is_some()) {
+        return Err(
+            "Use either the private-server link field or the existing access-code fields".into(),
+        );
+    }
     launcher::launch(
         &app,
         launcher::LaunchRequest {
@@ -2448,8 +2458,9 @@ async fn launch_account(
             place_id,
             job_id,
             data,
-            link_code,
+            link_code: parsed_link_code.or(link_code),
             access_code,
+            share_code,
             overrides: launcher::LaunchOverrides::default(),
         },
     )
@@ -2493,6 +2504,7 @@ async fn launch_private_server(
                 data: None,
                 link_code: Some(link_code.clone()),
                 access_code: access_code.clone(),
+                share_code: None,
                 overrides: launcher::LaunchOverrides::default(),
             })
             .collect(),
@@ -2813,6 +2825,7 @@ async fn join_user_game(
             data: None,
             link_code: None,
             access_code: None,
+            share_code: None,
             overrides: launcher::LaunchOverrides::default(),
         },
     )
@@ -3165,6 +3178,7 @@ async fn launch_launch_preset(
                 data: preset.data.clone(),
                 link_code: None,
                 access_code: None,
+                share_code: None,
                 overrides: launcher::LaunchOverrides {
                     privacy_mode: preset.privacy_mode,
                     multi_instance_enabled: preset.multi_instance_enabled,

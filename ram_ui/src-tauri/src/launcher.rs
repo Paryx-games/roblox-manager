@@ -11,7 +11,26 @@ pub struct LaunchRequest {
     pub data: Option<String>,
     pub link_code: Option<String>,
     pub access_code: Option<String>,
+    pub share_code: Option<String>,
     pub overrides: LaunchOverrides,
+}
+
+pub fn parse_private_server_target(
+    input: &str,
+    place_id: u64,
+) -> Result<(u64, Option<String>, Option<String>), String> {
+    match ram_core::api::parse_private_server_launch_input(input, place_id)
+        .map_err(str::to_string)?
+    {
+        None => Ok((place_id, None, None)),
+        Some(ram_core::api::ParsedPrivateServerUrl::Direct {
+            place_id,
+            link_code,
+        }) => Ok((place_id, Some(link_code), None)),
+        Some(ram_core::api::ParsedPrivateServerUrl::Share { share_code }) => {
+            Ok((place_id, None, Some(share_code)))
+        }
+    }
 }
 
 #[derive(Clone, Copy, Default)]
@@ -38,6 +57,7 @@ pub async fn open_account_home(app: tauri::AppHandle, user_id: u64) -> Result<()
             data: None,
             link_code: None,
             access_code: None,
+            share_code: None,
             overrides: LaunchOverrides::default(),
         },
         false,
@@ -265,6 +285,7 @@ fn validate_request(request: &LaunchRequest) -> Result<(), String> {
         &request.data,
         &request.link_code,
         &request.access_code,
+        &request.share_code,
     ]
     .into_iter()
     .flatten()
@@ -412,6 +433,7 @@ fn validate_launch_mode(request: &LaunchRequest, mode: LaunchMode) -> Result<(),
         || request.data.is_some()
         || request.link_code.is_some()
         || request.access_code.is_some()
+        || request.share_code.is_some()
     {
         return Err("Choose a valid account to open Roblox home".into());
     }
@@ -455,10 +477,15 @@ pub async fn launch_accounts(
     place_id: u64,
     job_id: Option<String>,
     data: Option<String>,
+    private_server_input: Option<String>,
 ) -> Result<(), String> {
     if user_ids.is_empty() || user_ids.len() > 500 {
         return Err("Select between 1 and 500 accounts".into());
     }
+    let (place_id, link_code, share_code) = parse_private_server_target(
+        private_server_input.as_deref().unwrap_or_default(),
+        place_id,
+    )?;
     batch(
         &app,
         user_ids
@@ -468,8 +495,9 @@ pub async fn launch_accounts(
                 place_id,
                 job_id: job_id.clone(),
                 data: data.clone(),
-                link_code: None,
+                link_code: link_code.clone(),
                 access_code: None,
+                share_code: share_code.clone(),
                 overrides: LaunchOverrides::default(),
             })
             .collect(),
@@ -568,10 +596,30 @@ async fn launch_queued(
         None,
     );
     let client = RobloxClient::new().map_err(|_| "Roblox client unavailable")?;
-    let resolved_access_code = match request.link_code.as_deref() {
-        Some(link_code) => Some(ram_core::api::resolve_private_server_access(&client, &cookie, request.place_id, link_code).await
-            .map_err(|_| "This private-server invitation could not be resolved. Check its link and this account's access before trying again.")?),
-        None => request.access_code.clone(),
+    let mut place_id = request.place_id;
+    let (link_code, resolved_access_code) = if let Some(share_code) = request.share_code.as_deref()
+    {
+        let (resolved_place_id, _, link_code, access_code) =
+            ram_core::api::resolve_share_link(&client, &cookie, share_code)
+                .await
+                .map_err(|_| "This private-server invitation could not be resolved. Check its link and this account's access before trying again.")?;
+        place_id = resolved_place_id;
+        (Some(link_code), Some(access_code))
+    } else {
+        let access_code = match request.link_code.as_deref() {
+            Some(link_code) => Some(
+                ram_core::api::resolve_private_server_access(
+                    &client,
+                    &cookie,
+                    place_id,
+                    link_code,
+                )
+                .await
+                .map_err(|_| "This private-server invitation could not be resolved. Check its link and this account's access before trying again.")?,
+            ),
+            None => request.access_code.clone(),
+        };
+        (request.link_code.clone(), access_code)
     };
     let ticket = client
         .generate_auth_ticket_with_retry_callback(&cookie, |_| {
@@ -603,7 +651,6 @@ async fn launch_queued(
     .await
     .map_err(|_| "Launch preparation task failed")??;
     let tracking_state = state.clone();
-    let place_id = request.place_id;
     let token = tauri::async_runtime::spawn_blocking(move || {
         instances::note_launch(&tracking_state, user_id, place_id)
     })
@@ -611,7 +658,6 @@ async fn launch_queued(
     .map_err(|_| "Instance tracking task failed")??;
     let job_id = request.job_id.clone();
     let data = request.data.clone();
-    let link_code = request.link_code.clone();
     let access_code = resolved_access_code;
     *stage = LaunchFailureStage::ProcessStart;
     progress(
@@ -729,6 +775,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn private_server_launch_target_distinguishes_share_and_direct_codes() {
+        assert_eq!(
+            parse_private_server_target("?code=synthetic-share&type=Server", 123).unwrap(),
+            (123, None, Some("synthetic-share".into()))
+        );
+        assert_eq!(
+            parse_private_server_target("?privateServerLinkCode=synthetic-direct", 123).unwrap(),
+            (123, Some("synthetic-direct".into()), None)
+        );
+    }
+
+    #[test]
     fn home_mode_needs_an_account_but_rejects_game_destinations() {
         let mut request = LaunchRequest {
             user_id: 1,
@@ -737,6 +795,7 @@ mod tests {
             data: None,
             link_code: None,
             access_code: None,
+            share_code: None,
             overrides: LaunchOverrides::default(),
         };
         assert!(validate_launch_mode(&request, LaunchMode::Home).is_ok());
@@ -758,6 +817,9 @@ mod tests {
         assert!(validate_launch_mode(&request, LaunchMode::Home).is_err());
         request.link_code = None;
         request.access_code = Some("synthetic-access".into());
+        assert!(validate_launch_mode(&request, LaunchMode::Home).is_err());
+        request.access_code = None;
+        request.share_code = Some("synthetic-share".into());
         assert!(validate_launch_mode(&request, LaunchMode::Home).is_err());
     }
 
@@ -922,6 +984,7 @@ mod tests {
             data: None,
             link_code: None,
             access_code: None,
+            share_code: None,
             overrides: LaunchOverrides::default(),
         };
         let job = "12345678-1234-4234-8234-123456789abc";
@@ -969,15 +1032,19 @@ mod tests {
 
     #[test]
     fn launch_inputs_cannot_contain_control_characters() {
-        let request = LaunchRequest {
+        let mut request = LaunchRequest {
             user_id: 1,
             place_id: 2,
             job_id: Some("server\nargument".into()),
             data: None,
             link_code: None,
             access_code: None,
+            share_code: None,
             overrides: LaunchOverrides::default(),
         };
+        assert!(validate_request(&request).is_err());
+        request.job_id = None;
+        request.share_code = Some("bad\nshare".into());
         assert!(validate_request(&request).is_err());
     }
 }

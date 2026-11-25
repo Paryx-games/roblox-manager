@@ -2,6 +2,10 @@
 
 ## v2.6.1
 
+### Added
+
+- **Private-server launches:** Join directly from Accounts with a Roblox share link/query or private-server link code, without first saving a bookmark.
+
 ### Changed
 
 - Updated `@tailwindcss/vite` from 4.3.3 to 4.3.5.

@@ -674,6 +674,7 @@ export function AccountsPage({
   useEffect(() => { if (prefilledPlaceId) setPlaceId(String(prefilledPlaceId)); }, [prefilledPlaceId]);
   const [jobId, setJobId] = useState("");
   const [launchData, setLaunchData] = useState("");
+  const [privateServerInput, setPrivateServerInput] = useState("");
   function appendDataExample(argument: string) {
     const key = argument.split("=", 1)[0];
     setLaunchData((current) => {
@@ -1291,7 +1292,7 @@ export function AccountsPage({
     }
     setMutationLoading(true);
     try {
-      await launchAccounts([...selectedIds], Number(placeId), jobId, launchData);
+      await launchAccounts([...selectedIds], Number(placeId), jobId, launchData, privateServerInput);
       setNotice(`Starting Roblox for ${selectedIds.size} accounts. Check Instances for progress.`);
     } catch (error) {
       setNotice(operationError(error, "Bulk launch stopped because one account could not launch."));
@@ -1321,6 +1322,7 @@ export function AccountsPage({
         Number(placeId),
         jobId,
         launchData,
+        privateServerInput,
       );
       setAccountNotice(`Starting Roblox for ${selectedAccount.label}. Check Instances for progress.`);
     } catch (error) {
@@ -2933,17 +2935,17 @@ export function AccountsPage({
                   isMultiSelection ? restrictedSelection.length > 0 : selectedAccount.moderationActive || selectedAccount.cookieExpired
                 }
               >
-                <div className="account-field">
-                  <label htmlFor="place-id">Place ID</label>
-                  <input
-                    id="place-id"
-                    className={!placeIdValid && placeId ? "has-error" : ""}
-                    value={placeId}
-                    onChange={(event) => setPlaceId(event.target.value)}
-                    inputMode="numeric"
-                  />
-                </div>
-                <div className="account-field-grid">
+                <div className="account-field-grid account-launch-fields">
+                  <div className="account-field">
+                    <label htmlFor="place-id">Place ID</label>
+                    <input
+                      id="place-id"
+                      className={!placeIdValid && placeId ? "has-error" : ""}
+                      value={placeId}
+                      onChange={(event) => setPlaceId(event.target.value)}
+                      inputMode="numeric"
+                    />
+                  </div>
                   <div className="account-field">
                     <label htmlFor="job-id">Job ID (optional)</label>
                     <input
@@ -2960,6 +2962,17 @@ export function AccountsPage({
                       value={launchData}
                       onChange={(event) => setLaunchData(event.target.value)}
                       placeholder="Extra launch query data"
+                    />
+                  </div>
+                  <div className="account-field">
+                    <label htmlFor="private-server-input">Private server link or code (optional)</label>
+                    <input
+                      id="private-server-input"
+                      value={privateServerInput}
+                      onChange={(event) => setPrivateServerInput(event.target.value)}
+                      placeholder="Share link, ?code=..., or link code"
+                      autoCapitalize="none"
+                      spellCheck={false}
                     />
                   </div>
                 </div>

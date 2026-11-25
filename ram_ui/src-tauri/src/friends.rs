@@ -528,6 +528,7 @@ pub async fn join_friend_game(
         data: None,
         link_code: None,
         access_code: None,
+        share_code: None,
         overrides: crate::launcher::LaunchOverrides::default(),
     };
     crate::launcher::launch_friend(
