@@ -4,7 +4,7 @@
 
 ### Added
 
-- I can choose Update, Skip, or Remind me later from the startup prompt, and expand the release notes when I want them.
+- **Update checker on launch:** On launch of the app, the update checker runs and if a new version is available there is options to update, remind later or skip.
 
 ## v2.7.0
 
