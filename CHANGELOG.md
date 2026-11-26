@@ -6,6 +6,13 @@
 
 - **Private-server launches:** Join directly from Accounts with a Roblox share link/query or private-server link code, without first saving a bookmark.
 
+### Changed
+
+- Updated `@typescript-eslint/parser` from 8.72.1 to 8.73.0.
+- Updated `@vitejs/plugin-react` from 6.1.2 to 6.3.0.
+- Updated ESLint from 10.14.0 to 10.15.0.
+- Updated `wry` from 0.57.1 to 0.57.2.
+
 ### Fixed
 
 - Keep the window responsive while clearing application caches.
