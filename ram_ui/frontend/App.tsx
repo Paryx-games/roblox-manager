@@ -686,7 +686,7 @@ export function App() {
         <div className="confirm-modal-header"><h2 id="startup-update-title">A new version is available</h2></div>
         <p id="startup-update-message" className="confirm-modal-message" role={updateError ? "alert" : undefined}>{updateError ?? `RM ${updateVersion} is ready to install.`}</p>
         <details className="startup-update-notes">
-          <summary>What's new in RM {updateVersion}</summary>
+          <summary tabIndex={0}>What's new in RM {updateVersion}</summary>
           {update[2] ? <ReleaseNotes markdown={update[2]} /> : <p>Release notes are not available.</p>}
         </details>
         <div className="confirm-modal-actions startup-update-actions">
