@@ -475,7 +475,7 @@ impl RobloxResourceLimits {
 
 #[cfg(windows)]
 pub struct RobloxResourceMonitor {
-    system: sysinfo::System,
+    system: Option<sysinfo::System>,
 }
 
 #[cfg(windows)]
@@ -494,8 +494,16 @@ fn process_ids_to_refresh(
 #[cfg(windows)]
 impl Default for RobloxResourceMonitor {
     fn default() -> Self {
-        let mut system = sysinfo::System::new();
-        system.refresh_cpu_all();
+        let system = match new_sysinfo_system() {
+            Ok(mut system) => {
+                system.refresh_cpu_all();
+                Some(system)
+            }
+            Err(error) => {
+                warn!(error = %error, "Roblox resource monitoring could not initialize");
+                None
+            }
+        };
         Self { system }
     }
 }
@@ -520,18 +528,21 @@ fn process_memory_megabytes(memory_bytes: u64) -> u64 {
 #[cfg(windows)]
 impl RobloxResourceMonitor {
     pub fn sample(&mut self, pids: &[u32]) -> std::collections::HashMap<u32, RobloxProcessUsage> {
-        let process_ids = process_ids_to_refresh(self.system.processes().keys().copied(), pids);
-        self.system.refresh_processes_specifics(
+        let Some(system) = self.system.as_mut() else {
+            return std::collections::HashMap::new();
+        };
+        let process_ids = process_ids_to_refresh(system.processes().keys().copied(), pids);
+        system.refresh_processes_specifics(
             sysinfo::ProcessesToUpdate::Some(&process_ids),
             true,
             sysinfo::ProcessRefreshKind::nothing()
                 .with_cpu()
                 .with_memory(),
         );
-        let logical_cpu_count = self.system.cpus().len().max(1);
+        let logical_cpu_count = system.cpus().len().max(1);
         pids.iter()
             .filter_map(|pid| {
-                let process = self.system.process(sysinfo::Pid::from_u32(*pid))?;
+                let process = system.process(sysinfo::Pid::from_u32(*pid))?;
                 Some((
                     *pid,
                     RobloxProcessUsage {
@@ -548,7 +559,13 @@ const MIN_MEMORY_LIMIT_MB: u64 = 1024;
 
 /// Return the installed physical memory in whole MiB for the settings limit.
 pub fn system_memory_limit_mb() -> Option<u64> {
-    let mut system = sysinfo::System::new();
+    let mut system = match new_sysinfo_system() {
+        Ok(system) => system,
+        Err(error) => {
+            warn!(error = %error, "System memory information is unavailable");
+            return None;
+        }
+    };
     system.refresh_memory();
     let megabytes = system.total_memory() / (1024 * 1024);
     (megabytes > 0).then_some(megabytes)
@@ -1053,25 +1070,53 @@ pub fn find_roblox_player() -> Option<PathBuf> {
 /// have other names; only this one is an actual game client.
 pub const ROBLOX_PLAYER_EXE: &str = "RobloxPlayerBeta.exe";
 
+fn new_sysinfo_system() -> Result<sysinfo::System, CoreError> {
+    sysinfo::System::new()
+        .map_err(|_| CoreError::Process("System process information is unavailable".into()))
+}
+
+fn query_roblox_pids() -> Result<std::collections::HashSet<u32>, CoreError> {
+    let mut sys = new_sysinfo_system()?;
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    Ok(sys
+        .processes()
+        .values()
+        .filter(|process| process.name().to_string_lossy() == ROBLOX_PLAYER_EXE)
+        .map(|process| process.pid().as_u32())
+        .collect())
+}
+
+fn process_query_indicates_roblox_running(
+    pids: Result<std::collections::HashSet<u32>, CoreError>,
+) -> bool {
+    match pids {
+        Ok(pids) => !pids.is_empty(),
+        Err(_) => true,
+    }
+}
+
 /// PIDs of every running Roblox client.
 ///
 /// The single source of truth for "what is running": [`is_roblox_running`],
 /// [`roblox_instance_count`] and [`crate::instances`] all read from this, so
 /// they cannot disagree about the same moment.
 pub fn roblox_pids() -> std::collections::HashSet<u32> {
-    use sysinfo::System;
-    let mut sys = System::new();
-    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-    sys.processes()
-        .values()
-        .filter(|p| p.name().to_string_lossy() == ROBLOX_PLAYER_EXE)
-        .map(|p| p.pid().as_u32())
-        .collect()
+    match query_roblox_pids() {
+        Ok(pids) => pids,
+        Err(error) => {
+            warn!(error = %error, "Roblox process enumeration failed");
+            std::collections::HashSet::new()
+        }
+    }
 }
 
 /// Check if any `RobloxPlayerBeta.exe` is currently running.
 pub fn is_roblox_running() -> bool {
-    !roblox_pids().is_empty()
+    let pids = query_roblox_pids();
+    if let Err(error) = &pids {
+        warn!(error = %error, "Could not confirm whether Roblox is running");
+    }
+    process_query_indicates_roblox_running(pids)
 }
 
 /// Enumerates live Roblox clients and reads each one's `launchtime`, keeping
@@ -1116,8 +1161,13 @@ impl LaunchTokenCache {
     /// Every running Roblox client, with whatever is known about who launched
     /// it.
     pub fn scan(&mut self) -> Vec<LiveClient> {
-        use sysinfo::System;
-        let mut sys = System::new();
+        let mut sys = match new_sysinfo_system() {
+            Ok(sys) => sys,
+            Err(error) => {
+                warn!(error = %error, "Roblox process scan is unavailable");
+                return Vec::new();
+            }
+        };
         sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
         let mut clients = Vec::new();
@@ -1164,8 +1214,7 @@ pub fn roblox_instance_count() -> usize {
 
 /// Kill all running Roblox player instances.
 pub fn kill_all_roblox() -> Result<usize, CoreError> {
-    use sysinfo::System;
-    let mut sys = System::new();
+    let mut sys = new_sysinfo_system()?;
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let pids: Vec<_> = sys
         .processes()
@@ -1187,8 +1236,13 @@ pub fn kill_all_roblox() -> Result<usize, CoreError> {
 /// "always running" instances). These stack up with multi-instance and aren't
 /// associated with an actual game session.
 pub fn kill_tray_roblox() -> usize {
-    use sysinfo::System;
-    let mut sys = System::new();
+    let mut sys = match new_sysinfo_system() {
+        Ok(sys) => sys,
+        Err(error) => {
+            warn!(error = %error, "Tray Roblox process scan is unavailable");
+            return 0;
+        }
+    };
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     let mut killed = 0usize;
     let roblox: Vec<_> = sys
@@ -1549,7 +1603,8 @@ pub fn kill_verified_instance(_pid: u32, _expected_launchtime: i64) -> Result<()
 fn windows_for_pids(
     pids: &std::collections::HashSet<u32>,
 ) -> Vec<(windows_sys::Win32::Foundation::HWND, u32)> {
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, TRUE};
+    use windows_sys::core::BOOL;
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, TRUE};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindowTextLengthW, GetWindowThreadProcessId, IsWindowVisible,
     };
@@ -2351,7 +2406,8 @@ fn calculate_monitor_grid(
 /// Enumerate all connected display monitors and their work areas.
 #[cfg(windows)]
 pub fn enumerate_monitors() -> Vec<MonitorGeometry> {
-    use windows_sys::Win32::Foundation::{BOOL, LPARAM, RECT, TRUE};
+    use windows_sys::core::BOOL;
+    use windows_sys::Win32::Foundation::{LPARAM, RECT, TRUE};
     use windows_sys::Win32::Graphics::Gdi::{
         EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFOEXW,
     };
@@ -2463,20 +2519,18 @@ pub fn enumerate_monitors() -> Vec<MonitorGeometry> {
 
 #[cfg(windows)]
 fn find_roblox_hwnds() -> Vec<windows_sys::Win32::Foundation::HWND> {
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, TRUE};
+    use windows_sys::core::BOOL;
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, TRUE};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible,
     };
 
-    let roblox_pids: std::collections::HashSet<u32> = {
-        use sysinfo::System;
-        let mut sys = System::new();
-        sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-        sys.processes()
-            .values()
-            .filter(|p| p.name().to_string_lossy() == "RobloxPlayerBeta.exe")
-            .map(|p| p.pid().as_u32())
-            .collect()
+    let roblox_pids = match query_roblox_pids() {
+        Ok(pids) => pids,
+        Err(error) => {
+            warn!(error = %error, "Roblox window enumeration is unavailable");
+            return Vec::new();
+        }
     };
 
     if roblox_pids.is_empty() {
@@ -2744,6 +2798,19 @@ mod tests {
         assert_eq!(process_memory_megabytes(1_048_575), 0);
         assert_eq!(process_memory_megabytes(1_048_576), 1);
         assert_eq!(process_memory_megabytes(2_500_000), 2);
+    }
+
+    #[test]
+    fn process_query_failure_blocks_launch_safety_checks() {
+        assert!(process_query_indicates_roblox_running(Err(
+            CoreError::Process("synthetic process query failure".into(),)
+        )));
+        assert!(process_query_indicates_roblox_running(Ok([123]
+            .into_iter()
+            .collect())));
+        assert!(!process_query_indicates_roblox_running(Ok(
+            Default::default()
+        )));
     }
 
     #[cfg(windows)]

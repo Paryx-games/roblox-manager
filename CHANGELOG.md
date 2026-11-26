@@ -11,6 +11,8 @@
 - Updated `@typescript-eslint/parser` from 8.72.1 to 8.73.0.
 - Updated `@vitejs/plugin-react` from 6.1.2 to 6.3.0.
 - Updated ESLint from 10.14.0 to 10.15.0.
+- Updated `sysinfo` from 0.39.6 to 0.40.4.
+- Updated `windows-sys` from 0.59.0 to 0.61.2.
 - Updated `wry` from 0.57.1 to 0.57.2.
 
 ### Fixed
