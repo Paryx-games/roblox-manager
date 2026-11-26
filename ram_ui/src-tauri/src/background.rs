@@ -51,6 +51,7 @@ pub async fn refresh_presence(
     if ids.is_empty() {
         return Ok(Vec::new());
     }
+    let history_generation = state.history.lock().ok().map(|history| history.generation);
     let viewers = {
         let runtime = state
             .runtime
@@ -73,16 +74,33 @@ pub async fn refresh_presence(
     }
     let mut updates = Vec::new();
     let mut failure = None;
+    let mut accounts_changed = false;
     for (viewer, ids) in groups {
         match refresh_presence_as(app, ids, viewer).await {
-            Ok(batch) => updates.extend(batch),
+            Ok((batch, changed, tracking_error)) => {
+                updates.extend(batch);
+                accounts_changed |= changed;
+                if let Some(error) = tracking_error {
+                    failure.get_or_insert(error);
+                }
+            }
             Err(error) => {
                 failure.get_or_insert(error);
             }
         }
     }
-    accounts::publish(app);
-    crate::history::publish(app);
+    if accounts_changed {
+        accounts::publish_summaries(app);
+    }
+    let history_changed = history_generation.is_some_and(|generation| {
+        state
+            .history
+            .lock()
+            .is_ok_and(|history| history.generation != generation)
+    });
+    if history_changed {
+        crate::history::publish(app);
+    }
     match failure {
         Some(error) => Err(error),
         None => Ok(updates),
@@ -120,7 +138,7 @@ async fn refresh_presence_as(
     app: &tauri::AppHandle,
     ids: Vec<u64>,
     viewer: u64,
-) -> Result<Vec<PresenceUpdate>, String> {
+) -> Result<(Vec<PresenceUpdate>, bool, Option<String>), String> {
     let state = app.state::<AppState>().inner().clone();
     let _gate = state.presence_cache.gate.lock().await;
     let credential_state = state.clone();
@@ -185,6 +203,7 @@ async fn refresh_presence_as(
         })
         .collect();
     let mut checked_presences = Vec::new();
+    let mut accounts_changed = false;
     {
         let mut runtime = state
             .runtime
@@ -216,12 +235,16 @@ async fn refresh_presence_as(
                         history.observe_presence(user_id, &presence, chrono::Utc::now());
                     }
                 }
-                account.last_presence = presence;
+                if account.last_presence != presence {
+                    account.last_presence = presence;
+                    accounts_changed = true;
+                }
             }
         }
     }
-    crate::instances::record_presence_check(&state, &checked_presences, checked_at)?;
-    Ok(updates)
+    let tracking_error =
+        crate::instances::record_presence_check(&state, &checked_presences, checked_at).err();
+    Ok((updates, accounts_changed, tracking_error))
 }
 
 async fn refresh_avatars(app: &tauri::AppHandle, ids: &[u64]) -> Result<(), String> {
@@ -235,7 +258,7 @@ async fn refresh_avatars(app: &tauri::AppHandle, ids: &[u64]) -> Result<(), Stri
         );
     }
     let state = app.state::<AppState>().inner().clone();
-    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+    let has_changes = tauri::async_runtime::spawn_blocking(move || -> Result<bool, String> {
         let mut runtime = state
             .runtime
             .lock()
@@ -254,11 +277,13 @@ async fn refresh_avatars(app: &tauri::AppHandle, ids: &[u64]) -> Result<(), Stri
             runtime.accounts = previous;
             return Err("Account avatars could not be saved".into());
         }
-        Ok(())
+        Ok(has_changes)
     })
     .await
     .map_err(|_| "Avatar refresh task failed")??;
-    accounts::publish(app);
+    if has_changes {
+        accounts::publish_summaries(app);
+    }
     Ok(())
 }
 
