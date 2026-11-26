@@ -6292,6 +6292,45 @@ button:focus-visible {
   max-height: calc(100vh - var(--space-12));
 }
 
+.startup-update-prompt {
+  width: min(100%, 500px);
+}
+
+.startup-update-notes {
+  border-top: var(--border-width) solid var(--border-default);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.startup-update-notes summary {
+  padding-block: var(--space-2);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.startup-update-notes summary:focus-visible {
+  outline: 2px solid var(--action-primary);
+  outline-offset: 2px;
+}
+
+.startup-update-notes .startup-changelog {
+  max-height: 24vh;
+  font-size: var(--text-xs);
+}
+
+.startup-update-notes .startup-changelog h2 {
+  font-size: var(--text-base);
+}
+
+.startup-update-notes .startup-changelog h3 {
+  margin-block: var(--space-3) var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.startup-update-actions {
+  flex-wrap: wrap;
+}
+
 @keyframes popup-enter {
   from {
     opacity: 0;

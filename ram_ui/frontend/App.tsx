@@ -17,7 +17,7 @@ import { ReleaseNotes } from "./components/ReleaseNotes";
 import { Walkthrough, walkthroughSteps } from "./components/Walkthrough";
 import { WalkthroughAccounts, type DemoAccountName } from "./components/WalkthroughAccounts";
 import { ConfirmModal } from "./ConfirmModal";
-import { benchmarkReady, acknowledgeStartup, checkReleaseUpdate, clearPassword, installReleaseUpdate, migrateLegacyData, openReleasePage, startupStatus, type StartupStatus } from "./lib/ipc";
+import { benchmarkReady, acknowledgeStartup, checkReleaseUpdate, clearPassword, installReleaseUpdate, migrateLegacyData, openReleasePage, skipReleaseUpdate, startupStatus, type StartupStatus } from "./lib/ipc";
 import { defaultPageVisibility, workspacePages, listInstances, listAccounts, getSettings, clearApplicationCaches, operationError, type SettingsConfig, type AccountSummary, type InstanceWorkspace, type LaunchProgress } from "./lib/ipc";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AccountsPage } from "./AccountsPage";
@@ -185,7 +185,8 @@ export function App() {
   const [isTourCompletionVisible, setIsTourCompletionVisible] = useState(false);
   const [selectedDemoAccount, setSelectedDemoAccount] = useState<DemoAccountName | null>(null);
   const [isMigrationDismissed, setIsMigrationDismissed] = useState(false);
-  const [update, setUpdate] = useState<[string, string] | null>(null);
+  const [update, setUpdate] = useState<[string, string, string] | null>(null);
+  const [updatePromptDismissed, setUpdatePromptDismissed] = useState(false);
   const [isReleaseDialogOpen, setIsReleaseDialogOpen] = useState(false);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -681,7 +682,36 @@ export function App() {
         onReturnToStep={() => navigateTo(walkthroughSteps[tutorialStep].page)}
       /> : startup?.changelog ? <Popup className="confirm-modal changelog-modal" backdropClassName="confirm-modal-backdrop" labelledBy="changelog-title">
         <h2 id="changelog-title">What's changed in RM</h2><ReleaseNotes markdown={startup.changelog} /><button className="account-button" type="button" disabled={isStartupPending} onClick={() => void completeStartup(() => acknowledgeStartup("version"))}>Continue</button>
-      </Popup> : startup?.passwordlessOffer ? <ConfirmModal title="Stop asking for a password on this PC?" message="Keep your account data encrypted and unlock it automatically on this PC. Keep a master password if you move your data between PCs." confirmLabel={isStartupPending ? "Updating..." : "Unlock automatically"} confirmDisabled={isStartupPending} confirmIcon="lock" onConfirm={() => void completeStartup(async () => { await clearPassword(); await acknowledgeStartup("passwordless"); })} onCancel={() => { if (!isStartupPending) void completeStartup(() => acknowledgeStartup("passwordless")); }} /> : browserPlaceId ? <ConfirmModal title="Launch this game through RM?" message={`Choose which account to use for game ${browserPlaceId} in Accounts.`} confirmLabel="Choose account" confirmIcon="game" onConfirm={() => { setPrefilledPlaceId(browserPlaceId); setBrowserPlaceId(null); navigateTo("Accounts"); }} onCancel={() => setBrowserPlaceId(null)} /> : null}
+      </Popup> : startup?.passwordlessOffer ? <ConfirmModal title="Stop asking for a password on this PC?" message="Keep your account data encrypted and unlock it automatically on this PC. Keep a master password if you move your data between PCs." confirmLabel={isStartupPending ? "Updating..." : "Unlock automatically"} confirmDisabled={isStartupPending} confirmIcon="lock" onConfirm={() => void completeStartup(async () => { await clearPassword(); await acknowledgeStartup("passwordless"); })} onCancel={() => { if (!isStartupPending) void completeStartup(() => acknowledgeStartup("passwordless")); }} /> : update && startup && !startup.changelog && !startup.passwordlessOffer && !isTourVisible && !(startup.legacyMigrationAvailable && !isMigrationDismissed) && !updatePromptDismissed && !pendingUpdateInstall ? <Popup className="confirm-modal startup-update-prompt" backdropClassName="confirm-modal-backdrop" labelledBy="startup-update-title" describedBy="startup-update-message">
+        <div className="confirm-modal-header"><h2 id="startup-update-title">A new version is available</h2></div>
+        <p id="startup-update-message" className="confirm-modal-message" role={updateError ? "alert" : undefined}>{updateError ?? `RM ${updateVersion} is ready to install.`}</p>
+        <details className="startup-update-notes">
+          <summary tabIndex={0}>What's new in RM {updateVersion}</summary>
+          {update[2] ? <ReleaseNotes markdown={update[2]} /> : <p>Release notes are not available.</p>}
+        </details>
+        <div className="confirm-modal-actions startup-update-actions">
+          <button className="account-button" type="button" disabled={isStartupPending || isInstallingUpdate} onClick={async () => {
+            if (!update) return;
+            setIsStartupPending(true);
+            try {
+              await skipReleaseUpdate(update[0]);
+              setUpdate(null);
+              setStartupError(null);
+            } catch (error) {
+              setStartupError(operationError(error, "Could not save the skipped version."));
+            } finally { setIsStartupPending(false); }
+          }}>{isStartupPending ? "Saving..." : "Skip"}</button>
+          <button className="account-button" type="button" disabled={isStartupPending || isInstallingUpdate} onClick={() => setUpdatePromptDismissed(true)}>Remind me later</button>
+          <button className="account-button primary" type="button" disabled={isStartupPending || isInstallingUpdate} onClick={() => {
+            if (settingsGuardRef.current?.isBusy) {
+              setUpdateError("Wait for settings to finish saving before installing the update.");
+              return;
+            }
+            setUpdatePromptDismissed(true);
+            void requestUpdateInstall();
+          }}>{isInstallingUpdate ? "Updating..." : "Update"}</button>
+        </div>
+      </Popup> : browserPlaceId ? <ConfirmModal title="Launch this game through RM?" message={`Choose which account to use for game ${browserPlaceId} in Accounts.`} confirmLabel="Choose account" confirmIcon="game" onConfirm={() => { setPrefilledPlaceId(browserPlaceId); setBrowserPlaceId(null); navigateTo("Accounts"); }} onCancel={() => setBrowserPlaceId(null)} /> : null}
       {startupError && <Toast item={{ id: 1, title: "Startup action needs attention", message: startupError, kind: "error", duration: "long" }} onDismiss={() => setStartupError(null)} />}
       {isTourCompletionVisible && displayedNav === "Accounts" && <div className="walkthrough-completion" role="status">You're ready. Use the highlighted + button to add an account.</div>}
     </div>
