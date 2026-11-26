@@ -50,11 +50,9 @@ type PageName =
   | "Settings";
 
 const WorkspacePageLayer = memo(function WorkspacePageLayer({
-  page,
   active,
   children,
 }: {
-  page: PageName;
   active: boolean;
   children: ReactNode;
 }) {
@@ -66,8 +64,7 @@ const WorkspacePageLayer = memo(function WorkspacePageLayer({
     </WorkspaceActiveContext.Provider>
   );
 }, (previous, next) =>
-  previous.page === next.page
-  && previous.active === next.active
+  previous.active === next.active
   && (!next.active || previous.children === next.children));
 
 const navItems: NavItem[] = [
@@ -628,7 +625,7 @@ export function App() {
         <div className="main-col" data-walkthrough="workspace">
           <div className="page-transition-viewport">
             {[...new Set([...visitedPages, displayedNav])].map(page => (
-              <WorkspacePageLayer key={page} page={page} active={page === displayedNav}>
+              <WorkspacePageLayer key={page} active={page === displayedNav}>
                 {renderPage(page)}
               </WorkspacePageLayer>
             ))}
