@@ -1603,7 +1603,8 @@ pub fn kill_verified_instance(_pid: u32, _expected_launchtime: i64) -> Result<()
 fn windows_for_pids(
     pids: &std::collections::HashSet<u32>,
 ) -> Vec<(windows_sys::Win32::Foundation::HWND, u32)> {
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, TRUE};
+    use windows_sys::core::BOOL;
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, TRUE};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindowTextLengthW, GetWindowThreadProcessId, IsWindowVisible,
     };
@@ -2405,7 +2406,8 @@ fn calculate_monitor_grid(
 /// Enumerate all connected display monitors and their work areas.
 #[cfg(windows)]
 pub fn enumerate_monitors() -> Vec<MonitorGeometry> {
-    use windows_sys::Win32::Foundation::{BOOL, LPARAM, RECT, TRUE};
+    use windows_sys::core::BOOL;
+    use windows_sys::Win32::Foundation::{LPARAM, RECT, TRUE};
     use windows_sys::Win32::Graphics::Gdi::{
         EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFOEXW,
     };
@@ -2517,7 +2519,8 @@ pub fn enumerate_monitors() -> Vec<MonitorGeometry> {
 
 #[cfg(windows)]
 fn find_roblox_hwnds() -> Vec<windows_sys::Win32::Foundation::HWND> {
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, TRUE};
+    use windows_sys::core::BOOL;
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, TRUE};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible,
     };
