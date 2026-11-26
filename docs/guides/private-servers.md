@@ -26,6 +26,10 @@ Each private launch resolves a fresh UUID access code from the invitation with t
 
 Search or sort saved servers by name, recency or status. The row's menu offers link copying, editing and removal. Editing a bookmark does not change the underlying Roblox server. Copying a private link is an explicit clipboard action; do not share it accidentally.
 
+## Join without saving a bookmark
+
+In **Accounts**, enter a Place ID and paste a Roblox share link or query (for example, `?code=...&type=Server`) into **Private server link or code**. Direct private-server links and query values such as `?privateServerLinkCode=...` are also accepted, as is the direct link code by itself. Direct codes use the entered Place ID; share invitations resolve their destination. RM resolves access separately for each selected account. For details on the launch fields, see [Launch games](launch-games.md).
+
 ## Check links and ownership
 
 RM checks saved links in the background after accounts unlock, even while another page is open. Both badges use a memory cache for five minutes and keep their previous values during refresh. Choose **Refresh status** to queue fresh checks, or use **Check link and ownership** in one row's menu. Checks run one at a time and time out after 60 seconds per server. Account or bookmark changes invalidate cached results; locking or clearing application caches removes them. Results are discarded when RM exits.

@@ -1128,6 +1128,71 @@ pub fn parse_private_server_url(input: &str) -> Result<ParsedPrivateServerUrl, &
     Err("Enter a valid Roblox private server URL")
 }
 
+pub fn parse_private_server_launch_input(
+    input: &str,
+    place_id: u64,
+) -> Result<Option<ParsedPrivateServerUrl>, &'static str> {
+    let input = input.trim();
+    if input.is_empty() {
+        return Ok(None);
+    }
+    let error = "Enter a valid Roblox private server link or code";
+    if input.len() > 4096 {
+        return Err(error);
+    }
+    if let Ok(parsed) = parse_private_server_url(input) {
+        return Ok(Some(parsed));
+    }
+
+    let query = input.strip_prefix('?').unwrap_or(input);
+    if !query.contains('=') {
+        if place_id > 0 && valid_private_server_code(query) {
+            return Ok(Some(ParsedPrivateServerUrl::Direct {
+                place_id,
+                link_code: query.to_string(),
+            }));
+        }
+        return Err(error);
+    }
+
+    let mut share_codes = Vec::new();
+    let mut private_server_codes = Vec::new();
+    let mut link_types = Vec::new();
+    let query_url =
+        reqwest::Url::parse(&format!("https://www.roblox.com/?{query}")).map_err(|_| error)?;
+    for (key, value) in query_url.query_pairs() {
+        if key.eq_ignore_ascii_case("code") {
+            share_codes.push(value.into_owned());
+        } else if key.eq_ignore_ascii_case("privateServerLinkCode") {
+            private_server_codes.push(value.into_owned());
+        } else if key.eq_ignore_ascii_case("type") {
+            link_types.push(value.into_owned());
+        }
+    }
+    if link_types.len() > 1
+        || link_types
+            .first()
+            .is_some_and(|value| !value.eq_ignore_ascii_case("Server"))
+    {
+        return Err(error);
+    }
+
+    match (share_codes.as_slice(), private_server_codes.as_slice()) {
+        ([share_code], []) if valid_private_server_code(share_code) => {
+            Ok(Some(ParsedPrivateServerUrl::Share {
+                share_code: share_code.clone(),
+            }))
+        }
+        ([], [link_code]) if place_id > 0 && valid_private_server_code(link_code) => {
+            Ok(Some(ParsedPrivateServerUrl::Direct {
+                place_id,
+                link_code: link_code.clone(),
+            }))
+        }
+        _ => Err(error),
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, serde::Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum PrivateServerOwnerLookup {
@@ -1650,6 +1715,63 @@ mod tests {
                 Some("Enter a valid Roblox private server URL")
             );
         }
+    }
+
+    #[test]
+    fn private_server_launch_input_accepts_query_strings_and_codes() {
+        assert!(parse_private_server_launch_input("", 123)
+            .unwrap()
+            .is_none());
+        match parse_private_server_launch_input("?code=synthetic-share&type=Server", 123)
+            .unwrap()
+            .unwrap()
+        {
+            ParsedPrivateServerUrl::Share { share_code } => {
+                assert_eq!(share_code, "synthetic-share")
+            }
+            _ => panic!("Expected a share link"),
+        }
+        for input in [
+            "?privateServerLinkCode=synthetic-direct",
+            "synthetic-direct",
+        ] {
+            match parse_private_server_launch_input(input, 123)
+                .unwrap()
+                .unwrap()
+            {
+                ParsedPrivateServerUrl::Direct {
+                    place_id,
+                    link_code,
+                } => {
+                    assert_eq!(place_id, 123);
+                    assert_eq!(link_code, "synthetic-direct");
+                }
+                _ => panic!("Expected a direct private server link"),
+            }
+        }
+        match parse_private_server_launch_input(
+            "https://www.roblox.com/games/456/Synthetic?privateServerLinkCode=synthetic-direct",
+            123,
+        )
+        .unwrap()
+        .unwrap()
+        {
+            ParsedPrivateServerUrl::Direct { place_id, .. } => assert_eq!(place_id, 456),
+            _ => panic!("Expected a direct private server link"),
+        }
+        for (input, place_id) in [
+            ("?code=synthetic-share&type=Experience", 123),
+            ("?code=first&code=second&type=Server", 123),
+            (
+                "?code=synthetic-share&privateServerLinkCode=synthetic-direct",
+                123,
+            ),
+            ("?privateServerLinkCode=synthetic-direct", 0),
+            ("not a code", 123),
+        ] {
+            assert!(parse_private_server_launch_input(input, place_id).is_err());
+        }
+        assert!(parse_private_server_launch_input(&"a".repeat(4097), 123).is_err());
     }
 
     #[test]

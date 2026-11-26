@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Private-server launches:** Join directly from Accounts with a Roblox share link/query or private-server link code, without first saving a bookmark.
+
 ## v2.6.1
 
 ### Changed

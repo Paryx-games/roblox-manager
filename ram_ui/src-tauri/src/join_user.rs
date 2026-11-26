@@ -344,6 +344,7 @@ pub async fn join_user_accounts(
                         data: None,
                         link_code: None,
                         access_code: None,
+                        share_code: None,
                         overrides: launcher::LaunchOverrides::default(),
                     },
                 )
@@ -456,6 +457,7 @@ async fn temporary_join(
                     data: None,
                     link_code: None,
                     access_code: None,
+                    share_code: None,
                     overrides: launcher::LaunchOverrides::default(),
                 },
             )

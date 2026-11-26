@@ -19,7 +19,9 @@ Choose the Roblox account for this session.
 
 Select the Roblox game you want to launch.
 
-Enter its numeric **Place ID**. Optionally provide a **Job ID** to target a particular server and supported launch **Data**. A Job ID is a server identifier, not another Place ID. Saved presets fill these fields for you; private-server links belong in **Private Servers**.
+Enter its numeric **Place ID**. Optionally provide a **Job ID** to target a particular server. The launch controls keep Place ID and Job ID together, with **Data** and **Private server link or code** on the next row. A Job ID is a server identifier, not another Place ID.
+
+To join a private server without saving a bookmark, paste a Roblox share link or query such as `?code=...&type=Server`, or a direct `?privateServerLinkCode=...` value, into **Private server link or code**. You can also paste the private-server link code by itself. A direct link code uses the Place ID above; a share invitation resolves its own destination. RM resolves access for each selected account before launching. For reusable bookmarks, use **Private Servers** instead.
 {% endstep %}
 
 {% step %}
