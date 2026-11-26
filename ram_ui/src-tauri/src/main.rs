@@ -1595,7 +1595,7 @@ async fn save_settings(
 ) -> Result<SettingsConfig, String> {
     let state = state.inner().clone();
     let settings_app = app.clone();
-    let settings = tauri::async_runtime::spawn_blocking(move || {
+    let (settings, anonymize_names_changed) = tauri::async_runtime::spawn_blocking(move || {
         let mut runtime = state
             .runtime
             .lock()
@@ -1603,6 +1603,7 @@ async fn save_settings(
         let mut candidate = runtime.config.clone();
         let pages = settings.page_visibility.clone();
         settings.apply_to_config(&mut candidate)?;
+        let anonymize_names_changed = candidate.anonymize_names != runtime.config.anonymize_names;
         let capture_changed = candidate.hide_from_screen_capture != runtime.config.hide_from_screen_capture;
         let window = if capture_changed {
             let window = settings_app.get_webview_window("main").ok_or("RM's main window is unavailable. Try saving again.")?;
@@ -1620,11 +1621,13 @@ async fn save_settings(
         runtime.config = candidate;
         let mut config = SettingsConfig::from_config(&runtime.config);
         config.page_visibility = pages;
-        Ok::<SettingsConfig, String>(config)
+        Ok::<(SettingsConfig, bool), String>((config, anonymize_names_changed))
     })
     .await
     .map_err(|_| "Settings save task failed".to_string())??;
-    accounts::publish(&app);
+    if anonymize_names_changed {
+        accounts::publish_summaries(&app);
+    }
     let _ = app.emit("settings-updated", &settings);
     Ok(settings)
 }
@@ -1869,12 +1872,17 @@ async fn clean_orphaned_data(state: tauri::State<'_, AppState>) -> Result<usize,
 }
 
 #[tauri::command]
-fn clear_application_caches(state: tauri::State<'_, AppState>) -> Result<usize, String> {
-    Ok(ram_core::cached_api::clear()
-        + state.friends.clear()
-        + state.private_server_checks.clear()
-        + state.inventory_cache.clear()
-        + state.presence_cache.clear())
+async fn clear_application_caches(state: tauri::State<'_, AppState>) -> Result<usize, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(ram_core::cached_api::clear()
+            + state.friends.clear()
+            + state.private_server_checks.clear()
+            + state.inventory_cache.clear()
+            + state.presence_cache.clear())
+    })
+    .await
+    .map_err(|_| "Cache clearing task failed".to_string())?
 }
 
 #[tauri::command]

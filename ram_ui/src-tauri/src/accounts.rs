@@ -194,6 +194,10 @@ pub fn summaries(state: &AppState) -> Result<Vec<AccountSummary>, String> {
 
 pub fn publish(app: &tauri::AppHandle) {
     crate::history::observe_moderation(app);
+    publish_summaries(app);
+}
+
+pub fn publish_summaries(app: &tauri::AppHandle) {
     if let Ok(accounts) = summaries(&app.state::<AppState>()) {
         let _ = app.emit("accounts-updated", &accounts);
     }

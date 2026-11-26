@@ -230,7 +230,7 @@ impl ModerationInfo {
 }
 
 /// Roblox user presence information.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct Presence {
     /// 0 = Offline, 1 = Online, 2 = InGame, 3 = InStudio
     pub user_presence_type: u8,

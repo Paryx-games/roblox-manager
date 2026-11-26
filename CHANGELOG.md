@@ -1,10 +1,15 @@
 # Changelog
 
-## Unreleased
+## v2.7.0
 
 ### Added
 
 - **Private-server launches:** Join directly from Accounts with a Roblox share link/query or private-server link code, without first saving a bookmark.
+
+### Fixed
+
+- Keep the window responsive while clearing application caches.
+- Avoid unnecessary workspace renders and account/history updates during unchanged background refreshes.
 
 ## v2.6.1
 

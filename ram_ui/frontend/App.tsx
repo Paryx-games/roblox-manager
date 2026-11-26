@@ -1,5 +1,13 @@
 import { WorkspaceActiveContext } from "./hooks/useWorkspaceActive";
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { listen } from "@tauri-apps/api/event";
 import { InstancesPage } from "./InstancesPage";
 import { Toast, type ToastItem } from "./Toast";
@@ -40,6 +48,24 @@ type PageName =
   | "Inventories"
   | "Asset Manager"
   | "Settings";
+
+const WorkspacePageLayer = memo(function WorkspacePageLayer({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <WorkspaceActiveContext.Provider value={active}>
+      <div className="page-transition-layer" hidden={!active}>
+        {children}
+      </div>
+    </WorkspaceActiveContext.Provider>
+  );
+}, (previous, next) =>
+  previous.active === next.active
+  && (!next.active || previous.children === next.children));
 
 const navItems: NavItem[] = [
   { label: "Accounts", icon: "id-card", page: "Accounts" },
@@ -313,7 +339,6 @@ export function App() {
           hasAccountEvent = true;
           setAccounts(event.payload);
           setAccountsReady(true); setAccountsError(null);
-          if (event.payload.length > 0) void refreshStartup();
         }),
         listen<LaunchProgress>("launch-progress", (event) => {
           if (!isActive) return;
@@ -600,9 +625,9 @@ export function App() {
         <div className="main-col" data-walkthrough="workspace">
           <div className="page-transition-viewport">
             {[...new Set([...visitedPages, displayedNav])].map(page => (
-              <WorkspaceActiveContext.Provider key={page} value={page === displayedNav}><div className="page-transition-layer" hidden={page !== displayedNav}>
+              <WorkspacePageLayer key={page} active={page === displayedNav}>
                 {renderPage(page)}
-              </div></WorkspaceActiveContext.Provider>
+              </WorkspacePageLayer>
             ))}
             <span className="sr-only" aria-live="polite">{displayedNav} page</span>
           </div>
