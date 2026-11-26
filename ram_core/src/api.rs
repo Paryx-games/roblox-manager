@@ -812,13 +812,15 @@ pub async fn resolve_share_link(
 struct GitHubRelease {
     tag_name: String,
     html_url: String,
+    #[serde(default)]
+    body: Option<String>,
 }
 
-/// Check for a newer release on GitHub. Returns `Some((version, url))` if an
-/// update is available, `None` if already on the latest.
+/// Check for a newer release on GitHub. Returns its version, URL, and notes if
+/// an update is available, or `None` if already on the latest.
 pub async fn check_for_updates(
     current_version: &str,
-) -> Result<Option<(String, String)>, CoreError> {
+) -> Result<Option<(String, String, String)>, CoreError> {
     let client = reqwest::Client::builder()
         .user_agent("RM-update-check")
         .build()?;
@@ -835,7 +837,13 @@ pub async fn check_for_updates(
     let local = current_version.trim_start_matches('v');
 
     if remote != local {
-        Ok(Some((remote.to_string(), release.html_url)))
+        let notes = release
+            .body
+            .unwrap_or_default()
+            .chars()
+            .take(16 * 1024)
+            .collect();
+        Ok(Some((remote.to_string(), release.html_url, notes)))
     } else {
         Ok(None)
     }

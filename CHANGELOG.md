@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.7.1
+
+### Added
+
+- I can choose Update, Skip, or Remind me later from the startup prompt, and expand the release notes when I want them.
+
 ## v2.7.0
 
 ### Added

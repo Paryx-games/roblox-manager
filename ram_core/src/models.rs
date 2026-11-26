@@ -335,6 +335,9 @@ pub struct AppConfig {
     /// Show the release update link in the top bar.
     #[serde(default = "default_true")]
     pub show_update_notifications: bool,
+    /// Stable release the user chose to skip in the startup prompt.
+    #[serde(default)]
+    pub skipped_update_version: Option<String>,
     /// Keep the last selected account available after restarting RM.
     #[serde(default)]
     pub remember_selected_account: bool,
@@ -694,6 +697,7 @@ impl Default for AppConfig {
             compact_actions: true,
             refresh_on_startup: false,
             show_update_notifications: true,
+            skipped_update_version: None,
             remember_selected_account: false,
             verbose_launch_diagnostics: false,
             use_credential_manager: false,

@@ -3818,6 +3818,7 @@ fn main() {
             lifecycle::migrate_legacy_data,
             lifecycle::reset_account_store,
             lifecycle::check_release_update,
+            lifecycle::skip_release_update,
             lifecycle::install_release_update,
             lifecycle::open_release_page,
             list_accounts,

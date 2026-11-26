@@ -307,23 +307,63 @@ pub async fn reset_account_store(
 #[tauri::command]
 pub async fn check_release_update(
     state: tauri::State<'_, AppState>,
-) -> Result<Option<(String, String)>, String> {
-    if !state
-        .runtime
-        .lock()
-        .map_err(|_| "Application state unavailable")?
-        .config
-        .show_update_notifications
-    {
+) -> Result<Option<(String, String, String)>, String> {
+    let (enabled, skipped_version) = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable")?;
+        (
+            runtime.config.show_update_notifications,
+            runtime.config.skipped_update_version.clone(),
+        )
+    };
+    if !enabled {
         return Ok(None);
     }
     let update = ram_core::api::check_for_updates(env!("CARGO_PKG_VERSION"))
         .await
         .map_err(|_| "The update check could not be completed")?;
-    Ok(update.filter(|(version, url)| {
+    Ok(update.filter(|(version, url, _)| {
         ram_core::api::is_newer_stable_release(version, env!("CARGO_PKG_VERSION"))
             && url.starts_with("https://github.com/Paryx-games/roblox-manager/releases/")
+            && skipped_version.as_deref() != Some(version.as_str())
     }))
+}
+
+#[tauri::command]
+pub async fn skip_release_update(
+    state: tauri::State<'_, AppState>,
+    version: String,
+) -> Result<(), String> {
+    let version = version.trim_start_matches('v');
+    let components = version.split('.').collect::<Vec<_>>();
+    if version.len() > 32
+        || components.len() != 3
+        || components
+            .iter()
+            .any(|part| part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()))
+        || !ram_core::api::is_newer_stable_release(version, env!("CARGO_PKG_VERSION"))
+    {
+        return Err("The skipped update version is invalid".into());
+    }
+    let version = version.to_string();
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "Application state unavailable")?;
+        let mut candidate = runtime.config.clone();
+        candidate.skipped_update_version = Some(version);
+        candidate
+            .save(&runtime.config_path)
+            .map_err(|_| "The update choice could not be saved")?;
+        runtime.config = candidate;
+        Ok(())
+    })
+    .await
+    .map_err(|_| "The update choice task failed")?
 }
 
 #[tauri::command]
